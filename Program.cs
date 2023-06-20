@@ -5,7 +5,10 @@ using VMSystem.VMS;
 using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.DATABASE;
 using VMSystem.AGV;
+using AGVSystemCommonNet6.Log;
 
+LOG.SetLogFolderName("VMS LOG");
+LOG.INFO("VMS System Start");
 var builder = WebApplication.CreateBuilder(args);
 string DBConnection = builder.Configuration.GetConnectionString("DefaultConnection");
 Directory.CreateDirectory(Path.GetDirectoryName(DBConnection.Split('=')[1]));

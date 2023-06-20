@@ -3,6 +3,7 @@ using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.TASK;
 using static System.Collections.Specialized.BitVector32;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using Microsoft.AspNetCore.Mvc.Diagnostics;
 
 namespace VMSystem.AGV
 {
@@ -26,7 +27,7 @@ namespace VMSystem.AGV
                     {
 
                         batteryLevelSim = agv_data.BatteryLevel;
-                        agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
+                        //agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
                     }
                 }
                 BatterSimulation();
@@ -34,7 +35,7 @@ namespace VMSystem.AGV
         }
         public clsTaskDto ActionRequestHandler(clsTaskDownloadData data)
         {
-            agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN ;
+            agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN;
             MoveTask(data);
             return new clsTaskDto
             {
@@ -56,7 +57,7 @@ namespace VMSystem.AGV
                     TaskSequence = data.Task_Sequence,
                     TaskSimplex = data.Task_Simplex,
                     TimeStamp = DateTime.Now.ToString(),
-                    TaskStatus = 3
+                    TaskStatus = TASK_RUN_STATUS.ACTION_START
                 };
                 dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
 
@@ -68,7 +69,7 @@ namespace VMSystem.AGV
                     Thread.Sleep(1000);
                     if (action == ACTION_TYPE.Load)
                     {
-                        agv.states.CSTID = new string[] { "", "" };
+                        agv.states.CSTID = new string[0];
                     }
                     else
                     {
@@ -77,19 +78,20 @@ namespace VMSystem.AGV
                     NewMethod(action, Trajectory.Reverse().ToArray(), stateDto);
                 }
 
-
                 double finalTheta = Trajectory.Last().Theta;
-                SimulationThetaChange(agv.states.Corrdination.Theta, finalTheta);
-                agv.states.Corrdination.Theta = finalTheta;
+                SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
+                agv.states.Coordination.Theta = finalTheta;
 
                 Thread.Sleep(500);
 
-                if (action == ACTION_TYPE.Charge)
+                StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
+
+                if (agv.currentMapStation.IsChargeAble())
                     agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
                 else
                     agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
 
-                stateDto.TaskStatus = 4;
+                stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
                 dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
 
             });
@@ -104,9 +106,9 @@ namespace VMSystem.AGV
             foreach (clsMapPoint station in Trajectory)
             {
                 int currentTag = agv.states.Last_Visited_Node;
-                double currentX = agv.states.Corrdination.X;
-                double currentY = agv.states.Corrdination.Y;
-                double currentAngle = agv.states.Corrdination.Theta;
+                double currentX = agv.states.Coordination.X;
+                double currentY = agv.states.Coordination.Y;
+                double currentAngle = agv.states.Coordination.Theta;
                 int stationTag = station.Point_ID;
 
                 if (currentTag == stationTag)
@@ -130,16 +132,15 @@ namespace VMSystem.AGV
                     }
                     double rotateTime = Math.Abs(angleDiff) / rotateSpeed; // 计算旋转时间 在 rotateTime 时间内将 AGV 旋转到目标角度
                     double moveTime = Math.Sqrt(deltaX * deltaX + deltaY * deltaY) / moveSpeed;
-                    SimulationThetaChange(agv.states.Corrdination.Theta, targetAngle);
-                    agv.states.Corrdination.Theta = targetAngle;
+                    SimulationThetaChange(agv.states.Coordination.Theta, targetAngle);
+                    agv.states.Coordination.Theta = targetAngle;
                 }
-                agv.states.Corrdination.X = station.X;
-                agv.states.Corrdination.Y = station.Y;
+                agv.states.Coordination.X = station.X;
+                agv.states.Coordination.Y = station.Y;
                 Thread.Sleep(400);
                 agv.states.Last_Visited_Node = stationTag;
-                Console.WriteLine($"AGV 到達{stationTag}");
                 stateDto.PointIndex = idx;
-                stateDto.TaskStatus = 1;
+                stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                 dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                 idx += 1;
             }
@@ -165,7 +166,7 @@ namespace VMSystem.AGV
                 double rotatedAngele = 0;
                 while (rotatedAngele <= shortestRotationAngle)
                 {
-                    agv.states.Corrdination.Theta -= deltaTheta;
+                    agv.states.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
                 }
@@ -177,7 +178,7 @@ namespace VMSystem.AGV
                 double rotatedAngele = 0;
                 while (rotatedAngele <= shortestRotationAngle)
                 {
-                    agv.states.Corrdination.Theta += deltaTheta;
+                    agv.states.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
                 }
@@ -214,8 +215,10 @@ namespace VMSystem.AGV
                         }
                         else
                         {
-                            batteryLevelSim -= .5;//跑貨耗電比較快
+                            batteryLevelSim -= 5.5;//跑貨耗電比較快
                         }
+                        if (batteryLevelSim <= 0)
+                            batteryLevelSim = 1;
                     }
                     agv.states.Electric_Volume = new double[2] { batteryLevelSim, batteryLevelSim };
                     _ = Task.Factory.StartNew(() =>

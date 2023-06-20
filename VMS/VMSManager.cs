@@ -11,13 +11,15 @@ using System.Threading.Tasks;
 using VMSystem.AGV;
 using VMSystem.ViewModel;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using System.Diagnostics;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem.VMS
 {
     public class VMSManager
     {
         public static GPMForkAGVVMSEntity ForkAGVVMS;
-
+        public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         internal static List<IAGV> AllAGV
         {
             get
@@ -41,10 +43,15 @@ namespace VMSystem.VMS
         internal static void Initialize(ConfigurationManager configuration)
         {
 
-            Dictionary<string, object> settings = AppSettingsHelper.GetAppsettings();
-            var agvlistDict = JsonConvert.DeserializeObject<Dictionary<string, clsConnections>>(settings["AGV_List"].ToString());
-            var agvList = agvlistDict.Select(kp => (IAGV)new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
-            ForkAGVVMS = new GPMForkAGVVMSEntity(agvList);
+            if (Debugger.IsAttached)
+                ForkAGVVMS = new GPMForkAGVVMSEntity();
+            else
+            {
+                Dictionary<string, object> settings = AppSettingsHelper.GetAppsettings();
+                var agvlistDict = JsonConvert.DeserializeObject<Dictionary<string, clsConnections>>(settings["AGV_List"].ToString());
+                var agvList = agvlistDict.Select(kp => (IAGV)new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
+                ForkAGVVMS = new GPMForkAGVVMSEntity(agvList);
+            }
 
         }
 
@@ -125,10 +132,14 @@ namespace VMSystem.VMS
 
             if (agv != null)
             {
+                if( (taskData.Action== ACTION_TYPE.Charge| taskData.Action == ACTION_TYPE.Park) && taskData.To_Station == "-1") 
+                {
+
+                }
+
                 if (CheckTaskDataValid(agv, ref taskData))
                 {
-                    //agv.taskDispatchModule.AddTask(taskData);
-                    return true;
+                    return CheckCSTStateByAction(agv, taskData.Action);
                 }
                 else
                     return false;
@@ -137,6 +148,26 @@ namespace VMSystem.VMS
             {
                 return false;
             }
+        }
+
+        private static bool CheckCSTStateByAction(IAGV agv, ACTION_TYPE action)
+        {
+            bool IsAGVHasCarrier = agv.states.Cargo_Status != 0;
+            if (action == ACTION_TYPE.Load)//放貨
+                if (!IsAGVHasCarrier)
+                {
+                    agv.AddNewAlarm(ALARMS.CST_STATUS_CHECK_FAIL, ALARM_SOURCE.AGVS);
+                    return false;
+                }
+
+            if (action == ACTION_TYPE.Unload | action == ACTION_TYPE.Carry | action == ACTION_TYPE.Charge)
+                if (IsAGVHasCarrier)
+                {
+                    agv.AddNewAlarm(ALARMS.CST_STATUS_CHECK_FAIL, ALARM_SOURCE.AGVS);
+                    return false;
+                }
+
+            return true;
         }
 
         /// <summary>
@@ -156,6 +187,8 @@ namespace VMSystem.VMS
             }
             else if (!isToTagFormated)
                 return false;
+            if (FromStationTag == -1)
+                FromStationTag = agv.states.Last_Visited_Node;
             //
             if (action == ACTION_TYPE.Charge)
             {
@@ -167,9 +200,12 @@ namespace VMSystem.VMS
                 {
 
                     List<MapStation> chargeableStations = StaMap.GetChargeableStations();
-                    chargeableStations = chargeableStations.FindAll(sta => ChargeableMatch(sta));
+                    //chargeableStations = chargeableStations.FindAll(sta => ChargeableMatch(sta));
                     //先不考慮交通問題 挑一個最近的
-                    chargeableStations = chargeableStations.OrderBy(st => st.CalculateDistance(agv.states.Corrdination.X, agv.states.Corrdination.Y)).ToList();
+                    StaMap.TryGetPointByTagNumber(FromStationTag, out MapStation fromStation);
+                    var distances = chargeableStations.ToDictionary(st => st.Name, st => st.CalculateDistance(fromStation.X, fromStation.Y));
+                   LOG.INFO(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray())) ;
+                    chargeableStations = chargeableStations.OrderBy(st => st.CalculateDistance(fromStation.X, fromStation.Y)).ToList();
                     if (chargeableStations.Count > 0)
                     {
                         ToStationTag = chargeableStations.First().TagNumber;

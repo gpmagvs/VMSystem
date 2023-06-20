@@ -9,21 +9,23 @@ using System.Diagnostics;
 using static AGVSystemCommonNet6.TASK.clsTaskDto;
 using static VMSystem.TrafficControlCenter;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using Newtonsoft.Json;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem.AGV
 {
     /// <summary>
     /// 任務派送模組
     /// </summary>
-    public class clsAGVTaskDisaptchModule : IAGVTaskDispather
+    public partial class clsAGVTaskDisaptchModule : IAGVTaskDispather
     {
         public delegate clsTrafficState OnNavigationTaskCreateHander(IAGV agv, clsMapPoint[] trajectory);
         public static OnNavigationTaskCreateHander OnAGVSOnlineModeChangedRequest;
-        public readonly IAGV agv;
+        public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
-        public bool IsAGVExecutable => (agv.main_state == clsEnums.MAIN_STATUS.IDLE | agv.main_state == clsEnums.MAIN_STATUS.Charging) && agv.online_state == clsEnums.ONLINE_STATE.ONLINE;
+        public bool IsAGVExecutable => agv == null ? false : (agv.main_state == clsEnums.MAIN_STATUS.IDLE | agv.main_state == clsEnums.MAIN_STATUS.Charging) && agv.online_state == clsEnums.ONLINE_STATE.ONLINE;
         private string HttpHost => $"http://{agv.connections.HostIP}:{agv.connections.HostPort}";
-        public List<clsTaskDto> taskList
+        public virtual List<clsTaskDto> taskList
         {
             get
             {
@@ -36,8 +38,11 @@ namespace VMSystem.AGV
 
         public List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
 
-        private TaskDatabaseHelper dbHelper = new TaskDatabaseHelper();
-
+        protected TaskDatabaseHelper dbHelper = new TaskDatabaseHelper();
+        public clsAGVTaskDisaptchModule()
+        {
+            TaskAssignWorker();
+        }
         public clsAGVTaskDisaptchModule(IAGV agv)
         {
             this.agv = agv;
@@ -52,7 +57,7 @@ namespace VMSystem.AGV
         }
 
 
-        private void TaskAssignWorker()
+        protected virtual void TaskAssignWorker()
         {
             Task.Run(async () =>
             {
@@ -70,15 +75,28 @@ namespace VMSystem.AGV
                         continue;
                     //將任務依照優先度排序
                     var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
-                    ExecutingTask = taskOrderedByPriority.First();
+                    var _ExecutingTask = taskOrderedByPriority.First();
+
+                    if (!BeforeDispatchTaskWorkCheck(_ExecutingTask, out ALARMS alarm_code))
+                    {
+                        ExecutingTask = _ExecutingTask;
+                        AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
+                        ExecutingTask = null;
+                        continue;
+                    }
+                    ExecutingTask = _ExecutingTask;
                     ExecuteTaskAsync(ExecutingTask);
+                    //更新
+                    //ExecutingTask.State = TASK_RUN_STATUS.WAIT;
                 }
             });
         }
+
+
         private Dictionary<string, TASK_RUN_STATUS> ExecutingJobsStates = new Dictionary<string, TASK_RUN_STATUS>();
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            ExecutingTask.State = TASK_RUN_STATUS.WAIT;
+
             if (executingTask.Action == ACTION_TYPE.Charge && agv.main_state == clsEnums.MAIN_STATUS.Charging)
             {
                 agv.AddNewAlarm(ALARMS.GET_CHARGE_TASK_BUT_AGV_CHARGING_ALREADY, source: ALARM_SOURCE.AGVS);
@@ -88,7 +106,6 @@ namespace VMSystem.AGV
 
                 jobs = CreateAGVActionJobs(executingTask);
                 ExecutingJobsStates = jobs.ToDictionary(jb => jb.Task_Simplex, jb => TASK_RUN_STATUS.WAIT);
-                dbHelper.ModifyFromToStation(ExecutingTask, agv.states.Last_Visited_Node, jobs.Last().ExecutingTrajecory.Last().Point_ID);
                 for (int i = 0; i < jobs.Count; i++)
                 {
                     clsTaskDownloadData job = jobs[i];
@@ -100,7 +117,7 @@ namespace VMSystem.AGV
                     {
                         Console.WriteLine($"{agv.Name} 任務暫停:交管中心發現有AGV卡在導航路線上");
                         ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                        dbHelper.ModifyState(ExecutingTask, TASK_RUN_STATUS.FAILURE);
+                        dbHelper.Update(ExecutingTask);
                         taskList.Remove(executingTask);
                         ExecutingTask = null;
                         jobs.Clear();
@@ -114,16 +131,19 @@ namespace VMSystem.AGV
                             //  job.ReplanTrajectort(trafficState.Trajectory);
                         }
                     }
+
+
+                    string json = JsonConvert.SerializeObject(job, Formatting.Indented);
                     clsTaskDto response = agv.simulationMode ? AgvSimulation.ActionRequestHandler(job) : await SendActionRequestAsync(job);
                     ExecutingTask.State = response.State;
                     if (ExecutingTask.State == TASK_RUN_STATUS.FAILURE)
                     {
                         ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
                         ExecutingTask.FailureReason = response.FailureReason;
-                        dbHelper.ModifyState(ExecutingTask, TASK_RUN_STATUS.FAILURE);
+                        dbHelper.Update(ExecutingTask);
                         break;
                     }
-                    dbHelper.ModifyState(ExecutingTask, ExecutingTask.State);
+                    dbHelper.Update(ExecutingTask);
                     string task_simplex = job.Task_Simplex;
                     //等待結束或失敗了
                     while (ExecutingJobsStates[task_simplex] != TASK_RUN_STATUS.ACTION_FINISH)
@@ -136,35 +156,55 @@ namespace VMSystem.AGV
 
             }
             Console.WriteLine($"任務 {executingTask.TaskName} 完成");
+            ExecutingTask.FinishTime = DateTime.Now;
             ExecutingTask.State = TASK_RUN_STATUS.ACTION_FINISH;
-            dbHelper.ModifyState(ExecutingTask, TASK_RUN_STATUS.ACTION_FINISH);
+            dbHelper.Update(ExecutingTask);
             taskList.Remove(executingTask);
             ExecutingTask = null;
             jobs.Clear();
         }
 
+
+
         public int TaskFeedback(FeedbackData feedbackData)
         {
+
+            string josn = JsonConvert.SerializeObject(feedbackData, Formatting.Indented);
+
             bool isJobExist = ExecutingJobsStates.ContainsKey(feedbackData.TaskSimplex);
 
             if (!isJobExist)
                 return 4444;
             else
             {
-                TASK_RUN_STATUS state = TASK_RUN_STATUS.WAIT;
-                int state_code = feedbackData.TaskStatus;
-                if (state_code == 0 | state_code == 4)
-                    state = TASK_RUN_STATUS.ACTION_FINISH;
-                if (state_code == 1 | state_code == 3)
-                    state = TASK_RUN_STATUS.NAVIGATING;
+                TASK_RUN_STATUS state = feedbackData.TaskStatus;
+                if (state == TASK_RUN_STATUS.ACTION_FINISH)
+                {
+                    var simplex_task = jobs.FirstOrDefault(jb => jb.Task_Simplex == feedbackData.TaskSimplex);
 
-                Console.WriteLine($"任務回報-{feedbackData.TaskName}-{feedbackData.TaskSimplex}-{feedbackData.TaskStatus}-Point_Index :{feedbackData.PointIndex}");
-                Console.WriteLine($"位置-{agv.states.Last_Visited_Node}");
+                    if (TryGetStationByTag(agv.states.Last_Visited_Node, out MapStation point))
+                    {
+                        LOG.INFO($"AGV-{agv.Name} Finish Action ({simplex_task.Action_Type}) At Tag-{point.TagNumber}({point.Name})");
 
+                        if (simplex_task.Action_Type == ACTION_TYPE.Load | simplex_task.Action_Type == ACTION_TYPE.Unload) //完成取貨卸貨
+                            LDULDFinishReport(simplex_task.Destination, simplex_task.Action_Type == ACTION_TYPE.Load ? 0 : 1);
+                    }
+                }
                 ExecutingJobsStates[feedbackData.TaskSimplex] = state;
                 return 0;
             }
         }
+
+        /// <summary>
+        /// 
+        /// </summary>       
+        /// <param name="EQTag">取放貨設備的Tag</param>
+        /// <param name="LDULD">0:load , 1:unlod</param>
+        private async Task LDULDFinishReport(int EQTag, int LDULD)
+        {
+            await Http.PostAsync<object, object>($"{Configs.AGVSHost}/api/Task/LDULDFinishFeedback?agv_name={agv.Name}&EQTag={EQTag}&LDULD={LDULD}", null);
+        }
+
         private async Task<clsTaskDto> SendActionRequestAsync(clsTaskDownloadData data)
         {
             try
@@ -181,99 +221,6 @@ namespace VMSystem.AGV
             }
         }
 
-        /// <summary>
-        /// 從指派的任務產生對應的移動動作Jobs鍊
-        /// </summary>
-        /// <returns></returns>
-        public List<clsTaskDownloadData> CreateAGVActionJobs(clsTaskDto taskDto)
-        {
-            List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
-
-            int currentTag = agv.states.Last_Visited_Node;
-
-            MapStation currentStation = GetStationByTag(currentTag); //當前Staion
-
-            if (currentStation == null)
-            {
-                return new List<clsTaskDownloadData>();
-            }
-
-            MapStation destinStation = GetStationByTag(int.Parse(taskDto.To_Station)); //目標Station
-
-            if (currentStation.StationType != 0)//當前位置不是一般點位(可能是STK/EQ/...)
-            {
-                int destinationTag = FindSecondaryPointTag(currentStation);
-                //退出
-                clsTaskDownloadData actionData = CreateDischargeActionTaskJob(taskDto.TaskName, currentTag, destinationTag, jobs.Count);
-                jobs.Add(actionData);
-                currentTag = destinationTag;
-            }
-
-            if (taskDto.Action == ACTION_TYPE.None)
-            {
-                int destinationTag = int.Parse(taskDto.To_Station);
-                clsTaskDownloadData actionData = CreateMoveActionTaskJob(taskDto.TaskName, currentTag, destinationTag, jobs.Count);
-                if (actionData.Trajectory.Count() != 0)
-                    jobs.Add(actionData);
-            }
-            else if (taskDto.Action == ACTION_TYPE.Charge)
-            {
-                int SecondaryPointTag = FindSecondaryPointTag(destinStation);
-                //移動到二次定位點
-                clsTaskDownloadData moveJob = CreateMoveActionTaskJob(taskDto.TaskName, currentTag, SecondaryPointTag, jobs.Count);
-                jobs.Add(moveJob);
-                //進去
-                clsTaskDownloadData chargeJob = CreateChargeActionTaskJob(taskDto.TaskName, SecondaryPointTag, destinStation.TagNumber, jobs.Count);
-                jobs.Add(chargeJob);
-
-            }
-            else if (taskDto.Action == ACTION_TYPE.Load)
-            {
-                int SecondaryPointTag = FindSecondaryPointTag(destinStation);
-                //移動到二次定位點
-                clsTaskDownloadData moveJob = CreateMoveActionTaskJob(taskDto.TaskName, currentTag, SecondaryPointTag, jobs.Count);
-                jobs.Add(moveJob);
-                //進去
-                clsTaskDownloadData chargeJob = CreateLoadTaskJob(taskDto.TaskName, SecondaryPointTag, destinStation.TagNumber, int.Parse(taskDto.To_Slot), jobs.Count, taskDto.Carrier_ID);
-                jobs.Add(chargeJob);
-
-            }
-            else if (taskDto.Action == ACTION_TYPE.Unload)
-            {
-                int SecondaryPointTag = FindSecondaryPointTag(destinStation);
-                //移動到二次定位點
-                clsTaskDownloadData moveJob = CreateMoveActionTaskJob(taskDto.TaskName, currentTag, SecondaryPointTag, jobs.Count);
-                jobs.Add(moveJob);
-                //進去
-                clsTaskDownloadData chargeJob = CreateUnLoadTaskJob(taskDto.TaskName, SecondaryPointTag, destinStation.TagNumber, int.Parse(taskDto.To_Slot), jobs.Count, taskDto.Carrier_ID);
-                jobs.Add(chargeJob);
-
-            }
-            else if (taskDto.Action == ACTION_TYPE.Carry)
-            {
-                MapStation FromStation = GetStationByTag(int.Parse(taskDto.From_Station));
-                MapStation ToStation = GetStationByTag(int.Parse(taskDto.To_Station));
-
-                int From_SecondaryPointTag = FindSecondaryPointTag(FromStation);
-                int To_SecondaryPointTag = FindSecondaryPointTag(ToStation);
-
-                //移動到二次定位點 A
-                clsTaskDownloadData move2AJob = CreateMoveActionTaskJob(taskDto.TaskName, currentTag, From_SecondaryPointTag, jobs.Count);
-                jobs.Add(move2AJob);
-                //進去
-                clsTaskDownloadData unloadJob = CreateUnLoadTaskJob(taskDto.TaskName, From_SecondaryPointTag, FromStation.TagNumber, int.Parse(taskDto.To_Slot), jobs.Count, taskDto.Carrier_ID);
-                jobs.Add(unloadJob);
-
-                //移動到二次定位點 B
-                clsTaskDownloadData move2BJob = CreateMoveActionTaskJob(taskDto.TaskName, From_SecondaryPointTag, To_SecondaryPointTag, jobs.Count);
-                jobs.Add(move2BJob);
-                //進去
-                clsTaskDownloadData loadJob = CreateLoadTaskJob(taskDto.TaskName, To_SecondaryPointTag, ToStation.TagNumber, int.Parse(taskDto.To_Slot), jobs.Count, taskDto.Carrier_ID);
-                jobs.Add(loadJob);
-
-            }
-            return jobs;
-        }
 
         private int FindSecondaryPointTag(MapStation currentStation)
         {
@@ -288,107 +235,14 @@ namespace VMSystem.AGV
             }
         }
 
-
-        private clsTaskDownloadData CreateDischargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
-        {
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Discharge,
-                Destination = toTag,
-                Task_Name = TaskName,
-                Station_Type = 0,
-                Task_Sequence = Task_Sequence,
-                Task_Simplex = $"{TaskName}-{Task_Sequence}",
-                Homing_Trajectory = pathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-            };
-            return actionData;
-        }
-        private clsTaskDownloadData CreateChargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence, STATION_TYPE stationType = STATION_TYPE.Charge)
-        {
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Charge,
-                Destination = toTag,
-                Height = 1,
-                Task_Name = TaskName,
-                Station_Type = stationType,
-                Task_Sequence = Task_Sequence,
-                Task_Simplex = $"{TaskName}-{Task_Sequence}",
-                Homing_Trajectory = pathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-            };
-            return actionData;
-        }
-        private clsTaskDownloadData CreateLoadTaskJob(string TaskName, int fromTag, int toTag, int to_slot, int Task_Sequence, string cstID, STATION_TYPE stationType = STATION_TYPE.STK_LD)
-        {
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Load,
-                Destination = toTag,
-                Height = to_slot,
-                Task_Name = TaskName,
-                Station_Type = stationType,
-                Task_Sequence = Task_Sequence,
-                Task_Simplex = $"{TaskName}-{Task_Sequence}",
-                Homing_Trajectory = pathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-                CST = new clsCST[1]
-                {
-                    new clsCST
-                    {
-                         CST_ID = cstID
-                    }
-                }
-            };
-            return actionData;
-        }
-        private clsTaskDownloadData CreateUnLoadTaskJob(string TaskName, int fromTag, int toTag, int to_slot, int Task_Sequence, string cstID, STATION_TYPE stationType = STATION_TYPE.STK_LD)
-        {
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Unload,
-                Destination = toTag,
-                Height = to_slot,
-                Task_Name = TaskName,
-                Station_Type = stationType,
-                Task_Sequence = Task_Sequence,
-                Task_Simplex = $"{TaskName}-{Task_Sequence}",
-                Homing_Trajectory = pathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-                CST = new clsCST[1]
-                {
-                    new clsCST
-                    {
-                         CST_ID = cstID
-                    }
-                }
-            };
-            return actionData;
-        }
-        private clsTaskDownloadData CreateMoveActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
-        {
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.None,
-                Destination = toTag,
-                Task_Name = TaskName,
-                Station_Type = 0,
-                Task_Sequence = Task_Sequence,
-                Task_Simplex = $"{TaskName}-{Task_Sequence}",
-                Trajectory = pathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-            };
-            return actionData;
-        }
-
         private MapStation GetStationByTag(int tag)
         {
-            var station = StaMap.Map.Points.FirstOrDefault(station => station.Value.TagNumber == tag);
-            if (station.Value != null)
-                return station.Value;
-            else
-                return null;
+            StaMap.TryGetPointByTagNumber(tag, out MapStation station);
+            return station;
+        }
+        private bool TryGetStationByTag(int tag, out MapStation station)
+        {
+            return StaMap.TryGetPointByTagNumber(tag, out station);
         }
 
         public void CancelTask()

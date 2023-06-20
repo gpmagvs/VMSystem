@@ -8,9 +8,9 @@ namespace VMSystem.Controllers
     public class MapController : ControllerBase
     {
         [HttpGet("Reload")]
-        public async Task<IActionResult> Reload()
+        public async Task<IActionResult> Reload(string map_file)
         {
-            StaMap.Download();
+            StaMap.Download(map_file);
             return Ok(true);
         }
     }

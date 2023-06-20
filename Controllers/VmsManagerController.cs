@@ -8,6 +8,7 @@ using System.Text;
 using VMSystem.AGV;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem.Controllers
 {
@@ -15,6 +16,13 @@ namespace VMSystem.Controllers
     [ApiController]
     public class VmsManagerController : ControllerBase
     {
+        //api/VmsManager/AGVStatus
+        [HttpPost("AGVStatus")]
+        public async Task<IActionResult> AGVStatus(RunningStatus status)
+        {
+            return Ok();
+        }
+
         [HttpGet("/ws/VMSStatus")]
         public async Task GetVMSStatus()
         {
@@ -49,21 +57,20 @@ namespace VMSystem.Controllers
         [HttpPost("ExecuteTask")]
         public async Task<IActionResult> ExecuteTask(clsTaskDto taskData)
         {
-            Stopwatch sw = Stopwatch.StartNew();
-
+            LOG.Critical($"Get Task Data Transfer Object : {taskData.DesignatedAGVName}");
             bool Confirm = VMSManager.TryRequestAGVToExecuteTask(ref taskData, out IAGV agv);
             if (Confirm)
             {
                 taskData.DesignatedAGVName = agv.Name;
             }
 
-            Console.WriteLine($"Handle ExecuteTask Reuest Time Spend:{sw.ElapsedMilliseconds} ms");
             return Ok(new { Confirm = Confirm, AGV = agv, taskData });
         }
 
         [HttpPost("TaskFeedback")]
-        public async Task<IActionResult> TaskFeedback(FeedbackData feedbackData)
+        public async Task<IActionResult> TaskFeedback([FromBody] object feedbackDataJson)
         {
+            var feedbackData = JsonConvert.DeserializeObject<FeedbackData>(feedbackDataJson.ToString());
             int confirmed_code = VMSManager.TaskFeedback(feedbackData);
             return Ok(new { Return_Code = confirmed_code });
         }
@@ -78,7 +85,7 @@ namespace VMSystem.Controllers
             if (agv == null)
             {
                 Console.WriteLine($"找不到{agv_name}可以上線");
-                return Ok(new  { Return_Code = 404 });
+                return Ok(new { Return_Code = 404 });
             }
             bool online_success = agv.Online(out string msg);
             return Ok(new clsAPIRequestResult { Success = online_success, Message = msg });
@@ -92,7 +99,7 @@ namespace VMSystem.Controllers
             if (agv == null)
             {
                 Console.WriteLine($"找不到{agv_name}可以下線");
-                return Ok(new  { Return_Code = 404 });
+                return Ok(new { Return_Code = 404 });
             }
             bool offline_success = agv.Offline(out string msg);
             return Ok(new clsAPIRequestResult { Success = offline_success, Message = msg });

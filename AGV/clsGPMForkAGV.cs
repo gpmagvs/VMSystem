@@ -1,16 +1,15 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.HttpHelper;
-using AGVSystemCommonNet6.TASK;
-using AGVSystemCommonNet6.HttpHelper;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
-using Microsoft.AspNetCore.Antiforgery;
-using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.TASK;
+using Newtonsoft.Json;
+using System.Diagnostics;
+using VMSystem.VMS;
 
 namespace VMSystem.AGV
 {
@@ -21,7 +20,25 @@ namespace VMSystem.AGV
         public string Name { get; set; }
 
         public clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
-        public clsEnums.ONLINE_STATE online_state { get; set; }
+
+
+
+        public clsEnums.ONLINE_STATE _online_state;
+        public clsEnums.ONLINE_STATE online_state
+        {
+            get => _online_state;
+            set
+            {
+                if (_online_state != value)
+                {
+                    _online_state = value;
+                    if (main_state == clsEnums.MAIN_STATUS.IDLE)
+                    {
+                        availabilityHelper.ResetIDLEStartTime();
+                    }
+                }
+            }
+        }
         public clsEnums.MAIN_STATUS main_state
         {
             get
@@ -31,7 +48,14 @@ namespace VMSystem.AGV
         }
 
 
-
+        public MapStation currentMapStation
+        {
+            get
+            {
+                StaMap.TryGetPointByTagNumber(states.Last_Visited_Node, out var point);
+                return point;
+            }
+        }
         public RunningStatus states { get; set; } = new RunningStatus();
         public Map map { get; set; }
 
@@ -83,7 +107,60 @@ namespace VMSystem.AGV
             {
                 states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
             }
+            SaveStateToDatabase();
             SyncStateWorker();
+            AutoParkWorker();
+
+        }
+
+        private void AutoParkWorker()
+        {
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    bool IsRunMode = false;
+                    Thread.Sleep(1000);
+                    try
+                    {
+                        IsRunMode = await Http.GetAsync<bool>($"{Configs.AGVSHost}/api/system/RunMode");
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
+
+                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE | !IsRunMode)
+                        continue;
+
+                    if (states.Cargo_Status == 1)
+                        continue;
+
+                    if (currentMapStation.IsParking)
+                        continue;
+
+                    if (availabilityHelper.IDLING_TIME > 10)
+                    {
+                        LOG.WARN($"{Name} IDLE時間超過設定秒數");
+                        TaskDatabaseHelper taskDB = new TaskDatabaseHelper();
+
+                        var taskData = new clsTaskDto
+                        {
+                            Action = ACTION_TYPE.Park,
+                            Carrier_ID = " ",
+                            TaskName = $"*park-{DateTime.Now.ToString("yyyyMMddHHmmssfff")}",
+                            DesignatedAGVName = Name,
+                            DispatcherName = "VMS",
+                            State = TASK_RUN_STATUS.WAIT
+                        };
+
+                        TaskDatabaseHelper DatabaseHelper = new TaskDatabaseHelper();
+                        DatabaseHelper.Add(taskData);
+                        availabilityHelper.ResetIDLEStartTime();
+
+                    }
+                }
+            });
         }
 
         private async void SyncStateWorker()
@@ -147,6 +224,7 @@ namespace VMSystem.AGV
                         else
                         {
                             connected = true;
+                            string json = JsonConvert.SerializeObject(states, Formatting.Indented);
                             await SaveStateToDatabase();
                         }
                         if (connected)
@@ -175,7 +253,7 @@ namespace VMSystem.AGV
                     MainStatus = states.AGV_Status,
                     CurrentCarrierID = states.CSTID.Length == 0 ? "" : states.CSTID[0],
                     CurrentLocation = states.Last_Visited_Node.ToString(),
-                    Theta = states.Corrdination.Theta,
+                    Theta = states.Coordination.Theta,
                     Connected = connected
                 };
 
