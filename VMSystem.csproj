@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\AGVSystemCommonNet6\AGVSystemCommonNet6.csproj" />
+    <ProjectReference Include="..\AGVSystemCommonNet6\AGVSystemCommonNet6.csproj" />
   </ItemGroup>
 
   <ItemGroup>
