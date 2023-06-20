@@ -19,8 +19,22 @@ namespace VMSystem.AGV
 
         public string Name { get; set; }
 
-        public clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
-
+        public virtual clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
+        private bool _connected = false;
+        public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
+        public bool connected
+        {
+            get => _connected;
+            set
+            {
+                lastTimeAliveCheckTime = DateTime.Now;
+                if (_connected != value)
+                {
+                    _connected = value;
+                    SaveStateToDatabase();
+                }
+            }
+        }
 
 
         public clsEnums.ONLINE_STATE _online_state;
@@ -47,7 +61,6 @@ namespace VMSystem.AGV
             }
         }
 
-
         public MapStation currentMapStation
         {
             get
@@ -56,13 +69,14 @@ namespace VMSystem.AGV
                 return point;
             }
         }
+        public AvailabilityHelper availabilityHelper { get; private set; }
         public RunningStatus states { get; set; } = new RunningStatus();
         public Map map { get; set; }
 
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
         public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
         public IAGVTaskDispather taskDispatchModule { get; set; }
-        public clsConnections connections { get; set; }
+        public clsAGVOptions connections { get; set; }
 
         internal string HttpHost => $"http://{connections.HostIP}:{connections.HostPort}";
 
@@ -89,15 +103,10 @@ namespace VMSystem.AGV
             }
         }
 
-        public bool connected { get; private set; }
 
-
-        public AvailabilityHelper availabilityHelper { get; private set; }
-
-        public clsGPMForkAGV(string name, clsConnections connections, int initTag = 51, bool simulationMode = false)
+        public clsGPMForkAGV(string name, clsAGVOptions connections, int initTag = 51, bool simulationMode = false)
         {
             availabilityHelper = new AvailabilityHelper(name);
-
             this.connections = connections;
             this.simulationMode = simulationMode;
             states.Last_Visited_Node = initTag;
@@ -107,11 +116,12 @@ namespace VMSystem.AGV
             {
                 states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
             }
-            SaveStateToDatabase();
-            SyncStateWorker();
+            if (!AGVStatusDBHelper.IsExist(name))
+                SaveStateToDatabase();
             AutoParkWorker();
 
         }
+
 
         private void AutoParkWorker()
         {
@@ -239,7 +249,27 @@ namespace VMSystem.AGV
                 }
             });
         }
-        internal async Task<bool> SaveStateToDatabase()
+        public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
+        {
+            try
+            {
+                await Task.Delay(1);
+
+                if (taskDispatchModule.ExecutingTask != null)
+                {
+                    dto.TaskName = taskDispatchModule.ExecutingTask.TaskName;
+                    dto.TaskRunStatus = taskDispatchModule.ExecutingTask.State;
+                }
+
+                return AGVStatusDBHelper.Update(dto, out string errMsg);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+        }
+        public async Task<bool> SaveStateToDatabase()
         {
             try
             {
@@ -256,14 +286,7 @@ namespace VMSystem.AGV
                     Theta = states.Coordination.Theta,
                     Connected = connected
                 };
-
-                if (taskDispatchModule.ExecutingTask != null)
-                {
-                    dto.TaskName = taskDispatchModule.ExecutingTask.TaskName;
-                    dto.TaskRunStatus = taskDispatchModule.ExecutingTask.State;
-                }
-
-                return AGVStatusDBHelper.Update(dto, out string errMsg);
+                return await SaveStateToDatabase(dto);
             }
             catch (Exception ex)
             {
@@ -271,11 +294,15 @@ namespace VMSystem.AGV
             }
 
         }
-        public async Task<object> GetAGVState()
+
+        /// <summary>
+        /// 從資料庫取出資料
+        /// </summary>
+        /// <returns></returns>
+        public virtual async Task<object> GetAGVState()
         {
             try
             {
-
                 this.states = await Http.GetAsync<RunningStatus>($"{HttpHost}/api/AGV/RunningState");
                 if (states.Last_Visited_Node != this.states.Last_Visited_Node)
                 {

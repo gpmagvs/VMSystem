@@ -1,6 +1,6 @@
 ﻿namespace VMSystem.AGV
 {
-    public class clsConnections
+    public class clsAGVOptions
     {
         public enum PROTOCOL
         {
@@ -10,6 +10,5 @@
 
         public string HostIP { get; set; }
         public int HostPort { get; set; }
-
     }
 }

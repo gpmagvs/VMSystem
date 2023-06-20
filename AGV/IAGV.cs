@@ -14,8 +14,8 @@ namespace VMSystem.AGV
         AvailabilityHelper availabilityHelper { get; }
         AGV_MODEL model { get; set; }
         string Name { get; set; }
-        clsConnections connections { get; set; }
-        bool connected { get; }
+        clsAGVOptions connections { get; set; }
+        bool connected { get; set; }
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; }
         RunningStatus states { get; set; }
@@ -34,6 +34,7 @@ namespace VMSystem.AGV
 
         Task<object> GetAGVState();
 
+        Task<bool> SaveStateToDatabase(clsAGVStateDto dto);
         int CalculatePathCost(Map map, object toTag);
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);

@@ -13,19 +13,26 @@ using VMSystem.ViewModel;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using System.Diagnostics;
 using AGVSystemCommonNet6.Log;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.VMS
 {
     public class VMSManager
     {
-        public static GPMForkAGVVMSEntity ForkAGVVMS;
+        public static GPMForkAgvVMS ForkAGVVMS;
+        public static Dictionary<VMS_MODELS, VMSAbstract> VMSList = new Dictionary<VMS_MODELS, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         internal static List<IAGV> AllAGV
         {
             get
             {
                 List<IAGV> outputs = new List<IAGV>();
-                outputs.AddRange(ForkAGVVMS.AGVList.Values.ToArray());
+                foreach (var vms in VMSList.Values)
+                {
+                    if (vms == null)
+                        continue;
+                    outputs.AddRange(vms.AGVList.Values.ToArray());
+                }
                 return outputs;
             }
         }
@@ -42,29 +49,56 @@ namespace VMSystem.VMS
 
         internal static void Initialize(ConfigurationManager configuration)
         {
-
-            if (Debugger.IsAttached)
-                ForkAGVVMS = new GPMForkAGVVMSEntity();
-            else
+            var vmsconfigs = AppSettings.VMSConfigs;
+            foreach (var item in vmsconfigs)
             {
-                Dictionary<string, object> settings = AppSettingsHelper.GetAppsettings();
-                var agvlistDict = JsonConvert.DeserializeObject<Dictionary<string, clsConnections>>(settings["AGV_List"].ToString());
-                var agvList = agvlistDict.Select(kp => (IAGV)new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
-                ForkAGVVMS = new GPMForkAGVVMSEntity(agvList);
-            }
+                VMSAbstract VMSTeam = null;
+                VMS_MODELS vms_type = item.Key;
+                if (vms_type == VMS_MODELS.GPM_FORK)
+                {
+                    var gpm_for_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
+                    //if (Debugger.IsAttached)
+                    //    VMSTeam = new GPMForkAgvVMS();
+                    //else
+                    VMSTeam = new GPMForkAgvVMS(gpm_for_agvList);
+                }
+                else if (vms_type == VMS_MODELS.YUNTECH_FORK)
+                {
+                    var yuntech_fork_agvList = item.Value.AGV_List.Select(kp => new clsYunTechAGV(kp.Key, kp.Value)).ToList();
+                    VMSTeam = new YunTechAgvVMS(yuntech_fork_agvList);
 
+                }
+                VMSList.Add(item.Key, VMSTeam);
+            }
         }
 
         public static void Initialize()
         {
-            ForkAGVVMS = new GPMForkAGVVMSEntity();
+            ForkAGVVMS = new GPMForkAgvVMS();
         }
 
-        public static IAGV SearchAGVByName(string agv_name)
+        public static bool TryGetAGV(string AGVName, AGV_MODEL Model, out IAGV agv)
+        {
+            agv = null;
+            var agvList = SearchAGVByName(AGVName, Model);
+
+            if (agvList.Count == 0)
+            {
+                return false;
+            }
+            else
+            {
+                agv = agvList[0];
+                return true;
+            }
+        }
+
+
+        public static List<IAGV> SearchAGVByName(string agv_name, clsEnums.AGV_MODEL model = clsEnums.AGV_MODEL.FORK_AGV)
         {
             if (AllAGV.Count == 0)
-                return null;
-            return AllAGV.FirstOrDefault(agv => agv.Name == agv_name);
+                return new List<IAGV>();
+            return AllAGV.FindAll(agv => agv.Name == agv_name && agv.model == model);
         }
 
         internal static List<VMSViewModel> GetVMSViewData()
@@ -132,7 +166,7 @@ namespace VMSystem.VMS
 
             if (agv != null)
             {
-                if( (taskData.Action== ACTION_TYPE.Charge| taskData.Action == ACTION_TYPE.Park) && taskData.To_Station == "-1") 
+                if ((taskData.Action == ACTION_TYPE.Charge | taskData.Action == ACTION_TYPE.Park) && taskData.To_Station == "-1")
                 {
 
                 }
@@ -204,7 +238,7 @@ namespace VMSystem.VMS
                     //先不考慮交通問題 挑一個最近的
                     StaMap.TryGetPointByTagNumber(FromStationTag, out MapStation fromStation);
                     var distances = chargeableStations.ToDictionary(st => st.Name, st => st.CalculateDistance(fromStation.X, fromStation.Y));
-                   LOG.INFO(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray())) ;
+                    LOG.INFO(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray()));
                     chargeableStations = chargeableStations.OrderBy(st => st.CalculateDistance(fromStation.X, fromStation.Y)).ToList();
                     if (chargeableStations.Count > 0)
                     {
