@@ -24,7 +24,7 @@ namespace VMSystem.AGV
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
         public bool IsAGVExecutable => agv == null ? false : (agv.main_state == clsEnums.MAIN_STATUS.IDLE | agv.main_state == clsEnums.MAIN_STATUS.Charging) && agv.online_state == clsEnums.ONLINE_STATE.ONLINE;
-        private string HttpHost => $"http://{agv.connections.HostIP}:{agv.connections.HostPort}";
+        private string HttpHost => $"http://{agv.options.HostIP}:{agv.options.HostPort}";
         public virtual List<clsTaskDto> taskList
         {
             get
@@ -134,7 +134,7 @@ namespace VMSystem.AGV
 
 
                     string json = JsonConvert.SerializeObject(job, Formatting.Indented);
-                    clsTaskDto response = agv.simulationMode ? AgvSimulation.ActionRequestHandler(job) : await SendActionRequestAsync(job);
+                    clsTaskDto response = agv.options.Simulation ? AgvSimulation.ActionRequestHandler(job) : await SendActionRequestAsync(job);
                     ExecutingTask.State = response.State;
                     if (ExecutingTask.State == TASK_RUN_STATUS.FAILURE)
                     {

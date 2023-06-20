@@ -33,19 +33,7 @@ namespace VMSystem.Controllers
             }
             else
             {
-                _ = agv.SaveStateToDatabase(new AGVSystemCommonNet6.clsAGVStateDto
-                {
-                    AGV_Name = AGVName,
-                    BatteryLevel = status.Electric_Volume[0],
-                    OnlineStatus = agv.online_state,
-                    MainStatus = status.AGV_Status,
-                    CurrentCarrierID = status.CSTID.Length == 0 ? "" : status.CSTID[0],
-                    CurrentLocation = status.Last_Visited_Node.ToString(),
-                    Theta = status.Coordination.Theta,
-                    Connected = true,
-                    Model = agv.model
-                });
-                agv.states = status;
+                agv.UpdateAGVStates(status);
                 return Ok(new
                 {
                     ReturnCode = 0,

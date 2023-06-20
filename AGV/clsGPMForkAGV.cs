@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.HttpHelper;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using System.Diagnostics;
@@ -15,10 +16,27 @@ namespace VMSystem.AGV
 {
     public class clsGPMForkAGV : IAGV
     {
-        public bool simulationMode { get; set; } = false;
+        public clsGPMForkAGV(string name, clsAGVOptions options)
+        {
+            availabilityHelper = new AvailabilityHelper(name);
+            this.options = options;
+            Name = name;
+            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+            if (simulationMode)
+            {
+                states.Last_Visited_Node = options.InitTag;
+                states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+            }
+            if (!AGVStatusDBHelper.IsExist(name))
+                SaveStateToDatabase();
 
+            AutoParkWorker();
+            AliveCheck();
+
+        }
+
+        public bool simulationMode => options.Simulation;
         public string Name { get; set; }
-
         public virtual clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
@@ -27,11 +45,12 @@ namespace VMSystem.AGV
             get => _connected;
             set
             {
-                lastTimeAliveCheckTime = DateTime.Now;
+                if (value)
+                    lastTimeAliveCheckTime = DateTime.Now;
                 if (_connected != value)
                 {
                     _connected = value;
-                    SaveStateToDatabase();
+                    AGVStatusDBHelper.UpdateConnected(Name, value);
                 }
             }
         }
@@ -76,9 +95,9 @@ namespace VMSystem.AGV
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
         public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
         public IAGVTaskDispather taskDispatchModule { get; set; }
-        public clsAGVOptions connections { get; set; }
+        public clsAGVOptions options { get; set; }
 
-        internal string HttpHost => $"http://{connections.HostIP}:{connections.HostPort}";
+        internal string HttpHost => $"http://{options.HostIP}:{options.HostPort}";
 
         /// <summary>
         /// 
@@ -104,25 +123,31 @@ namespace VMSystem.AGV
         }
 
 
-        public clsGPMForkAGV(string name, clsAGVOptions connections, int initTag = 51, bool simulationMode = false)
+        private void AliveCheck()
         {
-            availabilityHelper = new AvailabilityHelper(name);
-            this.connections = connections;
-            this.simulationMode = simulationMode;
-            states.Last_Visited_Node = initTag;
-            Name = name;
-            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
-            if (simulationMode)
+            Task.Run(() =>
             {
-                states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-            }
-            if (!AGVStatusDBHelper.IsExist(name))
-                SaveStateToDatabase();
-            AutoParkWorker();
-
+                while (true)
+                {
+                    Thread.Sleep(1);
+                    if (simulationMode)
+                    {
+                        connected = true;
+                        availabilityHelper.UpdateAGVMainState(main_state);
+                        SaveStateToDatabase();
+                        continue;
+                    }
+                    if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 10)
+                    {
+                        connected = false;
+                    }
+                }
+            });
         }
 
-
+        /// <summary>
+        /// IDLE 一段時間後下發停車任務
+        /// </summary>
         private void AutoParkWorker()
         {
             _ = Task.Run(async () =>
@@ -149,7 +174,7 @@ namespace VMSystem.AGV
                     if (currentMapStation.IsParking)
                         continue;
 
-                    if (availabilityHelper.IDLING_TIME > 10)
+                    if (availabilityHelper.IDLING_TIME > 30)
                     {
                         LOG.WARN($"{Name} IDLE時間超過設定秒數");
                         TaskDatabaseHelper taskDB = new TaskDatabaseHelper();
@@ -173,6 +198,24 @@ namespace VMSystem.AGV
             });
         }
 
+        public void UpdateAGVStates(RunningStatus status)
+        {
+            this.states = status;
+            var databaseDto = new AGVSystemCommonNet6.clsAGVStateDto
+            {
+                AGV_Name = Name,
+                BatteryLevel = status.Electric_Volume[0],
+                OnlineStatus = online_state,
+                MainStatus = status.AGV_Status,
+                CurrentCarrierID = status.CSTID.Length == 0 ? "" : status.CSTID[0],
+                CurrentLocation = status.Last_Visited_Node.ToString(),
+                Theta = status.Coordination.Theta,
+                Connected = true,
+                Model = model
+            };
+            availabilityHelper.UpdateAGVMainState(main_state);
+            SaveStateToDatabase(databaseDto);
+        }
         private async void SyncStateWorker()
         {
             await Task.Delay(1);
@@ -200,7 +243,7 @@ namespace VMSystem.AGV
                         await Task.Delay(10);
                         if (!simulationMode)
                         {
-                            bool collect_state_success = (bool)GetAGVState().Result;
+                            bool collect_state_success = (bool)GetAGVStateFromDB().Result;
                             connected = collect_state_success;
                             if (previous_collect_state_success != collect_state_success)
                             {
@@ -299,7 +342,7 @@ namespace VMSystem.AGV
         /// 從資料庫取出資料
         /// </summary>
         /// <returns></returns>
-        public virtual async Task<object> GetAGVState()
+        public virtual async Task<object> GetAGVStateFromDB()
         {
             try
             {

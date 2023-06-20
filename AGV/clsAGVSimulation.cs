@@ -16,18 +16,18 @@ namespace VMSystem.AGV
         public clsAGVSimulation(clsAGVTaskDisaptchModule dispatcherModule)
         {
             this.dispatcherModule = dispatcherModule;
-            if (agv.simulationMode)
+            if (agv.options.Simulation)
             {
                 //從資料庫取得狀態數據
                 List<AGVSystemCommonNet6.clsAGVStateDto> agvStates = agvStateDbHelper.GetALL();
+
                 if (agvStates.Count > 0)
                 {
                     var agv_data = agvStates.FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
                     if (agv_data != null)
                     {
-
                         batteryLevelSim = agv_data.BatteryLevel;
-                        //agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
+                        agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
                     }
                 }
                 BatterSimulation();

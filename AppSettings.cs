@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
@@ -14,19 +15,21 @@ namespace VMSystem
 {
     public class AppSettings
     {
+
+        private static string appsettingsFile => Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.json";
         private static IConfiguration _config
         {
             get
             {
                 ConfigurationBuilder builder = new ConfigurationBuilder();
-                builder.SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.json");
+                builder.SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile(appsettingsFile);
                 return builder.Build();
             }
         }
 
         public static Dictionary<string, object> GetAppsettings()
         {
-            string settingsJosnFile = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            string settingsJosnFile = Path.Combine(AppContext.BaseDirectory , appsettingsFile);
 
             string json = File.ReadAllText(settingsJosnFile);
             Dictionary<string, object>? con = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);

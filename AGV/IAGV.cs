@@ -14,7 +14,7 @@ namespace VMSystem.AGV
         AvailabilityHelper availabilityHelper { get; }
         AGV_MODEL model { get; set; }
         string Name { get; set; }
-        clsAGVOptions connections { get; set; }
+        clsAGVOptions options { get; set; }
         bool connected { get; set; }
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; }
@@ -22,7 +22,6 @@ namespace VMSystem.AGV
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapStation currentMapStation { get; }
-        bool simulationMode { get; set; }
 
         bool Online(out string message);
         bool Offline(out string message);
@@ -32,12 +31,13 @@ namespace VMSystem.AGV
         /// </summary>
         List<int> NavigatingTagPath { get; }
 
-        Task<object> GetAGVState();
+        Task<object> GetAGVStateFromDB();
 
         Task<bool> SaveStateToDatabase(clsAGVStateDto dto);
         int CalculatePathCost(Map map, object toTag);
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
+        void UpdateAGVStates(RunningStatus status);
     }
 
 }
