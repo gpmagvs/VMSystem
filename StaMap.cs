@@ -3,22 +3,21 @@ using AGVSystemCommonNet6.HttpHelper;
 using AGVSystemCommonNet6.MAP;
 using Newtonsoft.Json;
 using System.IO.Compression;
+using AGVSystemCommonNet6.Configuration;
 
 namespace VMSystem
 {
     public class StaMap
     {
         public static Map Map { get; set; }
-        private static string MapFile = "C:\\AGVS\\Map\\Map_UMTC_5F_SMK_OVEN.json";
-
-        public static void Download(string map_file = null)
+        private static string MapFile => AGVSConfigulator.SysConfigs.MapConfigs.MapFileFullName;
+        public static void Download()
         {
-            MapFile = map_file == null ? MapFile : map_file;
-            Map = MapManager.LoadMapFromFile(MapFile);
+            Map = MapManager.LoadMapFromFile();
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
 
-        internal static List<MapStation> GetParkableStations()
+        internal static List<MapPoint> GetParkableStations()
         {
             if (Map == null)
                 Download();
@@ -26,7 +25,7 @@ namespace VMSystem
             var chargeableStations = Map.Points.Values.ToList().FindAll(sta => sta.IsParking);
             return chargeableStations;
         }
-        internal static List<MapStation> GetChargeableStations()
+        internal static List<MapPoint> GetChargeableStations()
         {
 
             if (Map == null)
@@ -36,7 +35,15 @@ namespace VMSystem
             return chargeableStations;
         }
 
-        internal static bool TryGetPointByTagNumber(int tagNumber, out MapStation point)
+        internal static List<MapPoint> GetAvoidStations()
+        {
+            if (Map == null)
+                Download();
+
+            var avoidStations = Map.Points.Values.ToList().FindAll(sta => sta.IsAvoid);
+            return avoidStations;
+        }
+        internal static bool TryGetPointByTagNumber(int tagNumber, out MapPoint point)
         {
             point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
             return point != null;

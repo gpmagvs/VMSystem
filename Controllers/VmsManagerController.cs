@@ -21,7 +21,7 @@ namespace VMSystem.Controllers
     {
         //api/VmsManager/AGVStatus?AGVName=agvname
         [HttpPost("AGVStatus")]
-        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model,RunningStatus status)
+        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model, RunningStatus status)
         {
             if (!VMSManager.TryGetAGV(AGVName, Model, out IAGV agv))
             {
@@ -105,7 +105,7 @@ namespace VMSystem.Controllers
                     RemoteMode = REMOTE_MODE.OFFLINE,
                     TimeStamp = DateTime.Now.ToString()
                 };
-                
+
                 agv.connected = true;
                 return Ok(response);
             }
@@ -144,6 +144,15 @@ namespace VMSystem.Controllers
 
             if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
             {
+                if (agv.options.Simulation)
+                {
+                    agv.UpdateAGVStates(new RunningStatus
+                    {
+                        AGV_Status = MAIN_STATUS.IDLE,
+                        Last_Visited_Node = agv.states.Last_Visited_Node
+                    });
+                }
+
                 bool online_success = agv.Offline(out string msg);
                 return Ok(new clsAPIRequestResult { Success = online_success, Message = msg });
             }

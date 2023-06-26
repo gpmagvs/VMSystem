@@ -233,10 +233,10 @@ namespace VMSystem.VMS
                 if (ToStationTag == -1)
                 {
 
-                    List<MapStation> chargeableStations = StaMap.GetChargeableStations();
+                    List<MapPoint> chargeableStations = StaMap.GetChargeableStations();
                     //chargeableStations = chargeableStations.FindAll(sta => ChargeableMatch(sta));
                     //先不考慮交通問題 挑一個最近的
-                    StaMap.TryGetPointByTagNumber(FromStationTag, out MapStation fromStation);
+                    StaMap.TryGetPointByTagNumber(FromStationTag, out MapPoint fromStation);
                     var distances = chargeableStations.ToDictionary(st => st.Name, st => st.CalculateDistance(fromStation.X, fromStation.Y));
                     LOG.INFO(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray()));
                     chargeableStations = chargeableStations.OrderBy(st => st.CalculateDistance(fromStation.X, fromStation.Y)).ToList();
@@ -264,7 +264,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="station"></param>
         /// <returns></returns>
-        private static bool ChargeableMatch(MapStation station)
+        private static bool ChargeableMatch(MapPoint station)
         {
             if (!station.IsChargeAble())
                 return false;
@@ -272,7 +272,7 @@ namespace VMSystem.VMS
             ///1
             if (AllAGV.Any(agv => agv.states.Last_Visited_Node == station.TagNumber))
                 return false;
-            List<int> tagNumberOfStationSecondary = station.Target.Keys.Select(key => int.Parse(key)).ToList(); //充電點的二次定位點tags
+            List<int> tagNumberOfStationSecondary = station.Target.Keys.Select(key => key).ToList(); //充電點的二次定位點tags
             ///1
             if (AllAGV.Any(agv => tagNumberOfStationSecondary.Contains(agv.states.Last_Visited_Node)))
                 return false;
@@ -285,8 +285,8 @@ namespace VMSystem.VMS
 
         private static bool CheckStationTypeMatch(ACTION_TYPE action, int FromStationTag, int ToStationTag)
         {
-            MapStation from_station = StaMap.Map.Points.Values.FirstOrDefault(st => st.TagNumber == FromStationTag);
-            MapStation to_station = StaMap.Map.Points.Values.FirstOrDefault(st => st.TagNumber == ToStationTag);
+            MapPoint from_station = StaMap.Map.Points.Values.FirstOrDefault(st => st.TagNumber == FromStationTag);
+            MapPoint to_station = StaMap.Map.Points.Values.FirstOrDefault(st => st.TagNumber == ToStationTag);
 
             STATION_TYPE from_station_type = from_station.StationType;
             STATION_TYPE to_station_type = to_station.StationType;

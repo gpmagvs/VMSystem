@@ -16,7 +16,7 @@ namespace VMSystem.VMS
         {
             get
             {
-                return dbHelper.GetALLInCompletedTask().FindAll(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == "");
+                return TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == "");
             }
         }
         protected override void TaskAssignWorker()
@@ -52,7 +52,7 @@ namespace VMSystem.VMS
         /// <returns></returns>
         private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto)
         {
-            MapStation refStation = null;
+            MapPoint refStation = null;
             //取 放貨
             if (taskDto.Action == ACTION_TYPE.Load | taskDto.Action == ACTION_TYPE.LoadAndPark | taskDto.Action == ACTION_TYPE.Unload)
             {
@@ -71,7 +71,7 @@ namespace VMSystem.VMS
         {
             executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
             executingTask.State = state;
-            dbHelper.Update(executingTask);
+            TaskDBHelper.Update(executingTask);
         }
     }
 }

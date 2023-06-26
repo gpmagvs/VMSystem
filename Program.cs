@@ -6,9 +6,12 @@ using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.DATABASE;
 using VMSystem.AGV;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Configuration;
 
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
+AGVSConfigulator.Init();
 var builder = WebApplication.CreateBuilder(args);
 string DBConnection = builder.Configuration.GetConnectionString("DefaultConnection");
 Directory.CreateDirectory(Path.GetDirectoryName(DBConnection.Split('=')[1]));

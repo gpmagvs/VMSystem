@@ -48,7 +48,7 @@ namespace VMSystem.AGV
                 return false;
             }
             var map_points = StaMap.Map.Points.Values.ToList();
-            List<MapStation> points_found = new List<MapStation>();
+            List<MapPoint> points_found = new List<MapPoint>();
             if (action == ACTION_TYPE.Park)
                 points_found = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
@@ -57,7 +57,7 @@ namespace VMSystem.AGV
             var currentTag = agv.states.Last_Visited_Node;
             var othersAGVLocTags = VMSManager.AllAGV.FindAll(agv => agv != this.agv).Select(agv => agv.states.Last_Visited_Node);
             points_found = points_found.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber));
-            StaMap.TryGetPointByTagNumber(currentTag, out MapStation currentStation);
+            StaMap.TryGetPointByTagNumber(currentTag, out MapPoint currentStation);
             points_found.OrderBy(pt => pt.CalculateDistance(currentStation));
             if (points_found.Count == 0)
             {
@@ -100,7 +100,7 @@ namespace VMSystem.AGV
                 executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
             executingTask.RecieveTime = DateTime.Now;
             executingTask.State = state;
-            dbHelper.Update(executingTask);
+            TaskDBHelper.Update(executingTask);
         }
     }
 }

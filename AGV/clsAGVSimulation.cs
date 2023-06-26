@@ -33,9 +33,11 @@ namespace VMSystem.AGV
                 BatterSimulation();
             }
         }
-        public clsTaskDto ActionRequestHandler(clsTaskDownloadData data)
+        public async Task<clsTaskDto> ActionRequestHandler(clsTaskDownloadData data)
         {
             agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN;
+            moveCancelTokenSource?.Cancel();
+            await Task.Delay(1000);
             MoveTask(data);
             return new clsTaskDto
             {
@@ -43,61 +45,89 @@ namespace VMSystem.AGV
                 TaskName = data.Task_Name,
             };
         }
-
+        clsTaskDownloadData previousTaskData;
+        CancellationTokenSource moveCancelTokenSource;
+        Task move_task;
         private void MoveTask(clsTaskDownloadData data)
         {
-            ACTION_TYPE action = data.Action_Type;
-            var Trajectory = data.ExecutingTrajecory;
-            Task move_task = Task.Run(async () =>
+            clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
+            if (previousTaskData != null)
             {
-                var stateDto = new FeedbackData
+                if (previousTaskData.Task_Name == data.Task_Name && previousTaskData.Action_Type == data.Action_Type)
                 {
-                    PointIndex = 0,
-                    TaskName = data.Task_Name,
-                    TaskSequence = data.Task_Sequence,
-                    TaskSimplex = data.Task_Simplex,
-                    TimeStamp = DateTime.Now.ToString(),
-                    TaskStatus = TASK_RUN_STATUS.ACTION_START
-                };
-                dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
-
-                NewMethod(action, Trajectory, stateDto);
-
-                if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
-                {
-                    //模擬LDULD
-                    Thread.Sleep(1000);
-                    if (action == ACTION_TYPE.Load)
-                    {
-                        agv.states.CSTID = new string[0];
-                    }
-                    else
-                    {
-                        agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
-                    }
-                    NewMethod(action, Trajectory.Reverse().ToArray(), stateDto);
+                    var lastPoint = previousTaskData.Trajectory.Last();
+                    var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+                    ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+                    Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
                 }
-
-                double finalTheta = Trajectory.Last().Theta;
-                SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
-                agv.states.Coordination.Theta = finalTheta;
-
-                Thread.Sleep(500);
-
-                StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
-
-                if (agv.currentMapStation.IsChargeAble())
-                    agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
                 else
-                    agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+                {
+                    ExecutingTrajecory = data.ExecutingTrajecory;
+                }
+            }
+            else
+            {
+                ExecutingTrajecory = data.ExecutingTrajecory;
+            }
+            previousTaskData = data;
+            ACTION_TYPE action = data.Action_Type;
 
-                stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
-                dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+            move_task = Task.Run(async () =>
+            {
+                moveCancelTokenSource = new CancellationTokenSource();
 
+                try
+                {
+                    var stateDto = new FeedbackData
+                    {
+                        PointIndex = 0,
+                        TaskName = data.Task_Name,
+                        TaskSequence = data.Task_Sequence,
+                        TaskSimplex = data.Task_Simplex,
+                        TimeStamp = DateTime.Now.ToString(),
+                        TaskStatus = TASK_RUN_STATUS.ACTION_START
+                    };
+                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+                    NewMethod(action, ExecutingTrajecory, stateDto, moveCancelTokenSource.Token);
+                    if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
+                    {
+                        //模擬LDULD
+                        Thread.Sleep(1000);
+                        if (action == ACTION_TYPE.Load)
+                        {
+                            agv.states.CSTID = new string[0];
+                        }
+                        else
+                        {
+                            agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
+                        }
+                        NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), stateDto, moveCancelTokenSource.Token);
+                    }
+                    double finalTheta = ExecutingTrajecory.Last().Theta;
+                    SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
+                    agv.states.Coordination.Theta = finalTheta;
+
+                    Thread.Sleep(500);
+
+                    StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
+
+                    if (agv.currentMapPoint.IsChargeAble())
+                        agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
+                    else
+                        agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+
+                    stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+
+                }
+                catch (Exception ex)
+                {
+                    move_task = null;
+                }
             });
         }
 
-        private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, FeedbackData stateDto)
+        private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
             double rotateSpeed = 10;
             double moveSpeed = 10;
@@ -105,6 +135,10 @@ namespace VMSystem.AGV
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
+                if (cancelToken.IsCancellationRequested)
+                {
+                    throw new TaskCanceledException();
+                }
                 int currentTag = agv.states.Last_Visited_Node;
                 double currentX = agv.states.Coordination.X;
                 double currentY = agv.states.Coordination.Y;
@@ -166,6 +200,8 @@ namespace VMSystem.AGV
                 double rotatedAngele = 0;
                 while (rotatedAngele <= shortestRotationAngle)
                 {
+                    if (moveCancelTokenSource.IsCancellationRequested)
+                        throw new TaskCanceledException();
                     agv.states.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
@@ -178,6 +214,8 @@ namespace VMSystem.AGV
                 double rotatedAngele = 0;
                 while (rotatedAngele <= shortestRotationAngle)
                 {
+                    if (moveCancelTokenSource.IsCancellationRequested)
+                        throw new TaskCanceledException();
                     agv.states.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
@@ -215,7 +253,7 @@ namespace VMSystem.AGV
                         }
                         else
                         {
-                            batteryLevelSim -= 5.5;//跑貨耗電比較快
+                            batteryLevelSim -= 0.01;//跑貨耗電比較快
                         }
                         if (batteryLevelSim <= 0)
                             batteryLevelSim = 1;

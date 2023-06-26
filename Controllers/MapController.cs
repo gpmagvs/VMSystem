@@ -10,7 +10,7 @@ namespace VMSystem.Controllers
         [HttpGet("Reload")]
         public async Task<IActionResult> Reload(string map_file)
         {
-            StaMap.Download(map_file);
+            StaMap.Download();
             return Ok(true);
         }
     }
