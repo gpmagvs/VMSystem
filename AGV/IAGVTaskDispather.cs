@@ -13,10 +13,12 @@ namespace VMSystem.AGV
         /// </summary>
         List<clsTaskDto> incompletedTaskList => taskList.FindAll(t => t.State != TASK_RUN_STATUS.ACTION_FINISH);
         clsTaskDto ExecutingTask { get; }
-        void AddTask(clsTaskDto taskDto);
-        int TaskFeedback(FeedbackData feedbackData);
-        void CancelTask();
 
+        clsMapPoint[] CurrentTrajectory { get; set; }
+        void AddTask(clsTaskDto taskDto);
+        int TaskFeedback(FeedbackData feedbackData, out string message);
+        void CancelTask();
+        Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         bool IsAGVExecutable { get; }
     }
 }

@@ -35,12 +35,38 @@ namespace VMSystem.AGV
             AliveCheck();
 
         }
+        public virtual clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_FORK;
 
         public bool simulationMode => options.Simulation;
         public string Name { get; set; }
         public virtual clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
+
+        /// <summary>
+        /// 當前任務規劃移動軌跡
+        /// </summary>
+        public clsMapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
+
+        /// <summary>
+        /// 剩餘的移動軌跡
+        /// </summary>
+        public clsMapPoint[] RemainTrajectory
+        {
+            get
+            {
+                if (CurrentTrajectory == null)
+                    return new clsMapPoint[0];
+                if (CurrentTrajectory.Length is 0)
+                    return new clsMapPoint[0];
+                var trajectoryList = CurrentTrajectory.ToList();
+                var pt = trajectoryList.First(pt => pt.Point_ID == currentMapPoint.TagNumber);
+                var index = trajectoryList.IndexOf(pt);
+                clsMapPoint[] remainTrajectory = new clsMapPoint[trajectoryList.Count - index];
+                CurrentTrajectory.ToList().CopyTo(index, remainTrajectory, 0, remainTrajectory.Length);
+                return remainTrajectory;
+            }
+        }
         public bool connected
         {
             get => _connected;
@@ -51,7 +77,8 @@ namespace VMSystem.AGV
                 if (_connected != value)
                 {
                     _connected = value;
-                    AGVStatusDBHelper.UpdateConnected(Name, value);
+                    Task.Run(() => AGVStatusDBHelper.UpdateConnected(Name, value));
+
                 }
             }
         }
@@ -90,7 +117,7 @@ namespace VMSystem.AGV
                     return new MapPoint()
                     {
                         TagNumber = -1,
-                         Name ="Unknown"
+                        Name = "Unknown"
                     };
                 return point;
             }
@@ -213,108 +240,14 @@ namespace VMSystem.AGV
         public void UpdateAGVStates(RunningStatus status)
         {
             this.states = status;
-            var databaseDto = new AGVSystemCommonNet6.clsAGVStateDto
-            {
-                AGV_Name = Name,
-                BatteryLevel = status.Electric_Volume[0],
-                OnlineStatus = online_state,
-                MainStatus = status.AGV_Status,
-                CurrentCarrierID = status.CSTID.Length == 0 ? "" : status.CSTID[0],
-                CurrentLocation = status.Last_Visited_Node.ToString(),
-                Theta = status.Coordination.Theta,
-                Connected = true,
-                Model = model
-            };
             availabilityHelper.UpdateAGVMainState(main_state);
-            SaveStateToDatabase(databaseDto);
-        }
-        private async void SyncStateWorker()
-        {
-            await Task.Delay(1);
-
-            _ = Task.Run(async () =>
-            {
-                bool previous_collect_state_success = true;
-                Stopwatch sw = Stopwatch.StartNew();
-                AGVSystemCommonNet6.Alarm.clsAlarmCode alarm = AlarmManagerCenter.GetAlarmCode(ALARMS.AGV_DISCONNECT);
-                clsAlarmDto disconnectAlarm = new clsAlarmDto()
-                {
-                    AlarmCode = (int)alarm.AlarmCode,
-                    Description_En = alarm.Description_En,
-                    Description_Zh = alarm.Description_Zh,
-                    Equipment_Name = Name,
-                    Level = ALARM_LEVEL.ALARM,
-                    Source = ALARM_SOURCE.EQP,
-
-                };
-                while (true)
-                {
-                    try
-                    {
-
-                        await Task.Delay(10);
-                        if (!simulationMode)
-                        {
-                            bool collect_state_success = (bool)GetAGVStateFromDB().Result;
-                            connected = collect_state_success;
-                            if (previous_collect_state_success != collect_state_success)
-                            {
-                                if (!collect_state_success)
-                                {
-                                    disconnectAlarm.Time = new DateTime(DateTime.Now.Ticks);
-                                    disconnectAlarm.Checked = false;
-                                    disconnectAlarm.ResetAalrmMemberName = "";
-                                }
-                            }
-                            if (!collect_state_success)
-                            {
-                                disconnectAlarm.Duration = (int)(sw.ElapsedMilliseconds / 1000);
-                                disconnectAlarm.OccurLocation = states.Last_Visited_Node.ToString();
-
-                                if (taskDispatchModule.ExecutingTask != null)
-                                    disconnectAlarm.Task_Name = taskDispatchModule.ExecutingTask.TaskName;
-                                AlarmManagerCenter.UpdateAlarm(disconnectAlarm);
-                            }
-                            else
-                            {
-                                sw.Restart();
-                                disconnectAlarm.ResetAalrmMemberName = $"VMS-{GetType().Name}";
-                                AlarmManagerCenter.ResetAlarm(disconnectAlarm, true);
-
-                            }
-                            previous_collect_state_success = collect_state_success;
-
-                            ///把狀態存到資料庫
-                            await SaveStateToDatabase();
-                        }
-                        else
-                        {
-                            connected = true;
-                            string json = JsonConvert.SerializeObject(states, Formatting.Indented);
-                            await SaveStateToDatabase();
-                        }
-                        if (connected)
-                        {
-                            availabilityHelper.UpdateAGVMainState(main_state);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        continue;
-                    }
-                }
-            });
+            SaveStateToDatabase();
         }
         public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
         {
             try
             {
                 await Task.Delay(1);
-                //if (taskDispatchModule.ExecutingTask != null)
-                //{
-                //    dto.TaskName = taskDispatchModule.ExecutingTask.TaskName;
-                //    dto.TaskRunStatus = taskDispatchModule.ExecutingTask.State;
-                //}
                 return AGVStatusDBHelper.Update(dto, out string errMsg);
             }
             catch (Exception ex)
@@ -334,13 +267,19 @@ namespace VMSystem.AGV
                 var dto = new clsAGVStateDto()
                 {
                     AGV_Name = Name,
-                    BatteryLevel = states.Electric_Volume[0],
+                    Enabled = options.Enabled,
+                    BatteryLevel = states.Electric_Volume.Length == 0 ? 0 : states.Electric_Volume[0],
                     OnlineStatus = online_state,
                     MainStatus = states.AGV_Status,
                     CurrentCarrierID = states.CSTID.Length == 0 ? "" : states.CSTID[0],
                     CurrentLocation = states.Last_Visited_Node.ToString(),
                     Theta = states.Coordination.Theta,
-                    Connected = connected
+                    Connected = connected,
+                    Group = VMSGroup,
+                    Model = model,
+                    TaskName = taskDispatchModule.ExecutingTask == null ? "" : taskDispatchModule.ExecutingTask.TaskName,
+                    TaskRunStatus = taskDispatchModule.ExecutingTask == null ? TASK_RUN_STATUS.NO_MISSION : taskDispatchModule.ExecutingTask.State,
+                    TaskRunAction = taskDispatchModule.ExecutingTask == null ? ACTION_TYPE.None : taskDispatchModule.ExecutingTask.Action,
                 };
                 return await SaveStateToDatabase(dto);
             }
@@ -401,7 +340,9 @@ namespace VMSystem.AGV
             taskDispatchModule.CancelTask();
 
             var resDto = Http.GetAsync<clsAPIRequestResult>($"{HttpHost}/api/AGV/agv_offline").Result;
+            online_state = clsEnums.ONLINE_STATE.OFFLINE;
 
+            SaveStateToDatabase();
             message = resDto.Message;
             return resDto.Success;
         }
@@ -425,6 +366,10 @@ namespace VMSystem.AGV
             {
                 AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
             }
+            else
+                online_state = clsEnums.ONLINE_STATE.ONLINE;
+
+            SaveStateToDatabase();
             message = resDto.Message;
             return resDto.Success;
         }

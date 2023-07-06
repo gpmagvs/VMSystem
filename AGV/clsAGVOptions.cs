@@ -14,5 +14,6 @@
 
         public int InitTag { get; set; } = 1;
 
+        public bool Enabled { get; set; } = true;
     }
 }

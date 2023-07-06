@@ -1,15 +1,9 @@
 ﻿using AGVSystemCommonNet6.DATABASE;
 using VMSystem.AGV;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.VMS
 {
-
-    public enum VMS_MODELS
-    {
-        GPM_FORK,
-        GPM_SUBMARINE_SHIELD,
-        YUNTECH_FORK
-    }
 
     /// <summary>
     /// 收集車輛狀態
@@ -25,7 +19,7 @@ namespace VMSystem.VMS
         /// <summary>
         /// 所管理之車輛的類型
         /// </summary>
-        public  abstract VMS_MODELS Model { get; set; }
+        public  abstract VMS_GROUP Model { get; set; }
 
 
         /// <summary>

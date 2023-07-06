@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Log;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 using System.Xml.Linq;
+using System;
 
 namespace VMSystem.Controllers
 {
@@ -19,29 +20,7 @@ namespace VMSystem.Controllers
     [ApiController]
     public class VmsManagerController : ControllerBase
     {
-        //api/VmsManager/AGVStatus?AGVName=agvname
-        [HttpPost("AGVStatus")]
-        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model, RunningStatus status)
-        {
-            if (!VMSManager.TryGetAGV(AGVName, Model, out IAGV agv))
-            {
-                return Ok(new
-                {
-                    ReturnCode = 1,
-                    Message = $"VMS System Not Found AGV With Name ={AGVName} "
-                });
-            }
-            else
-            {
-                agv.UpdateAGVStates(status);
-                return Ok(new
-                {
-                    ReturnCode = 0,
-                    Message = ""
-                });
-            }
-        }
-
+     
         [HttpGet("/ws/VMSStatus")]
         public async Task GetVMSStatus()
         {
@@ -86,54 +65,21 @@ namespace VMSystem.Controllers
             return Ok(new { Confirm = Confirm, AGV = agv, taskData });
         }
 
-        [HttpPost("TaskFeedback")]
-        public async Task<IActionResult> TaskFeedback([FromBody] object feedbackDataJson)
-        {
-            var feedbackData = JsonConvert.DeserializeObject<FeedbackData>(feedbackDataJson.ToString());
-            int confirmed_code = VMSManager.TaskFeedback(feedbackData);
-            return Ok(new { Return_Code = confirmed_code });
-        }
+       
 
-        //api/VmsManager/OnlineMode
-        [HttpGet("OnlineMode")]
-        public async Task<IActionResult> OnlineStatusQuery(string AGVName, AGV_MODEL Model = AGV_MODEL.UNKNOWN)
-        {
-            if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
-            {
-                OnlineModeQueryResponse response = new OnlineModeQueryResponse()
-                {
-                    RemoteMode = REMOTE_MODE.OFFLINE,
-                    TimeStamp = DateTime.Now.ToString()
-                };
-
-                agv.connected = true;
-                return Ok(response);
-            }
-            else
-            {
-                OnlineModeQueryResponse response = new OnlineModeQueryResponse()
-                {
-                    RemoteMode = REMOTE_MODE.OFFLINE,
-                    TimeStamp = DateTime.Now.ToString()
-                };
-                return Ok(response);
-            }
-        }
 
         [HttpGet("OnlineRequet")]
         public async Task<IActionResult> OnlineRequet(string agv_name, AGV_MODEL model = AGV_MODEL.FORK_AGV)
         {
-
-            Console.WriteLine($"AGV-{agv_name}要求上線");
-
+            Console.WriteLine($"要求 {agv_name}上線 ");
             if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
             {
                 bool online_success = agv.Online(out string msg);
-                return Ok(new clsAPIRequestResult { Success = online_success, Message = msg });
+                return Ok(new { ReturnCode = 0, Message = msg });
             }
             else
             {
-                return Ok(new clsAPIRequestResult { Success = false, Message = "AGV Not Found" });
+                return Ok(new  { ReturnCode = 1, Message = "AGV Not Found" });
             }
         }
 
@@ -154,11 +100,11 @@ namespace VMSystem.Controllers
                 }
 
                 bool online_success = agv.Offline(out string msg);
-                return Ok(new clsAPIRequestResult { Success = online_success, Message = msg });
+                return Ok(new { ReturnCode = 0, Message = msg });
             }
             else
             {
-                return Ok(new clsAPIRequestResult { Success = false, Message = "AGV Not Found" });
+                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
             }
         }
 

@@ -8,7 +8,7 @@ using System.Data.Common;
 using AGVSystemCommonNet6.DATABASE;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
-namespace VMSystem
+namespace VMSystem.TrafficControl
 {
     public class TrafficControlCenter
     {
@@ -82,6 +82,27 @@ namespace VMSystem
                 return (false, null);
         }
 
+
+        /// <summary>
+        /// 計算路徑是否重複
+        /// </summary>
+        /// <returns></returns>
+        internal static bool CalculatePathOverlaping(ref IAGV agv)
+        {
+            //計算最優路線
+            //判斷是否有執行任務中的AGV >> 
+            //  - 找到IDLE且擋路的AGV =>移車
+            //  - 有執行中的AGV
+            //     - 計算是否可跟車(路線重疊) ,
+            //          - 可跟車? 跟!
+            //          - 不可跟車
+            //              - 繞路
+            //              - 等待
+            //     
+            //
+            return false;
+        }
+
         /// <summary>
         /// 找一條沒有AGV阻擋的路
         /// </summary>
@@ -92,12 +113,12 @@ namespace VMSystem
             int endTag = ori_path_tags.Last();
 
             PathFinder pathFinder = new PathFinder();
-            PathFinder.clsPathInfo pathFoundDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, startTag, endTag, new PathFinder.PathFinderOption
+            clsPathInfo pathFoundDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, startTag, endTag, new PathFinderOption
             {
                 ConstrainTags = otherAGVList.Select(agv => agv.states.Last_Visited_Node).ToList(),
             });
 
-            return pathFinder.GetTrajectory(StaMap.Map.Name, pathFoundDto.stations);
+            return PathFinder.GetTrajectory(StaMap.Map.Name, pathFoundDto.stations);
 
         }
 
@@ -107,52 +128,35 @@ namespace VMSystem
         /// <param name="agv"></param>
         /// <param name="constrain_stations"></param>
         /// <returns></returns>
-        internal static bool TryMoveAGV(IAGV agv, List<MapPoint> constrain_stations)
+        internal static async Task<bool> TryMoveAGV(IAGV agv, List<MapPoint> constrain_stations)
         {
-            bool isPark = false;
             var constrainTags = constrain_stations.Select(point => point.TagNumber);
             var otherAGVCurrentTag = VMSManager.AllAGV.FindAll(_agv => _agv != agv).Select(agv => agv.states.Last_Visited_Node);
-
             var move_goal_constrains = new List<int>();//最終停車的限制點
             move_goal_constrains.AddRange(constrainTags);
             move_goal_constrains.AddRange(otherAGVCurrentTag);
-
-
             var move_path_constrains = new List<int>();//停車過程行經路徑的的限制點
             move_path_constrains.AddRange(otherAGVCurrentTag);
-
             //FindAllAvoidPath
             var avoid_pathinfos = FindAllAvoidPath(agv.states.Last_Visited_Node, move_goal_constrains, move_path_constrains);
-            if (avoid_pathinfos.Count == 0)
-            {
-                isPark = true;
-                avoid_pathinfos = FindAllParkPath(agv.states.Last_Visited_Node, move_goal_constrains, move_path_constrains);
-            }
-
             if (avoid_pathinfos.Count == 0)
                 return false;
             var path = avoid_pathinfos.OrderBy(info => info.total_travel_distance).First();
             int avoid_tag = path.stations.Last().TagNumber;
 
-            TaskDatabaseHelper db = new TaskDatabaseHelper();
-            db.Add(new AGVSystemCommonNet6.TASK.clsTaskDto
+            clsTaskDownloadData task_download_data = new clsTaskDownloadData
             {
-                Action = isPark ? ACTION_TYPE.Park : ACTION_TYPE.None,
-                TaskName = "*TMC_" + DateTime.Now.ToString("yyyyMMdd_HHmmssfff"),
-                Carrier_ID = "",
-                DispatcherName = "TMC",
-                DesignatedAGVName = agv.Name,
-                Priority = 10,
-                To_Station = avoid_tag.ToString(),
-                State = TASK_RUN_STATUS.WAIT,
-            });
-            return true;
-            while (agv.states.Last_Visited_Node != avoid_tag)
-            {
-                Console.WriteLine($"Wait {agv.Name} Move To Avoid Point({avoid_tag})");
-                Thread.Sleep(200);
-            }
-            return true;
+                Action_Type = ACTION_TYPE.None,
+                Task_Name = "*TMC_" + DateTime.Now.ToString("yyyyMMdd_HHmmssfff"),
+                CST = new clsCST[1] { new clsCST { CST_ID = "", CST_Type = 0 } },
+                Destination = avoid_tag,
+                Task_Sequence = 0,
+                Escape_Flag = false,
+                Station_Type = 0,
+                Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, path.stations)
+            };
+            SimpleRequestResponse response = await agv.taskDispatchModule.PostTaskRequestToAGVAsync(task_download_data);
+            return response.ReturnCode == RETURN_CODE.OK;
         }
 
         public static List<clsPathInfo> FindAllAvoidPath(int startTag, List<int> goal_constrain_tag = null, List<int> path_contratin_tags = null)
@@ -208,6 +212,15 @@ namespace VMSystem
             }
             return PathInfoList;
         }
+
+        public static bool CalculatePathOverlaping(IEnumerable<int> path_1, IEnumerable<int> path_2, out List<int> overlap_tags)
+        {
+            var _path1 = path_1.ToHashSet<int>();
+            var _path2 = path_2.ToHashSet<int>();
+            overlap_tags = _path1.Intersect(path_2).ToList();
+            return overlap_tags.Count > 1;
+        }
+
         public class clsTrafficState
         {
             public List<int> path { get; set; } = new List<int>();

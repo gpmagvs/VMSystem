@@ -12,6 +12,7 @@ namespace VMSystem.AGV
     public interface IAGV
     {
         AvailabilityHelper availabilityHelper { get; }
+        VMS_GROUP VMSGroup { get; set; }
         AGV_MODEL model { get; set; }
         string Name { get; set; }
         clsAGVOptions options { get; set; }
@@ -22,7 +23,7 @@ namespace VMSystem.AGV
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapPoint currentMapPoint { get; }
-
+        clsMapPoint[] RemainTrajectory { get; }
         bool Online(out string message);
         bool Offline(out string message);
 

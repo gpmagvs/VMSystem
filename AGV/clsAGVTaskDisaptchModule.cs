@@ -7,7 +7,7 @@ using AGVSystemCommonNet6.TASK;
 using System.Collections.Generic;
 using System.Diagnostics;
 using static AGVSystemCommonNet6.TASK.clsTaskDto;
-using static VMSystem.TrafficControlCenter;
+using static VMSystem.TrafficControl.TrafficControlCenter;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using Newtonsoft.Json;
 using AGVSystemCommonNet6.Log;
@@ -17,6 +17,7 @@ using RosSharp.RosBridgeClient.MessageTypes.Sensor;
 using System.Threading.Tasks;
 using AGVSystemCommonNet6.Tools.Database;
 using VMSystem.VMS;
+using Microsoft.AspNetCore.Builder.Extensions;
 
 namespace VMSystem.AGV
 {
@@ -39,12 +40,14 @@ namespace VMSystem.AGV
             }
         }
         public clsTaskDto ExecutingTask { get; internal set; } = null;
+        public clsMapPoint[] CurrentTrajectory { get; set; }
 
         public clsAGVSimulation AgvSimulation;
 
         public List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
 
         protected TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
+
         public clsAGVTaskDisaptchModule()
         {
             TaskAssignWorker();
@@ -93,22 +96,16 @@ namespace VMSystem.AGV
                         }
                         ExecutingTask = _ExecutingTask;
                         await ExecuteTaskAsync(ExecutingTask);
-                        //更新
-                        //ExecutingTask.State = TASK_RUN_STATUS.WAIT;
                     }
-                    catch(NoPathForNavigatorException ex)
+                    catch (NoPathForNavigatorException ex)
                     {
-                        ExecutingTask.FinishTime = DateTime.Now;
-                        ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                        TaskDBHelper.Update(ExecutingTask);
-                        AlarmManagerCenter.AddAlarm( ALARMS.TRAFFIC_ABORT);
+                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                         ExecutingTask = null;
                     }
                     catch (Exception ex)
                     {
-                        ExecutingTask.FinishTime = DateTime.Now;
-                        ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                        TaskDBHelper.Update(ExecutingTask);
+                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                         ExecutingTask = null;
                     }
@@ -127,42 +124,77 @@ namespace VMSystem.AGV
             int task_seq = 0;
             clsTaskDownloadData _taskRunning = new clsTaskDownloadData();
             var toPointTagStr = executingTask.To_Station;
-            goalPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == toPointTagStr);
-            var toPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == toPointTagStr);
+            var fromPointTagStr = executingTask.From_Station;
+            goalPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == toPointTagStr); //最終目標點
+
+            MapPoint fromPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == fromPointTagStr);
+            MapPoint toPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == toPointTagStr);
+            MapPoint trackingToPoint = toPoint;
+            ACTION_TYPE current_ld_uld_action = ACTION_TYPE.Unload;
 
             while (ExecutingTask.State != TASK_RUN_STATUS.ACTION_FINISH)
             {
                 if (agv.currentMapPoint.StationType != STATION_TYPE.Normal)
                 {
                     //退出 , 下Discharge任務
-                    _taskRunning = CreateDischargeActionTaskJob(taskName, agv.currentMapPoint, task_seq);
+                    _taskRunning = await CreateDischargeActionTaskJob(taskName, agv.currentMapPoint, task_seq);
                 }
                 else
                 {
                     //MOVE To Goal 
-                    if (agv.currentMapPoint.TagNumber == toPoint.TagNumber)
+                    if (agv.currentMapPoint.TagNumber == trackingToPoint.TagNumber) //到點
                     {
                         if (action == ACTION_TYPE.None)
                         {
                             break;
                         }
-                        _taskRunning = CreateLDULDTaskJob(taskName, action, goalPoint, int.Parse(ExecutingTask.To_Slot), ExecutingTask.Carrier_ID, task_seq);
-                        goalPoint = action == ACTION_TYPE.None | action == ACTION_TYPE.Charge | action == ACTION_TYPE.Park ? goalPoint : agv.currentMapPoint;
+                        if (action == ACTION_TYPE.Carry)
+                        {
+                            var lduld_point = current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint : goalPoint;
+                            _taskRunning = await CreateLDULDTaskJob(taskName, current_ld_uld_action, lduld_point, int.Parse(ExecutingTask.To_Slot), ExecutingTask.Carrier_ID, task_seq);
+                            current_ld_uld_action = ACTION_TYPE.Load;
+                            trackingToPoint = StaMap.Map.Points[toPoint.Target.First().Key];
+                            goalPoint = trackingToPoint;
+                        }
+                        else
+                        {
+                            _taskRunning = await CreateLDULDTaskJob(taskName, action, goalPoint, int.Parse(ExecutingTask.To_Slot), ExecutingTask.Carrier_ID, task_seq);
+                            goalPoint = action == ACTION_TYPE.None | action == ACTION_TYPE.Charge | action == ACTION_TYPE.Park ? goalPoint : agv.currentMapPoint;
+
+                        }
                     }
                     else
                     {
                         if (action != ACTION_TYPE.None)
-                            toPoint = StaMap.Map.Points[toPoint.Target.First().Key];
-                        _taskRunning = CreateMoveActionTaskJob(taskName, agv.currentMapPoint, toPoint, task_seq);
+                        {
+                            if (action == ACTION_TYPE.Carry)
+                            {
+                                trackingToPoint = StaMap.Map.Points[current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint.Target.First().Key : toPoint.Target.First().Key];//更新to
+                                goalPoint = toPoint;
+                            }
+                            else
+                            {
+                                trackingToPoint = StaMap.Map.Points[toPoint.Target.First().Key];
+                            }
+                        }
+                        _taskRunning = await CreateMoveActionTaskJob(taskName, agv.currentMapPoint, trackingToPoint, task_seq);
                     }
                 }
+
+
+
                 TaskDBHelper.Update(ExecutingTask);
                 var Trajectory = _taskRunning.Trajectory.ToArray();
                 clsTaskDto agv_response = null;
 
+                #region MyRegion
+
                 if (_taskRunning.TrafficInfo.waitPoints.Count != 0)
-                    foreach (var waitPoint in _taskRunning.TrafficInfo.waitPoints)
+                {
+                    Queue<MapPoint> waitPointsQueue = new Queue<MapPoint>();
+                    while (_taskRunning.TrafficInfo.waitPoints.Count != 0)
                     {
+                        _taskRunning.TrafficInfo.waitPoints.TryDequeue(out MapPoint waitPoint);
                         var index_of_waitPoint = Trajectory.ToList().IndexOf(Trajectory.First(pt => pt.Point_ID == waitPoint.TagNumber));
                         var index_of_conflicPoint = index_of_waitPoint + 1;
                         var conflicPoint = _taskRunning.Trajectory[index_of_conflicPoint];
@@ -177,51 +209,45 @@ namespace VMSystem.AGV
                         task_seq += 1;
                         jobs.Add(subTaskRunning);
                         LOG.INFO($"{agv.Name} 在 {waitPoint.TagNumber} 等待 {conflicPoint.Point_ID} 淨空");
-                        agv_response = agv.options.Simulation ? await AgvSimulation.ActionRequestHandler(subTaskRunning) : await SendActionRequestAsync(subTaskRunning);
-                        ExecutingTask.State = agv_response.State;
-                        if (ExecutingTask.State == TASK_RUN_STATUS.FAILURE)
+                        CurrentTrajectory = subTaskRunning.Trajectory;
+                        var _returnDto = await PostTaskRequestToAGVAsync(subTaskRunning);
+                        if (_returnDto.ReturnCode != RETURN_CODE.OK)
                         {
-                            ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                            ExecutingTask.FailureReason = agv_response.FailureReason;
-                            TaskDBHelper.Update(ExecutingTask);
+                            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
                             break;
                         }
-                        Console.WriteLine($"{agv.Name} - 等待抵達等待點 Tag= {waitPoint.TagNumber}");
-
+                        ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
                         while (VMSManager.AllAGV.FindAll(agv => agv != this.agv).Any(agv => Trajectory.Select(t => t.Point_ID).Contains(agv.currentMapPoint.TagNumber)))
                         {
                             Thread.Sleep(100);
                             Console.WriteLine($"{agv.Name} - 等待其他AGV 離開  Tag {conflicPoint.Point_ID}");
                         }
                         Console.WriteLine($"Tag {conflicPoint.Point_ID} 已淨空，當前位置={agv.currentMapPoint.TagNumber}");
-
-
                         while (agv.currentMapPoint.TagNumber != waitPoint.TagNumber)
                         {
                             Thread.Sleep(100);
                             Console.WriteLine($"{agv.Name} - 等待抵達等待點 Tag= {waitPoint.TagNumber}");
                         }
                     }
+                }
+                #endregion
 
                 _taskRunning.Trajectory = Trajectory;
                 _taskRunning.Task_Sequence = task_seq;
+                CurrentTrajectory = Trajectory;
                 jobs.Add(_taskRunning);
                 currentTaskSimplex = _taskRunning.Task_Simplex;
                 ExecutingJobsStates.Add(currentTaskSimplex, TASK_RUN_STATUS.WAIT);
-                agv_response = agv.options.Simulation ? await AgvSimulation.ActionRequestHandler(_taskRunning) : await SendActionRequestAsync(_taskRunning);
-                ExecutingTask.State = agv_response.State;
-                if (ExecutingTask.State == TASK_RUN_STATUS.FAILURE)
+                var returnDto = await PostTaskRequestToAGVAsync(_taskRunning);
+                if (returnDto.ReturnCode != RETURN_CODE.OK)
                 {
-                    ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                    ExecutingTask.FailureReason = agv_response.FailureReason;
-                    TaskDBHelper.Update(ExecutingTask);
+                    ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
                     break;
                 }
-                //  clsTaskDto response = agv.options.Simulation ? AgvSimulation.ActionRequestHandler(_taskRunning) : await SendActionRequestAsync(_taskRunning);
-                //等待結束或失敗了
+                ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
                 while (ExecutingJobsStates[currentTaskSimplex] != TASK_RUN_STATUS.ACTION_FINISH)
                 {
-                    if(ExecutingTask == null)
+                    if (ExecutingTask == null)
                     {
                         jobs.Clear();
                         ExecutingJobsStates.Clear();
@@ -229,7 +255,6 @@ namespace VMSystem.AGV
                     }
                     Thread.Sleep(1);
                 }
-
                 LOG.WARN($"{agv.Name} 子任務 {currentTaskSimplex} 動作完成");
                 if (agv.currentMapPoint.TagNumber == goalPoint.TagNumber)
                 {
@@ -238,32 +263,44 @@ namespace VMSystem.AGV
                 task_seq += 1;
             }
             LOG.WARN($"{agv.Name}  任務 {executingTask.TaskName} 完成");
-            ExecutingTask.FinishTime = DateTime.Now;
-            ExecutingTask.State = TASK_RUN_STATUS.ACTION_FINISH;
-            TaskDBHelper.Update(ExecutingTask);
+            ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskList.Remove(executingTask);
             ExecutingTask = null;
+            CurrentTrajectory = new clsMapPoint[0];
             jobs.Clear();
         }
 
-        public int TaskFeedback(FeedbackData feedbackData)
+
+        private void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
         {
+            ExecutingTask.State = status;
+            if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.ACTION_FINISH)
+                ExecutingTask.FinishTime = DateTime.Now;
+            ExecutingTask.FailureReason = failure_reason;
+            TaskDBHelper.Update(ExecutingTask);
+        }
+
+
+        public int TaskFeedback(FeedbackData feedbackData, out string message)
+        {
+            message = "";
             TASK_RUN_STATUS state = feedbackData.TaskStatus;
             var task_simplex = feedbackData.TaskSimplex;
             var simplex_task = jobs.FirstOrDefault(jb => jb.Task_Simplex == task_simplex);
 
-            if (simplex_task==null)
+            if (simplex_task == null)
             {
-                 LOG.INFO($"{agv.Name } Task Feedback.  Task_Simplex => {feedbackData.TaskSimplex} Not Exist" );
+                message = $"{agv.Name} Task Feedback.  Task_Simplex => {feedbackData.TaskSimplex} Not Exist";
+                LOG.INFO(message);
                 return 4444;
             }
             else
             {
+                LOG.WARN($"{agv.Name} 剩餘路徑: {string.Join("->", agv.RemainTrajectory.Select(pt => pt.Point_ID))}");
                 LOG.INFO($"{agv.Name} Task Feedback.  Task_Simplex => {task_simplex} ,Status=> {state}");
 
                 if (state == TASK_RUN_STATUS.ACTION_FINISH)
                 {
-
                     if (TryGetStationByTag(agv.states.Last_Visited_Node, out MapPoint point))
                     {
                         LOG.INFO($"AGV-{agv.Name} Finish Action ({simplex_task.Action_Type}) At Tag-{point.TagNumber}({point.Name})");
@@ -286,18 +323,21 @@ namespace VMSystem.AGV
             await Http.PostAsync<object, object>($"{AGVSConfigulator.SysConfigs.AGVSHost}/api/Task/LDULDFinishFeedback?agv_name={agv.Name}&EQTag={EQTag}&LDULD={LDULD}", null);
         }
 
-        private async Task<clsTaskDto> SendActionRequestAsync(clsTaskDownloadData data)
+        public async Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData data)
         {
             try
             {
-                clsTaskDto taskStateResponse = await Http.PostAsync<clsTaskDownloadData, clsTaskDto>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                if (agv.options.Simulation)
+                    return await AgvSimulation.ActionRequestHandler(data);
+
+                SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data);
                 return taskStateResponse;
             }
             catch (Exception ex)
             {
-                return new clsTaskDto()
+                return new SimpleRequestResponse
                 {
-                    State = TASK_RUN_STATUS.FAILURE,
+                    ReturnCode = RETURN_CODE.System_Error
                 };
             }
         }

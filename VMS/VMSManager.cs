@@ -20,7 +20,7 @@ namespace VMSystem.VMS
     public class VMSManager
     {
         public static GPMForkAgvVMS ForkAGVVMS;
-        public static Dictionary<VMS_MODELS, VMSAbstract> VMSList = new Dictionary<VMS_MODELS, VMSAbstract>();
+        public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         internal static List<IAGV> AllAGV
         {
@@ -32,8 +32,10 @@ namespace VMSystem.VMS
                     if (vms == null)
                         continue;
                     outputs.AddRange(vms.AGVList.Values.ToArray());
+
                 }
-                return outputs;
+
+                return outputs.FindAll(agv => agv.options.Enabled);
             }
         }
 
@@ -53,8 +55,8 @@ namespace VMSystem.VMS
             foreach (var item in vmsconfigs)
             {
                 VMSAbstract VMSTeam = null;
-                VMS_MODELS vms_type = item.Key;
-                if (vms_type == VMS_MODELS.GPM_FORK)
+                VMS_GROUP vms_type = item.Key;
+                if (vms_type == VMS_GROUP.GPM_FORK)
                 {
                     var gpm_for_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
                     //if (Debugger.IsAttached)
@@ -62,7 +64,7 @@ namespace VMSystem.VMS
                     //else
                     VMSTeam = new GPMForkAgvVMS(gpm_for_agvList);
                 }
-                else if (vms_type == VMS_MODELS.YUNTECH_FORK)
+                else if (vms_type == VMS_GROUP.YUNTECH_FORK)
                 {
                     var yuntech_fork_agvList = item.Value.AGV_List.Select(kp => new clsYunTechAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new YunTechAgvVMS(yuntech_fork_agvList);
@@ -320,7 +322,7 @@ namespace VMSystem.VMS
             IAGV? agv = busyAgvs.FirstOrDefault(agv => agv.taskDispatchModule.ExecutingTask.TaskName == feedbackData.TaskName);
             if (agv != null)
             {
-                return agv.taskDispatchModule.TaskFeedback(feedbackData);
+                return agv.taskDispatchModule.TaskFeedback(feedbackData, out string message);
             }
             else
             {

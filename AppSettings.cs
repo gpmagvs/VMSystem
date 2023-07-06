@@ -10,13 +10,14 @@ using System.Text;
 using System.Threading.Tasks;
 using VMSystem.AGV;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem
 {
     public class AppSettings
     {
-
-        private static string appsettingsFile => Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.json";
+        //private static string appsettingsFile => Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.json";
+        private static string appsettingsFile => "appsettings.json";
         private static IConfiguration _config
         {
             get
@@ -29,19 +30,19 @@ namespace VMSystem
 
         public static Dictionary<string, object> GetAppsettings()
         {
-            string settingsJosnFile = Path.Combine(AppContext.BaseDirectory , appsettingsFile);
+            string settingsJosnFile = Path.Combine(Environment.CurrentDirectory , appsettingsFile);
 
             string json = File.ReadAllText(settingsJosnFile);
             Dictionary<string, object>? con = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
             return con;
         }
 
-        public static Dictionary<VMS_MODELS, VMSConfig> VMSConfigs
+        public static Dictionary<VMS_GROUP, VMSConfig> VMSConfigs
         {
             get
             {
                 var json = GetAppsettings()["VMS"].ToString();
-                return JsonConvert.DeserializeObject<Dictionary<VMS_MODELS, VMSConfig>>(json);
+                return JsonConvert.DeserializeObject<Dictionary<VMS_GROUP, VMSConfig>>(json);
             }
         }
 

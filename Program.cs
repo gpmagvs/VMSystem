@@ -8,23 +8,30 @@ using VMSystem.AGV;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.User;
+using Microsoft.Data.Sqlite;
+using VMSystem.TrafficControl;
 
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
 var builder = WebApplication.CreateBuilder(args);
-string DBConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-Directory.CreateDirectory(Path.GetDirectoryName(DBConnection.Split('=')[1]));
 
-// Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = null);
-builder.Services.AddDbContext<AGVSDbContext>(options => options.UseSqlite(DBConnection));
+
+
+string DBConnection = AGVSConfigulator.SysConfigs.DBConnection;
+Directory.CreateDirectory(Path.GetDirectoryName(DBConnection.Split('=')[1]));
+var connectionString = new SqliteConnectionStringBuilder(DBConnection)
+{
+    Mode = SqliteOpenMode.ReadWriteCreate,
+}.ToString();
+
+builder.Services.AddDbContext<AGVSDbContext>(options => options.UseSqlite(connectionString));
 
 builder.Services.Configure<JsonOptions>(options =>
 {
@@ -35,11 +42,15 @@ builder.Services.Configure<JsonOptions>(options =>
 var app = builder.Build();
 
 
-using (var scope = app.Services.CreateScope())
+using (IServiceScope scope = app.Services.CreateScope())
 {
-    AGVSDbContext TaskDbContext = scope.ServiceProvider.GetRequiredService<AGVSDbContext>();
-    TaskDbContext.Database.EnsureCreated();
+    using (AGVSDbContext dbContext = scope.ServiceProvider.GetRequiredService<AGVSDbContext>())
+    {
+        dbContext.Database.EnsureCreated();
+        dbContext.SaveChanges();
+    }
 }
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
