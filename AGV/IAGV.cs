@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 
 namespace VMSystem.AGV
 {
@@ -39,6 +40,7 @@ namespace VMSystem.AGV
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
         void UpdateAGVStates(RunningStatus status);
+        Task PublishTrafficDynamicData(clsDynamicTrafficState dynamicTrafficState);
     }
 
 }

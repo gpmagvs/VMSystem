@@ -4,6 +4,11 @@ using AGVSystemCommonNet6.TASK;
 using static System.Collections.Specialized.BitVector32;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using Microsoft.AspNetCore.Mvc.Diagnostics;
+using AGVSystemCommonNet6.AGVDispatch.Model;
+using VMSystem.TrafficControl;
+using AGVSystemCommonNet6.MAP;
+using static AGVSystemCommonNet6.Abstracts.CarComponent;
+using System.Xml.Linq;
 
 namespace VMSystem.AGV
 {
@@ -13,6 +18,7 @@ namespace VMSystem.AGV
         private double batteryLevelSim = 100.0;
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
         private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
+        private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
         public clsAGVSimulation(clsAGVTaskDisaptchModule dispatcherModule)
         {
             this.dispatcherModule = dispatcherModule;
@@ -105,8 +111,7 @@ namespace VMSystem.AGV
                     double finalTheta = ExecutingTrajecory.Last().Theta;
                     SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
                     agv.states.Coordination.Theta = finalTheta;
-
-                    Thread.Sleep(500);
+                    Thread.Sleep(1000);
 
                     StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
 
@@ -134,6 +139,13 @@ namespace VMSystem.AGV
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
+                MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
+
+                while (TrafficControlCenter.DynamicTrafficState.GetTrafficStatusByTag(agv.Name, netMapPt.TagNumber) != clsDynamicTrafficState.TRAFFIC_ACTION.PASS)
+                {
+                    Console.WriteLine($"Wait {netMapPt.Name} Release");
+                    Thread.Sleep(1000);
+                }
                 if (cancelToken.IsCancellationRequested)
                 {
                     throw new TaskCanceledException();
@@ -168,13 +180,26 @@ namespace VMSystem.AGV
                     SimulationThetaChange(agv.states.Coordination.Theta, targetAngle);
                     agv.states.Coordination.Theta = targetAngle;
                 }
+                Thread.Sleep(1000);
                 agv.states.Coordination.X = station.X;
                 agv.states.Coordination.Y = station.Y;
-                Thread.Sleep(400);
+
+                StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node).TryUnRegistPoint(agv.Name, out string errmsg);
                 agv.states.Last_Visited_Node = stationTag;
+                StaMap.GetPointByTagNumber(stationTag).TryRegistPoint(agv.Name, out var regInfo);
+
                 stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
-                dispatcherModule.TaskFeedback(stateDto, out string message); //回報任務狀態
+                int feedBackCode = dispatcherModule.TaskFeedback(stateDto, out string message); //回報任務狀態
+
+                if (feedBackCode != 0)
+                {
+                    if (feedBackCode == 1) //停等訊號
+                    {
+
+                    }
+                }
+
                 idx += 1;
             }
         }
@@ -192,7 +217,7 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Start Angle: {currentAngle} degree");
             //Console.WriteLine($"Target Angle: {targetAngle} degree");
             //Console.WriteLine($"Shortest Rotation Angle: {shortestRotationAngle} degree");
-            double deltaTheta = 1.2;
+            double deltaTheta = 10;
             if (clockwise)//-角度
             {
                 //Console.WriteLine("Rotate Clockwise");

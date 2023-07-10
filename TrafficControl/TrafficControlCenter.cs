@@ -7,120 +7,20 @@ using Microsoft.JSInterop.Infrastructure;
 using System.Data.Common;
 using AGVSystemCommonNet6.DATABASE;
 using static AGVSystemCommonNet6.MAP.PathFinder;
+using AGVSystemCommonNet6.AGVDispatch.Model;
+using static AGVSystemCommonNet6.clsEnums;
+using Newtonsoft.Json;
 
 namespace VMSystem.TrafficControl
 {
     public class TrafficControlCenter
     {
-        internal static clsTrafficState TrafficControlCheck(IAGV agv, clsMapPoint[] Trajectory)
+
+        internal static void Initialize()
         {
-            if (Trajectory.Length == 0)
-                return new clsTrafficState
-                {
-                    is_navigatable = true,
-                };
-            try
-            {
-                List<int> path_tags = Trajectory.Select(s => s.Point_ID).ToList();
-
-                Console.WriteLine($"[交管中心] AGV{agv.Name}) 想要走 {string.Join("->", path_tags)}");
-                var PathBlockedState = CheckAnyAgvOnPath(path_tags, agv);
-                clsTrafficState TrafficState = null;
-
-                if (PathBlockedState.blocked)
-                {
-                    clsMapPoint[] newTrajectory = TryCreatePathWithoutAGVBlocked(path_tags, agv);
-                    bool hasOtherTrajectory = newTrajectory.Length > 0;
-
-                    TrafficState = new clsTrafficState
-                    {
-                        is_path_replaned = hasOtherTrajectory,
-                        blockedStations = hasOtherTrajectory ? null : PathBlockedState.blockedStations,
-                        is_navigatable = hasOtherTrajectory,
-                        path = path_tags,
-                        request_agv = agv,
-                        Trajectory = hasOtherTrajectory ? newTrajectory : Trajectory
-                    };
-                }
-                else
-                {
-                    TrafficState = new clsTrafficState
-                    {
-                        blockedStations = PathBlockedState.blockedStations,
-                        is_navigatable = !PathBlockedState.blocked,
-                        path = path_tags,
-                        request_agv = agv,
-                        Trajectory = Trajectory
-                    };
-                }
-
-                if (!TrafficState.is_navigatable)
-                {
-                    agv.AddNewAlarm(ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR, ALARM_SOURCE.AGVS);
-                    Console.WriteLine($"[交管中心] AGV{agv.Name}) 路徑無法行走。被{string.Join("、", TrafficState.blockedAgvNameList)} 阻擋");
-                }
-                return TrafficState;
-            }
-            catch (Exception ex)
-            {
-                agv.AddNewAlarm(ALARMS.TRAFFIC_CONTROL_CENTER_EXCEPTION_WHEN_CHECK_NAVIGATOR_PATH, ALARM_SOURCE.AGVS);
-                throw ex;
-            }
-
+            Task.Run(() => TrafficStateCollectorWorker());
         }
 
-        internal static (bool blocked, Dictionary<IAGV, int> blockedStations) CheckAnyAgvOnPath(List<int> path_tags, IAGV path_owner_agv)
-        {
-
-            List<IAGV> otherAGVList = VMSManager.AllAGV.FindAll(agv => agv != path_owner_agv);
-            var occupyStationAGVList = otherAGVList.FindAll(agv => path_tags.Contains(agv.states.Last_Visited_Node));
-            if (occupyStationAGVList.Count > 0)
-            {
-                return (true, occupyStationAGVList.ToDictionary(agv => agv, agv => agv.states.Last_Visited_Node));
-            }
-            else
-                return (false, null);
-        }
-
-
-        /// <summary>
-        /// 計算路徑是否重複
-        /// </summary>
-        /// <returns></returns>
-        internal static bool CalculatePathOverlaping(ref IAGV agv)
-        {
-            //計算最優路線
-            //判斷是否有執行任務中的AGV >> 
-            //  - 找到IDLE且擋路的AGV =>移車
-            //  - 有執行中的AGV
-            //     - 計算是否可跟車(路線重疊) ,
-            //          - 可跟車? 跟!
-            //          - 不可跟車
-            //              - 繞路
-            //              - 等待
-            //     
-            //
-            return false;
-        }
-
-        /// <summary>
-        /// 找一條沒有AGV阻擋的路
-        /// </summary>
-        internal static clsMapPoint[] TryCreatePathWithoutAGVBlocked(List<int> ori_path_tags, IAGV path_owner_agv)
-        {
-            List<IAGV> otherAGVList = VMSManager.AllAGV.FindAll(agv => agv != path_owner_agv);
-            int startTag = ori_path_tags.First();
-            int endTag = ori_path_tags.Last();
-
-            PathFinder pathFinder = new PathFinder();
-            clsPathInfo pathFoundDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, startTag, endTag, new PathFinderOption
-            {
-                ConstrainTags = otherAGVList.Select(agv => agv.states.Last_Visited_Node).ToList(),
-            });
-
-            return PathFinder.GetTrajectory(StaMap.Map.Name, pathFoundDto.stations);
-
-        }
 
         /// <summary>
         /// 嘗試將AGV移動到避車點
@@ -137,7 +37,6 @@ namespace VMSystem.TrafficControl
             move_goal_constrains.AddRange(otherAGVCurrentTag);
             var move_path_constrains = new List<int>();//停車過程行經路徑的的限制點
             move_path_constrains.AddRange(otherAGVCurrentTag);
-            //FindAllAvoidPath
             var avoid_pathinfos = FindAllAvoidPath(agv.states.Last_Visited_Node, move_goal_constrains, move_path_constrains);
             if (avoid_pathinfos.Count == 0)
                 return false;
@@ -155,8 +54,9 @@ namespace VMSystem.TrafficControl
                 Station_Type = 0,
                 Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, path.stations)
             };
-            SimpleRequestResponse response = await agv.taskDispatchModule.PostTaskRequestToAGVAsync(task_download_data);
-            return response.ReturnCode == RETURN_CODE.OK;
+            agv.taskDispatchModule.DispatchTrafficTask(task_download_data);
+            // SimpleRequestResponse response = await agv.taskDispatchModule.PostTaskRequestToAGVAsync(task_download_data);
+            return true;
         }
 
         public static List<clsPathInfo> FindAllAvoidPath(int startTag, List<int> goal_constrain_tag = null, List<int> path_contratin_tags = null)
@@ -221,17 +121,47 @@ namespace VMSystem.TrafficControl
             return overlap_tags.Count > 1;
         }
 
-        public class clsTrafficState
+        public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
+        private static async void TrafficStateCollectorWorker()
         {
-            public List<int> path { get; set; } = new List<int>();
-            public IAGV request_agv { get; set; }
-            public bool is_navigatable { get; set; }
-            public bool is_path_replaned { get; set; }
-            public Dictionary<IAGV, int> blockedStations { get; set; } = new Dictionary<IAGV, int>();
+            while (true)
+            {
+                Thread.Sleep(10);
+                try
+                {
+                    List<MapPoint> ConvertToMapPoint(clsMapPoint[] taskTrajecotry)
+                    {
+                        return taskTrajecotry.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)).ToList();
+                    };
 
-            public List<string> blockedAgvNameList => blockedStations.Select(kp => kp.Key.Name).ToList();
+                    DynamicTrafficState.AGVTrafficStates = VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv =>
+                        new clsAGVTrafficState
+                        {
+                            AGVName = agv.Name,
+                            CurrentPosition = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node),
+                            AGVStatus = agv.main_state,
+                            IsOnline = agv.online_state == ONLINE_STATE.ONLINE,
+                            TaskRecieveTime = agv.main_state != MAIN_STATUS.RUN ? DateTime.MaxValue : agv.taskDispatchModule.ExecutingTask == null ? DateTime.MaxValue : agv.taskDispatchModule.ExecutingTask.RecieveTime,
+                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.ExecutingTask == null ? new List<MapPoint>() : ConvertToMapPoint(agv.taskDispatchModule.CurrentTrajectory),
+                        }
+                    );
+                    DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt=>pt.IsRegisted);
+                    var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
+                    foreach (var agv in VMSManager.AllAGV)
+                    {
+                        if (!agv.options.Simulation)
+                            Task.Factory.StartNew(() =>
+                              {
+                                  agv.PublishTrafficDynamicData(DynamicTrafficState);
+                              });
+                    }
+                }
+                catch (Exception ex)
+                {
 
-            public clsMapPoint[] Trajectory { get; set; }
+                }
+
+            }
 
         }
     }

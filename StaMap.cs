@@ -43,10 +43,16 @@ namespace VMSystem
             var avoidStations = Map.Points.Values.ToList().FindAll(sta => sta.IsAvoid);
             return avoidStations;
         }
+
         internal static bool TryGetPointByTagNumber(int tagNumber, out MapPoint point)
         {
             point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
             return point != null;
+        }
+        internal static MapPoint  GetPointByTagNumber(int tagNumber )
+        {
+            var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
+            return point;
         }
 
     }

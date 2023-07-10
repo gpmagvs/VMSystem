@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
@@ -186,6 +187,11 @@ namespace VMSystem.AGV
             });
         }
 
+        public async Task PublishTrafficDynamicData(clsDynamicTrafficState data)
+        {
+            await Http.PostAsync<clsDynamicTrafficState, object>($"{HttpHost}/api/TrafficState/DynamicTrafficState", data);
+
+        }
         /// <summary>
         /// IDLE 一段時間後下發停車任務
         /// </summary>
@@ -239,6 +245,12 @@ namespace VMSystem.AGV
 
         public void UpdateAGVStates(RunningStatus status)
         {
+
+            if (states.Last_Visited_Node != status.Last_Visited_Node)
+            {
+                StaMap.GetPointByTagNumber(states.Last_Visited_Node).TryUnRegistPoint(Name, out string errmsg);
+                StaMap.GetPointByTagNumber(status.Last_Visited_Node).TryRegistPoint(Name, out var regInfo);
+            }
             this.states = status;
             availabilityHelper.UpdateAGVMainState(main_state);
             SaveStateToDatabase();
@@ -247,6 +259,7 @@ namespace VMSystem.AGV
         {
             try
             {
+
                 await Task.Delay(1);
                 return AGVStatusDBHelper.Update(dto, out string errMsg);
             }

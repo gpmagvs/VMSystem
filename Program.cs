@@ -17,7 +17,6 @@ LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
 var builder = WebApplication.CreateBuilder(args);
 
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -69,9 +68,8 @@ app.MapControllers();
 
 
 
-clsAGVTaskDisaptchModule.OnAGVSOnlineModeChangedRequest += TrafficControlCenter.TrafficControlCheck;
-
 StaMap.Download();
 VMSManager.Initialize(builder.Configuration);
+TrafficControlCenter.Initialize();
 
 app.Run();

@@ -12,13 +12,15 @@ namespace VMSystem.AGV
         /// 尚未完成的任務列表
         /// </summary>
         List<clsTaskDto> incompletedTaskList => taskList.FindAll(t => t.State != TASK_RUN_STATUS.ACTION_FINISH);
-        clsTaskDto ExecutingTask { get; }
+        clsTaskDto ExecutingTask { get; set; }
 
         clsMapPoint[] CurrentTrajectory { get; set; }
         void AddTask(clsTaskDto taskDto);
         int TaskFeedback(FeedbackData feedbackData, out string message);
         void CancelTask();
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
+        void DispatchTrafficTask(clsTaskDownloadData task_download_data);
+
         bool IsAGVExecutable { get; }
     }
 }

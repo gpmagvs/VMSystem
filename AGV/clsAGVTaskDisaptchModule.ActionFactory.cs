@@ -54,7 +54,7 @@ namespace VMSystem.AGV
                     }
                 }
 
-                var indexOfAgvBlocked = conflic_agv_list.Select(agv => shortestPathPlanDto.tags.IndexOf(agv.currentMapPoint.TagNumber) - 1);
+                var indexOfAgvBlocked = conflic_agv_list.FindAll(agv => agv.main_state == MAIN_STATUS.IDLE).Select(agv => shortestPathPlanDto.tags.IndexOf(agv.currentMapPoint.TagNumber) - 1);
                 indexOfAgvBlocked = indexOfAgvBlocked.OrderBy(index => index);
 
                 var waitPoints = shortestPathPlanDto.stations.FindAll(pt => indexOfAgvBlocked.Contains(shortestPathPlanDto.stations.IndexOf(pt))); //等待點(AGV會先走到等待點等待下一個點位淨空)
@@ -91,7 +91,7 @@ namespace VMSystem.AGV
             return actionData;
         }
 
-        private  async Task<clsTaskDownloadData> CreateDischargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
+        private async Task<clsTaskDownloadData> CreateDischargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
         {
             var pathPlanDto = await OptimizdPathFind(fromTag, toTag);
             clsTaskDownloadData actionData = new clsTaskDownloadData()
@@ -147,7 +147,7 @@ namespace VMSystem.AGV
 
         private async Task<clsTaskDownloadData> CreateLoadTaskJob(string TaskName, int fromTag, int toTag, int to_slot, int Task_Sequence, string cstID, STATION_TYPE stationType = STATION_TYPE.STK_LD)
         {
-            var pathPlanDto =await OptimizdPathFind(fromTag, toTag);
+            var pathPlanDto = await OptimizdPathFind(fromTag, toTag);
             clsTaskDownloadData actionData = new clsTaskDownloadData()
             {
                 Action_Type = ACTION_TYPE.Load,
@@ -197,7 +197,7 @@ namespace VMSystem.AGV
 
         private async Task<clsTaskDownloadData> CreateMoveActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
         {
-            var pathPlanDto =await OptimizdPathFind(fromTag, toTag);
+            var pathPlanDto = await OptimizdPathFind(fromTag, toTag);
             clsTaskDownloadData actionData = new clsTaskDownloadData()
             {
                 Action_Type = ACTION_TYPE.None,
@@ -213,7 +213,7 @@ namespace VMSystem.AGV
 
         private async Task<clsTaskDownloadData> CreateParkActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
         {
-            var pathPlanDto =await OptimizdPathFind(fromTag, toTag);
+            var pathPlanDto = await OptimizdPathFind(fromTag, toTag);
             clsTaskDownloadData actionData = new clsTaskDownloadData()
             {
                 Action_Type = ACTION_TYPE.Park,
