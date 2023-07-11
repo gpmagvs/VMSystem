@@ -126,7 +126,7 @@ namespace VMSystem.TrafficControl
         {
             while (true)
             {
-                Thread.Sleep(10);
+                await Task.Delay(10);
                 try
                 {
                     List<MapPoint> ConvertToMapPoint(clsMapPoint[] taskTrajecotry)
@@ -145,7 +145,7 @@ namespace VMSystem.TrafficControl
                             PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.ExecutingTask == null ? new List<MapPoint>() : ConvertToMapPoint(agv.taskDispatchModule.CurrentTrajectory),
                         }
                     );
-                    DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt=>pt.IsRegisted);
+                    DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt => pt.IsRegisted);
                     var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
                     foreach (var agv in VMSManager.AllAGV)
                     {
