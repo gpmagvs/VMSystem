@@ -189,7 +189,17 @@ namespace VMSystem.AGV
 
         public async Task PublishTrafficDynamicData(clsDynamicTrafficState data)
         {
-            await Http.PostAsync<clsDynamicTrafficState, object>($"{HttpHost}/api/TrafficState/DynamicTrafficState", data);
+            try
+            {
+                if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
+                {
+                    await Http.PostAsync<clsDynamicTrafficState, object>($"{HttpHost}/api/TrafficState/DynamicTrafficState", data);
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.Critical($"發送多車動態資訊至AGV- {Name} 失敗", ex);
+            }
 
         }
         /// <summary>

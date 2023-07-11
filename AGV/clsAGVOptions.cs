@@ -4,12 +4,14 @@
     {
         public enum PROTOCOL
         {
-            RESTFulAPI,
             TCP,
+            RESTFulAPI,
         }
 
         public string HostIP { get; set; }
         public int HostPort { get; set; }
+        public PROTOCOL Protocol { get; set; } 
+
         public bool Simulation { get; set; }
 
         public int InitTag { get; set; } = 1;

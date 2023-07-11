@@ -14,14 +14,17 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using System.Diagnostics;
 using AGVSystemCommonNet6.Log;
 using static AGVSystemCommonNet6.clsEnums;
+using AGVSystemCommonNet6.AGVDispatch;
+using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
 
 namespace VMSystem.VMS
 {
-    public class VMSManager
+    public partial class VMSManager
     {
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
+
         internal static List<IAGV> AllAGV
         {
             get
@@ -59,9 +62,6 @@ namespace VMSystem.VMS
                 if (vms_type == VMS_GROUP.GPM_FORK)
                 {
                     var gpm_for_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
-                    //if (Debugger.IsAttached)
-                    //    VMSTeam = new GPMForkAgvVMS();
-                    //else
                     VMSTeam = new GPMForkAgvVMS(gpm_for_agvList);
                 }
                 else if (vms_type == VMS_GROUP.YUNTECH_FORK)
@@ -72,6 +72,9 @@ namespace VMSystem.VMS
                 }
                 VMSList.Add(item.Key, VMSTeam);
             }
+            TcpServer.OnClientConnected += TcpServer_OnClientConnected;
+            TcpServer.Connect();
+
         }
 
         public static void Initialize()
