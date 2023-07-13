@@ -238,6 +238,7 @@ namespace VMSystem.AGV
                 currentTaskSimplex = _taskRunning.Task_Simplex;
                 ExecutingJobsStates.Add(currentTaskSimplex, TASK_RUN_STATUS.WAIT);
                 var returnDto = await PostTaskRequestToAGVAsync(_taskRunning);
+
                 if (returnDto.ReturnCode != RETURN_CODE.OK)
                 {
                     ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
@@ -304,7 +305,7 @@ namespace VMSystem.AGV
                         LOG.WARN($"{agv.Name}  Release Point {currnetMapPoint.Name}");
                     }
 
-                    LOG.WARN($"{agv.Name} 剩餘路徑: {string.Join("->", agv.RemainTrajectory.Select(pt => pt.Point_ID))}");
+                    //LOG.WARN($"{agv.Name} 剩餘路徑: {string.Join("->", agv.RemainTrajectory.Select(pt => pt.Point_ID))}");
                     LOG.INFO($"{agv.Name} Task Feedback.  Task_Simplex => {task_simplex} ,Status=> {state}");
 
 

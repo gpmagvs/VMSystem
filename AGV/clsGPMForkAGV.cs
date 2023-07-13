@@ -255,14 +255,6 @@ namespace VMSystem.AGV
 
         public void UpdateAGVStates(RunningStatus status)
         {
-            //if (states.Last_Visited_Node != status.Last_Visited_Node)
-            //{
-            //    if (states.Last_Visited_Node != 0)
-            //    {
-            //        StaMap.GetPointByTagNumber(states.Last_Visited_Node).TryUnRegistPoint(Name, out string errmsg);
-            //        StaMap.GetPointByTagNumber(status.Last_Visited_Node).TryRegistPoint(Name, out var regInfo);
-            //    }
-            //}
             this.states = status;
             availabilityHelper.UpdateAGVMainState(main_state);
             SaveStateToDatabase();
