@@ -183,7 +183,7 @@ namespace VMSystem.AGV
 
 
                 TaskDBHelper.Update(ExecutingTask);
-                var Trajectory = _taskRunning.Trajectory.ToArray();
+                var Trajectory = _taskRunning.ExecutingTrajecory.ToArray();
                 clsTaskDto agv_response = null;
 
                 #region MyRegion

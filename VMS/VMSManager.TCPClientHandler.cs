@@ -10,7 +10,7 @@ namespace VMSystem.VMS
     {
         public static clsAGVSTcpServer TcpServer = new clsAGVSTcpServer();
 
-        private static void TcpServer_OnClientConnected(object? sender, clsAGVSTcpServer.clsAGVSTcpIPClient clientState)
+        private static void TcpServer_OnClientConnected(object? sender, clsAGVSTcpClientHandler clientState)
         {
             clientState.OnClientOnlineModeQuery += ClientState_OnTCPClientOnlineModeQuery;
             clientState.OnClientRunningStatusReport += ClientState_OnTCPClientRunningStatusReport;
@@ -22,7 +22,7 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
-                clsAGVSTcpIPClient client = (clsAGVSTcpIPClient)sender;
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
                     agv.UpdateAGVStates(e.Header.Values.First());
@@ -35,7 +35,7 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
-                clsAGVSTcpIPClient client = (clsAGVSTcpIPClient)sender;
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
                     agv.connected = true;
@@ -48,7 +48,7 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
-                clsAGVSTcpIPClient client = (clsAGVSTcpIPClient)sender;
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
                     agv.taskDispatchModule.TaskFeedback(e.Header.Values.First(), out string msg);
@@ -56,7 +56,7 @@ namespace VMSystem.VMS
                 }
             });
         }
-        private static void ClientState_OnClientMsgSendIn(object? sender, clsAGVSTcpServer.clsAGVSTcpIPClient.clsMsgSendEventArg MsgSendDto)
+        private static void ClientState_OnClientMsgSendIn(object? sender, clsAGVSTcpServer.clsAGVSTcpClientHandler.clsMsgSendEventArg MsgSendDto)
         {
         }
 
