@@ -283,9 +283,9 @@ namespace VMSystem.AGV
                             batteryLevelSim = 1;
                     }
                     agv.states.Electric_Volume = new double[2] { batteryLevelSim, batteryLevelSim };
-                    _ = Task.Factory.StartNew(() =>
+                    _ = Task.Factory.StartNew(async () =>
                     {
-                        agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim, out string errMsg);
+                        await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);
                     });
                     await Task.Delay(1000);
                 }

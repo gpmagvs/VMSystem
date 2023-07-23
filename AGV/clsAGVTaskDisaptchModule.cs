@@ -292,7 +292,7 @@ namespace VMSystem.AGV
             {
                 message = $"{agv.Name} Task Feedback.  Task_Simplex => {feedbackData.TaskSimplex} Not Exist";
                 LOG.INFO(message);
-                return 4444;
+                return (int)RETURN_CODE.NG;
             }
             else
             {
@@ -337,8 +337,8 @@ namespace VMSystem.AGV
                 }
                 catch (Exception ex)
                 {
-
-                    throw;
+                    LOG.Critical(ex.Message, ex);
+                    throw ex;
                 }
 
             }

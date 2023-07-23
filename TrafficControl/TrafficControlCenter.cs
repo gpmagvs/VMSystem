@@ -149,7 +149,7 @@ namespace VMSystem.TrafficControl
                     var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
                     foreach (var agv in VMSManager.AllAGV)
                     {
-                        if (!agv.options.Simulation)
+                        if (!agv.options.Simulation && agv.connected)
                             Task.Factory.StartNew(() =>
                               {
                                   agv.PublishTrafficDynamicData(DynamicTrafficState);

@@ -265,7 +265,8 @@ namespace VMSystem.AGV
             {
 
                 await Task.Delay(1);
-                return AGVStatusDBHelper.Update(dto, out string errMsg);
+                var result = await AGVStatusDBHelper.Update(dto);
+                return result.confirm;
             }
             catch (Exception ex)
             {
