@@ -19,6 +19,7 @@ using AGVSystemCommonNet6.Tools.Database;
 using VMSystem.VMS;
 using Microsoft.AspNetCore.Builder.Extensions;
 using Microsoft.Win32;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 
 namespace VMSystem.AGV
 {
@@ -237,6 +238,7 @@ namespace VMSystem.AGV
                 jobs.Add(_taskRunning);
                 currentTaskSimplex = _taskRunning.Task_Simplex;
                 ExecutingJobsStates.Add(currentTaskSimplex, TASK_RUN_STATUS.WAIT);
+                //發送任務到車載
                 var returnDto = await PostTaskRequestToAGVAsync(_taskRunning);
 
                 if (returnDto.ReturnCode != RETURN_CODE.OK)
@@ -247,10 +249,19 @@ namespace VMSystem.AGV
                 ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
                 while (ExecutingJobsStates[currentTaskSimplex] != TASK_RUN_STATUS.ACTION_FINISH)
                 {
-                    if (ExecutingTask == null)
+                    TASK_RUN_STATUS runStatus = TaskDBHelper.GetTaskStateByID(taskName);
+                    if (runStatus != TASK_RUN_STATUS.NAVIGATING && runStatus != TASK_RUN_STATUS.WAIT)
                     {
-                        jobs.Clear();
-                        ExecutingJobsStates.Clear();
+                        ChangeTaskStatus(runStatus);
+                        if (runStatus == TASK_RUN_STATUS.CANCEL)
+                        {
+                            PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                            {
+                                ResetMode = RESET_MODE.CYCLE_STOP,
+                                Task_Name = taskName,
+                                TimeStamp = DateTime.Now
+                            });
+                        }
                         return;
                     }
                     Thread.Sleep(1);
@@ -263,21 +274,28 @@ namespace VMSystem.AGV
                 task_seq += 1;
             }
             LOG.WARN($"{agv.Name}  任務 {executingTask.TaskName} 完成");
-            ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
-            taskList.Remove(executingTask);
-            ExecutingTask = null;
-            CurrentTrajectory = new clsMapPoint[0];
-            jobs.Clear();
+            ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH, executingTask);
         }
 
 
-        private void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
+        private void ChangeTaskStatus(TASK_RUN_STATUS status, clsTaskDto RunningTask = null, string failure_reason = "")
         {
             ExecutingTask.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.ACTION_FINISH)
+            {
+                ExecutingTask.FailureReason = failure_reason;
+                CurrentTrajectory = new clsMapPoint[0];
+                jobs.Clear();
+                if (RunningTask != null)
+                    taskList.Remove(RunningTask);
                 ExecutingTask.FinishTime = DateTime.Now;
-            ExecutingTask.FailureReason = failure_reason;
-            TaskDBHelper.Update(ExecutingTask);
+                TaskDBHelper.Update(ExecutingTask);
+                ExecutingTask = null;
+            }
+            else
+            {
+                TaskDBHelper.Update(ExecutingTask);
+            }
         }
 
 
@@ -362,6 +380,22 @@ namespace VMSystem.AGV
                     return await AgvSimulation.ActionRequestHandler(data);
 
                 SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                return taskStateResponse;
+            }
+            catch (Exception ex)
+            {
+                return new SimpleRequestResponse
+                {
+                    ReturnCode = RETURN_CODE.System_Error
+                };
+            }
+        }
+
+        public async Task<SimpleRequestResponse> PostTaskCancelRequestToAGVAsync(clsCancelTaskCmd data)
+        {
+            try
+            {
+                SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsCancelTaskCmd, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Cancel", data);
                 return taskStateResponse;
             }
             catch (Exception ex)
