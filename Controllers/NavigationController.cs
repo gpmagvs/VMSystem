@@ -11,9 +11,9 @@ namespace VMSystem.Controllers
     public class NavigationController : ControllerBase
     {
 
-        private Dictionary<string, List<int>> CollectAGVNavigatingPath()
+        private object CollectAGVNavigatingPath()
         {
-            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => agv.NavigatingTagPath);
+            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => new { currentLocation = agv.currentMapPoint.TagNumber, currentCoordication = agv.states.Coordination, nav_path = agv.NavigatingTagPath });
         }
         /// <summary>
         /// 收集所有AGV當前的導航路徑
