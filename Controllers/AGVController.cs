@@ -25,8 +25,7 @@ namespace VMSystem.Controllers
             }
             else
             {
-              await agv.UpdateAGVStates(status);
-                
+                agv.UpdateAGVStates(status);
                 return Ok(new
                 {
                     ReturnCode = 0,
