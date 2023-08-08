@@ -24,8 +24,8 @@ namespace VMSystem.Controllers
                 });
             }
             else
-            {
-                Task.Run(() => { agv.UpdateAGVStates(status); });
+            {   
+                 agv.UpdateAGVStates(status);
                 
                 return Ok(new
                 {
