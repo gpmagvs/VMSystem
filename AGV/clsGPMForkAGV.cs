@@ -253,11 +253,11 @@ namespace VMSystem.AGV
             });
         }
 
-        public void UpdateAGVStates(RunningStatus status)
+        public async void UpdateAGVStates(RunningStatus status)
         {
             this.states = status;
             availabilityHelper.UpdateAGVMainState(main_state);
-            SaveStateToDatabase();
+            await SaveStateToDatabase();
         }
         public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
         {

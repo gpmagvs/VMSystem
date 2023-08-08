@@ -25,7 +25,7 @@ namespace VMSystem.Controllers
             }
             else
             {
-                Task.Run(() => { agv.UpdateAGVStates(status); });
+              await agv.UpdateAGVStates(status);
                 
                 return Ok(new
                 {
