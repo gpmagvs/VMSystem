@@ -4,7 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
-using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.HttpHelper;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;

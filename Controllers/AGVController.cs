@@ -49,7 +49,7 @@ namespace VMSystem.Controllers
         }
 
         [HttpPost("OnlineReq")]
-        public async Task<IActionResult> OnlineRequest()
+        public async Task<IActionResult> OnlineRequest(int tag=0)
         {
             return Ok(new { ReturnCode = 0, Message = "" });
         }

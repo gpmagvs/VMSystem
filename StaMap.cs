@@ -52,6 +52,14 @@ namespace VMSystem
         internal static MapPoint  GetPointByTagNumber(int tagNumber )
         {
             var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
+            if (point == null)
+            {
+                point = new MapPoint
+                {
+                    TagNumber = tagNumber,
+                    Name = tagNumber.ToString()
+                };
+            }
             return point;
         }
 

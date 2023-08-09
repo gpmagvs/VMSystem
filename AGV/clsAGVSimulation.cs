@@ -1,5 +1,4 @@
-﻿using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6;
+﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.TASK;
 using static System.Collections.Specialized.BitVector32;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
@@ -9,6 +8,7 @@ using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.MAP;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using System.Xml.Linq;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 
 namespace VMSystem.AGV
 {
