@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Text;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.Controllers
 {
@@ -15,7 +16,7 @@ namespace VMSystem.Controllers
 
         private object CollectAGVNavigatingPath()
         {
-            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => new { currentLocation = agv.currentMapPoint.TagNumber, currentCoordication = agv.states.Coordination, nav_path = agv.NavigatingTagPath });
+            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => new { currentLocation = agv.currentMapPoint.TagNumber, currentCoordication = agv.states.Coordination, nav_path = agv.states.AGV_Status== MAIN_STATUS.RUN? agv.NavigatingTagPath:new List<int>() });
         }
         /// <summary>
         /// 收集所有AGV當前的導航路徑

@@ -24,9 +24,9 @@ namespace VMSystem.Controllers
                 });
             }
             else
-            {   
-                 agv.UpdateAGVStates(status);
-                
+            {
+                agv.UpdateAGVStates(status);
+
                 return Ok(new
                 {
                     ReturnCode = 0,
@@ -50,15 +50,31 @@ namespace VMSystem.Controllers
         }
 
         [HttpPost("OnlineReq")]
-        public async Task<IActionResult> OnlineRequest()
+        public async Task<IActionResult> OnlineRequest(string AGVName, int tag)
         {
-            return Ok(new { ReturnCode = 0, Message = "" });
+            if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
+            {
+                agv.online_state = ONLINE_STATE.ONLINE;
+                return Ok(new { ReturnCode = 0, Message = "" });
+            }
+            else
+            {
+                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+            }
         }
 
         [HttpPost("OfflineReq")]
-        public async Task<IActionResult> OfflineRequest()
+        public async Task<IActionResult> OfflineRequest(string AGVName)
         {
-            return Ok(new { ReturnCode = 0, Message = "" });
+            if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
+            {
+                agv.online_state = ONLINE_STATE.OFFLINE;
+                return Ok(new { ReturnCode = 0, Message = "" });
+            }
+            else
+            {
+                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+            }
         }
 
 

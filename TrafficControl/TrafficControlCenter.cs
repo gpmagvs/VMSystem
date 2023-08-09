@@ -18,7 +18,7 @@ namespace VMSystem.TrafficControl
 
         internal static void Initialize()
         {
-            //Task.Run(() => TrafficStateCollectorWorker());
+            Task.Run(() => TrafficStateCollectorWorker());
         }
 
 

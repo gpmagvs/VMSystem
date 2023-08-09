@@ -160,7 +160,7 @@ namespace VMSystem.AGV
 
         private void AliveCheck()
         {
-            Task.Run(() =>
+            Task.Run(async () =>
             {
                 while (true)
                 {
@@ -170,8 +170,8 @@ namespace VMSystem.AGV
                         if (simulationMode)
                         {
                             connected = true;
-                            availabilityHelper.UpdateAGVMainState(main_state);
-                            SaveStateToDatabase();
+                            //availabilityHelper.UpdateAGVMainState(main_state);
+                            await SaveStateToDatabase();
                             continue;
                         }
                         if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 10)
@@ -270,6 +270,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
+                Console.WriteLine("SaveStateToDatabase Fail " + ex.Message);
                 AlarmManagerCenter.AddAlarm(ALARMS.ERROR_WHEN_AGV_STATUS_WRITE_TO_DB, ALARM_SOURCE.EQP, ALARM_LEVEL.WARNING, Name);
                 return false;
             }
@@ -303,7 +304,9 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
+                Console.WriteLine("SaveStateToDatabase Fail " + ex.Message);
                 throw ex;
+
             }
 
         }

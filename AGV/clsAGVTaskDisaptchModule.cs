@@ -282,6 +282,10 @@ namespace VMSystem.AGV
 
         private void ChangeTaskStatus(TASK_RUN_STATUS status, clsTaskDto RunningTask = null, string failure_reason = "")
         {
+            if (ExecutingTask == null)
+            {
+                return;
+            }
             ExecutingTask.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.ACTION_FINISH)
             {
