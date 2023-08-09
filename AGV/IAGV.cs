@@ -1,12 +1,12 @@
 ﻿using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
-using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 
 namespace VMSystem.AGV
 {
@@ -39,7 +39,7 @@ namespace VMSystem.AGV
         int CalculatePathCost(Map map, object toTag);
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
-        void UpdateAGVStates(RunningStatus status);
+         void UpdateAGVStates(RunningStatus status);
         Task PublishTrafficDynamicData(clsDynamicTrafficState dynamicTrafficState);
     }
 

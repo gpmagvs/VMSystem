@@ -1,5 +1,4 @@
 ﻿using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.HttpHelper;
 using AGVSystemCommonNet6.MAP;
@@ -20,6 +19,8 @@ using VMSystem.VMS;
 using Microsoft.AspNetCore.Builder.Extensions;
 using Microsoft.Win32;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using System.Timers;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 
 namespace VMSystem.AGV
 {
@@ -247,6 +248,7 @@ namespace VMSystem.AGV
                     break;
                 }
                 ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
+                StartRecordTrjectory();
                 while (ExecutingJobsStates[currentTaskSimplex] != TASK_RUN_STATUS.ACTION_FINISH)
                 {
                     TASK_RUN_STATUS runStatus = TaskDBHelper.GetTaskStateByID(taskName);
@@ -298,6 +300,7 @@ namespace VMSystem.AGV
             }
         }
 
+        System.Timers.Timer TrajectoryStoreTimer;
 
         public int TaskFeedback(FeedbackData feedbackData, out string message)
         {
@@ -329,6 +332,7 @@ namespace VMSystem.AGV
 
                     if (state == TASK_RUN_STATUS.ACTION_FINISH)
                     {
+                        EndReocrdTrajectory();
                         if (TryGetStationByTag(agv.states.Last_Visited_Node, out MapPoint point))
                         {
                             LOG.INFO($"AGV-{agv.Name} Finish Action ({simplex_task.Action_Type}) At Tag-{point.TagNumber}({point.Name})");
@@ -360,6 +364,41 @@ namespace VMSystem.AGV
                 }
 
             }
+        }
+
+        private void StartRecordTrjectory()
+        {
+            TrajectoryStoreTimer = new System.Timers.Timer()
+            {
+                Interval = 1000
+            };
+            TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
+            TrajectoryStoreTimer.Enabled = true;
+        }
+        private void EndReocrdTrajectory()
+        {
+            TrajectoryStoreTimer.Stop();
+            TrajectoryStoreTimer.Dispose();
+        }
+
+        /// <summary>
+        /// 儲存軌跡到資料庫
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
+        {
+            StoreTrajectory();
+        }
+        private void StoreTrajectory()
+        {
+            string taskID = ExecutingTask.TaskName;
+            string agvName = agv.Name;
+            double x = agv.states.Coordination.X;
+            double y = agv.states.Coordination.Y;
+            double theta = agv.states.Coordination.Theta;
+            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
+            helper.StoreTrajectory(taskID, agvName, x,y,theta);
         }
 
         /// <summary>

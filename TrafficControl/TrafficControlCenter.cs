@@ -150,10 +150,7 @@ namespace VMSystem.TrafficControl
                     foreach (var agv in VMSManager.AllAGV)
                     {
                         if (!agv.options.Simulation && agv.connected)
-                            Task.Factory.StartNew(() =>
-                              {
-                                  agv.PublishTrafficDynamicData(DynamicTrafficState);
-                              });
+                            await agv.PublishTrafficDynamicData(DynamicTrafficState);
                     }
                 }
                 catch (Exception ex)
