@@ -392,13 +392,18 @@ namespace VMSystem.AGV
         }
         private void StoreTrajectory()
         {
+            if (ExecutingTask == null)
+            {
+                EndReocrdTrajectory();
+                return;
+            }
             string taskID = ExecutingTask.TaskName;
             string agvName = agv.Name;
             double x = agv.states.Coordination.X;
             double y = agv.states.Coordination.Y;
             double theta = agv.states.Coordination.Theta;
             TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-            helper.StoreTrajectory(taskID, agvName, x,y,theta);
+            helper.StoreTrajectory(taskID, agvName, x, y, theta);
         }
 
         /// <summary>
