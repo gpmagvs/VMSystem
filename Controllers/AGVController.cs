@@ -54,8 +54,12 @@ namespace VMSystem.Controllers
         {
             if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
             {
-                agv.online_state = ONLINE_STATE.ONLINE;
-                return Ok(new { ReturnCode = 0, Message = "" });
+                bool isOnlineTagExist = StaMap.TryGetPointByTagNumber(tag, out var point);
+                agv.online_state = isOnlineTagExist ? ONLINE_STATE.ONLINE : ONLINE_STATE.OFFLINE;
+                if (isOnlineTagExist)
+                    return Ok(new { ReturnCode = 0, Message = "" });
+                else
+                    return Ok(new { ReturnCode = 1, Message = $"{tag}不存在於目前的地圖" });
             }
             else
             {
