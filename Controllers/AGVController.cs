@@ -5,6 +5,8 @@ using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.AGV;
 using VMSystem.VMS;
 using Newtonsoft.Json;
+using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Alarm;
 
 namespace VMSystem.Controllers
 {
@@ -52,19 +54,39 @@ namespace VMSystem.Controllers
         [HttpPost("OnlineReq")]
         public async Task<IActionResult> OnlineRequest(string AGVName, int tag)
         {
+            string errMsg = "";
+            ALARMS aramCode = ALARMS.NONE;
             if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
             {
                 bool isOnlineTagExist = StaMap.TryGetPointByTagNumber(tag, out var point);
-                agv.online_state = isOnlineTagExist ? ONLINE_STATE.ONLINE : ONLINE_STATE.OFFLINE;
                 if (isOnlineTagExist)
-                    return Ok(new { ReturnCode = 0, Message = "" });
+                {
+                    double agvLocOffset = point.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.X);
+                    if (agvLocOffset > 1)
+                    {
+                        aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_TOO_FAR_FROM_POINT;
+                        errMsg = "AGV上線之位置與圖資差距過大";
+                    }
+                    else
+                    {
+                        agv.online_state = ONLINE_STATE.ONLINE;
+                        return Ok(new { ReturnCode = 0, Message = "" });
+                    }
+                }
                 else
-                    return Ok(new { ReturnCode = 1, Message = $"{tag}不存在於目前的地圖" });
+                {
+                    aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_NOT_EXIST_ON_MAP;
+                    errMsg = $"{tag}不存在於目前的地圖";
+                }
             }
             else
             {
-                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+                aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_IS_NOT_REGISTED;
+                errMsg = $"{AGVName} Not Registed In ASGVSystem";
             }
+            if (aramCode != ALARMS.NONE)
+                AlarmManagerCenter.AddAlarm(ALARMS.AGV_DISCONNECT, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+            return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }
 
         [HttpPost("OfflineReq")]
