@@ -258,12 +258,14 @@ namespace VMSystem.AGV
                         ChangeTaskStatus(runStatus);
                         if (runStatus == TASK_RUN_STATUS.CANCEL)
                         {
+                            ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
                             PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
                             {
                                 ResetMode = RESET_MODE.CYCLE_STOP,
                                 Task_Name = taskName,
                                 TimeStamp = DateTime.Now
                             });
+                            LOG.WARN($"{agv.Name} - [{action}]任務-[{taskName}] 取消");
                         }
                         return;
                     }
@@ -288,7 +290,7 @@ namespace VMSystem.AGV
                 return;
             }
             ExecutingTask.State = status;
-            if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.ACTION_FINISH)
+            if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH)
             {
                 ExecutingTask.FailureReason = failure_reason;
                 CurrentTrajectory = new clsMapPoint[0];
