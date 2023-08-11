@@ -124,8 +124,8 @@ namespace VMSystem.AGV
             var action = executingTask.Action;
             int task_seq = 0;
             clsTaskDownloadData _taskRunning = new clsTaskDownloadData();
-            var toPointTagStr = executingTask.To_Station;
             var fromPointTagStr = executingTask.From_Station;
+            var toPointTagStr = executingTask.To_Station;
             goalPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == toPointTagStr); //最終目標點
 
             MapPoint fromPoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == fromPointTagStr);
@@ -161,6 +161,7 @@ namespace VMSystem.AGV
                         {
                             _taskRunning = await CreateLDULDTaskJob(taskName, action, goalPoint, int.Parse(ExecutingTask.To_Slot), ExecutingTask.Carrier_ID, task_seq);
                             goalPoint = action == ACTION_TYPE.None | action == ACTION_TYPE.Charge | action == ACTION_TYPE.Park ? goalPoint : agv.currentMapPoint;
+                            _taskRunning.Trajectory.Last().Theta = toPoint.Direction;
 
                         }
                     }
