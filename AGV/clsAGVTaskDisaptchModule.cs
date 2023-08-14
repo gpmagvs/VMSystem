@@ -161,7 +161,6 @@ namespace VMSystem.AGV
                         {
                             _taskRunning = await CreateLDULDTaskJob(taskName, action, goalPoint, int.Parse(ExecutingTask.To_Slot), ExecutingTask.Carrier_ID, task_seq);
                             goalPoint = action == ACTION_TYPE.None | action == ACTION_TYPE.Charge | action == ACTION_TYPE.Park ? goalPoint : agv.currentMapPoint;
-                            _taskRunning.Trajectory.Last().Theta = toPoint.Direction;
 
                         }
                     }
@@ -180,6 +179,8 @@ namespace VMSystem.AGV
                             }
                         }
                         _taskRunning = await CreateMoveActionTaskJob(taskName, agv.currentMapPoint, trackingToPoint, task_seq);
+                        _taskRunning.Trajectory.Last().Theta = toPoint.Direction;
+
                     }
                 }
 
