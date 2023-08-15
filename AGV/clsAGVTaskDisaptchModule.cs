@@ -172,6 +172,7 @@ namespace VMSystem.AGV
                             {
                                 trackingToPoint = StaMap.Map.Points[current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint.Target.First().Key : toPoint.Target.First().Key];//更新to
                                 goalPoint = toPoint;
+
                             }
                             else
                             {
@@ -179,7 +180,13 @@ namespace VMSystem.AGV
                             }
                         }
                         _taskRunning = await CreateMoveActionTaskJob(taskName, agv.currentMapPoint, trackingToPoint, task_seq);
-                        _taskRunning.Trajectory.Last().Theta = toPoint.Direction;
+
+                        if (action == ACTION_TYPE.Carry)
+                            _taskRunning.Trajectory.Last().Theta = current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint.Direction : toPoint.Direction;
+                        else
+                            _taskRunning.Trajectory.Last().Theta = toPoint.Direction;
+
+
 
                     }
                 }
