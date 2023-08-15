@@ -135,6 +135,13 @@ namespace VMSystem.AGV
 
             while (ExecutingTask.State != TASK_RUN_STATUS.ACTION_FINISH)
             {
+                if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                {
+                    LOG.WARN($"{agv.Name} - [{action}]任務-[{taskName}] 失敗..AGV DOWN");
+                    ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                    return;
+                }
+
                 if (agv.currentMapPoint.StationType != STATION_TYPE.Normal)
                 {
                     //退出 , 下Discharge任務
@@ -253,6 +260,13 @@ namespace VMSystem.AGV
                 StartRecordTrjectory();
                 while (ExecutingJobsStates[currentTaskSimplex] != TASK_RUN_STATUS.ACTION_FINISH)
                 {
+                    if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                    {
+                        LOG.WARN($"{agv.Name} - [{action}]任務-[{taskName}] 失敗..AGV DOWN");
+
+                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        return;
+                    }
                     TASK_RUN_STATUS runStatus = TaskDBHelper.GetTaskStateByID(taskName);
                     if (runStatus != TASK_RUN_STATUS.NAVIGATING && runStatus != TASK_RUN_STATUS.WAIT)
                     {
