@@ -16,11 +16,31 @@ using AGVSystemCommonNet6.Log;
 using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.AGVDispatch;
 using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
+using static VMSystem.AppSettings;
 
 namespace VMSystem.VMS
 {
     public partial class VMSManager
     {
+        private const string Vehicle_Json_file = @"C:\AGVS\Vehicle.json";
+        private static Dictionary<VMS_GROUP, VMSConfig> _vehicle_configs = new Dictionary<VMS_GROUP, VMSConfig>()
+        {
+            { VMS_GROUP.GPM_FORK , new VMSConfig
+            {
+                 AGV_List = new Dictionary<string, clsAGVOptions>
+                 {
+                     {"AGV_001", new clsAGVOptions
+                     {
+                          HostIP = "192.168.0.101",
+                           HostPort=7025,
+                            Enabled = true,
+                             Simulation = false,
+                              InitTag = 1,
+                               Protocol =  clsAGVOptions.PROTOCOL.RESTFulAPI
+                     } }
+                 }
+            } }
+        };
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
@@ -54,8 +74,13 @@ namespace VMSystem.VMS
 
         internal static void Initialize(ConfigurationManager configuration)
         {
-            var vmsconfigs = AppSettings.VMSConfigs;
-            foreach (var item in vmsconfigs)
+            var _configs = ReadVMSVehicleGroupSetting();
+            if (_configs != null)
+            {
+                _vehicle_configs = _configs;
+            }
+
+            foreach (var item in _vehicle_configs)
             {
                 VMSAbstract VMSTeam = null;
                 VMS_GROUP vms_type = item.Key;
@@ -72,11 +97,33 @@ namespace VMSystem.VMS
                 }
                 VMSList.Add(item.Key, VMSTeam);
             }
+            SaveVMSVehicleGroupSetting();
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
             TcpServer.Connect();
 
         }
+        private static Dictionary<VMS_GROUP, VMSConfig>? ReadVMSVehicleGroupSetting()
+        {
+            if (File.Exists(Vehicle_Json_file))
+            {
+                var json = File.ReadAllText(Vehicle_Json_file);
+                if (json == null)
+                {
+                    return null;
+                }
+                return JsonConvert.DeserializeObject<Dictionary<VMS_GROUP, VMSConfig>>(json);
+            }
+            else
+            {
+                return null;
+            }
+        }
+        private static void SaveVMSVehicleGroupSetting()
+        {
+            var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
+            File.WriteAllText(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
 
+        }
         public static void Initialize()
         {
             ForkAGVVMS = new GPMForkAgvVMS();

@@ -20,7 +20,7 @@ namespace VMSystem.Controllers
     [ApiController]
     public class VmsManagerController : ControllerBase
     {
-     
+
         [HttpGet("/ws/VMSStatus")]
         public async Task GetVMSStatus()
         {
@@ -65,7 +65,7 @@ namespace VMSystem.Controllers
             return Ok(new { Confirm = Confirm, AGV = agv, taskData });
         }
 
-       
+
 
 
         [HttpGet("OnlineRequet")]
@@ -74,12 +74,20 @@ namespace VMSystem.Controllers
             Console.WriteLine($"要求 {agv_name}上線 ");
             if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
             {
-                bool online_success = agv.Online(out string msg);
-                return Ok(new { ReturnCode = 0, Message = msg });
+                try
+                {
+                    bool online_success = agv.Online(out string msg);
+                    return Ok(new { ReturnCode = 0, Message = msg });
+                }
+                catch (Exception ex)
+                {
+                    return Ok(new { ReturnCode = 404, Message = ex.Message });
+
+                }
             }
             else
             {
-                return Ok(new  { ReturnCode = 1, Message = "AGV Not Found" });
+                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
             }
         }
 
