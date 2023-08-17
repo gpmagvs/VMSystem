@@ -69,6 +69,7 @@ namespace VMSystem.Controllers
                     }
                     else
                     {
+                        point.TryRegistPoint(agv.Name, out var info);
                         agv.online_state = ONLINE_STATE.ONLINE;
                         return Ok(new { ReturnCode = 0, Message = "" });
                     }

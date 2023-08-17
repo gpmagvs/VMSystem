@@ -21,7 +21,7 @@ namespace VMSystem.AGV
             StaMap.TryGetPointByTagNumber(int.Parse(ExecutingTask.To_Station), out MapPoint FinalPoint);
             var option = new PathFinderOption
             {
-               // ConstrainTags = otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).ToList() //TODO
+                ConstrainTags = otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).ToList() //TODO 
             };
             option.ConstrainTags.AddRange(otherAGVList.SelectMany(agv => agv.RemainTrajectory.Select(pt => pt.Point_ID)));//考慮移動路徑
 
