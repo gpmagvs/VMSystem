@@ -348,16 +348,23 @@ namespace VMSystem.AGV
             {
                 int returnCode = 0;
                 try
-                {
+                {//[0,1,2,3]
+
                     var currnetMapPoint = StaMap.GetPointByTagNumber(CurrentTrajectory[feedbackData.PointIndex].Point_ID);
-                    if (currnetMapPoint.TryUnRegistPoint(agv.Name, out string errMsg))
+                    var previousMapPoint = feedbackData.PointIndex - 1 < 0 ? null : StaMap.GetPointByTagNumber(CurrentTrajectory[feedbackData.PointIndex - 1].Point_ID);
+                    var nextMapPoint = feedbackData.PointIndex + 1 >= CurrentTrajectory.Length ? null : StaMap.GetPointByTagNumber(CurrentTrajectory[feedbackData.PointIndex + 1].Point_ID);
+
+                    LOG.INFO($"AGV抵達 {currnetMapPoint.TagNumber},前站:{previousMapPoint?.TagNumber},下一站:{nextMapPoint?.TagNumber}");
+                    if (previousMapPoint != null)
                     {
-                        LOG.WARN($"{agv.Name}  Release Point {currnetMapPoint.Name}");
+                        if (previousMapPoint.TryUnRegistPoint(agv.Name, out string errMsg))
+                        {
+                            LOG.WARN($"{agv.Name}  Release Point {previousMapPoint.Name}");
+                        }
                     }
 
-                    //LOG.WARN($"{agv.Name} 剩餘路徑: {string.Join("->", agv.RemainTrajectory.Select(pt => pt.Point_ID))}");
-                    LOG.INFO($"{agv.Name} Task Feedback.  Task_Simplex => {task_simplex} ,Status=> {state}");
 
+                    LOG.INFO($"{agv.Name} Task Feedback.  Task_Simplex => {task_simplex} ,Status=> {state}");
 
                     if (state == TASK_RUN_STATUS.ACTION_FINISH)
                     {
@@ -371,16 +378,18 @@ namespace VMSystem.AGV
                     }
                     else
                     {
-                        var nexPt = StaMap.GetPointByTagNumber(agv.RemainTrajectory[agv.RemainTrajectory.Length > 1 ? 1 : 0].Point_ID);
-                        if (nexPt.IsRegisted)
+                        if (nextMapPoint != null)
                         {
-                            returnCode = 1;
-                        }
-                        else
-                        {
-                            bool registed = nexPt.TryRegistPoint(agv.Name, out clsMapPoiintRegist regInfo);
-                            LOG.WARN($"{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {nexPt.Name}");
-                            returnCode = 0;
+                            if (nextMapPoint.IsRegisted)
+                            {
+                                returnCode = 1;
+                            }
+                            else
+                            {
+                                bool registed = nextMapPoint.TryRegistPoint(agv.Name, out clsMapPoiintRegist regInfo);
+                                LOG.WARN($"{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {nextMapPoint.Name}");
+                                returnCode = 0;
+                            }
                         }
                     }
                     ExecutingJobsStates[task_simplex] = state;

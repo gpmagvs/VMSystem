@@ -61,7 +61,7 @@ namespace VMSystem.Controllers
                 bool isOnlineTagExist = StaMap.TryGetPointByTagNumber(tag, out var point);
                 if (isOnlineTagExist)
                 {
-                    double agvLocOffset = point.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.X);
+                    double agvLocOffset = point.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y);
                     if (agvLocOffset > 1)
                     {
                         aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_TOO_FAR_FROM_POINT;
@@ -85,7 +85,7 @@ namespace VMSystem.Controllers
                 errMsg = $"{AGVName} Not Registed In ASGVSystem";
             }
             if (aramCode != ALARMS.NONE)
-                AlarmManagerCenter.AddAlarm(ALARMS.AGV_DISCONNECT, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                AlarmManagerCenter.AddAlarm(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
             return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }
 
