@@ -19,45 +19,59 @@ namespace VMSystem.AGV
             var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv != this.agv);
             clsPathInfo pathInfo = new clsPathInfo();
             StaMap.TryGetPointByTagNumber(int.Parse(ExecutingTask.To_Station), out MapPoint FinalPoint);
+            var regitedPoints = TrafficControlCenter.DynamicTrafficState.RegistedPoints;
+            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.TagNumber != agv.currentMapPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
             var option = new PathFinderOption
             {
-                ConstrainTags = otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).ToList() //TODO 
+                ConstrainTags = toAvoidPointsTags
             };
-            option.ConstrainTags.AddRange(otherAGVList.SelectMany(agv => agv.RemainTrajectory.Select(pt => pt.Point_ID)));//考慮移動路徑
+            toAvoidPointsTags = toAvoidPointsTags.FindAll(pt => !otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).Contains(pt));
+            //option.ConstrainTags.AddRange(otherAGVList.SelectMany(agv => agv.RemainTrajectory.Select(pt => pt.Point_ID)));//考慮移動路徑
+            //option.ConstrainTags.AddRange(otherAGVList.Select(agv => agv.currentMapPoint.TagNumber));//考慮移動路徑
+            option.ConstrainTags = option.ConstrainTags.Distinct().ToList();
 
             var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag, option);//考慮AGV阻擋下，最短路徑
 
             if (pathPlanDto == null) //沒有任何路線可以行走
             {
                 var shortestPathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);//不考慮AGV阻擋下，最短路徑
-                if (shortestPathPlanDto == null)
+
+                var pathTags = shortestPathPlanDto.stations.Select(pt => pt.TagNumber).ToList();
+                Dictionary<int, MapPoint> waitPointsDict = new Dictionary<int, MapPoint>();
+                foreach (var p in toAvoidPointsTags)
                 {
-                    AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
-                    throw new NoPathForNavigatorException();
+                    var index = pathTags.IndexOf(p);
+                    waitPointsDict.Add(index, shortestPathPlanDto.stations[index]);
                 }
+                var waitPoints = waitPointsDict.OrderBy(kp => kp.Key).Select(kp => kp.Value);
 
-                List<IAGV> conflic_agv_list = otherAGVList.FindAll(agv => shortestPathPlanDto.stations.Contains(agv.currentMapPoint));//跟最優路徑有衝突的AGV
+                //if (shortestPathPlanDto == null)
+                //{
+                //    AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
+                //    throw new NoPathForNavigatorException();
+                //}
+                //List<IAGV> conflic_agv_list = otherAGVList.FindAll(agv => shortestPathPlanDto.stations.Contains(agv.currentMapPoint));//跟最優路徑有衝突的AGV
 
-                foreach (var conflic_agv in conflic_agv_list)
-                {
-                    if (conflic_agv.main_state == MAIN_STATUS.IDLE)
-                    {
-                        List<MapPoint> constrain_map_points = new List<MapPoint>();
-                        constrain_map_points.AddRange(shortestPathPlanDto.stations.ToArray());
-                        constrain_map_points.Add(FinalPoint);
-                        bool avoid_path_found = await TrafficControlCenter.TryMoveAGV(conflic_agv, constrain_map_points);
-                        if (!avoid_path_found)
-                        {
-                            AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR, Equipment_Name: conflic_agv.Name, location: conflic_agv.currentMapPoint.Name);
-                            throw new NoPathForNavigatorException();
-                        }
-                    }
-                }
+                //foreach (var conflic_agv in conflic_agv_list)
+                //{
+                //    if (conflic_agv.main_state == MAIN_STATUS.IDLE)
+                //    {
+                //        List<MapPoint> constrain_map_points = new List<MapPoint>();
+                //        constrain_map_points.AddRange(shortestPathPlanDto.stations.ToArray());
+                //        constrain_map_points.Add(FinalPoint);
+                //        //bool avoid_path_found = await TrafficControlCenter.TryMoveAGV(conflic_agv, constrain_map_points); //TODO 趕車
+                //        //if (!avoid_path_found)
+                //        //{
+                //        //    AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR, Equipment_Name: conflic_agv.Name, location: conflic_agv.currentMapPoint.Name);
+                //        //    throw new NoPathForNavigatorException();
+                //        //}
+                //    }
+                //}
 
-                var indexOfAgvBlocked = conflic_agv_list.FindAll(agv => agv.main_state == MAIN_STATUS.IDLE).Select(agv => shortestPathPlanDto.tags.IndexOf(agv.currentMapPoint.TagNumber) - 1);
-                indexOfAgvBlocked = indexOfAgvBlocked.OrderBy(index => index);
+                //var indexOfAgvBlocked = conflic_agv_list.FindAll(agv => agv.main_state == MAIN_STATUS.IDLE).Select(agv => shortestPathPlanDto.tags.IndexOf(agv.currentMapPoint.TagNumber) - 1);
+                //indexOfAgvBlocked = indexOfAgvBlocked.OrderBy(index => index);
 
-                var waitPoints = shortestPathPlanDto.stations.FindAll(pt => indexOfAgvBlocked.Contains(shortestPathPlanDto.stations.IndexOf(pt))); //等待點(AGV會先走到等待點等待下一個點位淨空)
+                //var waitPoints = shortestPathPlanDto.stations.FindAll(pt => indexOfAgvBlocked.Contains(shortestPathPlanDto.stations.IndexOf(pt))); //等待點(AGV會先走到等待點等待下一個點位淨空)
 
                 foreach (var pt in waitPoints)
                 {

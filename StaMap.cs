@@ -49,7 +49,7 @@ namespace VMSystem
             point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
             return point != null;
         }
-        internal static MapPoint  GetPointByTagNumber(int tagNumber )
+        internal static MapPoint GetPointByTagNumber(int tagNumber)
         {
             var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
             if (point == null)
@@ -63,5 +63,12 @@ namespace VMSystem
             return point;
         }
 
+        internal static MapPoint GetPointByIndex(int index)
+        {
+            var point = Map.Points.FirstOrDefault(pt => pt.Key == index);
+            if (point.Value != null)
+                return point.Value;
+            return null;
+        }
     }
 }
