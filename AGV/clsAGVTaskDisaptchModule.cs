@@ -21,6 +21,7 @@ using Microsoft.Win32;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using System.Timers;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV
 {
@@ -49,6 +50,7 @@ namespace VMSystem.AGV
 
         protected TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
 
+        public clsWaitingInfo waitingInfo { get; set; } = new clsWaitingInfo();
         public clsAGVTaskDisaptchModule()
         {
             TaskAssignWorker();
@@ -114,6 +116,31 @@ namespace VMSystem.AGV
                 }
             });
         }
+        public clsPathInfo TrafficInfo { get; set; } = new clsPathInfo();
+        public List<int> RemainTags
+        {
+            get
+            {
+                try
+                {
+
+                    if (TrafficInfo.stations.Count == 0)
+                        return new List<int>();
+
+                    var currentindex = TrafficInfo.stations.IndexOf(agv.currentMapPoint);
+                    if (currentindex < 0)
+                        return new List<int>();
+                    var remian_traj = new MapPoint[TrafficInfo.stations.Count - currentindex];
+                    TrafficInfo.stations.CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
+                    return remian_traj.Select(r => r.TagNumber).ToList();
+                }
+                catch (Exception ex)
+                {
+                    return new List<int>();
+                }
+            }
+        }
+
 
         private MapPoint goalPoint;
         private Dictionary<string, TASK_RUN_STATUS> ExecutingJobsStates = new Dictionary<string, TASK_RUN_STATUS>();
@@ -202,20 +229,24 @@ namespace VMSystem.AGV
 
                 TaskDBHelper.Update(ExecutingTask);
                 var Trajectory = _taskRunning.ExecutingTrajecory.ToArray();
+                TrafficInfo = _taskRunning.TrafficInfo;
                 clsTaskDto agv_response = null;
 
                 #region MyRegion
 
-                if (_taskRunning.TrafficInfo.waitPoints.Count != 0)
+                if (TrafficInfo.waitPoints.Count != 0)
                 {
                     Queue<MapPoint> waitPointsQueue = new Queue<MapPoint>();
-                    while (_taskRunning.TrafficInfo.waitPoints.Count != 0)
+                    while (TrafficInfo.waitPoints.Count != 0)
                     {
-                        _taskRunning.TrafficInfo.waitPoints.TryDequeue(out MapPoint waitPoint);
+                        TrafficInfo.waitPoints.TryDequeue(out MapPoint waitPoint);
                         var index_of_waitPoint = Trajectory.ToList().IndexOf(Trajectory.First(pt => pt.Point_ID == waitPoint.TagNumber));
                         var index_of_conflicPoint = index_of_waitPoint + 1;
                         var conflicPoint = _taskRunning.Trajectory[index_of_conflicPoint];
-                        clsMapPoint[] newTrajectory = new clsMapPoint[index_of_waitPoint];
+
+                        var conflicMapPoint = StaMap.GetPointByTagNumber(conflicPoint.Point_ID);
+
+                        clsMapPoint[] newTrajectory = new clsMapPoint[index_of_waitPoint + 1];
                         clsTaskDownloadData subTaskRunning = JsonConvert.DeserializeObject<clsTaskDownloadData>(_taskRunning.ToJson());
                         subTaskRunning.Trajectory.ToList().CopyTo(0, newTrajectory, 0, newTrajectory.Length);
                         subTaskRunning.Trajectory = newTrajectory;
@@ -225,26 +256,63 @@ namespace VMSystem.AGV
 
                         task_seq += 1;
                         jobs.Add(subTaskRunning);
-                        LOG.INFO($"{agv.Name} 在 {waitPoint.TagNumber} 等待 {conflicPoint.Point_ID} 淨空");
+                        LOG.INFO($"{agv.Name} 在 {waitPoint.TagNumber} 等待 {conflicMapPoint.TagNumber} 淨空");
                         CurrentTrajectory = subTaskRunning.Trajectory;
-                        var _returnDto = await PostTaskRequestToAGVAsync(subTaskRunning);
-                        if (_returnDto.ReturnCode != RETURN_CODE.OK)
+                        if (newTrajectory.Length > 0)
                         {
-                            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
-                            break;
+                            Console.WriteLine($"[{subTaskRunning.Task_Name}-{subTaskRunning.Task_Sequence}] Segment Traj:, " + string.Join("->", subTaskRunning.ExecutingTrajecory.Select(p => p.Point_ID)));
+                            foreach (var pt in subTaskRunning.TrafficInfo.stations)
+                            {
+                                StaMap.RegistPoint(agv.Name, pt);
+                            }
+                            var _returnDto = await PostTaskRequestToAGVAsync(subTaskRunning);
+                            if (_returnDto.ReturnCode != RETURN_CODE.OK)
+                            {
+                                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                                break;
+                            }
+                            ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
                         }
-                        ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
-                        while (waitPoint.IsRegisted)
+                        while (conflicMapPoint.IsRegisted | VMSManager.AllAGV.Any(agv => agv.currentMapPoint.TagNumber == conflicMapPoint.TagNumber))
                         {
-                            Thread.Sleep(100);
-                            Console.WriteLine($"{agv.Name} - 等 Tag {waitPoint.TagNumber} Release");
+                            if (waitPoint.TagNumber == agv.currentMapPoint.TagNumber)
+                            {
+                                waitingInfo.IsWaiting = true;
+                                waitingInfo.WaitingPoint = conflicMapPoint;
+                            }
+                            TASK_RUN_STATUS runStatus = TaskDBHelper.GetTaskStateByID(taskName);
+                            if (runStatus != TASK_RUN_STATUS.NAVIGATING)
+                            {
+                                waitingInfo.IsWaiting = false;
+                                ChangeTaskStatus(runStatus);
+                                return;
+                            }
+                            Thread.Sleep(1000);
+                            Console.WriteLine($"{agv.Name} - 等 Tag {conflicMapPoint.TagNumber} Release");
                         }
+
+                        waitingInfo.IsWaiting = false;
                         Console.WriteLine($"Tag {waitPoint.TagNumber} 已Release，當前位置={agv.currentMapPoint.TagNumber}");
-                        //while (agv.currentMapPoint.TagNumber != waitPoint.TagNumber)
-                        //{
-                        //    Thread.Sleep(100);
-                        //    Console.WriteLine($"{agv.Name} - 等待抵達等待點 Tag= {waitPoint.TagNumber}");
-                        //}
+                        //剩餘路徑
+                        var currentindex = TrafficInfo.stations.IndexOf(agv.currentMapPoint);
+                        var remian_traj = new MapPoint[TrafficInfo.stations.Count - currentindex];
+                        TrafficInfo.stations.CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
+                        var remain_tags = remian_traj.Select(pt => pt.TagNumber);
+                        var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != this.agv.Name);
+                        int index = 0;
+                        foreach (var pt in remian_traj)
+                        {
+                            var ocupy_agv = otherAGVList.FirstOrDefault(_agv => _agv.currentMapPoint.TagNumber == pt.TagNumber);
+                            if (ocupy_agv != null)
+                            {
+                                var tag = ocupy_agv.currentMapPoint.TagNumber;
+                                var newWaitPt = remian_traj[index - 1];
+                                LOG.WARN($"新增等待點:{newWaitPt.TagNumber}");
+                                TrafficInfo.waitPoints.Enqueue(newWaitPt);
+
+                            }
+                            index++;
+                        }
                     }
                 }
                 #endregion
@@ -354,28 +422,28 @@ namespace VMSystem.AGV
                     var previousMapPoint = feedbackData.PointIndex - 1 < 0 ? null : StaMap.GetPointByTagNumber(CurrentTrajectory[feedbackData.PointIndex - 1].Point_ID);
                     var nextMapPoint = feedbackData.PointIndex + 1 >= CurrentTrajectory.Length ? null : StaMap.GetPointByTagNumber(CurrentTrajectory[feedbackData.PointIndex + 1].Point_ID);
 
-                    LOG.INFO($"AGV抵達 {currnetMapPoint.TagNumber},前站:{previousMapPoint?.TagNumber},下一站:{nextMapPoint?.TagNumber}");
-                    if (previousMapPoint != null)
-                    {
-                        if (previousMapPoint.TryUnRegistPoint(agv.Name, out string errMsg))
-                        {
-                            if (previousMapPoint.RegistsPointIndexs.Length > 0)
-                            {
-                                foreach (var index in previousMapPoint.RegistsPointIndexs)
-                                {
-                                    MapPoint pt = StaMap.GetPointByIndex(index);
-                                    if (pt == null)
-                                        continue;
-                                    if (pt.TryUnRegistPoint(agv.Name, out string _msg))
-                                    {
-                                        LOG.WARN($"[Pt {previousMapPoint.Name}'s Register Points] {agv.Name} UnRegist Point {pt.Name}");
-                                    }
-                                }
-                            }
+                    //LOG.INFO($"AGV抵達 {currnetMapPoint.TagNumber},前站:{previousMapPoint?.TagNumber},下一站:{nextMapPoint?.TagNumber}");
+                    //if (previousMapPoint != null)
+                    //{
+                    //    if (previousMapPoint.TryUnRegistPoint(agv.Name, out string errMsg))
+                    //    {
+                    //        if (previousMapPoint.RegistsPointIndexs.Length > 0)
+                    //        {
+                    //            foreach (var index in previousMapPoint.RegistsPointIndexs)
+                    //            {
+                    //                MapPoint pt = StaMap.GetPointByIndex(index);
+                    //                if (pt == null)
+                    //                    continue;
+                    //                if (pt.TryUnRegistPoint(agv.Name, out string _msg))
+                    //                {
+                    //                    LOG.WARN($"[Pt {previousMapPoint.Name}'s Register Points] {agv.Name} UnRegist Point {pt.Name}");
+                    //                }
+                    //            }
+                    //        }
 
-                            LOG.WARN($"{agv.Name}  Release Point {previousMapPoint.Name}");
-                        }
-                    }
+                    //        // LOG.WARN($"{agv.Name}  Release Point {previousMapPoint.Name}");
+                    //    }
+                    //}
 
 
                     LOG.INFO($"{agv.Name} Task Feedback.  Task_Simplex => {task_simplex} ,Status=> {state}");
@@ -392,40 +460,40 @@ namespace VMSystem.AGV
                     }
                     else
                     {
-                        if (nextMapPoint != null)
-                        {
-                            try
-                            {
+                        //if (nextMapPoint != null)
+                        //{
+                        //    try
+                        //    {
 
-                                if (nextMapPoint.IsRegisted)
-                                {
-                                    returnCode = 1;
-                                }
-                                else
-                                {
-                                    bool registed = nextMapPoint.TryRegistPoint(agv.Name, out clsMapPoiintRegist regInfo);
+                        //        if (nextMapPoint.IsRegisted)
+                        //        {
+                        //            returnCode = 1;
+                        //        }
+                        //        else
+                        //        {
+                        //            bool registed = nextMapPoint.TryRegistPoint(agv.Name, out clsMapPoiintRegist regInfo);
 
-                                    if (registed && nextMapPoint.RegistsPointIndexs.Length > 0)
-                                    {
-                                        foreach (var index in nextMapPoint.RegistsPointIndexs)
-                                        {
-                                            MapPoint pt = StaMap.GetPointByIndex(index);
-                                            if (pt == null)
-                                                continue;
-                                            pt.TryRegistPoint(agv.Name, out clsMapPoiintRegist _reginfo);
-                                            LOG.WARN($"[Pt {nextMapPoint.Name}'s Register Points]{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {pt.Name}");
-                                        }
-                                    }
+                        //            if (registed && nextMapPoint.RegistsPointIndexs.Length > 0)
+                        //            {
+                        //                foreach (var index in nextMapPoint.RegistsPointIndexs)
+                        //                {
+                        //                    MapPoint pt = StaMap.GetPointByIndex(index);
+                        //                    if (pt == null)
+                        //                        continue;
+                        //                    pt.TryRegistPoint(agv.Name, out clsMapPoiintRegist _reginfo);
+                        //                    LOG.WARN($"[Pt {nextMapPoint.Name}'s Register Points]{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {pt.Name}");
+                        //                }
+                        //            }
 
-                                    LOG.WARN($"{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {nextMapPoint.Name}");
-                                    returnCode = 0;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                LOG.Critical(ex);
-                            }
-                        }
+                        //            LOG.WARN($"{agv.Name} {(registed ? "Regist " : "Can't  Regist")} Point {nextMapPoint.Name}");
+                        //            returnCode = 0;
+                        //        }
+                        //    }
+                        //    catch (Exception ex)
+                        //    {
+                        //        LOG.Critical(ex);
+                        //    }
+                        //}
                     }
                     ExecutingJobsStates[task_simplex] = state;
                     return returnCode;
@@ -443,7 +511,7 @@ namespace VMSystem.AGV
         {
             TrajectoryStoreTimer = new System.Timers.Timer()
             {
-                Interval = 1000
+                Interval = 500
             };
             TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
             TrajectoryStoreTimer.Enabled = true;

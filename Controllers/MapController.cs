@@ -22,13 +22,13 @@ namespace VMSystem.Controllers
         public async Task Regist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            map_point.TryRegistPoint("System", out var registInfo);
+            StaMap.RegistPoint("System", map_point);
         }
         [HttpGet("Unregist")]
         public async Task Unregist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            map_point.TryUnRegistPoint("System", out var error_msg);
+            StaMap.UnRegistPoint("System", map_point);
         }
 
 

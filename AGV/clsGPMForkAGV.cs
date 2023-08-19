@@ -108,20 +108,26 @@ namespace VMSystem.AGV
                 return states.AGV_Status;
             }
         }
-
+        private MapPoint _currentMapPoint;
         public MapPoint currentMapPoint
         {
-            get
+            set
             {
-                StaMap.TryGetPointByTagNumber(states.Last_Visited_Node, out var point);
-                if (point == null)
-                    return new MapPoint()
-                    {
-                        TagNumber = -1,
-                        Name = "Unknown"
-                    };
-                return point;
+                if (_currentMapPoint == value)
+                    return;
+                StaMap.RegistPoint(Name, value);
+                var lastMapPoint = _currentMapPoint;
+                if (lastMapPoint != null)
+                {
+                    int index = StaMap.GetIndexOfPoint(lastMapPoint);
+                    //TODO 處理解註冊的情境
+                    if (!value.RegistsPointIndexs.Contains(index) )
+                        StaMap.UnRegistPoint(Name, lastMapPoint);
+                }
+                _currentMapPoint = value;
+
             }
+            get => _currentMapPoint;
         }
         public AvailabilityHelper availabilityHelper { get; private set; }
         public RunningStatus states { get; set; } = new RunningStatus();
@@ -141,19 +147,7 @@ namespace VMSystem.AGV
         {
             get
             {
-                IEnumerable<int> tags = ((clsAGVTaskDisaptchModule)taskDispatchModule).jobs.SelectMany(job =>
-                    job.ExecutingTrajecory.Select(st => st.Point_ID)
-                );
-
-                if (tags.Count() <= 0)
-                    return new List<int>();
-                int currentTagIndex = tags.ToList().IndexOf(states.Last_Visited_Node);
-                if (currentTagIndex < 0)
-                    return new List<int>();
-                else
-                {
-                    return tags.ToList().GetRange(currentTagIndex, tags.Count() - currentTagIndex);
-                }
+                return taskDispatchModule.RemainTags;
             }
         }
 
@@ -259,13 +253,14 @@ namespace VMSystem.AGV
             availabilityHelper.UpdateAGVMainState(main_state);
             await SaveStateToDatabase();
         }
+
         public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
         {
             try
             {
-
-                await Task.Delay(1);
                 var result = await AGVStatusDBHelper.Update(dto);
+                StaMap.TryGetPointByTagNumber(states.Last_Visited_Node, out var point);
+                currentMapPoint = point;
                 return result.confirm;
             }
             catch (Exception ex)

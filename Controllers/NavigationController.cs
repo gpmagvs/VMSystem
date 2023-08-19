@@ -16,20 +16,26 @@ namespace VMSystem.Controllers
 
         private object CollectAGVNavigatingPath()
         {
-            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => new
+            object GetNavigationData(AGV.IAGV agv)
             {
-                currentLocation = agv.currentMapPoint.TagNumber,
-                currentCoordication = agv.states.Coordination,
-                cargo_status = new
+                if (agv.currentMapPoint == null)
+                    return new { };
+                return new
                 {
-                    exist = agv.states.Cargo_Status == 1,
-                    cargo_type = agv.states.CargoType,
-                    cst_id = agv.states.CSTID.FirstOrDefault()
-                },
-                nav_path = agv.states.AGV_Status == MAIN_STATUS.RUN ? agv.NavigatingTagPath : new List<int>(),
-                theta = agv.states.Coordination.Theta
+                    currentLocation = agv.currentMapPoint.TagNumber,
+                    currentCoordication = agv.states.Coordination,
+                    cargo_status = new
+                    {
+                        exist = agv.states.Cargo_Status == 1,
+                        cargo_type = agv.states.CargoType,
+                        cst_id = agv.states.CSTID.FirstOrDefault()
+                    },
+                    nav_path = agv.states.AGV_Status == MAIN_STATUS.RUN ? agv.NavigatingTagPath : new List<int>(),
+                    theta = agv.states.Coordination.Theta,
+                    waiting_info = agv.taskDispatchModule.waitingInfo
+                };
             }
-            );
+            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => GetNavigationData(agv));
         }
         /// <summary>
         /// 收集所有AGV當前的導航路徑

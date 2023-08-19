@@ -4,6 +4,8 @@ using AGVSystemCommonNet6.MAP;
 using Newtonsoft.Json;
 using System.IO.Compression;
 using AGVSystemCommonNet6.Configuration;
+using System.Xml.Linq;
+using Newtonsoft.Json.Linq;
 
 namespace VMSystem
 {
@@ -69,6 +71,38 @@ namespace VMSystem
             if (point.Value != null)
                 return point.Value;
             return null;
+        }
+
+        internal static int GetIndexOfPoint(MapPoint mapPoint)
+        {
+            int index = Map.Points.FirstOrDefault(k => k.Value.TagNumber == mapPoint.TagNumber).Key;
+            return index;
+        }
+
+        internal static void RegistPoint(string Name, MapPoint value)
+        {
+            value.TryRegistPoint(Name, out var _info);
+            if (value.RegistsPointIndexs.Length > 0)
+            {
+                foreach (var item in value.RegistsPointIndexs)
+                {
+                    if (StaMap.Map.Points.TryGetValue(item, out var pt))
+                        pt.TryRegistPoint(Name, out _info);
+                }
+            }
+        }
+
+        internal static void UnRegistPoint(string Name, MapPoint currentMapPoint)
+        {
+            currentMapPoint.TryUnRegistPoint(Name, out var _info);
+            if (currentMapPoint.RegistsPointIndexs.Length > 0)
+            {
+                foreach (var item in currentMapPoint.RegistsPointIndexs)
+                {
+                    if (StaMap.Map.Points.TryGetValue(item, out var pt))
+                        pt.TryUnRegistPoint(Name, out _info);
+                }
+            }
         }
     }
 }

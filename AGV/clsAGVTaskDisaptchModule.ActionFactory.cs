@@ -20,14 +20,16 @@ namespace VMSystem.AGV
             clsPathInfo pathInfo = new clsPathInfo();
             StaMap.TryGetPointByTagNumber(int.Parse(ExecutingTask.To_Station), out MapPoint FinalPoint);
             var regitedPoints = TrafficControlCenter.DynamicTrafficState.RegistedPoints;
-            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.TagNumber != agv.currentMapPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
+            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.RegistInfo?.RegisterAGVName != agv.Name && pt.TagNumber != agv.currentMapPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
+            toAvoidPointsTags.AddRange(otherAGVList.Select(agv => agv.currentMapPoint.TagNumber));//考慮移動路徑
+            //toAvoidPointsTags = toAvoidPointsTags.FindAll(pt => !otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).Contains(pt));
+
+
             var option = new PathFinderOption
             {
                 ConstrainTags = toAvoidPointsTags
             };
-            toAvoidPointsTags = toAvoidPointsTags.FindAll(pt => !otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).Contains(pt));
-            //option.ConstrainTags.AddRange(otherAGVList.SelectMany(agv => agv.RemainTrajectory.Select(pt => pt.Point_ID)));//考慮移動路徑
-            //option.ConstrainTags.AddRange(otherAGVList.Select(agv => agv.currentMapPoint.TagNumber));//考慮移動路徑
+
             option.ConstrainTags = option.ConstrainTags.Distinct().ToList();
 
             var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag, option);//考慮AGV阻擋下，最短路徑
@@ -38,10 +40,11 @@ namespace VMSystem.AGV
 
                 var pathTags = shortestPathPlanDto.stations.Select(pt => pt.TagNumber).ToList();
                 Dictionary<int, MapPoint> waitPointsDict = new Dictionary<int, MapPoint>();
-                foreach (var p in toAvoidPointsTags)
+                foreach (var p in option.ConstrainTags)
                 {
-                    var index = pathTags.IndexOf(p);
-                    waitPointsDict.Add(index, shortestPathPlanDto.stations[index]);
+                    var index = pathTags.IndexOf(p) - 1;
+                    if (index >= 0)
+                        waitPointsDict.Add(index, shortestPathPlanDto.stations[index]);
                 }
                 var waitPoints = waitPointsDict.OrderBy(kp => kp.Key).Select(kp => kp.Value);
 
@@ -82,6 +85,10 @@ namespace VMSystem.AGV
             }
             else
             {
+                foreach (var pt in pathPlanDto.stations)
+                {
+                    StaMap.RegistPoint(agv.Name, pt);
+                }
                 return pathPlanDto;
             }
         }
@@ -156,6 +163,7 @@ namespace VMSystem.AGV
                     }
                 }
             };
+            actionData.TrafficInfo = pathPlanDto;
             return actionData;
         }
 
