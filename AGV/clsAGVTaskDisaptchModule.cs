@@ -200,19 +200,16 @@ namespace VMSystem.AGV
                     }
                     else
                     {
-                        if (action != ACTION_TYPE.None)
+                        if (action == ACTION_TYPE.Carry)
                         {
-                            if (action == ACTION_TYPE.Carry)
-                            {
-                                trackingToPoint = StaMap.Map.Points[current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint.Target.First().Key : toPoint.Target.First().Key];//更新to
-                                goalPoint = toPoint;
+                            trackingToPoint = StaMap.Map.Points[current_ld_uld_action == ACTION_TYPE.Unload ? fromPoint.Target.First().Key : toPoint.Target.First().Key];//更新to
+                            goalPoint = toPoint;
 
-                            }
-                            else
-                            {
-                                trackingToPoint = StaMap.Map.Points[toPoint.Target.First().Key];
-                            }
                         }
+                        //else
+                        //{
+                        //    trackingToPoint = StaMap.Map.Points[toPoint.Target.First().Key];
+                        //}
                         _taskRunning = await CreateMoveActionTaskJob(taskName, agv.currentMapPoint, trackingToPoint, task_seq);
 
                         if (action == ACTION_TYPE.Carry)

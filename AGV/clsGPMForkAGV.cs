@@ -377,6 +377,23 @@ namespace VMSystem.AGV
                 SaveStateToDatabase();
                 return true;
             }
+
+            var currentTag = states.Last_Visited_Node;
+
+            if (!StaMap.CheckTagExistOnMap(currentTag))
+            {
+                AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_NOT_EXIST_ON_MAP, ALARM_SOURCE.AGVS);
+                message = $"{Name}目前位置{currentTag}不存在於圖資，禁止上線";
+                return false;
+            }
+
+            if (main_state != clsEnums.MAIN_STATUS.IDLE)
+            {
+                AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
+                message = $"AGV當前狀態禁止上線({main_state})";
+                return false;
+            }
+
             var resDto = Http.GetAsync<clsAPIRequestResult>($"{HttpHost}/api/AGV/agv_online").Result;
             if (!resDto.Success)
             {

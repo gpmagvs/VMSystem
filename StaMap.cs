@@ -81,6 +81,8 @@ namespace VMSystem
 
         internal static void RegistPoint(string Name, MapPoint value)
         {
+            if (value == null)
+                return;
             value.TryRegistPoint(Name, out var _info);
             if (value.RegistsPointIndexs.Length > 0)
             {
@@ -103,6 +105,11 @@ namespace VMSystem
                         pt.TryUnRegistPoint(Name, out _info);
                 }
             }
+        }
+
+        internal static bool CheckTagExistOnMap(int currentTag)
+        {
+            return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
     }
 }

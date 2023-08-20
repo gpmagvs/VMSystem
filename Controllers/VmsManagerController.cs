@@ -77,7 +77,7 @@ namespace VMSystem.Controllers
                 try
                 {
                     bool online_success = agv.Online(out string msg);
-                    return Ok(new { ReturnCode = 0, Message = msg });
+                    return Ok(new { ReturnCode = online_success?0:404, Message = msg });
                 }
                 catch (Exception ex)
                 {
