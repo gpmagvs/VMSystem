@@ -32,7 +32,7 @@ namespace VMSystem.Controllers
                     },
                     nav_path = agv.states.AGV_Status == MAIN_STATUS.RUN ? agv.NavigatingTagPath : new List<int>(),
                     theta = agv.states.Coordination.Theta,
-                    waiting_info = agv.taskDispatchModule.waitingInfo
+                    waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo
                 };
             }
             return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => GetNavigationData(agv));

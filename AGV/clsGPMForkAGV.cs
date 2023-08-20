@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using VMSystem.AGV.TaskDispatch;
 using VMSystem.VMS;
 
 namespace VMSystem.AGV
@@ -113,16 +114,25 @@ namespace VMSystem.AGV
         {
             set
             {
+                if (value == null)
+                    return;
                 if (_currentMapPoint == value)
                     return;
-                StaMap.RegistPoint(Name, value);
-                var lastMapPoint = _currentMapPoint;
-                if (lastMapPoint != null)
+                try
                 {
-                    int index = StaMap.GetIndexOfPoint(lastMapPoint);
-                    //TODO 處理解註冊的情境
-                    if (!value.RegistsPointIndexs.Contains(index) )
-                        StaMap.UnRegistPoint(Name, lastMapPoint);
+
+                    StaMap.RegistPoint(Name, value);
+                    var lastMapPoint = _currentMapPoint;
+                    if (lastMapPoint != null)
+                    {
+                        int index = StaMap.GetIndexOfPoint(lastMapPoint);
+                        //TODO 處理解註冊的情境
+                        if (!value.RegistsPointIndexs.Contains(index))
+                            StaMap.UnRegistPoint(Name, lastMapPoint);
+                    }
+                }
+                catch (Exception ex)
+                {
                 }
                 _currentMapPoint = value;
 
@@ -147,7 +157,7 @@ namespace VMSystem.AGV
         {
             get
             {
-                return taskDispatchModule.RemainTags;
+                return taskDispatchModule.TaskStatusTracker.RemainTags;
             }
         }
 

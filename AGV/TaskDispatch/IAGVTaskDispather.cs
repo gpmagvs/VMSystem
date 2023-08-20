@@ -4,7 +4,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using static AGVSystemCommonNet6.clsEnums;
 
-namespace VMSystem.AGV
+namespace VMSystem.AGV.TaskDispatch
 {
     public interface IAGVTaskDispather
     {
@@ -23,8 +23,7 @@ namespace VMSystem.AGV
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
 
         bool IsAGVExecutable { get; }
-        public List<int> RemainTags { get; }
-        clsWaitingInfo waitingInfo { get; set; }
+        public clsAGVTaskTrack TaskStatusTracker { get;set;}
     }
 
     public class clsWaitingInfo

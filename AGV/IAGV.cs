@@ -7,6 +7,7 @@ using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using VMSystem.AGV.TaskDispatch;
 
 namespace VMSystem.AGV
 {
