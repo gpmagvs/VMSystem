@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.DATABASE.Helpers;
+﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.TASK;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,7 @@ namespace VMSystem.Controllers
             {
                 if (agv.currentMapPoint == null)
                     return new { };
+                var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
                 return new
                 {
                     currentLocation = agv.currentMapPoint.TagNumber,
@@ -30,9 +32,15 @@ namespace VMSystem.Controllers
                         cargo_type = agv.states.CargoType,
                         cst_id = agv.states.CSTID.FirstOrDefault()
                     },
-                    nav_path = agv.NavigatingTagPath ,
+                    nav_path = agv.NavigatingTagPath,
                     theta = agv.states.Coordination.Theta,
-                    waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo
+                    waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo,
+                    states = new {
+                        is_online =agv.online_state== ONLINE_STATE.ONLINE,
+                        is_executing_task= taskRuningStatus == TASK_RUN_STATUS.NAVIGATING| taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
+                        main_status = agv.main_state
+                    },
+                    currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
                 };
             }
             return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => GetNavigationData(agv));
