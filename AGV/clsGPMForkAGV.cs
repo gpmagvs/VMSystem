@@ -301,9 +301,10 @@ namespace VMSystem.AGV
                     Connected = connected,
                     Group = VMSGroup,
                     Model = model,
-                    TaskName = taskDispatchModule.ExecutingTask == null ? "" : taskDispatchModule.ExecutingTask.TaskName,
-                    TaskRunStatus = taskDispatchModule.ExecutingTask == null ? TASK_RUN_STATUS.NO_MISSION : taskDispatchModule.ExecutingTask.State,
-                    TaskRunAction = taskDispatchModule.ExecutingTask == null ? ACTION_TYPE.None : taskDispatchModule.ExecutingTask.Action,
+                    TaskName = taskDispatchModule.TaskStatusTracker.TaskName,
+                    TaskRunStatus = taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                    TaskRunAction = taskDispatchModule.TaskStatusTracker.TaskAction,
+                    CurrentAction = taskDispatchModule.TaskStatusTracker.currentActionType
                 };
                 return await SaveStateToDatabase(dto);
             }

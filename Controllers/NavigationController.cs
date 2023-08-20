@@ -30,7 +30,7 @@ namespace VMSystem.Controllers
                         cargo_type = agv.states.CargoType,
                         cst_id = agv.states.CSTID.FirstOrDefault()
                     },
-                    nav_path = agv.states.AGV_Status == MAIN_STATUS.RUN ? agv.NavigatingTagPath : new List<int>(),
+                    nav_path = agv.NavigatingTagPath ,
                     theta = agv.states.Coordination.Theta,
                     waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo
                 };
