@@ -1,19 +1,16 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.DATABASE.Helpers;
+using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
-using static AGVSystemCommonNet6.MAP.PathFinder;
+using Newtonsoft.Json;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
-using Newtonsoft.Json;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using AGVSystemCommonNet6.Log;
-using AGVSystemCommonNet6.HttpHelper;
-using AGVSystemCommonNet6.DATABASE.Helpers;
-using System.Diagnostics;
-using AGVSystemCommonNet6.AGVDispatch.Model;
-using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Alarm;
+using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch
 {
@@ -72,7 +69,7 @@ namespace VMSystem.AGV.TaskDispatch
                 case ACTION_TYPE.None: //移動任務
                     return CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(out var desitne_point), taskSequence, GetAGVThetaToTurn());
                 case ACTION_TYPE.Unload://取貨任務
-                    return CreateLDULDTaskJob(TaskName, ACTION_TYPE.Unload, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    return CreateLDULDTaskJob(TaskName, ACTION_TYPE.Unload, TaskOrder.Action == ACTION_TYPE.Carry ? SourcePoint : DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
                 case ACTION_TYPE.Load://放貨任務
                     return CreateLDULDTaskJob(TaskName, ACTION_TYPE.Load, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
                 case ACTION_TYPE.Charge://充電任務
@@ -287,6 +284,30 @@ namespace VMSystem.AGV.TaskDispatch
         }
         private async void SendTaskToAGV()
         {
+            var _nextActionType = DetermineNextAction();
+            if (_nextActionType == ACTION_TYPE.Unknown)
+                return;
+
+
+            nextActionType = _nextActionType;
+            TrackingTask = GetTrackingTask();
+            LOG.INFO($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
+            //TrackingTask = GetTaskDownloadData();
+            if (TrackingTask == null)
+            {
+                TrafficInfo = new clsPathInfo();
+                ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
+                return;
+            }
+            TrafficInfo = TrackingTask.TrafficInfo;
+            await HandleRegistPoint(TrackingTask.TrafficInfo);
+
+            AddSegmentTask(TrackingTask);
+            var _returnDto = await PostTaskRequestToAGVAsync(TrackingTask);
+            taskSequence += 1;
+        }
+        private ACTION_TYPE DetermineNextAction()
+        {
             var nextActionIndex = -1;
             if (previousCompleteAction == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
             {
@@ -311,14 +332,14 @@ namespace VMSystem.AGV.TaskDispatch
                 nextActionIndex = currentActionIndex + 1;
 
                 if (currentActionIndex == -1)
-                    return;
+                    return ACTION_TYPE.Unknown;
                 LOG.INFO($"{AGV.Name}- {previousCompleteAction} 動作結束");
 
 
                 if (nextActionIndex >= TrackingActions.Length)
                 {
                     ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
-                    return;
+                    return ACTION_TYPE.Unknown;
                 } //完成所有動作
                 if (previousCompleteAction == ACTION_TYPE.None)
                 {
@@ -329,24 +350,8 @@ namespace VMSystem.AGV.TaskDispatch
                     //TODO Check AGV Position, If AGV Is Not At Destin Point or AGV Pose is incorrect(theata error > 5 , Position error >_ cm)
                 }
             }
-            nextActionType = TrackingActions[nextActionIndex];
-            TrackingTask = GetTrackingTask();
-            LOG.INFO($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
-            //TrackingTask = GetTaskDownloadData();
-            if (TrackingTask == null)
-            {
-                TrafficInfo = new clsPathInfo();
-                ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
-                return;
-            }
-            TrafficInfo = TrackingTask.TrafficInfo;
-            await HandleRegistPoint(TrackingTask.TrafficInfo);
-
-            AddSegmentTask(TrackingTask);
-            var _returnDto = await PostTaskRequestToAGVAsync(TrackingTask);
-            taskSequence += 1;
+            return TrackingActions[nextActionIndex];
         }
-
         private bool CheckAGVPose(out string message)
         {
             message = string.Empty;
