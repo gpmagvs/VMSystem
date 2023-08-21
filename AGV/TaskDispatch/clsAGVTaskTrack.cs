@@ -47,18 +47,18 @@ namespace VMSystem.AGV.TaskDispatch
                 {
 
                     if (TrafficInfo.stations.Count == 0)
-                        return new List<int>();
+                       actions = new List<int>();
 
                     var currentindex = TrafficInfo.stations.IndexOf(AGVCurrentPoint);
                     if (currentindex < 0)
-                        return new List<int>();
+                       actions = new List<int>();
                     var remian_traj = new MapPoint[TrafficInfo.stations.Count - currentindex];
                     TrafficInfo.stations.CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
                     return remian_traj.Select(r => r.TagNumber).ToList();
                 }
                 catch (Exception ex)
                 {
-                    return new List<int>();
+                   actions = new List<int>();
                 }
             }
         }
@@ -124,7 +124,68 @@ namespace VMSystem.AGV.TaskDispatch
             DetermineAGVFinalDestinePoint();
             SendTaskToAGV();
         }
-
+        public ACTION_TYPE[] TrackingActions
+        {
+            get
+            {
+                var IsAGVInChargeStation = AGVCurrentPoint.IsChargeAble();
+                ACTION_TYPE firstAction = IsAGVInChargeStation ? ACTION_TYPE.Discharge : ACTION_TYPE.Unpark;
+                var ordered_action = TaskOrder.Action;
+                ACTION_TYPE[] actions = new ACTION_TYPE[0];
+                switch (ordered_action)
+                {
+                    case ACTION_TYPE.None:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None };
+                        break;
+                    case ACTION_TYPE.Unload:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Unload };
+                        break;
+                    case ACTION_TYPE.LoadAndPark:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Park };
+                        break;
+                    case ACTION_TYPE.Forward:
+                        break;
+                    case ACTION_TYPE.Backward:
+                        break;
+                    case ACTION_TYPE.FaB:
+                        break;
+                    case ACTION_TYPE.Measure:
+                        break;
+                    case ACTION_TYPE.Load:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Load };
+                        break;
+                    case ACTION_TYPE.Charge:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Charge };
+                        break;
+                    case ACTION_TYPE.Carry: 
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Unload, ACTION_TYPE.None, ACTION_TYPE.Load };
+                        break;
+                    case ACTION_TYPE.Discharge:
+                       actions = new ACTION_TYPE[] { ACTION_TYPE.Discharge };
+                        break;
+                    case ACTION_TYPE.Escape:
+                        break;
+                    case ACTION_TYPE.Park:
+                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.Park };
+                        break;
+                    case ACTION_TYPE.Unpark:
+                       actions = new ACTION_TYPE[] {  ACTION_TYPE.Unpark };
+                        break;
+                    case ACTION_TYPE.ExchangeBattery:
+                        break;
+                    case ACTION_TYPE.Hold:
+                        break;
+                    case ACTION_TYPE.Break:
+                        break;
+                    case ACTION_TYPE.Unknown:
+                        break;
+                    default:
+                       actions = new ACTION_TYPE[0];
+                        break;
+                }
+                return actions;
+            }
+        }
         private async void SendTaskToAGV()
         {
 
@@ -323,7 +384,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
-                return new SimpleRequestResponse
+               actions = new SimpleRequestResponse
                 {
                     ReturnCode = RETURN_CODE.System_Error
                 };
@@ -340,7 +401,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
-                return new SimpleRequestResponse
+               actions = new SimpleRequestResponse
                 {
                     ReturnCode = RETURN_CODE.System_Error
                 };
