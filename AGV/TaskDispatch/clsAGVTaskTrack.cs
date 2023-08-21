@@ -47,27 +47,95 @@ namespace VMSystem.AGV.TaskDispatch
                 {
 
                     if (TrafficInfo.stations.Count == 0)
-                       actions = new List<int>();
+                        return new List<int>();
 
                     var currentindex = TrafficInfo.stations.IndexOf(AGVCurrentPoint);
                     if (currentindex < 0)
-                       actions = new List<int>();
+                        return new List<int>();
                     var remian_traj = new MapPoint[TrafficInfo.stations.Count - currentindex];
                     TrafficInfo.stations.CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
                     return remian_traj.Select(r => r.TagNumber).ToList();
                 }
                 catch (Exception ex)
                 {
-                   actions = new List<int>();
+                    return new List<int>();
                 }
             }
         }
         private MapPoint AGVCurrentPoint => AGV.currentMapPoint;
         private STATION_TYPE AGVCurrentPointStationType => AGVCurrentPoint.StationType;
-        clsTaskDownloadData TrackingTask;
+        clsTaskDownloadData TrackingTask
+        {
+            get
+            {
+                switch (nextActionType)
+                {
+                    case ACTION_TYPE.None: //移動任務
+                        return CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(), taskSequence);
+                    case ACTION_TYPE.Unload://取貨任務
+                        return CreateLDULDTaskJob(TaskName, currentActionType, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    case ACTION_TYPE.Load://放貨任務
+                        return CreateLDULDTaskJob(TaskName, currentActionType, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    case ACTION_TYPE.Charge://充電任務
+                        return CreateChargeActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    case ACTION_TYPE.Discharge://離開充電站任務
+                        return CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, currentActionType);
+                    case ACTION_TYPE.Park://停車任務
+                        return CreateParkingActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    case ACTION_TYPE.Unpark://離開停車點任務
+                        return CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, currentActionType);
+                    #region Not Use Yet
+                    //case ACTION_TYPE.Escape:
+                    //    break;
+                    //case ACTION_TYPE.Carry:
+                    //    break;
+                    //case ACTION_TYPE.LoadAndPark:
+                    //    break;
+                    //case ACTION_TYPE.Forward:
+                    //    break;
+                    //case ACTION_TYPE.Backward:
+                    //    break;
+                    //case ACTION_TYPE.FaB:
+                    //    break;
+                    //case ACTION_TYPE.Measure:
+                    //    break;
+                    //case ACTION_TYPE.ExchangeBattery:
+                    //    break;
+                    //case ACTION_TYPE.Hold:
+                    //    break;
+                    //case ACTION_TYPE.Break:
+                    //    break;
+                    //case ACTION_TYPE.Unknown:
+                    //    break;
+
+                    #endregion
+                    default:
+                        break;
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 取得移動任務的終點TAG
+        /// </summary>
+        /// <returns></returns>
+        private int GetDestineTagToMove()
+        {
+            if (nextActionType != ACTION_TYPE.None)
+            {
+                //二次定位點Tag
+                return StaMap.GetPointByIndex(DestinePoint.Target.Keys.First()).TagNumber;
+            }
+            else
+                return DestinePoint.TagNumber;
+        }
+
         private ACTION_TYPE previousCompleteAction = ACTION_TYPE.Unknown;
         private ACTION_TYPE carryTaskCompleteAction = ACTION_TYPE.Unknown;
         public ACTION_TYPE currentActionType { get; private set; } = ACTION_TYPE.Unknown;
+        public ACTION_TYPE nextActionType { get; private set; } = ACTION_TYPE.Unknown;
 
         private TASK_RUN_STATUS _TaskRunningStatus = TASK_RUN_STATUS.WAIT;
         public TASK_RUN_STATUS TaskRunningStatus
@@ -128,20 +196,27 @@ namespace VMSystem.AGV.TaskDispatch
         {
             get
             {
-                var IsAGVInChargeStation = AGVCurrentPoint.IsChargeAble();
-                ACTION_TYPE firstAction = IsAGVInChargeStation ? ACTION_TYPE.Discharge : ACTION_TYPE.Unpark;
+
                 var ordered_action = TaskOrder.Action;
-                ACTION_TYPE[] actions = new ACTION_TYPE[0];
+                List<ACTION_TYPE> tracking_actions = new List<ACTION_TYPE>();
+
+                if (AGVCurrentPointStationType != STATION_TYPE.Normal)
+                {
+                    var IsAGVInChargeStation = AGVCurrentPoint.IsChargeAble();
+                    ACTION_TYPE firstAction = IsAGVInChargeStation ? ACTION_TYPE.Discharge : ACTION_TYPE.Unpark;
+                    tracking_actions.Add(firstAction);
+                }
+
                 switch (ordered_action)
                 {
                     case ACTION_TYPE.None:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None });
                         break;
                     case ACTION_TYPE.Unload:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Unload };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Unload });
                         break;
                     case ACTION_TYPE.LoadAndPark:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Park };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Park });
                         break;
                     case ACTION_TYPE.Forward:
                         break;
@@ -152,24 +227,22 @@ namespace VMSystem.AGV.TaskDispatch
                     case ACTION_TYPE.Measure:
                         break;
                     case ACTION_TYPE.Load:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Load };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Load });
                         break;
                     case ACTION_TYPE.Charge:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Charge };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Charge });
                         break;
-                    case ACTION_TYPE.Carry: 
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.None, ACTION_TYPE.Unload, ACTION_TYPE.None, ACTION_TYPE.Load };
+                    case ACTION_TYPE.Carry:
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Unload, ACTION_TYPE.None, ACTION_TYPE.Load });
                         break;
                     case ACTION_TYPE.Discharge:
-                       actions = new ACTION_TYPE[] { ACTION_TYPE.Discharge };
                         break;
                     case ACTION_TYPE.Escape:
                         break;
                     case ACTION_TYPE.Park:
-                       actions = new ACTION_TYPE[] { firstAction, ACTION_TYPE.Park };
+                        tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Park });
                         break;
                     case ACTION_TYPE.Unpark:
-                       actions = new ACTION_TYPE[] {  ACTION_TYPE.Unpark };
                         break;
                     case ACTION_TYPE.ExchangeBattery:
                         break;
@@ -180,16 +253,33 @@ namespace VMSystem.AGV.TaskDispatch
                     case ACTION_TYPE.Unknown:
                         break;
                     default:
-                       actions = new ACTION_TYPE[0];
                         break;
                 }
-                return actions;
+                return tracking_actions.ToArray();
             }
         }
         private async void SendTaskToAGV()
         {
-
-            TrackingTask = GetTaskDownloadData();
+            var nextActionIndex = -1;
+            if (currentActionType == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
+            {
+                nextActionIndex = 0;
+            }
+            else
+            {
+                var currentActionIndex = TrackingActions.ToList().IndexOf(currentActionType);
+                nextActionIndex = currentActionIndex + 1;
+                if (currentActionIndex == -1)
+                    return;
+                if (nextActionIndex >= TrackingActions.Length) //完成所有動作
+                    return;
+                if (currentActionType == ACTION_TYPE.None)
+                {
+                    //TODO Check AGV Position, If AGV Is Not At Destin Point or AGV Pose is incorrect(theata error > 5 , Position error >_ cm)
+                }
+            }
+            nextActionType = TrackingActions[nextActionIndex];
+            //TrackingTask = GetTaskDownloadData();
             if (TrackingTask == null)
             {
                 TrafficInfo = new clsPathInfo();
@@ -384,7 +474,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
-               actions = new SimpleRequestResponse
+                return new SimpleRequestResponse
                 {
                     ReturnCode = RETURN_CODE.System_Error
                 };
@@ -401,7 +491,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
-               actions = new SimpleRequestResponse
+                return new SimpleRequestResponse
                 {
                     ReturnCode = RETURN_CODE.System_Error
                 };
