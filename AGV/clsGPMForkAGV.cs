@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpHelper;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
@@ -14,6 +15,7 @@ using Newtonsoft.Json;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
 {
@@ -76,9 +78,14 @@ namespace VMSystem.AGV
             {
                 if (value)
                     lastTimeAliveCheckTime = DateTime.Now;
+
                 if (_connected != value)
                 {
+                    bool reconnected = !_connected && value;
                     _connected = value;
+                    if (reconnected)
+                        Offline(out string message);
+
                     Task.Run(() => AGVStatusDBHelper.UpdateConnected(Name, value));
 
                 }
@@ -178,7 +185,7 @@ namespace VMSystem.AGV
                             await SaveStateToDatabase();
                             continue;
                         }
-                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 10)
+                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 15)
                         {
                             connected = false;
                         }
@@ -364,7 +371,7 @@ namespace VMSystem.AGV
                 return true;
             }
 
-            taskDispatchModule.CancelTask();
+            //taskDispatchModule.CancelTask();
 
             var resDto = Http.GetAsync<clsAPIRequestResult>($"{HttpHost}/api/AGV/agv_offline").Result;
             online_state = clsEnums.ONLINE_STATE.OFFLINE;
@@ -398,7 +405,7 @@ namespace VMSystem.AGV
                 return false;
             }
 
-            if (main_state != clsEnums.MAIN_STATUS.IDLE)
+            if (main_state != clsEnums.MAIN_STATUS.IDLE && main_state != clsEnums.MAIN_STATUS.Charging)
             {
                 AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
                 message = $"AGV當前狀態禁止上線({main_state})";
@@ -432,8 +439,7 @@ namespace VMSystem.AGV
                 Source = source,
 
             };
-            if (taskDispatchModule.ExecutingTask != null)
-                alarmSave.Task_Name = taskDispatchModule.ExecutingTask.TaskName;
+            alarmSave.Task_Name = taskDispatchModule.TaskStatusTracker.TaskName;
             AlarmManagerCenter.AddAlarm(alarmSave);
             return alarmSave.Description_Zh;
         }
@@ -452,6 +458,41 @@ namespace VMSystem.AGV
             return (int)Math.Round(path_plan_info.total_travel_distance);
         }
 
+        public void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint)
+        {
+            if (action == ACTION_TYPE.None && currentMapPoint.StationType != STATION_TYPE.Normal)
+            {
+                throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_MOVE_TASK_IN_WORKSTATION);
+            }
+            if (action == ACTION_TYPE.Load)//放貨任務
+            {
+                if (!DestinePoint.IsEquipment)
+                {
+                    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_TO_NOT_EQ_STATION);
+                }
+                if (states.Cargo_Status == 0)
+                {
+                    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_WHEN_AGV_NO_CARGO);
+                }
+            }
+            if (action == ACTION_TYPE.Unload)
+            {
+                if (!DestinePoint.IsEquipment)
+                {
+                    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_TO_NOT_EQ_STATION);
 
+                }
+                if (states.Cargo_Status == 1)
+                {
+                    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
+
+                }
+            }
+            if (action == ACTION_TYPE.Charge && !DestinePoint.IsChargeAble())
+            {
+                throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_CHARGE_TASK_TO_NOT_CHARGABLE_STATION);
+
+            }
+        }
     }
 }

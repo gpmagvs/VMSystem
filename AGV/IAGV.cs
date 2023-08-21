@@ -42,6 +42,9 @@ namespace VMSystem.AGV
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
          void UpdateAGVStates(RunningStatus status);
         Task PublishTrafficDynamicData(clsDynamicTrafficState dynamicTrafficState);
+
+        void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint);
+
     }
 
 }

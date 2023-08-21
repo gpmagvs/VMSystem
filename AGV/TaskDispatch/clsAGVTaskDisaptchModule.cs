@@ -42,7 +42,6 @@ namespace VMSystem.AGV
                 return TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State != TASK_RUN_STATUS.FAILURE && f.DesignatedAGVName == agv.Name);
             }
         }
-        public clsTaskDto ExecutingTask { get; set; } = null;
         public clsMapPoint[] CurrentTrajectory { get; set; }
 
         public clsAGVSimulation AgvSimulation;
@@ -60,6 +59,10 @@ namespace VMSystem.AGV
             this.agv = agv;
             TaskAssignWorker();
             AgvSimulation = new clsAGVSimulation(this);
+            TaskStatusTracker = new clsAGVTaskTrack()
+            {
+                AGV = agv
+            };
         }
 
         public void AddTask(clsTaskDto taskDto)
@@ -92,71 +95,35 @@ namespace VMSystem.AGV
 
                         if (!BeforeDispatchTaskWorkCheck(_ExecutingTask, out ALARMS alarm_code))
                         {
-                            ExecutingTask = _ExecutingTask;
                             AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
-                            ExecutingTask = null;
                             continue;
                         }
-                        ExecutingTask = _ExecutingTask;
-                        await ExecuteTaskAsync(ExecutingTask);
+                        await ExecuteTaskAsync(_ExecutingTask);
                     }
                     catch (NoPathForNavigatorException ex)
                     {
-                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        TaskStatusTracker.ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
-                        ExecutingTask = null;
+                    }
+                    catch (IlleagalTaskDispatchException ex)
+                    {
+
                     }
                     catch (Exception ex)
                     {
-                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        TaskStatusTracker.ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
-                        ExecutingTask = null;
                     }
 
                 }
             });
         }
-        public clsPathInfo TrafficInfo { get; set; } = new clsPathInfo();
-
-
-
-        private MapPoint goalPoint;
-        private Dictionary<string, TASK_RUN_STATUS> ExecutingJobsStates = new Dictionary<string, TASK_RUN_STATUS>();
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            await Task.Factory.StartNew(() =>
-            {
-                TaskStatusTracker.Start(agv, executingTask);
-            });
-
+            TaskStatusTracker.Start(agv, executingTask);
         }
 
-
-        private void ChangeTaskStatus(TASK_RUN_STATUS status, clsTaskDto RunningTask = null, string failure_reason = "")
-        {
-            if (ExecutingTask == null)
-            {
-                return;
-            }
-            ExecutingTask.State = status;
-            if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH)
-            {
-                TaskStatusTracker.waitingInfo.IsWaiting = false;
-                ExecutingTask.FailureReason = failure_reason;
-                CurrentTrajectory = new clsMapPoint[0];
-                jobs.Clear();
-                if (RunningTask != null)
-                    taskList.Remove(RunningTask);
-                ExecutingTask.FinishTime = DateTime.Now;
-                TaskDBHelper.Update(ExecutingTask);
-                ExecutingTask = null;
-            }
-            else
-            {
-                TaskDBHelper.Update(ExecutingTask);
-            }
-        }
 
         System.Timers.Timer TrajectoryStoreTimer;
 
@@ -193,12 +160,12 @@ namespace VMSystem.AGV
         }
         private void StoreTrajectory()
         {
-            if (ExecutingTask == null)
+            if (TaskStatusTracker.TaskOrder == null)
             {
                 EndReocrdTrajectory();
                 return;
             }
-            string taskID = ExecutingTask.TaskName;
+            string taskID = TaskStatusTracker.TaskOrder.TaskName;
             string agvName = agv.Name;
             double x = agv.states.Coordination.X;
             double y = agv.states.Coordination.Y;
@@ -237,36 +204,6 @@ namespace VMSystem.AGV
         }
 
 
-        private int FindSecondaryPointTag(MapPoint currentStation)
-        {
-            try
-            {
-                int stationIndex = currentStation.Target.Keys.First();
-                return StaMap.Map.Points[stationIndex].TagNumber;
-            }
-            catch (Exception ex)
-            {
-                throw new MapPointNotTargetsException();
-            }
-        }
-
-        private MapPoint GetStationByTag(int tag)
-        {
-            StaMap.TryGetPointByTagNumber(tag, out MapPoint station);
-            return station;
-        }
-        private bool TryGetStationByTag(int tag, out MapPoint station)
-        {
-            return StaMap.TryGetPointByTagNumber(tag, out station);
-        }
-
-        public void CancelTask()
-        {
-            if (ExecutingTask != null)
-            {
-                ExecutingTask = null;
-            }
-        }
 
         public void DispatchTrafficTask(clsTaskDownloadData task_download_data)
         {
@@ -284,5 +221,12 @@ namespace VMSystem.AGV
             };
             TaskDBHelper.Add(_ExecutingTask);
         }
+
+        public void CancelTask()
+        {
+            TaskStatusTracker.CancelTask();
+        }
+
+        
     }
 }

@@ -141,8 +141,8 @@ namespace VMSystem.TrafficControl
                             CurrentPosition = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node),
                             AGVStatus = agv.main_state,
                             IsOnline = agv.online_state == ONLINE_STATE.ONLINE,
-                            TaskRecieveTime = agv.main_state != MAIN_STATUS.RUN ? DateTime.MaxValue : agv.taskDispatchModule.ExecutingTask == null ? DateTime.MaxValue : agv.taskDispatchModule.ExecutingTask.RecieveTime,
-                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.ExecutingTask == null ? new List<MapPoint>() : ConvertToMapPoint(agv.taskDispatchModule.CurrentTrajectory),
+                            TaskRecieveTime = agv.main_state != MAIN_STATUS.RUN ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder.RecieveTime,
+                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? new List<MapPoint>() : ConvertToMapPoint(agv.taskDispatchModule.CurrentTrajectory),
                         }
                     );
                     DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt => pt.IsRegisted);

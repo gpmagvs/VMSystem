@@ -329,7 +329,7 @@ namespace VMSystem.VMS
             if (AllAGV.Any(agv => tagNumberOfStationSecondary.Contains(agv.states.Last_Visited_Node)))
                 return false;
             ///3
-            if (RunningAGVList.Any(agv => agv.taskDispatchModule.ExecutingTask?.To_Station == station.TagNumber + ""))
+            if (RunningAGVList.Any(agv => agv.taskDispatchModule.TaskStatusTracker.TaskOrder?.To_Station == station.TagNumber + ""))
                 return false;
 
             return true;
@@ -368,8 +368,7 @@ namespace VMSystem.VMS
 
         internal static int TaskFeedback(FeedbackData feedbackData)
         {
-            var busyAgvs = AllAGV.FindAll(agv => agv.taskDispatchModule.ExecutingTask != null);
-            IAGV? agv = busyAgvs.FirstOrDefault(agv => agv.taskDispatchModule.ExecutingTask.TaskName == feedbackData.TaskName);
+            IAGV? agv = AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.TaskStatusTracker.TaskName == feedbackData.TaskName);
             if (agv != null)
             {
                 return agv.taskDispatchModule.TaskFeedback(feedbackData, out string message);

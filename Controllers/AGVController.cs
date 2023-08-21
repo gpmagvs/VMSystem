@@ -117,8 +117,8 @@ namespace VMSystem.Controllers
                     RemoteMode = REMOTE_MODE.ONLINE,
                     TimeStamp = DateTime.Now.ToString()
                 };
-
                 agv.connected = true;
+
                 return Ok(response);
             }
             else

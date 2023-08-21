@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpHelper;
@@ -10,6 +11,7 @@ using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch
@@ -43,7 +45,7 @@ namespace VMSystem.AGV.TaskDispatch
                 try
                 {
 
-                    if (TrafficInfo.stations.Count == 0)
+                    if (TaskOrder == null | TrafficInfo.stations.Count == 0)
                         return new List<int>();
 
                     var currentindex = TrafficInfo.stations.IndexOf(AGVCurrentPoint);
@@ -161,8 +163,9 @@ namespace VMSystem.AGV.TaskDispatch
         private ACTION_TYPE carryTaskCompleteAction = ACTION_TYPE.Unknown;
         public ACTION_TYPE currentActionType { get; private set; } = ACTION_TYPE.Unknown;
         public ACTION_TYPE nextActionType { get; private set; } = ACTION_TYPE.Unknown;
+        private CancellationTokenSource taskCancel = new CancellationTokenSource();
 
-        private TASK_RUN_STATUS _TaskRunningStatus = TASK_RUN_STATUS.WAIT;
+        private TASK_RUN_STATUS _TaskRunningStatus = TASK_RUN_STATUS.NO_MISSION;
         public TASK_RUN_STATUS TaskRunningStatus
         {
             get => _TaskRunningStatus;
@@ -176,9 +179,11 @@ namespace VMSystem.AGV.TaskDispatch
                         PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
                         {
                             ResetMode = RESET_MODE.CYCLE_STOP,
-                            Task_Name = TaskName,
+                            Task_Name = TaskName.ToString(),
                             TimeStamp = DateTime.Now
                         });
+                        taskCancel.Cancel();
+                        ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
                     }
                 }
             }
@@ -194,30 +199,60 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void StartTaskStatusWatchDog()
         {
-            Task.Run(() =>
+            Task.Run(async () =>
             {
+                MAIN_STATUS agv_status = MAIN_STATUS.Unknown;
                 while (true)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(1);
+                    if (TaskOrder == null)
+                        continue;
 
-                    TaskRunningStatus = TaskOrder == null ? TASK_RUN_STATUS.NO_MISSION : TaskDBHelper.GetTaskStateByID(TaskName);
+                    if (AGV != null)
+                    {
+                        var _agv_status = AGV.main_state;
+
+                        if (agv_status == MAIN_STATUS.DOWN)
+                        {
+                            taskCancel.Cancel();
+                            _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                            {
+                                ResetMode = RESET_MODE.ABORT,
+                                Task_Name = TaskName,
+                                TimeStamp = DateTime.Now
+                            });
+                            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        }
+                        agv_status = _agv_status;
+                    }
+
+                    TaskRunningStatus = TaskDBHelper.GetTaskStateByID(TaskName);
+
                 }
             });
         }
 
         public void Start(IAGV AGV, clsTaskDto TaskOrder)
         {
-            taskSequence = 0;
-            SegmentTasksQueue.Clear();
-            waitingInfo.IsWaiting = false;
-            previousCompleteAction = ACTION_TYPE.Unknown;
-            this.AGV = AGV;
-            this.TaskOrder = TaskOrder;
-            GetSourceAndDestineMapPoint();
-            DetermineAGVFinalDestinePoint();
-            TrackingActions = GetTrackingActions();
-            LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
-            SendTaskToAGV();
+            try
+            {
+                taskCancel = new CancellationTokenSource();
+                taskSequence = 0;
+                SegmentTasksQueue.Clear();
+                waitingInfo.IsWaiting = false;
+                previousCompleteAction = ACTION_TYPE.Unknown;
+                this.AGV = AGV;
+                this.TaskOrder = TaskOrder;
+                GetSourceAndDestineMapPoint();
+                DetermineAGVFinalDestinePoint();
+                TrackingActions = GetTrackingActions();
+                LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
+                SendTaskToAGV();
+            }
+            catch (IlleagalTaskDispatchException ex)
+            {
+                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: TaskName, location: AGVCurrentPoint.Name);
+            }
         }
         public ACTION_TYPE[] TrackingActions { get; private set; } = new ACTION_TYPE[0];
         public ACTION_TYPE[] GetTrackingActions()
@@ -284,6 +319,20 @@ namespace VMSystem.AGV.TaskDispatch
         }
         private async void SendTaskToAGV()
         {
+            if (taskCancel.IsCancellationRequested)
+                return;
+            if (AGV.main_state == clsEnums.MAIN_STATUS.DOWN)
+            {
+                _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                {
+                    ResetMode = RESET_MODE.ABORT,
+                    Task_Name = TaskName,
+                    TimeStamp = DateTime.Now
+                });
+                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                return;
+            }
+
             var _nextActionType = DetermineNextAction();
             if (_nextActionType == ACTION_TYPE.Unknown)
                 return;
@@ -296,18 +345,28 @@ namespace VMSystem.AGV.TaskDispatch
             if (TrackingTask == null)
             {
                 TrafficInfo = new clsPathInfo();
-                ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
+                ChangeTaskStatus();
                 return;
             }
             TrafficInfo = TrackingTask.TrafficInfo;
             await HandleRegistPoint(TrackingTask.TrafficInfo);
-
+            waitingInfo.IsWaiting = false;
+            if (TaskRunningStatus == TASK_RUN_STATUS.CANCEL | TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
+            {
+                waitingInfo.IsWaiting = false;
+                TrafficInfo = new clsPathInfo();
+                return;
+            }
             AddSegmentTask(TrackingTask);
-            var _returnDto = await PostTaskRequestToAGVAsync(TrackingTask);
+            var _returnDto = PostTaskRequestToAGVAsync(TrackingTask);
             taskSequence += 1;
         }
         private ACTION_TYPE DetermineNextAction()
         {
+            if (TaskOrder == null)
+            {
+                return ACTION_TYPE.Unknown;
+            }
             var nextActionIndex = -1;
             if (previousCompleteAction == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
             {
@@ -338,7 +397,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                 if (nextActionIndex >= TrackingActions.Length)
                 {
-                    ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
+                    ChangeTaskStatus();
                     return ACTION_TYPE.Unknown;
                 } //完成所有動作
                 if (previousCompleteAction == ACTION_TYPE.None)
@@ -362,7 +421,11 @@ namespace VMSystem.AGV.TaskDispatch
                 return false;
             }
             var _destinTheta = TaskOrder.Action == ACTION_TYPE.Carry ? (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint.Direction : SourcePoint.Direction) : DestinePoint.Direction;
-            if (Math.Abs(AGV.states.Coordination.Theta - _destinTheta) > 10)
+            var _agvTheta = AGV.states.Coordination.Theta;
+
+            var theta_error = Math.Abs(_agvTheta - _destinTheta);
+            theta_error = theta_error > 180 ? 360 - theta_error : theta_error;
+            if (Math.Abs(theta_error) > 10)
             {
                 message = $"{AGV.Name} 角度與目的地角度設定誤差>10度({AGV.states.Coordination.Theta}/{_destinTheta})";
                 LOG.WARN(message);
@@ -372,26 +435,41 @@ namespace VMSystem.AGV.TaskDispatch
             return true;
         }
 
-        public void HandleAGVFeedback(FeedbackData feedbackData)
+        public async void HandleAGVFeedback(FeedbackData feedbackData)
         {
+            await Task.Delay(200);
             var task_simplex = feedbackData.TaskSimplex;
             var task_status = feedbackData.TaskStatus;
+            var feedback_task = SegmentTasksQueue.FirstOrDefault(seg => seg.Task_Simple == feedbackData.TaskSimplex);
+            if (feedback_task == null)
+            {
+                AlarmManagerCenter.AddAlarm(ALARMS.AGV_Task_Feedback_But_Task_Name_Not_Match, level: ALARM_LEVEL.WARNING, Equipment_Name: AGV.Name);
+                return;
+            }
             switch (task_status)
             {
                 case TASK_RUN_STATUS.NO_MISSION:
                     break;
                 case TASK_RUN_STATUS.NAVIGATING:
+                    LOG.INFO($"{AGV.Name} Feedback Task Status:{feedback_task.Task_Simple} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
                     break;
                 case TASK_RUN_STATUS.REACH_POINT_OF_TRAJECTORY:
                     break;
                 case TASK_RUN_STATUS.ACTION_START:
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
-                    var currentSegmentTask = SegmentTasksQueue.Dequeue();
-                    previousCompleteAction = currentSegmentTask.taskDownloadToAGV.Action_Type;
+                    LOG.INFO($"{AGV.Name} ACTION_FINISH, Task_Simple:{feedback_task.Task_Simple} pt:{feedbackData.PointIndex}");
+                    previousCompleteAction = feedback_task.taskDownloadToAGV.Action_Type;
                     if (!waitingInfo.IsWaiting)
                     {
-                        SendTaskToAGV();
+                        try
+                        {
+                            SendTaskToAGV();
+                        }
+                        catch (IlleagalTaskDispatchException ex)
+                        {
+                            AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: TaskName, location: AGVCurrentPoint.Name);
+                        }
                     }
                     break;
                 case TASK_RUN_STATUS.WAIT:
@@ -458,7 +536,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         StaMap.RegistPoint(AGV.Name, pt);
                     }
-                    var _returnDto = await PostTaskRequestToAGVAsync(subTaskRunning);
+                    var _returnDto = PostTaskRequestToAGVAsync(subTaskRunning);
                     if (_returnDto.ReturnCode != RETURN_CODE.OK)
                     {
                         ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
@@ -489,7 +567,7 @@ namespace VMSystem.AGV.TaskDispatch
                 while (Iswait = IsWaitingPoint())
                 {
                     Thread.Sleep(1);
-                    if (TaskRunningStatus == TASK_RUN_STATUS.CANCEL | TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
+                    if (taskCancel.IsCancellationRequested)
                     {
                         return;
                     }
@@ -502,7 +580,6 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                 }
                 waitAGVReachWaitPtCts.Cancel();
-                waitingInfo.IsWaiting = false;
                 Console.WriteLine($"Tag {waitPoint.TagNumber} 已Release，當前位置={AGVCurrentPoint.TagNumber}");
                 //剩餘路徑
                 var currentindex = trafficInfo.stations.IndexOf(AGVCurrentPoint);
@@ -528,12 +605,16 @@ namespace VMSystem.AGV.TaskDispatch
                         {
                             continue;
                         }
-
-
                     }
                     index++;
                 }
-
+                LOG.WARN($"等待AGV抵達等待點-{waitPoint.Name}");
+                while (!waitingInfo.IsWaiting)
+                {
+                    Thread.Sleep(1);
+                    if (taskCancel.IsCancellationRequested)
+                        return;
+                }
             }
         }
 
@@ -542,6 +623,8 @@ namespace VMSystem.AGV.TaskDispatch
             try
             {
                 SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsCancelTaskCmd, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Cancel", data);
+
+                LOG.WARN($"取消{AGV.Name}任務-AGV回復:Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
                 return taskStateResponse;
             }
             catch (Exception ex)
@@ -553,26 +636,28 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        public async Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData data)
+        public SimpleRequestResponse PostTaskRequestToAGVAsync(clsTaskDownloadData data)
         {
             try
             {
-
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                AGV.CheckAGVStatesBeforeDispatchTask(data.Action_Type, DestinePoint);
+                SimpleRequestResponse taskStateResponse = Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data).Result;
                 return taskStateResponse;
+            }
+            catch (IlleagalTaskDispatchException ex)
+            {
+                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: TaskName, location: AGVCurrentPoint.Name);
+                return new SimpleRequestResponse { ReturnCode = RETURN_CODE.NG, Message = ex.Alarm_Code.ToString() };
             }
             catch (Exception ex)
             {
-                return new SimpleRequestResponse
-                {
-                    ReturnCode = RETURN_CODE.System_Error
-                };
+                throw ex;
             }
         }
         private void AddSegmentTask(clsTaskDownloadData subTaskRunning)
         {
             SegmentTasksQueue.Enqueue(new clsSegmentTask(this.TaskName, taskSequence, subTaskRunning));
-
         }
 
         public void AddSegmentTask(int sequence)
@@ -745,7 +830,19 @@ namespace VMSystem.AGV.TaskDispatch
                 return pathPlanDto;
             }
         }
-        private void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
+        internal void ChangeTaskStatus()
+        {
+            var status = TASK_RUN_STATUS.FAILURE;
+            if (TaskOrder.Action == ACTION_TYPE.Carry)
+            {
+                status = previousCompleteAction == ACTION_TYPE.Load ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
+            }
+            else
+                status = previousCompleteAction == TaskOrder.Action ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
+            ChangeTaskStatus(status);
+
+        }
+        internal void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
         {
             if (TaskOrder == null)
                 return;
@@ -757,11 +854,17 @@ namespace VMSystem.AGV.TaskDispatch
                 TaskOrder.FinishTime = DateTime.Now;
                 TaskDBHelper.Update(TaskOrder);
                 TaskOrder = null;
+                _TaskRunningStatus = TASK_RUN_STATUS.NO_MISSION;
             }
             else
             {
                 TaskDBHelper.Update(TaskOrder);
             }
+        }
+
+        internal void CancelTask()
+        {
+            taskCancel.Cancel();
         }
     }
 
