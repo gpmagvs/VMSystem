@@ -71,7 +71,7 @@ namespace VMSystem.AGV.TaskDispatch
                 switch (nextActionType)
                 {
                     case ACTION_TYPE.None: //移動任務
-                        return CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(), taskSequence);
+                        return CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(out var desitne_point), taskSequence);
                     case ACTION_TYPE.Unload://取貨任務
                         return CreateLDULDTaskJob(TaskName, currentActionType, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
                     case ACTION_TYPE.Load://放貨任務
@@ -121,15 +121,19 @@ namespace VMSystem.AGV.TaskDispatch
         /// 取得移動任務的終點TAG
         /// </summary>
         /// <returns></returns>
-        private int GetDestineTagToMove()
+        private int GetDestineTagToMove(out MapPoint Point)
         {
             if (nextActionType != ACTION_TYPE.None)
             {
+                Point = StaMap.GetPointByIndex(DestinePoint.Target.Keys.First());
                 //二次定位點Tag
-                return StaMap.GetPointByIndex(DestinePoint.Target.Keys.First()).TagNumber;
+                return Point.TagNumber;
             }
             else
+            {
+                Point = DestinePoint;
                 return DestinePoint.TagNumber;
+            }
         }
 
         private ACTION_TYPE previousCompleteAction = ACTION_TYPE.Unknown;
@@ -261,20 +265,24 @@ namespace VMSystem.AGV.TaskDispatch
         private async void SendTaskToAGV()
         {
             var nextActionIndex = -1;
-            if (currentActionType == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
+            if (previousCompleteAction == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
             {
                 nextActionIndex = 0;
             }
             else
             {
-                var currentActionIndex = TrackingActions.ToList().IndexOf(currentActionType);
+                var currentActionIndex = TrackingActions.ToList().IndexOf(previousCompleteAction);
                 nextActionIndex = currentActionIndex + 1;
                 if (currentActionIndex == -1)
                     return;
                 if (nextActionIndex >= TrackingActions.Length) //完成所有動作
                     return;
-                if (currentActionType == ACTION_TYPE.None)
+                if (previousCompleteAction == ACTION_TYPE.None)
                 {
+                    if (CheckAGVPose(out string message))
+                    {
+                        nextActionIndex = currentActionIndex;
+                    }
                     //TODO Check AGV Position, If AGV Is Not At Destin Point or AGV Pose is incorrect(theata error > 5 , Position error >_ cm)
                 }
             }
@@ -294,6 +302,24 @@ namespace VMSystem.AGV.TaskDispatch
             taskSequence += 1;
         }
 
+        private bool CheckAGVPose(out string message)
+        {
+            message = string.Empty;
+            int destine_tag = GetDestineTagToMove(out MapPoint destinePoint);
+            if (AGVCurrentPoint.TagNumber != destine_tag)
+            {
+                message = "AGV並未抵達目的地";
+                return false;
+            }
+
+            if (Math.Abs(AGV.states.Coordination.Theta - destinePoint.Direction) > 10)
+            {
+                message = $"AGV角度與目的地角度設定誤差>10度({AGV.states.Coordination.Theta}/{destinePoint.Direction})";
+                return false;
+            }
+
+            return true;
+        }
 
         public void HandleAGVFeedback(FeedbackData feedbackData)
         {
@@ -311,15 +337,10 @@ namespace VMSystem.AGV.TaskDispatch
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
                     var currentSegmentTask = SegmentTasksQueue.Dequeue();
-                    var _CompleteAction = currentSegmentTask.taskDownloadToAGV.Action_Type;
-                    if (currentSegmentTask.DestinePoint.TagNumber == AGVCurrentPoint.TagNumber)
+                    previousCompleteAction = currentSegmentTask.taskDownloadToAGV.Action_Type;
+                    if (!waitingInfo.IsWaiting)
                     {
-                        this.previousCompleteAction = (_CompleteAction == ACTION_TYPE.Discharge | _CompleteAction == ACTION_TYPE.Unpark) ? ACTION_TYPE.Unknown : _CompleteAction;
-                        carryTaskCompleteAction = carryTaskCompleteAction == ACTION_TYPE.Unload ? ACTION_TYPE.Unload : _CompleteAction;
-                        if (!waitingInfo.IsWaiting)
-                        {
-                            SendTaskToAGV();
-                        }
+                        SendTaskToAGV();
                     }
                     break;
                 case TASK_RUN_STATUS.WAIT:
