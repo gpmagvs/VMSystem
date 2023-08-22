@@ -31,9 +31,18 @@ namespace VMSystem.AGV
     /// </summary>
     public partial class clsAGVTaskDisaptchModule : IAGVTaskDispather
     {
+        public enum AGV_ORDERABLE_STATUS
+        {
+            EXECUTABLE,
+            EXECUTING,
+            AGV_STATUS_ERROR,
+            NO_ORDER,
+            AGV_OFFLINE,
+        }
+
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
-        public bool IsAGVExecutable => agv == null ? false : (agv.main_state == clsEnums.MAIN_STATUS.IDLE | agv.main_state == clsEnums.MAIN_STATUS.Charging) && agv.online_state == clsEnums.ONLINE_STATE.ONLINE;
+        public AGV_ORDERABLE_STATUS OrderExecuteState => GetAGVReceiveOrderStatus();
         private string HttpHost => $"http://{agv.options.HostIP}:{agv.options.HostPort}";
         public virtual List<clsTaskDto> taskList
         {
@@ -71,7 +80,18 @@ namespace VMSystem.AGV
             taskList.Add(taskDto);
         }
 
-
+        private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
+        {
+            if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
+            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != clsEnums.MAIN_STATUS.Charging)
+                return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
+            if (taskList.Count == 0)
+                return AGV_ORDERABLE_STATUS.NO_ORDER;
+            if (taskList.Any(task => task.State == TASK_RUN_STATUS.NAVIGATING))
+                return AGV_ORDERABLE_STATUS.EXECUTING;
+            return AGV_ORDERABLE_STATUS.EXECUTABLE;
+        }
         protected virtual void TaskAssignWorker()
         {
             Task.Run(async () =>
@@ -81,15 +101,10 @@ namespace VMSystem.AGV
                     await Task.Delay(1000);
                     try
                     {
-                        if (!IsAGVExecutable)
+                        if (OrderExecuteState != AGV_ORDERABLE_STATUS.EXECUTABLE)
                             continue;
 
-                        if (taskList.Count == 0)
-                            continue;
 
-                        if ((TaskStatusTracker.TaskRunningStatus == TASK_RUN_STATUS.NAVIGATING | TaskStatusTracker.TaskRunningStatus == TASK_RUN_STATUS.WAIT))
-                            continue;
-                        //將任務依照優先度排序
                         var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
                         var _ExecutingTask = taskOrderedByPriority.First();
 
@@ -227,6 +242,6 @@ namespace VMSystem.AGV
             TaskStatusTracker.CancelTask();
         }
 
-        
+
     }
 }

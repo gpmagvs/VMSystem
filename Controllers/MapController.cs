@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Text;
 using VMSystem.TrafficControl;
+using static SQLite.SQLite3;
 
 namespace VMSystem.Controllers
 {
@@ -19,16 +20,19 @@ namespace VMSystem.Controllers
 
 
         [HttpGet("Regist")]
-        public async Task Regist(int Tag_Number)
+        public async Task<IActionResult> Regist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            StaMap.RegistPoint("System", map_point);
+            bool result = StaMap.RegistPoint("System", map_point, out string err_msg);
+            return Ok(new { result = result, message = err_msg });
         }
         [HttpGet("Unregist")]
-        public async Task Unregist(int Tag_Number)
+        public async Task<IActionResult> Unregist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            StaMap.UnRegistPoint("System", map_point);
+            bool result = StaMap.UnRegistPoint("System", map_point, out string err_msg);
+            return Ok(new { result = result, message = err_msg });
+
         }
 
 

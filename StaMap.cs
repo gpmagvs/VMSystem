@@ -79,31 +79,52 @@ namespace VMSystem
             return index;
         }
 
-        internal static void RegistPoint(string Name, MapPoint value)
+        internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message)
         {
-            if (value == null)
-                return;
-            value.TryRegistPoint(Name, out var _info);
-            if (value.RegistsPointIndexs.Length > 0)
+            error_message = string.Empty; ;
+            try
             {
-                foreach (var item in value.RegistsPointIndexs)
+                if (mapPoint == null)
+                    return false;
+                bool success = mapPoint.TryRegistPoint(Name, out var _info);
+                if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
-                    if (StaMap.Map.Points.TryGetValue(item, out var pt))
-                        pt.TryRegistPoint(Name, out _info);
+                    foreach (var item in mapPoint.RegistsPointIndexs)
+                    {
+                        if (StaMap.Map.Points.TryGetValue(item, out var pt))
+                            pt.TryRegistPoint(Name, out _info);
+                    }
                 }
+                return success;
+            }
+            catch (Exception ex)
+            {
+                error_message = ex.Message;
+                return false;
             }
         }
 
-        internal static void UnRegistPoint(string Name, MapPoint currentMapPoint)
+        internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message)
         {
-            currentMapPoint.TryUnRegistPoint(Name, out var _info);
-            if (currentMapPoint.RegistsPointIndexs.Length > 0)
+            error_message = string.Empty;
+            try
             {
-                foreach (var item in currentMapPoint.RegistsPointIndexs)
+
+                bool success = mapPoint.TryUnRegistPoint(Name, out var _info);
+                if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
-                    if (StaMap.Map.Points.TryGetValue(item, out var pt))
-                        pt.TryUnRegistPoint(Name, out _info);
+                    foreach (var item in mapPoint.RegistsPointIndexs)
+                    {
+                        if (StaMap.Map.Points.TryGetValue(item, out var pt))
+                            pt.TryUnRegistPoint(Name, out _info);
+                    }
                 }
+                return success;
+            }
+            catch (Exception ex)
+            {
+                error_message = ex.Message;
+                return false;
             }
         }
 

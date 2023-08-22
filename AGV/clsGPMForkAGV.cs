@@ -127,15 +127,15 @@ namespace VMSystem.AGV
                     return;
                 try
                 {
-
-                    StaMap.RegistPoint(Name, value);
+                    string registePt_errorMsg = string.Empty;
+                    StaMap.RegistPoint(Name, value,out registePt_errorMsg);
                     var lastMapPoint = _currentMapPoint;
                     if (lastMapPoint != null)
                     {
                         int index = StaMap.GetIndexOfPoint(lastMapPoint);
                         //TODO 處理解註冊的情境
                         if (!value.RegistsPointIndexs.Contains(index))
-                            StaMap.UnRegistPoint(Name, lastMapPoint);
+                            StaMap.UnRegistPoint(Name, lastMapPoint, out registePt_errorMsg);
                     }
                 }
                 catch (Exception ex)

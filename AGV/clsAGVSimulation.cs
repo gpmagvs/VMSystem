@@ -185,9 +185,9 @@ namespace VMSystem.AGV
                 agv.states.Coordination.Y = station.Y;
 
                 var pt = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
-                StaMap.UnRegistPoint(agv.Name, pt);
+                StaMap.UnRegistPoint(agv.Name, pt, out string err_msg);
                 agv.states.Last_Visited_Node = stationTag;
-                StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag));
+                StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 
                 stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;

@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsAGVTaskDisaptchModule;
 
 namespace VMSystem.AGV.TaskDispatch
 {
@@ -20,8 +21,7 @@ namespace VMSystem.AGV.TaskDispatch
         void CancelTask();
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
-
-        bool IsAGVExecutable { get; }
+        AGV_ORDERABLE_STATUS OrderExecuteState { get; }
         public clsAGVTaskTrack TaskStatusTracker { get;set;}
     }
 

@@ -198,6 +198,7 @@ namespace VMSystem.AGV.TaskDispatch
                 SegmentTasksQueue.Clear();
                 waitingInfo.IsWaiting = false;
                 previousCompleteAction = ACTION_TYPE.Unknown;
+                carryTaskCompleteAction = ACTION_TYPE.Unknown;
                 this.AGV = AGV;
                 this.TaskOrder = TaskOrder;
                 GetSourceAndDestineMapPoint();
@@ -228,12 +229,13 @@ namespace VMSystem.AGV.TaskDispatch
                 AlarmManagerCenter.AddAlarm(ALARMS.AGV_Task_Feedback_But_Task_Name_Not_Match, level: ALARM_LEVEL.WARNING, Equipment_Name: AGV.Name);
                 return;
             }
+            LOG.INFO($"{AGV.Name} Feedback Task Status:{segmentTask.Task_Simple} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
+
             switch (task_status)
             {
                 case TASK_RUN_STATUS.NO_MISSION:
                     break;
                 case TASK_RUN_STATUS.NAVIGATING:
-                    LOG.INFO($"{AGV.Name} Feedback Task Status:{segmentTask.Task_Simple} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
                     break;
                 case TASK_RUN_STATUS.REACH_POINT_OF_TRAJECTORY:
                     break;
@@ -241,9 +243,12 @@ namespace VMSystem.AGV.TaskDispatch
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
 
-                    LOG.INFO($"{AGV.Name} ACTION_FINISH, Task_Simple:{segmentTask.Task_Simple} pt:{feedbackData.PointIndex}");
                     previousCompleteAction = segmentTask.taskDownloadToAGV.Action_Type;
-                    if (!segmentTask.IsWaitConflicTask)
+                    if (segmentTask.IsWaitConflicTask)
+                    {
+                        LOG.INFO($"{AGV.Name} 註冊點等待任務 ACTION_FINISH, Task_Simple:{segmentTask.Task_Simple} pt:{feedbackData.PointIndex}");
+                    }
+                    else
                     {
                         try
                         {
@@ -333,52 +338,66 @@ namespace VMSystem.AGV.TaskDispatch
         }
         private async void SendTaskToAGV()
         {
-            if (taskCancel.IsCancellationRequested)
-                return;
-            if (AGV.main_state == clsEnums.MAIN_STATUS.DOWN)
+            try
             {
-                _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                if (taskCancel.IsCancellationRequested)
+                    return;
+                if (AGV.main_state == clsEnums.MAIN_STATUS.DOWN)
                 {
-                    ResetMode = RESET_MODE.ABORT,
-                    Task_Name = TaskName,
-                    TimeStamp = DateTime.Now
-                });
-                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
-                return;
-            }
+                    _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                    {
+                        ResetMode = RESET_MODE.ABORT,
+                        Task_Name = TaskName,
+                        TimeStamp = DateTime.Now
+                    });
+                    ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                    return;
+                }
 
-            var _nextActionType = DetermineNextAction();
-            if (_nextActionType == ACTION_TYPE.Unknown)
-                return;
+                var _nextActionType = DetermineNextAction();
+                if (_nextActionType == ACTION_TYPE.Unknown)
+                    return;
 
 
-            nextActionType = _nextActionType;
-            TrackingTask = GetTrackingTask();
-            LOG.INFO($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
-            //TrackingTask = GetTaskDownloadData();
-            if (TrackingTask == null)
-            {
-                TrafficInfo = new clsPathInfo();
-                ChangeTaskStatus();
-                return;
-            }
-            TrafficInfo = TrackingTask.TrafficInfo;
-            await HandleRegistPoint(TrackingTask.TrafficInfo);
-            waitingInfo.IsWaiting = false;
-            if (TaskRunningStatus == TASK_RUN_STATUS.CANCEL | TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
-            {
+                nextActionType = _nextActionType;
+                TrackingTask = GetTrackingTask();
+                LOG.INFO($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
+                //TrackingTask = GetTaskDownloadData();
+                if (TrackingTask == null)
+                {
+                    TrafficInfo = new clsPathInfo();
+                    ChangeTaskStatus();
+                    return;
+                }
+                TrafficInfo = TrackingTask.TrafficInfo;
+                await HandleRegistPoint(TrackingTask.TrafficInfo);
                 waitingInfo.IsWaiting = false;
-                TrafficInfo = new clsPathInfo();
-                return;
+                if (TaskRunningStatus == TASK_RUN_STATUS.CANCEL | TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
+                {
+                    waitingInfo.IsWaiting = false;
+                    TrafficInfo = new clsPathInfo();
+                    return;
+                }
+                AddSegmentTask(TrackingTask, is_use_for_wait_registe_release: false);
+                var _returnDto = PostTaskRequestToAGVAsync(TrackingTask);
+                if (_returnDto.ReturnCode != RETURN_CODE.OK)
+                {
+                    //CancelTask();
+                    //return;
+                }
+                taskSequence += 1;
+
             }
-            AddSegmentTask(TrackingTask, is_use_for_wait_registe_release: false);
-            var _returnDto = PostTaskRequestToAGVAsync(TrackingTask);
-            if (_returnDto.ReturnCode != RETURN_CODE.OK)
+            catch (NoPathForNavigatorException ex)
             {
+                AlarmManagerCenter.AddAlarm(ex.Alarm_Code);
                 CancelTask();
-                return;
             }
-            taskSequence += 1;
+            catch (Exception ex)
+            {
+                AlarmManagerCenter.AddAlarm(ALARMS.SYSTEM_ERROR);
+                CancelTask();
+            }
         }
         private ACTION_TYPE DetermineNextAction()
         {
@@ -522,6 +541,10 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 await Task.Delay(1);
                 trafficInfo.waitPoints.TryDequeue(out MapPoint waitPoint);
+                //if (!waitPoint.IsRegisted)
+                //    continue;
+                //if (waitPoint.RegistInfo?.RegisterAGVName == AGV.Name)
+                //    continue;
 
                 clsTaskDownloadData gotoWaitPointTask = CreateGoToWaitPointTaskAndJoinToSegment(trafficInfo, waitPoint, out MapPoint conflicMapPoint);
                 LOG.WARN($"{AGV.Name} will goto wait point:{waitPoint.Name}({waitPoint.TagNumber}) to wait conflic point:{conflicMapPoint.Name}({conflicMapPoint.TagNumber}) release");
@@ -529,7 +552,7 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     foreach (var pt in gotoWaitPointTask.TrafficInfo.stations)
                     {
-                        StaMap.RegistPoint(AGV.Name, pt);
+                        StaMap.RegistPoint(AGV.Name, pt, out string err_msg);
                     }
                     var _returnDto = PostTaskRequestToAGVAsync(gotoWaitPointTask);
                     if (_returnDto.ReturnCode != RETURN_CODE.OK)
@@ -576,21 +599,23 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 waitAGVReachWaitPtCts.Cancel();
                 Console.WriteLine($"Tag {waitPoint.TagNumber} 已Release，當前位置={AGVCurrentPoint.TagNumber}");
-                
+
                 var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != this.AGV.Name);
                 int index = 0;
                 //剩餘路徑
                 foreach (var remainTag in RemainTags)
                 {
-                    var ocupy_agv = otherAGVList.FirstOrDefault(_agv => _agv.states.Last_Visited_Node == remainTag);
-                    if (ocupy_agv != null)
+                    var registPt = TrafficControlCenter.DynamicTrafficState.RegistedPoints.FirstOrDefault(rpt => rpt.TagNumber == remainTag);
+                    if (registPt != null)
                     {
-                        var tag = ocupy_agv.currentMapPoint.TagNumber;
+                        if (!registPt.IsRegisted)
+                            continue;
+                        if (registPt.RegistInfo?.RegisterAGVName == AGV.Name)
+                            continue;
                         try
                         {
-                            var newWaitPt = StaMap.GetPointByTagNumber(remainTag);
-                            LOG.WARN($"新增等待點:{newWaitPt.TagNumber}");
-                            trafficInfo.waitPoints.Enqueue(newWaitPt);
+                            LOG.WARN($"剩餘路徑註冊點新增:{registPt.TagNumber}:註冊者:{registPt.RegistInfo.RegisterAGVName}");
+                            trafficInfo.waitPoints.Enqueue(registPt);
                         }
                         catch (Exception)
                         {
@@ -606,6 +631,7 @@ namespace VMSystem.AGV.TaskDispatch
                     if (taskCancel.IsCancellationRequested)
                         return;
                 }
+                taskSequence += 1;
             }
         }
 
@@ -627,6 +653,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
 
                 oriTrackingOrderTask.ExecutingTrajecory.ToList().CopyTo(0, newTrajectory, 0, newTrajectory.Length);
+                newTrajectory.First().Theta = AGV.states.Coordination.Theta;
                 subTaskRunning.Trajectory = newTrajectory;
 
                 MapPoint[] newTrackingStations = new MapPoint[newTrajectory.Length];
@@ -679,6 +706,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
+                LOG.Critical(ex);
                 return new SimpleRequestResponse
                 {
                     ReturnCode = RETURN_CODE.System_Error
@@ -808,7 +836,7 @@ namespace VMSystem.AGV.TaskDispatch
             clsPathInfo pathInfo = new clsPathInfo();
             StaMap.TryGetPointByTagNumber(toTag, out MapPoint FinalPoint);
             var regitedPoints = TrafficControlCenter.DynamicTrafficState.RegistedPoints;
-            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.RegistInfo?.RegisterAGVName != AGV.Name && pt.TagNumber != AGVCurrentPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
+            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.RegistInfo != null).FindAll(pt => pt.RegistInfo?.RegisterAGVName != AGV.Name && pt.TagNumber != AGVCurrentPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
             toAvoidPointsTags.AddRange(otherAGVList.Select(agv => agv.states.Last_Visited_Node));//考慮移動路徑
             //toAvoidPointsTags = toAvoidPointsTags.FindAll(pt => !otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).Contains(pt));
 
@@ -833,11 +861,14 @@ namespace VMSystem.AGV.TaskDispatch
 
                 var pathTags = shortestPathPlanDto.stations.Select(pt => pt.TagNumber).ToList();
                 Dictionary<int, MapPoint> waitPointsDict = new Dictionary<int, MapPoint>();
-                foreach (var p in option.ConstrainTags)
+                foreach (var conflicTag in option.ConstrainTags)
                 {
-                    var index = pathTags.IndexOf(p) - 1;
-                    if (index >= 0)
-                        waitPointsDict.Add(index, shortestPathPlanDto.stations[index]);
+                    var index = pathTags.IndexOf(conflicTag);
+                    var waitPtIndex = index - 1;
+                    if (waitPtIndex >= 0)
+                    {
+                        waitPointsDict.Add(index, shortestPathPlanDto.stations[waitPtIndex]);
+                    }
                 }
                 var waitPoints = waitPointsDict.OrderBy(kp => kp.Key).Select(kp => kp.Value);
 
@@ -853,7 +884,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 foreach (var pt in pathPlanDto.stations)
                 {
-                    StaMap.RegistPoint(AGV.Name, pt);
+                    StaMap.RegistPoint(AGV.Name, pt, out string err_msg);
                 }
                 return pathPlanDto;
             }
