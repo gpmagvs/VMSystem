@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Timers;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
@@ -227,6 +228,7 @@ namespace VMSystem.AGV.TaskDispatch
                 GetSourceAndDestineMapPoint();
                 DetermineAGVFinalDestinePoint();
                 TrackingActions = GetTrackingActions();
+                StartRecordTrjectory();
                 LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
                 SendTaskToAGV();
             }
@@ -942,15 +944,12 @@ namespace VMSystem.AGV.TaskDispatch
         }
         internal void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
         {
-            if (status == TASK_RUN_STATUS.ACTION_FINISH | status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL)
-            {
-
-            }
             if (TaskOrder == null)
                 return;
             TaskOrder.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH)
             {
+                EndReocrdTrajectory();
                 waitingInfo.IsWaiting = false;
                 TaskOrder.FailureReason = failure_reason;
                 TaskOrder.FinishTime = DateTime.Now;
@@ -968,6 +967,50 @@ namespace VMSystem.AGV.TaskDispatch
         {
             taskCancel.Cancel();
         }
+
+        System.Timers.Timer TrajectoryStoreTimer;
+
+        private void StartRecordTrjectory()
+        {
+            TrajectoryStoreTimer = new System.Timers.Timer()
+            {
+                Interval = 100
+            };
+            TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
+            TrajectoryStoreTimer.Enabled = true;
+        }
+        private void EndReocrdTrajectory()
+        {
+            TrajectoryStoreTimer?.Stop();
+            TrajectoryStoreTimer?.Dispose();
+        }
+
+        /// <summary>
+        /// 儲存軌跡到資料庫
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
+        {
+            StoreTrajectory();
+        }
+        private void StoreTrajectory()
+        {
+            if (TaskOrder == null)
+            {
+                EndReocrdTrajectory();
+                return;
+            }
+            string taskID = TaskOrder.TaskName;
+            string agvName = AGV.Name;
+            double x = AGV.states.Coordination.X;
+            double y = AGV.states.Coordination.Y;
+            double theta = AGV.states.Coordination.Theta;
+            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
+            helper.StoreTrajectory(taskID, agvName, x, y, theta);
+        }
+
+
     }
 
     public class clsSegmentTask
@@ -999,6 +1042,9 @@ namespace VMSystem.AGV.TaskDispatch
         }
 
         public int Sequence { get; }
+
+
+
     }
 
 }

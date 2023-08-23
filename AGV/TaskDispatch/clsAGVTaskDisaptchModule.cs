@@ -140,7 +140,6 @@ namespace VMSystem.AGV
         }
 
 
-        System.Timers.Timer TrajectoryStoreTimer;
 
         public int TaskFeedback(FeedbackData feedbackData, out string message)
         {
@@ -148,47 +147,7 @@ namespace VMSystem.AGV
             TaskStatusTracker.HandleAGVFeedback(feedbackData);
             return 0;
         }
-
-        private void StartRecordTrjectory()
-        {
-            TrajectoryStoreTimer = new System.Timers.Timer()
-            {
-                Interval = 500
-            };
-            TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
-            TrajectoryStoreTimer.Enabled = true;
-        }
-        private void EndReocrdTrajectory()
-        {
-            TrajectoryStoreTimer?.Stop();
-            TrajectoryStoreTimer?.Dispose();
-        }
-
-        /// <summary>
-        /// 儲存軌跡到資料庫
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
-        {
-            StoreTrajectory();
-        }
-        private void StoreTrajectory()
-        {
-            if (TaskStatusTracker.TaskOrder == null)
-            {
-                EndReocrdTrajectory();
-                return;
-            }
-            string taskID = TaskStatusTracker.TaskOrder.TaskName;
-            string agvName = agv.Name;
-            double x = agv.states.Coordination.X;
-            double y = agv.states.Coordination.Y;
-            double theta = agv.states.Coordination.Theta;
-            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-            helper.StoreTrajectory(taskID, agvName, x, y, theta);
-        }
-
+       
         /// <summary>
         /// 
         /// </summary>       
