@@ -81,6 +81,7 @@ namespace VMSystem.AGV
 
                 if (_connected != value)
                 {
+                   
                     bool reconnected = !_connected && value;
                     _connected = value;
                     if (reconnected)

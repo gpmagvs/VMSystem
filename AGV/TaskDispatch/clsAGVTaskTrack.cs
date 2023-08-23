@@ -65,24 +65,38 @@ namespace VMSystem.AGV.TaskDispatch
         private MapPoint AGVCurrentPoint => AGV.currentMapPoint;
         private STATION_TYPE AGVCurrentPointStationType => AGVCurrentPoint.StationType;
         public clsTaskDownloadData TrackingTask { get; private set; }
-        private clsTaskDownloadData GetTrackingTask()
+
+        /// <summary>
+        /// 生成AGV任務模型數據
+        /// </summary>
+        /// <returns></returns>
+        private clsTaskDownloadData GenerateAGVNavitorTask()
         {
+            clsTaskDownloadData taskData = null;
             switch (nextActionType)
             {
                 case ACTION_TYPE.None: //移動任務
-                    return CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(out var desitne_point), taskSequence, GetAGVThetaToTurn());
+                    taskData = CreateMoveActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(out var desitne_point), taskSequence);
+
+                    break;
                 case ACTION_TYPE.Unload://取貨任務
-                    return CreateLDULDTaskJob(TaskName, ACTION_TYPE.Unload, TaskOrder.Action == ACTION_TYPE.Carry ? SourcePoint : DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    taskData = CreateLDULDTaskJob(TaskName, ACTION_TYPE.Unload, TaskOrder.Action == ACTION_TYPE.Carry ? SourcePoint : DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    break;
                 case ACTION_TYPE.Load://放貨任務
-                    return CreateLDULDTaskJob(TaskName, ACTION_TYPE.Load, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    taskData = CreateLDULDTaskJob(TaskName, ACTION_TYPE.Load, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
+                    break;
                 case ACTION_TYPE.Charge://充電任務
-                    return CreateChargeActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    taskData = CreateChargeActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    break;
                 case ACTION_TYPE.Discharge://離開充電站任務
-                    return CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, nextActionType);
+                    taskData = CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, nextActionType);
+                    break;
                 case ACTION_TYPE.Park://停車任務
-                    return CreateParkingActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    taskData = CreateParkingActionTaskJob(TaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
+                    break;
                 case ACTION_TYPE.Unpark://離開停車點任務
-                    return CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, nextActionType);
+                    taskData = CreateExitWorkStationActionTaskJob(TaskName, AGVCurrentPoint, taskSequence, nextActionType);
+                    break;
                 #region Not Use Yet
                 //case ACTION_TYPE.Escape:
                 //    break;
@@ -111,8 +125,35 @@ namespace VMSystem.AGV.TaskDispatch
                 default:
                     break;
             }
+            if (taskData == null)
+                return taskData;
 
-            return null;
+            if (TaskOrder.Action != ACTION_TYPE.None && nextActionType == ACTION_TYPE.None)//非一搬移動任務的訂單
+            {
+                int finalPointTheta = 0;
+                //取得最後一點的停車角度
+
+                if (TaskOrder.Action == ACTION_TYPE.Carry)
+                {
+                    finalPointTheta = (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint : SourcePoint).Direction_Secondary_Point;
+                }
+                else
+                    finalPointTheta = DestinePoint.Direction_Secondary_Point;
+                taskData.Trajectory.Last().Theta = finalPointTheta;
+            }
+
+            //軌跡第一點角度為AGV的角度
+            if (taskData.ExecutingTrajecory.Length > 1)
+            {
+
+                if (taskData.Action_Type == ACTION_TYPE.None)
+                    taskData.Trajectory.First().Theta = AGV.states.Coordination.Theta;
+                else
+                    taskData.Homing_Trajectory.First().Theta = AGV.states.Coordination.Theta;
+            }
+
+            return taskData;
+
         }
 
 
@@ -165,24 +206,6 @@ namespace VMSystem.AGV.TaskDispatch
                     if (TaskOrder == null)
                         continue;
 
-                    if (AGV != null)
-                    {
-                        var _agv_status = AGV.main_state;
-
-                        if (agv_status == MAIN_STATUS.DOWN)
-                        {
-                            taskCancel.Cancel();
-                            _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
-                            {
-                                ResetMode = RESET_MODE.ABORT,
-                                Task_Name = TaskName,
-                                TimeStamp = DateTime.Now
-                            });
-                            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
-                        }
-                        agv_status = _agv_status;
-                    }
-
                     TaskRunningStatus = TaskDBHelper.GetTaskStateByID(TaskName);
 
                 }
@@ -230,7 +253,18 @@ namespace VMSystem.AGV.TaskDispatch
                 return;
             }
             LOG.INFO($"{AGV.Name} Feedback Task Status:{segmentTask.Task_Simple} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
-
+            if (AGV.main_state == MAIN_STATUS.DOWN)
+            {
+                taskCancel.Cancel();
+                _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
+                {
+                    ResetMode = RESET_MODE.ABORT,
+                    Task_Name = TaskName,
+                    TimeStamp = DateTime.Now
+                });
+                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                return;
+            }
             switch (task_status)
             {
                 case TASK_RUN_STATUS.NO_MISSION:
@@ -242,7 +276,7 @@ namespace VMSystem.AGV.TaskDispatch
                 case TASK_RUN_STATUS.ACTION_START:
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
-
+                  
                     previousCompleteAction = segmentTask.taskDownloadToAGV.Action_Type;
                     if (segmentTask.IsWaitConflicTask)
                     {
@@ -360,8 +394,8 @@ namespace VMSystem.AGV.TaskDispatch
 
 
                 nextActionType = _nextActionType;
-                TrackingTask = GetTrackingTask();
-                LOG.INFO($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
+                TrackingTask = GenerateAGVNavitorTask();
+                LOG.WARN($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_初始角度:{TrackingTask.ExecutingTrajecory.First().Theta},停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
                 //TrackingTask = GetTaskDownloadData();
                 if (TrackingTask == null)
                 {
@@ -458,17 +492,17 @@ namespace VMSystem.AGV.TaskDispatch
                 message = "AGV並未抵達目的地";
                 return false;
             }
-            var _destinTheta = TaskOrder.Action == ACTION_TYPE.Carry ? (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint.Direction : SourcePoint.Direction) : DestinePoint.Direction;
+            var _destinTheta = TaskOrder.Action == ACTION_TYPE.Carry ? (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint.Direction : SourcePoint.Direction) : TaskOrder.Action == ACTION_TYPE.None ? DestinePoint.Direction : DestinePoint.Direction_Secondary_Point;
             var _agvTheta = AGV.states.Coordination.Theta;
 
             var theta_error = Math.Abs(_agvTheta - _destinTheta);
             theta_error = theta_error > 180 ? 360 - theta_error : theta_error;
-            if (Math.Abs(theta_error) > 10)
-            {
-                message = $"{AGV.Name} 角度與目的地角度設定誤差>10度({AGV.states.Coordination.Theta}/{_destinTheta})";
-                LOG.WARN(message);
-                return false;
-            }
+            //if (Math.Abs(theta_error) > 10)
+            //{
+            //    message = $"{AGV.Name} 角度與目的地角度設定誤差>10度({AGV.states.Coordination.Theta}/{_destinTheta})";
+            //    LOG.WARN(message);
+            //    return false;
+            //}
 
             return true;
         }
@@ -562,14 +596,19 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                     ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
                 }
-                bool IsWaitingPoint()
+                bool GetConflicPointIsRegistOrNot()
                 {
-                    return conflicMapPoint.IsRegisted | VMSManager.AllAGV.Any(agv => agv.currentMapPoint.TagNumber == conflicMapPoint.TagNumber);
+                    if (!conflicMapPoint.RegistInfo.IsRegisted)
+                        return false;
+                    else
+                    {
+                        return conflicMapPoint.RegistInfo.RegisterAGVName != AGV.Name;
+                    }
                 }
-                bool Iswait = IsWaitingPoint();
+                bool IsConflicPointRegisting = GetConflicPointIsRegistOrNot();
                 CancellationTokenSource waitAGVReachWaitPtCts = new CancellationTokenSource();
 
-                if (Iswait)
+                if (IsConflicPointRegisting)
                 {
                     _ = Task.Run(() =>
                     {
@@ -582,7 +621,7 @@ namespace VMSystem.AGV.TaskDispatch
                         waitingInfo.WaitingPoint = conflicMapPoint;
                     });
                 }
-                while (Iswait = IsWaitingPoint())
+                while (IsConflicPointRegisting = GetConflicPointIsRegistOrNot())
                 {
                     Thread.Sleep(1);
                     if (taskCancel.IsCancellationRequested)
@@ -608,7 +647,7 @@ namespace VMSystem.AGV.TaskDispatch
                     var registPt = TrafficControlCenter.DynamicTrafficState.RegistedPoints.FirstOrDefault(rpt => rpt.TagNumber == remainTag);
                     if (registPt != null)
                     {
-                        if (!registPt.IsRegisted)
+                        if (!registPt.RegistInfo.IsRegisted)
                             continue;
                         if (registPt.RegistInfo?.RegisterAGVName == AGV.Name)
                             continue;
@@ -655,11 +694,9 @@ namespace VMSystem.AGV.TaskDispatch
                 oriTrackingOrderTask.ExecutingTrajecory.ToList().CopyTo(0, newTrajectory, 0, newTrajectory.Length);
                 newTrajectory.First().Theta = AGV.states.Coordination.Theta;
                 subTaskRunning.Trajectory = newTrajectory;
-
                 MapPoint[] newTrackingStations = new MapPoint[newTrajectory.Length];
                 trafficInfo.stations.CopyTo(0, newTrackingStations, 0, newTrackingStations.Length);
                 subTaskRunning.TrafficInfo.stations = newTrackingStations.ToList();
-
                 AddSegmentTask(subTaskRunning, true);
                 string traj_display = string.Join("->", subTaskRunning.ExecutingTrajecory.Select(p => p.Point_ID));
                 Console.WriteLine($"New goto wait point task create,{subTaskRunning.Task_Simplex} , Segment Trajetory:{traj_display}");
@@ -730,7 +767,7 @@ namespace VMSystem.AGV.TaskDispatch
             DestinePoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == destineTagStr);
 
         }
-        private clsTaskDownloadData CreateMoveActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence, int theta)
+        private clsTaskDownloadData CreateMoveActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
         {
             currentActionType = ACTION_TYPE.None;
             var pathPlanDto = OptimizdPathFind(fromTag, toTag);
@@ -744,7 +781,6 @@ namespace VMSystem.AGV.TaskDispatch
                 Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
                 TrafficInfo = pathPlanDto
             };
-            actionData.Trajectory.Last().Theta = theta;
             return actionData;
         }
         private clsTaskDownloadData CreateChargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence, STATION_TYPE stationType = STATION_TYPE.Charge)
@@ -892,17 +928,24 @@ namespace VMSystem.AGV.TaskDispatch
         internal void ChangeTaskStatus()
         {
             var status = TASK_RUN_STATUS.FAILURE;
+            if (previousCompleteAction == ACTION_TYPE.Unknown)
+                return;
+
             if (TaskOrder.Action == ACTION_TYPE.Carry)
             {
                 status = previousCompleteAction == ACTION_TYPE.Load ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
             }
             else
                 status = previousCompleteAction == TaskOrder.Action ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
-            ChangeTaskStatus(status);
+            ChangeTaskStatus(status, $"");
 
         }
         internal void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
         {
+            if (status == TASK_RUN_STATUS.ACTION_FINISH | status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL)
+            {
+
+            }
             if (TaskOrder == null)
                 return;
             TaskOrder.State = status;
