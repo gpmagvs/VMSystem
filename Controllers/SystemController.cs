@@ -11,7 +11,7 @@ namespace VMSystem.Controllers
     {
 
         [HttpGet("/ws/VMSAliveCheck")]
-        public async Task<IActionResult> AliveCheck()
+        public async Task AliveCheck()
         {
             if (HttpContext.WebSockets.IsWebSocketRequest)
             {
@@ -28,16 +28,20 @@ namespace VMSystem.Controllers
                     }
                     catch (Exception ex)
                     {
-                        return Ok();
+                        break;
                     }
                 }
-                return Ok();
             }
             else
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return Ok(true);
             }
+        }
+
+        [HttpGet("VMSAliveCheck")]
+        public async Task<IActionResult> AliveCheckHttp()
+        {
+            return Ok(true);
         }
     }
 }

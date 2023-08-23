@@ -53,6 +53,7 @@ namespace VMSystem.Controllers
                     }
                     catch (Exception ex)
                     {
+                        break;
                     }
                 }
             }
