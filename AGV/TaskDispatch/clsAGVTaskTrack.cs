@@ -175,14 +175,9 @@ namespace VMSystem.AGV.TaskDispatch
                     _TaskRunningStatus = value;
                     if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL)
                     {
-                        PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
-                        {
-                            ResetMode = RESET_MODE.CYCLE_STOP,
-                            Task_Name = TaskName.ToString(),
-                            TimeStamp = DateTime.Now
-                        });
-                        taskCancel.Cancel();
-                        ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
+                        PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
+                        CancelTask();
+
                     }
                 }
             }
@@ -251,6 +246,7 @@ namespace VMSystem.AGV.TaskDispatch
             clsSegmentTask segmentTask = SegmentTasksQueue.FirstOrDefault(seg => seg.Task_Simple == feedbackData.TaskSimplex);
             if (segmentTask == null)
             {
+                PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
                 AlarmManagerCenter.AddAlarm(ALARMS.AGV_Task_Feedback_But_Task_Name_Not_Match, level: ALARM_LEVEL.WARNING, Equipment_Name: AGV.Name);
                 return;
             }
@@ -258,13 +254,8 @@ namespace VMSystem.AGV.TaskDispatch
             if (AGV.main_state == MAIN_STATUS.DOWN)
             {
                 taskCancel.Cancel();
-                _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
-                {
-                    ResetMode = RESET_MODE.ABORT,
-                    Task_Name = TaskName,
-                    TimeStamp = DateTime.Now
-                });
-                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
+                AborTask();
                 return;
             }
             switch (task_status)
@@ -278,7 +269,7 @@ namespace VMSystem.AGV.TaskDispatch
                 case TASK_RUN_STATUS.ACTION_START:
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
-                  
+
                     previousCompleteAction = segmentTask.taskDownloadToAGV.Action_Type;
                     if (segmentTask.IsWaitConflicTask)
                     {
@@ -380,13 +371,8 @@ namespace VMSystem.AGV.TaskDispatch
                     return;
                 if (AGV.main_state == clsEnums.MAIN_STATUS.DOWN)
                 {
-                    _ = PostTaskCancelRequestToAGVAsync(new clsCancelTaskCmd
-                    {
-                        ResetMode = RESET_MODE.ABORT,
-                        Task_Name = TaskName,
-                        TimeStamp = DateTime.Now
-                    });
-                    ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                    _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
+                    AborTask();
                     return;
                 }
 
@@ -402,7 +388,7 @@ namespace VMSystem.AGV.TaskDispatch
                 if (TrackingTask == null)
                 {
                     TrafficInfo = new clsPathInfo();
-                    ChangeTaskStatus();
+                    AborTask();
                     return;
                 }
                 TrafficInfo = TrackingTask.TrafficInfo;
@@ -471,7 +457,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                 if (nextActionIndex >= TrackingActions.Length)
                 {
-                    ChangeTaskStatus();
+                    AborTask();
                     return ACTION_TYPE.Unknown;
                 } //完成所有動作
                 if (previousCompleteAction == ACTION_TYPE.None)
@@ -593,7 +579,7 @@ namespace VMSystem.AGV.TaskDispatch
                     var _returnDto = PostTaskRequestToAGVAsync(gotoWaitPointTask);
                     if (_returnDto.ReturnCode != RETURN_CODE.OK)
                     {
-                        ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        AborTask();
                         break;
                     }
                     ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
@@ -634,7 +620,7 @@ namespace VMSystem.AGV.TaskDispatch
                     if (runStatus != TASK_RUN_STATUS.NAVIGATING)
                     {
                         waitingInfo.IsWaiting = false;
-                        ChangeTaskStatus(runStatus);
+                        AborTask();
                         return;
                     }
                 }
@@ -709,14 +695,18 @@ namespace VMSystem.AGV.TaskDispatch
                 throw ex;
             }
         }
-
-        public async Task<SimpleRequestResponse> PostTaskCancelRequestToAGVAsync(clsCancelTaskCmd data)
+        public async Task<SimpleRequestResponse> PostTaskCancelRequestToAGVAsync(RESET_MODE mode)
         {
             try
             {
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsCancelTaskCmd, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Cancel", data);
-
-                LOG.WARN($"取消{AGV.Name}任務-AGV回復:Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
+                clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
+                {
+                    ResetMode = mode,
+                    Task_Name = TaskName,
+                    TimeStamp = DateTime.Now,
+                };
+                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"{HttpHost}/api/TaskDispatch/Cancel", reset_cmd);
+                LOG.WARN($"取消{AGV.Name}任務-[{mode}]-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
                 return taskStateResponse;
             }
             catch (Exception ex)
@@ -734,12 +724,12 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 if (!Debugger.IsAttached)
                     AGV.CheckAGVStatesBeforeDispatchTask(data.Action_Type, DestinePoint);
-                SimpleRequestResponse taskStateResponse = Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data).Result;
+                SimpleRequestResponse taskStateResponse = Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data).Result;
                 return taskStateResponse;
             }
             catch (IlleagalTaskDispatchException ex)
             {
-                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                AborTask();
                 AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: TaskName, location: AGVCurrentPoint.Name);
                 return new SimpleRequestResponse { ReturnCode = RETURN_CODE.NG, Message = ex.Alarm_Code.ToString() };
             }
@@ -963,9 +953,16 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
+        internal void AborTask()
+        {
+            taskCancel.Cancel();
+            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+        }
+
         internal void CancelTask()
         {
             taskCancel.Cancel();
+            ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
         }
 
         System.Timers.Timer TrajectoryStoreTimer;

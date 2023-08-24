@@ -117,16 +117,16 @@ namespace VMSystem.AGV
                     }
                     catch (NoPathForNavigatorException ex)
                     {
-                        TaskStatusTracker.ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        TaskStatusTracker.AborTask();
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
-
+                        TaskStatusTracker.AborTask();
                     }
                     catch (Exception ex)
                     {
-                        TaskStatusTracker.ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+                        TaskStatusTracker.AborTask();
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
 
@@ -165,7 +165,7 @@ namespace VMSystem.AGV
                 if (agv.options.Simulation)
                     return await AgvSimulation.ActionRequestHandler(data);
 
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<clsTaskDownloadData, SimpleRequestResponse>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse,clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data);
                 return taskStateResponse;
             }
             catch (Exception ex)
