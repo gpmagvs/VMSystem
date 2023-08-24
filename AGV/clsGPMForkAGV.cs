@@ -15,6 +15,7 @@ using Newtonsoft.Json;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
@@ -27,11 +28,7 @@ namespace VMSystem.AGV
             this.options = options;
             Name = name;
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
-            if (simulationMode)
-            {
-                states.Last_Visited_Node = options.InitTag;
-                states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-            }
+            RestorePreviousLocationFromDatabase();
             if (!AGVStatusDBHelper.IsExist(name))
                 SaveStateToDatabase();
 
@@ -39,6 +36,7 @@ namespace VMSystem.AGV
             AliveCheck();
 
         }
+
         public virtual clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_FORK;
 
         public bool simulationMode => options.Simulation;
@@ -81,7 +79,7 @@ namespace VMSystem.AGV
 
                 if (_connected != value)
                 {
-                   
+
                     bool reconnected = !_connected && value;
                     _connected = value;
                     if (reconnected)
@@ -129,7 +127,7 @@ namespace VMSystem.AGV
                 try
                 {
                     string registePt_errorMsg = string.Empty;
-                    StaMap.RegistPoint(Name, value,out registePt_errorMsg);
+                    StaMap.RegistPoint(Name, value, out registePt_errorMsg);
                     var lastMapPoint = _currentMapPoint;
                     if (lastMapPoint != null)
                     {
@@ -186,7 +184,7 @@ namespace VMSystem.AGV
                             await SaveStateToDatabase();
                             continue;
                         }
-                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 15)
+                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 65)
                         {
                             connected = false;
                         }
@@ -223,18 +221,9 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    bool IsRunMode = false;
                     Thread.Sleep(1000);
-                    try
-                    {
-                        IsRunMode = await Http.GetAsync<bool>($"{AGVSConfigulator.SysConfigs.AGVSHost}/api/system/RunMode");
-                    }
-                    catch (Exception)
-                    {
-                        continue;
-                    }
 
-                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE | !IsRunMode)
+                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE | SystemModes.RunMode != AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
                         continue;
 
                     if (states.Cargo_Status == 1)
@@ -495,5 +484,25 @@ namespace VMSystem.AGV
 
             }
         }
+
+
+        private void RestorePreviousLocationFromDatabase()
+        {
+            if (simulationMode)
+            {
+                states.Last_Visited_Node = options.InitTag;
+                states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+            }
+            else
+            {
+                int.TryParse(AGVStatusDBHelper.GetAGVStateByName(Name).CurrentLocation, out int tag);
+                states.Last_Visited_Node = tag;
+                currentMapPoint = StaMap.GetPointByTagNumber(tag);
+                states.Coordination.X = currentMapPoint.X;
+                states.Coordination.Y = currentMapPoint.Y;
+                states.Coordination.Theta = currentMapPoint.Direction;
+            }
+        }
+
     }
 }

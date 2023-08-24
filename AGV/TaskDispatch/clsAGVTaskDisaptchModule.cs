@@ -117,16 +117,16 @@ namespace VMSystem.AGV
                     }
                     catch (NoPathForNavigatorException ex)
                     {
-                        TaskStatusTracker.AborTask();
+                        TaskStatusTracker.AbortOrder();
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
-                        TaskStatusTracker.AborTask();
+                        TaskStatusTracker.AbortOrder();
                     }
                     catch (Exception ex)
                     {
-                        TaskStatusTracker.AborTask();
+                        TaskStatusTracker.AbortOrder();
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
 
@@ -198,7 +198,7 @@ namespace VMSystem.AGV
 
         public void CancelTask()
         {
-            TaskStatusTracker.CancelTask();
+            TaskStatusTracker.CancelOrder();
         }
 
 
