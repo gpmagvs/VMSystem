@@ -92,7 +92,7 @@ namespace VMSystem.AGV
                         TimeStamp = DateTime.Now.ToString(),
                         TaskStatus = TASK_RUN_STATUS.ACTION_START
                     };
-                    dispatcherModule.TaskFeedback(stateDto, out string message); //回報任務狀態
+                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                     NewMethod(action, ExecutingTrajecory, stateDto, moveCancelTokenSource.Token);
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
@@ -121,7 +121,7 @@ namespace VMSystem.AGV
                         agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
 
                     stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
-                    dispatcherModule.TaskFeedback(stateDto, out message); //回報任務狀態
+                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
 
                 }
                 catch (Exception ex)
@@ -191,7 +191,7 @@ namespace VMSystem.AGV
 
                 stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
-                int feedBackCode = dispatcherModule.TaskFeedback(stateDto, out string message); //回報任務狀態
+                int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
 
                 if (feedBackCode != 0)
                 {

@@ -36,7 +36,6 @@ namespace VMSystem.AGV
 
         Task<object> GetAGVStateFromDB();
 
-        Task<bool> SaveStateToDatabase(clsAGVStateDto dto);
         int CalculatePathCost(Map map, object toTag);
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);

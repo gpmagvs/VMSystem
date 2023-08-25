@@ -17,12 +17,12 @@ namespace VMSystem.AGV.TaskDispatch
 
         clsMapPoint[] CurrentTrajectory { get; set; }
         void AddTask(clsTaskDto taskDto);
-        int TaskFeedback(FeedbackData feedbackData, out string message);
+        Task<int> TaskFeedback(FeedbackData feedbackData);
         void CancelTask();
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; }
-        public clsAGVTaskTrack TaskStatusTracker { get;set;}
+        public clsAGVTaskTrack TaskStatusTracker { get; set; }
     }
 
     public class clsWaitingInfo

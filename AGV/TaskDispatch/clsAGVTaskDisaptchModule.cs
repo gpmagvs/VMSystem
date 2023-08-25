@@ -141,13 +141,12 @@ namespace VMSystem.AGV
 
 
 
-        public int TaskFeedback(FeedbackData feedbackData, out string message)
+        public async Task<int>  TaskFeedback(FeedbackData feedbackData)
         {
-            message = "";
-            TaskStatusTracker.HandleAGVFeedback(feedbackData);
-            return 0;
+            var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
+            return (int)response;
         }
-       
+
         /// <summary>
         /// 
         /// </summary>       
@@ -165,7 +164,7 @@ namespace VMSystem.AGV
                 if (agv.options.Simulation)
                     return await AgvSimulation.ActionRequestHandler(data);
 
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse,clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data);
                 return taskStateResponse;
             }
             catch (Exception ex)

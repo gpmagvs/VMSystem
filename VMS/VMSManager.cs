@@ -17,6 +17,11 @@ using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.AGVDispatch;
 using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
 using static VMSystem.AppSettings;
+using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.DATABASE.Helpers;
+using Microsoft.Extensions.Options;
+using static AGVSystemCommonNet6.Abstracts.CarComponent;
+using System.Xml.Linq;
 
 namespace VMSystem.VMS
 {
@@ -101,7 +106,56 @@ namespace VMSystem.VMS
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
             TcpServer.Connect();
 
+            AGVStatesStoreWorker();
+
         }
+
+        private static void AGVStatesStoreWorker()
+        {
+
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    Thread.Sleep(100);
+                    try
+                    {
+                        using (AGVStatusDBHelper dBHelper = new AGVStatusDBHelper())
+                        {
+                            clsAGVStateDto CreateDTO(IAGV agv)
+                            {
+                                return new clsAGVStateDto
+                                {
+                                    AGV_Name = agv.Name,
+                                    Enabled = agv.options.Enabled,
+                                    BatteryLevel = agv.states.Electric_Volume.Length == 0 ? 0 : agv.states.Electric_Volume[0],
+                                    OnlineStatus = agv.online_state,
+                                    MainStatus = agv.states.AGV_Status,
+                                    CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
+                                    CurrentLocation = agv.states.Last_Visited_Node.ToString(),
+                                    Theta = agv.states.Coordination.Theta,
+                                    Connected = agv.connected,
+                                    Group = agv.VMSGroup,
+                                    Model = agv.model,
+                                    TaskName = agv.taskDispatchModule.TaskStatusTracker.OrderTaskName,
+                                    TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                                    TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
+                                    CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
+                                };
+                            };
+                            await dBHelper.Update(AllAGV.Select(agv => CreateDTO(agv)));
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                  
+                }
+            });
+        }
+
         private static Dictionary<VMS_GROUP, VMSConfig>? ReadVMSVehicleGroupSetting()
         {
             if (File.Exists(Vehicle_Json_file))
@@ -365,20 +419,6 @@ namespace VMSystem.VMS
 
             return true;
         }
-
-        internal static int TaskFeedback(FeedbackData feedbackData)
-        {
-            IAGV? agv = AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.TaskStatusTracker.TaskName == feedbackData.TaskName);
-            if (agv != null)
-            {
-                return agv.taskDispatchModule.TaskFeedback(feedbackData, out string message);
-            }
-            else
-            {
-                return 4012;
-            }
-        }
-
 
     }
 }

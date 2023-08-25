@@ -27,7 +27,8 @@ namespace VMSystem.Controllers
             }
             else
             {
-                agv.UpdateAGVStates(status);
+
+                agv.states = status;
 
                 return Ok(new
                 {
@@ -42,8 +43,8 @@ namespace VMSystem.Controllers
         {
             if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
             {
-                int confirmed_code = agv.taskDispatchModule.TaskFeedback(feedbackData, out string message);
-                return Ok(new { ReturnCode = confirmed_code, Message = message });
+                int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
+                return Ok(new { ReturnCode = confirmed_code, Message = "" });
             }
             else
             {
