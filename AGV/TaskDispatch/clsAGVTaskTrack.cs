@@ -146,6 +146,8 @@ namespace VMSystem.AGV.TaskDispatch
         private void DownloadTaskToAGV()
         {
             var _task = SubTasks.Dequeue();
+            _task.Source = AGV.currentMapPoint;
+            _task.StartAngle = AGV.states.Coordination.Theta;
             _task.CreateTaskToAGV(TaskOrder, taskSequence);
             PostTaskRequestToAGVAsync(_task);
             SubTaskTracking = _task;
@@ -167,7 +169,6 @@ namespace VMSystem.AGV.TaskDispatch
                 var destine = StaMap.GetPointByIndex(AGV.currentMapPoint.Target.Keys.First());
                 var subTask_move_out_from_workstation = new clsSubTask()
                 {
-                    Source = AGV.currentMapPoint,
                     Destination = destine,
                     StartAngle = AGV.currentMapPoint.Direction,
                     DestineStopAngle = AGV.currentMapPoint.Direction,
@@ -179,7 +180,6 @@ namespace VMSystem.AGV.TaskDispatch
                 task_links.Enqueue(subTask_move_out_from_workstation);
             }
             //移動任務
-            var source = task_links.Count != 0 ? task_links.Last().Destination : AGV.currentMapPoint;
             MapPoint destine_move_to = null;
             double thetaToStop = 0;
             if (taskOrder.Action == ACTION_TYPE.None)
@@ -198,7 +198,6 @@ namespace VMSystem.AGV.TaskDispatch
 
             var subTask_move_to_ = new clsSubTask()
             {
-                Source = source,
                 Destination = destine_move_to,
                 Action = ACTION_TYPE.None,
                 DestineStopAngle = thetaToStop,
@@ -209,12 +208,10 @@ namespace VMSystem.AGV.TaskDispatch
             ///非移動之工位任務 //load unload park charge carry=
             if (taskOrder.Action != ACTION_TYPE.None && task_links.Last() != null)
             {
-                var work_source = task_links.Last().Destination;
                 var work_destine = StaMap.GetPointByTagNumber(int.Parse(isCarry ? taskOrder.From_Station : taskOrder.To_Station));
                 clsSubTask subTask_working_station = new clsSubTask
                 {
                     Destination = work_destine,
-                    Source = work_source,
                     Action = taskOrder.Action == ACTION_TYPE.Carry ? ACTION_TYPE.Unload : taskOrder.Action,
                     DestineStopAngle = work_destine.Direction,
                     StartAngle = work_destine.Direction,
@@ -224,13 +221,11 @@ namespace VMSystem.AGV.TaskDispatch
 
                 if (isCarry)
                 {
-                    var source_move_to_dstine = task_links.Last().Source;
                     var destine_point = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));//終點
                     var destine_move_to_destine = StaMap.GetPointByIndex(destine_point.Target.Keys.First());//終點之二次定位點
                     //monve
                     clsSubTask subTask_move_to_load_workstation = new clsSubTask
                     {
-                        Source = work_source,
                         Destination = destine_move_to_destine,
                         Action = ACTION_TYPE.None,
                         DestineStopAngle = destine_move_to_destine.Direction,
