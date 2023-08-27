@@ -47,25 +47,7 @@ namespace VMSystem.AGV
         /// </summary>
         public clsMapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
-        /// <summary>
-        /// 剩餘的移動軌跡
-        /// </summary>
-        public clsMapPoint[] RemainTrajectory
-        {
-            get
-            {
-                if (CurrentTrajectory == null)
-                    return new clsMapPoint[0];
-                if (CurrentTrajectory.Length is 0)
-                    return new clsMapPoint[0];
-                var trajectoryList = CurrentTrajectory.ToList();
-                var pt = trajectoryList.First(pt => pt.Point_ID == currentMapPoint.TagNumber);
-                var index = trajectoryList.IndexOf(pt);
-                clsMapPoint[] remainTrajectory = new clsMapPoint[trajectoryList.Count - index];
-                CurrentTrajectory.ToList().CopyTo(index, remainTrajectory, 0, remainTrajectory.Length);
-                return remainTrajectory;
-            }
-        }
+
         public bool connected
         {
             get => _connected;
@@ -109,7 +91,27 @@ namespace VMSystem.AGV
                 return states.AGV_Status;
             }
         }
-        public MapPoint currentMapPoint { get; set; } = new MapPoint();
+        public MapPoint previousMapPoint { get; private set; } = null;
+        public MapPoint currentMapPoint
+        {
+            get => previousMapPoint;
+            set
+            {
+                if (previousMapPoint != value)
+                {
+                    if (previousMapPoint != null)
+                    {
+
+                        //
+
+                        StaMap.UnRegistPoint(Name, previousMapPoint, out string UnRegisterrmsg);
+                    }
+
+                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                    previousMapPoint = value;
+                }
+            }
+        }
 
         public AvailabilityHelper availabilityHelper { get; private set; }
         private RunningStatus _states = new RunningStatus();
@@ -118,7 +120,6 @@ namespace VMSystem.AGV
             get => _states;
             set
             {
-                StaMap.UnRegistPoint(Name, currentMapPoint, out string msg);
                 currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
                 _states = value;
             }
@@ -442,10 +443,12 @@ namespace VMSystem.AGV
             {
                 int.TryParse(AGVStatusDBHelper.GetAGVStateByName(Name).CurrentLocation, out int tag);
                 states.Last_Visited_Node = tag;
-                currentMapPoint = StaMap.GetPointByTagNumber(tag);
-                states.Coordination.X = currentMapPoint.X;
-                states.Coordination.Y = currentMapPoint.Y;
-                states.Coordination.Theta = currentMapPoint.Direction;
+                previousMapPoint = StaMap.GetPointByTagNumber(tag);
+                states.Coordination.X = previousMapPoint.X;
+                states.Coordination.Y = previousMapPoint.Y;
+                states.Coordination.Theta = previousMapPoint.Direction;
+
+                StaMap.RegistPoint(Name, previousMapPoint, out string msg);
             }
         }
 

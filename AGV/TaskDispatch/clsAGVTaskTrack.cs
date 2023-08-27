@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Timers;
 using VMSystem.TrafficControl;
@@ -29,16 +30,11 @@ namespace VMSystem.AGV.TaskDispatch
         public clsTaskDto TaskOrder;
         public string OrderTaskName { get; private set; } = "";
         public ACTION_TYPE TaskAction => TaskOrder == null ? ACTION_TYPE.None : TaskOrder.Action;
-        public clsSegmentTask currentTrackingTask { get; set; }
-        public MapPoint SourcePoint { get; set; }
-        public MapPoint DestinePoint { get; set; }
-        public MapPoint AGVFinalLocPoint { get; set; }
-        public MapPoint AGVFinalLocPoint_Carry_Start { get; set; }
-        public MapPoint AGVFinalLocPoint_Carry_End { get; set; }
+
         private PathFinder pathFinder = new PathFinder();
         public clsWaitingInfo waitingInfo { get; set; } = new clsWaitingInfo();
         public clsPathInfo TrafficInfo { get; set; } = new clsPathInfo();
-        public ACTION_TYPE[] TrackingActions { get; private set; } = new ACTION_TYPE[0];
+        public ACTION_TYPE[] TrackingActions => SubTasks.Select(subtask => subtask.Action).ToArray();
         private int taskSequence = 0;
         public List<int> RemainTags
         {
@@ -47,15 +43,15 @@ namespace VMSystem.AGV.TaskDispatch
                 try
                 {
 
-                    if (TaskOrder == null | TrafficInfo.stations.Count == 0)
+                    if (TaskOrder == null | SubTaskTracking == null)
                         return new List<int>();
 
-                    var currentindex = TrafficInfo.stations.IndexOf(AGVCurrentPoint);
+                    var currentindex = SubTaskTracking.DownloadData.ExecutingTrajecory.ToList().FindIndex(pt => pt.Point_ID == AGV.currentMapPoint.TagNumber);
                     if (currentindex < 0)
                         return new List<int>();
-                    var remian_traj = new MapPoint[TrafficInfo.stations.Count - currentindex];
-                    TrafficInfo.stations.CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
-                    return remian_traj.Select(r => r.TagNumber).ToList();
+                    var remian_traj = new clsMapPoint[SubTaskTracking.DownloadData.ExecutingTrajecory.Length - currentindex];
+                    SubTaskTracking.DownloadData.ExecutingTrajecory.ToList().CopyTo(currentindex, remian_traj, 0, remian_traj.Length);
+                    return remian_traj.Select(r => r.Point_ID).ToList();
                 }
                 catch (Exception ex)
                 {
@@ -63,9 +59,6 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
         }
-        private MapPoint AGVCurrentPoint => AGV.currentMapPoint;
-        private STATION_TYPE AGVCurrentPointStationType => AGVCurrentPoint.StationType;
-        public clsTaskDownloadData TrackingTask { get; private set; }
 
         private int finishSubTaskNum = 0;
 
@@ -117,32 +110,150 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             });
         }
+        public Queue<clsSubTask> SubTasks = new Queue<clsSubTask>();
 
+        public Stack<clsSubTask> CompletedSubTasks = new Stack<clsSubTask>();
+
+        public clsSubTask SubTaskTracking;
         public void Start(IAGV AGV, clsTaskDto TaskOrder)
         {
             try
             {
+                this.TaskOrder = TaskOrder;
                 OrderTaskName = TaskOrder.TaskName;
                 finishSubTaskNum = 0;
                 taskCancel = new CancellationTokenSource();
                 taskSequence = 0;
                 waitingInfo.IsWaiting = false;
-                previousCompleteAction = ACTION_TYPE.Unknown;
-                carryTaskCompleteAction = ACTION_TYPE.Unknown;
-                this.TaskOrder = TaskOrder;
-                GetSourceAndDestineMapPoint();
-                TrackingActions = GetTrackingActions();
-                DetermineAGVFinalDestinePoint();
+                SubTasks = CreateSubTaskLinks(TaskOrder);
+                CompletedSubTasks = new Stack<clsSubTask>();
+                StartExecuteOrder();
                 StartRecordTrjectory();
                 LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
-                SendTaskToAGV();
             }
             catch (IlleagalTaskDispatchException ex)
             {
-                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGVCurrentPoint.Name);
+                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
             }
         }
 
+        private void StartExecuteOrder()
+        {
+            taskSequence = 0;
+            DownloadTaskToAGV();
+        }
+
+        private void DownloadTaskToAGV()
+        {
+            var _task = SubTasks.Dequeue();
+            _task.CreateTaskToAGV(TaskOrder, taskSequence);
+            PostTaskRequestToAGVAsync(_task);
+            SubTaskTracking = _task;
+            taskSequence += 1;
+        }
+
+        /// <summary>
+        /// 生成任務鏈
+        /// </summary>
+        /// <returns></returns>
+        private Queue<clsSubTask> CreateSubTaskLinks(clsTaskDto taskOrder)
+        {
+            bool isCarry = taskOrder.Action == ACTION_TYPE.Carry;
+            Queue<clsSubTask> task_links = new Queue<clsSubTask>();
+            var agvLocating_station_type = AGV.currentMapPoint.StationType;
+            if (agvLocating_station_type != STATION_TYPE.Normal)
+            {
+
+                var destine = StaMap.GetPointByIndex(AGV.currentMapPoint.Target.Keys.First());
+                var subTask_move_out_from_workstation = new clsSubTask()
+                {
+                    Source = AGV.currentMapPoint,
+                    Destination = destine,
+                    StartAngle = AGV.currentMapPoint.Direction,
+                    DestineStopAngle = AGV.currentMapPoint.Direction,
+                };
+                if (agvLocating_station_type == STATION_TYPE.Charge)
+                    subTask_move_out_from_workstation.Action = ACTION_TYPE.Discharge;
+                else
+                    subTask_move_out_from_workstation.Action = ACTION_TYPE.Unpark;
+                task_links.Enqueue(subTask_move_out_from_workstation);
+            }
+            //移動任務
+            var source = task_links.Count != 0 ? task_links.Last().Destination : AGV.currentMapPoint;
+            MapPoint destine_move_to = null;
+            double thetaToStop = 0;
+            if (taskOrder.Action == ACTION_TYPE.None)
+            {
+                destine_move_to = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));
+                thetaToStop = destine_move_to.Direction;
+            }
+            else
+            {
+                var destine_station_tag_str = isCarry ? taskOrder.From_Station : taskOrder.To_Station;
+                var point_of_workstation = StaMap.GetPointByTagNumber(int.Parse(destine_station_tag_str));
+                var secondary_of_destine = StaMap.GetPointByIndex(point_of_workstation.Target.Keys.First());
+                thetaToStop = point_of_workstation.Direction_Secondary_Point;
+                destine_move_to = secondary_of_destine;
+            }
+
+            var subTask_move_to_ = new clsSubTask()
+            {
+                Source = source,
+                Destination = destine_move_to,
+                Action = ACTION_TYPE.None,
+                DestineStopAngle = thetaToStop,
+                StartAngle = AGV.states.Coordination.Theta
+            };
+            task_links.Enqueue(subTask_move_to_);
+
+            ///非移動之工位任務 //load unload park charge carry=
+            if (taskOrder.Action != ACTION_TYPE.None && task_links.Last() != null)
+            {
+                var work_source = task_links.Last().Destination;
+                var work_destine = StaMap.GetPointByTagNumber(int.Parse(isCarry ? taskOrder.From_Station : taskOrder.To_Station));
+                clsSubTask subTask_working_station = new clsSubTask
+                {
+                    Destination = work_destine,
+                    Source = work_source,
+                    Action = taskOrder.Action == ACTION_TYPE.Carry ? ACTION_TYPE.Unload : taskOrder.Action,
+                    DestineStopAngle = work_destine.Direction,
+                    StartAngle = work_destine.Direction,
+                };
+
+                task_links.Enqueue(subTask_working_station);
+
+                if (isCarry)
+                {
+                    var source_move_to_dstine = task_links.Last().Source;
+                    var destine_point = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));//終點
+                    var destine_move_to_destine = StaMap.GetPointByIndex(destine_point.Target.Keys.First());//終點之二次定位點
+                    //monve
+                    clsSubTask subTask_move_to_load_workstation = new clsSubTask
+                    {
+                        Source = work_source,
+                        Destination = destine_move_to_destine,
+                        Action = ACTION_TYPE.None,
+                        DestineStopAngle = destine_move_to_destine.Direction,
+                        StartAngle = AGV.states.Coordination.Theta
+
+                    };
+                    //workstation destine
+                    task_links.Enqueue(subTask_move_to_load_workstation);
+
+                    clsSubTask subTask_load = new clsSubTask
+                    {
+                        Action = ACTION_TYPE.Load,
+                        Source = destine_move_to_destine,
+                        Destination = destine_point,
+                        DestineStopAngle = destine_point.Direction,
+                        StartAngle = destine_point.Direction,
+                    };
+                    task_links.Enqueue(subTask_load);
+                }
+
+            }
+            return task_links;
+        }
 
         /// <summary>
         /// 處理AGV任務回報
@@ -173,28 +284,21 @@ namespace VMSystem.AGV.TaskDispatch
                 case TASK_RUN_STATUS.ACTION_START:
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
-
                     var orderStatus = IsTaskOrderCompleteSuccess(feedbackData);
+                    CompletedSubTasks.Push(SubTaskTracking);
                     LOG.INFO($"Task Order Status: {orderStatus.ToJson()}");
                     if (orderStatus.Status == ORDER_STATUS.COMPLETED | orderStatus.Status == ORDER_STATUS.NO_ORDER)
                     {
                         CompleteOrder();
                         return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
-                    if (currentTrackingTask.IsWaitConflicTask)
+                    try
                     {
-                        LOG.INFO($"{AGV.Name} 註冊點等待任務 ACTION_FINISH, Task_Simple:{task_simplex} pt:{feedbackData.PointIndex}");
+                        DownloadTaskToAGV();
                     }
-                    else
+                    catch (IlleagalTaskDispatchException ex)
                     {
-                        try
-                        {
-                            SendTaskToAGV();
-                        }
-                        catch (IlleagalTaskDispatchException ex)
-                        {
-                            AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGVCurrentPoint.Name);
-                        }
+                        AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
                     }
                     break;
                 case TASK_RUN_STATUS.WAIT:
@@ -210,217 +314,7 @@ namespace VMSystem.AGV.TaskDispatch
             return TASK_FEEDBACK_STATUS_CODE.OK;
         }
 
-        /// <summary>
-        /// 生成AGV任務模型數據
-        /// </summary>
-        /// <returns></returns>
-        private clsTaskDownloadData GenerateAGVNavitorTask()
-        {
-            clsTaskDownloadData taskData = null;
-            switch (nextActionType)
-            {
-                case ACTION_TYPE.None: //移動任務
-                    taskData = CreateMoveActionTaskJob(OrderTaskName, AGVCurrentPoint.TagNumber, GetDestineTagToMove(out var desitne_point), taskSequence);
 
-                    break;
-                case ACTION_TYPE.Unload://取貨任務
-                    taskData = CreateLDULDTaskJob(OrderTaskName, ACTION_TYPE.Unload, TaskOrder.Action == ACTION_TYPE.Carry ? SourcePoint : DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
-                    break;
-                case ACTION_TYPE.Load://放貨任務
-                    taskData = CreateLDULDTaskJob(OrderTaskName, ACTION_TYPE.Load, DestinePoint, int.Parse(TaskOrder.To_Slot), TaskOrder.Carrier_ID, taskSequence);
-                    break;
-                case ACTION_TYPE.Charge://充電任務
-                    taskData = CreateChargeActionTaskJob(OrderTaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
-                    break;
-                case ACTION_TYPE.Discharge://離開充電站任務
-                    taskData = CreateExitWorkStationActionTaskJob(OrderTaskName, AGVCurrentPoint, taskSequence, nextActionType);
-                    break;
-                case ACTION_TYPE.Park://停車任務
-                    taskData = CreateParkingActionTaskJob(OrderTaskName, AGVCurrentPoint.TagNumber, DestinePoint.TagNumber, taskSequence, DestinePoint.StationType);
-                    break;
-                case ACTION_TYPE.Unpark://離開停車點任務
-                    taskData = CreateExitWorkStationActionTaskJob(OrderTaskName, AGVCurrentPoint, taskSequence, nextActionType);
-                    break;
-                #region Not Use Yet
-                //case ACTION_TYPE.Escape:
-                //    break;
-                //case ACTION_TYPE.Carry:
-                //    break;
-                //case ACTION_TYPE.LoadAndPark:
-                //    break;
-                //case ACTION_TYPE.Forward:
-                //    break;
-                //case ACTION_TYPE.Backward:
-                //    break;
-                //case ACTION_TYPE.FaB:
-                //    break;
-                //case ACTION_TYPE.Measure:
-                //    break;
-                //case ACTION_TYPE.ExchangeBattery:
-                //    break;
-                //case ACTION_TYPE.Hold:
-                //    break;
-                //case ACTION_TYPE.Break:
-                //    break;
-                //case ACTION_TYPE.Unknown:
-                //    break;
-
-                #endregion
-                default:
-                    break;
-            }
-            if (taskData == null)
-                return taskData;
-
-            if (TaskOrder.Action != ACTION_TYPE.None && nextActionType == ACTION_TYPE.None)//非一搬移動任務的訂單
-            {
-                int finalPointTheta = 0;
-                //取得最後一點的停車角度
-
-                if (TaskOrder.Action == ACTION_TYPE.Carry)
-                {
-                    finalPointTheta = (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint : SourcePoint).Direction_Secondary_Point;
-                }
-                else
-                    finalPointTheta = DestinePoint.Direction_Secondary_Point;
-                taskData.Trajectory.Last().Theta = finalPointTheta;
-            }
-
-            //軌跡第一點角度為AGV的角度
-            if (taskData.ExecutingTrajecory.Length > 1)
-            {
-
-                if (taskData.Action_Type == ACTION_TYPE.None)
-                    taskData.Trajectory.First().Theta = AGV.states.Coordination.Theta;
-                else
-                    taskData.Homing_Trajectory.First().Theta = AGV.states.Coordination.Theta;
-            }
-
-            return taskData;
-
-        }
-
-
-        public ACTION_TYPE[] GetTrackingActions()
-        {
-            var ordered_action = TaskOrder.Action;
-            List<ACTION_TYPE> tracking_actions = new List<ACTION_TYPE>();
-
-            if (AGVCurrentPointStationType != STATION_TYPE.Normal)
-            {
-                var IsAGVInChargeStation = AGVCurrentPoint.IsChargeAble();
-                ACTION_TYPE firstAction = IsAGVInChargeStation ? ACTION_TYPE.Discharge : ACTION_TYPE.Unpark;
-                tracking_actions.Add(firstAction);
-            }
-
-            switch (ordered_action)
-            {
-                case ACTION_TYPE.None:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None });
-                    break;
-                case ACTION_TYPE.Unload:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Unload });
-                    break;
-                case ACTION_TYPE.LoadAndPark:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Park });
-                    break;
-                case ACTION_TYPE.Forward:
-                    break;
-                case ACTION_TYPE.Backward:
-                    break;
-                case ACTION_TYPE.FaB:
-                    break;
-                case ACTION_TYPE.Measure:
-                    break;
-                case ACTION_TYPE.Load:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Load });
-                    break;
-                case ACTION_TYPE.Charge:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Charge });
-                    break;
-                case ACTION_TYPE.Carry:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Unload, ACTION_TYPE.None, ACTION_TYPE.Load });
-                    break;
-                case ACTION_TYPE.Discharge:
-                    break;
-                case ACTION_TYPE.Escape:
-                    break;
-                case ACTION_TYPE.Park:
-                    tracking_actions.AddRange(new ACTION_TYPE[] { ACTION_TYPE.None, ACTION_TYPE.Park });
-                    break;
-                case ACTION_TYPE.Unpark:
-                    break;
-                case ACTION_TYPE.ExchangeBattery:
-                    break;
-                case ACTION_TYPE.Hold:
-                    break;
-                case ACTION_TYPE.Break:
-                    break;
-                case ACTION_TYPE.Unknown:
-                    break;
-                default:
-                    break;
-            }
-            return tracking_actions.ToArray();
-        }
-        private async void SendTaskToAGV()
-        {
-            try
-            {
-                if (taskCancel.IsCancellationRequested)
-                    return;
-                if (AGV.main_state == clsEnums.MAIN_STATUS.DOWN)
-                {
-                    _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
-                    AbortOrder();
-                    return;
-                }
-
-                var _nextActionType = DetermineNextAction();
-                if (_nextActionType == ACTION_TYPE.Unknown)
-                    return;
-
-
-                nextActionType = _nextActionType;
-                TrackingTask = GenerateAGVNavitorTask();
-                LOG.WARN($"{AGV.Name}- {nextActionType} 動作即將開始:目的地:{TrackingTask.Destination}_初始角度:{TrackingTask.ExecutingTrajecory.First().Theta},停車角度:{TrackingTask.ExecutingTrajecory.Last().Theta}");
-                //TrackingTask = GetTaskDownloadData();
-                if (TrackingTask == null)
-                {
-                    TrafficInfo = new clsPathInfo();
-                    AbortOrder();
-                    return;
-                }
-                TrafficInfo = TrackingTask.TrafficInfo;
-                await HandleRegistPoint(TrackingTask.TrafficInfo);
-                waitingInfo.IsWaiting = false;
-                if (TaskRunningStatus == TASK_RUN_STATUS.CANCEL | TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
-                {
-                    waitingInfo.IsWaiting = false;
-                    TrafficInfo = new clsPathInfo();
-                    return;
-                }
-                UpdateCurrentTrackingTask(TrackingTask, is_use_for_wait_registe_release: false);
-                var _returnDto = PostTaskRequestToAGVAsync(TrackingTask);
-                if (_returnDto.ReturnCode != RETURN_CODE.OK)
-                {
-                    //CancelTask();
-                    //return;
-                }
-                taskSequence += 1;
-
-            }
-            catch (NoPathForNavigatorException ex)
-            {
-                AlarmManagerCenter.AddAlarm(ex.Alarm_Code);
-                CancelOrder();
-            }
-            catch (Exception ex)
-            {
-                AlarmManagerCenter.AddAlarm(ALARMS.SYSTEM_ERROR);
-                CancelOrder();
-            }
-        }
         public enum ORDER_STATUS
         {
             EXECUTING,
@@ -448,19 +342,7 @@ namespace VMSystem.AGV.TaskDispatch
                 };
             }
 
-            //從追蹤訂單中嘗試取出符合的分段任務
-            if (currentTrackingTask == null)
-            {
-                PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
-                AlarmManagerCenter.AddAlarm(ALARMS.AGV_Task_Feedback_But_Task_Name_Not_Match, level: ALARM_LEVEL.WARNING, Equipment_Name: AGV.Name);
-                return new clsOrderStatus
-                {
-                    Status = ORDER_STATUS.FAILURE,
-                    FailureReason = "AGV Task Feedback 的任務名稱與當前追蹤的任務不符"
-                };
-            }
-            previousCompleteAction = currentTrackingTask.taskDownloadToAGV.Action_Type;
-
+            previousCompleteAction = SubTaskTracking.Action;
             var orderACtion = TaskOrder.Action;
             bool isOrderCompleted = false;
             string msg = string.Empty;
@@ -519,69 +401,26 @@ namespace VMSystem.AGV.TaskDispatch
                 Status = isOrderCompleted ? ORDER_STATUS.COMPLETED : ORDER_STATUS.EXECUTING
             };
         }
-        private ACTION_TYPE DetermineNextAction()
-        {
-            if (TaskOrder == null)
-            {
-                return ACTION_TYPE.Unknown;
-            }
-            var nextActionIndex = -1;
-            if (previousCompleteAction == ACTION_TYPE.Unknown)//0個動作已完成,開始第一個
-            {
-                nextActionIndex = 0;
-            }
-            else
-            {
-                if (TaskOrder.Action == ACTION_TYPE.Carry && (previousCompleteAction == ACTION_TYPE.Load | previousCompleteAction == ACTION_TYPE.Unload))
-                {
-                    carryTaskCompleteAction = previousCompleteAction;
-                }
-                var currentActionIndex = -1;
-
-                if (TaskOrder.Action == ACTION_TYPE.Carry)//搬運的時候 要判斷
-                {
-                    currentActionIndex = carryTaskCompleteAction == ACTION_TYPE.Unload ? TrackingActions.ToList().LastIndexOf(previousCompleteAction) : TrackingActions.ToList().IndexOf(previousCompleteAction);
-                }
-                else
-                {
-                    currentActionIndex = TrackingActions.ToList().IndexOf(previousCompleteAction);
-                }
-                nextActionIndex = currentActionIndex + 1;
-
-                if (currentActionIndex == -1)
-                    return ACTION_TYPE.Unknown;
-                LOG.INFO($"{AGV.Name}- {previousCompleteAction} 動作結束");
-
-
-                if (nextActionIndex >= TrackingActions.Length)
-                {
-                    return ACTION_TYPE.Unknown;
-                } //完成所有動作
-                  //if (previousCompleteAction == ACTION_TYPE.None)
-                  //{
-                  //    if (!CheckAGVPose(out string message))
-                  //    {
-                  //        nextActionIndex = currentActionIndex;
-                  //    }
-                  //    //TODO Check AGV Position, If AGV Is Not At Destin Point or AGV Pose is incorrect(theata error > 5 , Position error >_ cm)
-                  //}
-            }
-            return TrackingActions[nextActionIndex];
-        }
         private bool CheckAGVPose(out string message)
         {
             message = string.Empty;
-            var trajectory = currentTrackingTask.taskDownloadToAGV.ExecutingTrajecory;
-            var finalPt = currentActionType == ACTION_TYPE.Load | currentActionType == ACTION_TYPE.Unload ? trajectory.First() : trajectory.Last();
-            var destine_tag = finalPt.Point_ID;
-
-            if (AGVCurrentPoint.TagNumber != destine_tag)
+            if (SubTaskTracking.Action != ACTION_TYPE.None)
+            {
+                return true;
+            }
+            var _destinTheta = SubTaskTracking.DestineStopAngle;
+            var destine_tag = SubTaskTracking.Destination.TagNumber;
+            if (SubTaskTracking.Action != ACTION_TYPE.None)
+            {
+                _destinTheta = SubTaskTracking.Source.Direction;
+                destine_tag = SubTaskTracking.Source.TagNumber;
+            }
+            if (AGV.currentMapPoint.TagNumber != destine_tag)
             {
                 message = "AGV並未抵達目的地";
-                LOG.ERROR($"AGV並未抵達 {destine_tag} ");
-                return false;
+                LOG.WARN($"AGV並未抵達 {destine_tag} ");
+                //return false;
             }
-            var _destinTheta = finalPt.Theta;
             var _agvTheta = AGV.states.Coordination.Theta;
 
             var theta_error = Math.Abs(_agvTheta - _destinTheta);
@@ -596,227 +435,7 @@ namespace VMSystem.AGV.TaskDispatch
             return true;
         }
 
-        private void DetermineAGVFinalDestinePoint()
-        {
-            var actionType = TaskOrder.Action;
-            var DestinePoint = StaMap.GetPointByTagNumber(int.Parse(TaskOrder.To_Station));
-            var SourcePoint = StaMap.GetPointByTagNumber(int.Parse(TaskOrder.From_Station));
-            var NextAGVAction = TrackingActions[finishSubTaskNum];
 
-            if (NextAGVAction == ACTION_TYPE.None && TaskAction == ACTION_TYPE.None)
-            {
-                AGVFinalLocPoint = DestinePoint;
-            }
-            else
-            {
-                if (actionType == ACTION_TYPE.Carry)
-                {
-                    AGVFinalLocPoint_Carry_Start = StaMap.GetPointByIndex(SourcePoint.Target.Keys.First());
-                    AGVFinalLocPoint_Carry_End = StaMap.GetPointByIndex(DestinePoint.Target.Keys.First());
-                }
-                else
-                {
-                    if (actionType == ACTION_TYPE.None)
-                    {
-
-                        AGVFinalLocPoint = DestinePoint;
-                    }
-                    else
-                    {
-                        AGVFinalLocPoint = StaMap.GetPointByIndex(DestinePoint.Target.Keys.First());
-
-                    }
-                }
-            }
-
-        }
-        private int GetAGVThetaToTurn()
-        {
-            if (TaskOrder == null)
-                return -1;
-            if (TaskOrder.Action != ACTION_TYPE.None)
-            {
-                //二次定位點Tag
-                return TaskOrder.Action == ACTION_TYPE.Carry ? (carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint.Direction : SourcePoint.Direction) : DestinePoint.Direction;
-            }
-            else
-            {
-                return DestinePoint.Direction;
-            }
-        }
-
-        /// <summary>
-        /// 取得移動任務的終點TAG
-        /// </summary>
-        /// <returns></returns>
-        private int GetDestineTagToMove(out MapPoint Point)
-        {
-            Point = null;
-            if (TaskOrder == null)
-                return -1;
-            if (TaskOrder.Action != ACTION_TYPE.None)
-            {
-                if (TaskOrder.Action == ACTION_TYPE.Carry)
-                {
-                    Point = StaMap.GetPointByIndex((carryTaskCompleteAction == ACTION_TYPE.Unload ? DestinePoint : SourcePoint).Target.Keys.First());
-                }
-                else
-                {
-                    //二次定位點Tag
-                    if (previousCompleteAction == TaskOrder.Action)
-                        Point = DestinePoint;
-                    else
-                        Point = StaMap.GetPointByIndex(DestinePoint.Target.Keys.First());
-                }
-                return Point.TagNumber;
-            }
-            else
-            {
-                Point = DestinePoint;
-                return DestinePoint.TagNumber;
-            }
-        }
-
-        private async Task HandleRegistPoint(clsPathInfo trafficInfo)
-        {
-            while (trafficInfo.waitPoints.Count != 0)
-            {
-                await Task.Delay(1);
-                trafficInfo.waitPoints.TryDequeue(out MapPoint waitPoint);
-                //if (!waitPoint.IsRegisted)
-                //    continue;
-                //if (waitPoint.RegistInfo?.RegisterAGVName == AGV.Name)
-                //    continue;
-
-                clsTaskDownloadData gotoWaitPointTask = CreateGoToWaitPointTaskAndJoinToSegment(trafficInfo, waitPoint, out MapPoint conflicMapPoint);
-                LOG.WARN($"{AGV.Name} will goto wait point:{waitPoint.Name}({waitPoint.TagNumber}) to wait conflic point:{conflicMapPoint.Name}({conflicMapPoint.TagNumber}) release");
-                if (gotoWaitPointTask != null)
-                {
-                    foreach (var pt in gotoWaitPointTask.TrafficInfo.stations)
-                    {
-                        StaMap.RegistPoint(AGV.Name, pt, out string err_msg);
-                    }
-                    var _returnDto = PostTaskRequestToAGVAsync(gotoWaitPointTask);
-                    if (_returnDto.ReturnCode != RETURN_CODE.OK)
-                    {
-                        AbortOrder();
-                        break;
-                    }
-                    ChangeTaskStatus(TASK_RUN_STATUS.NAVIGATING);
-                }
-                bool GetConflicPointIsRegistOrNot()
-                {
-                    if (!conflicMapPoint.RegistInfo.IsRegisted)
-                        return false;
-                    else
-                    {
-                        return conflicMapPoint.RegistInfo.RegisterAGVName != AGV.Name;
-                    }
-                }
-                bool IsConflicPointRegisting = GetConflicPointIsRegistOrNot();
-                CancellationTokenSource waitAGVReachWaitPtCts = new CancellationTokenSource();
-
-                if (IsConflicPointRegisting)
-                {
-                    _ = Task.Run(() =>
-                    {
-                        while (AGVCurrentPoint.TagNumber != waitPoint.TagNumber)
-                        {
-                            Thread.Sleep(1);
-                            if (waitAGVReachWaitPtCts.IsCancellationRequested)
-                                return;
-                        }
-                        waitingInfo.IsWaiting = true;
-                        waitingInfo.WaitingPoint = conflicMapPoint;
-                    });
-                }
-                while (IsConflicPointRegisting = GetConflicPointIsRegistOrNot())
-                {
-                    Thread.Sleep(1);
-                    if (taskCancel.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    TASK_RUN_STATUS runStatus = TaskDBHelper.GetTaskStateByID(OrderTaskName);
-                    if (runStatus != TASK_RUN_STATUS.NAVIGATING)
-                    {
-                        waitingInfo.IsWaiting = false;
-                        AbortOrder();
-                        return;
-                    }
-                }
-                waitAGVReachWaitPtCts.Cancel();
-                Console.WriteLine($"Tag {waitPoint.TagNumber} 已Release，當前位置={AGVCurrentPoint.TagNumber}");
-
-                var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != this.AGV.Name);
-                int index = 0;
-                //剩餘路徑
-                foreach (var remainTag in RemainTags)
-                {
-                    var registPt = TrafficControlCenter.DynamicTrafficState.RegistedPoints.FirstOrDefault(rpt => rpt.TagNumber == remainTag);
-                    if (registPt != null)
-                    {
-                        if (!registPt.RegistInfo.IsRegisted)
-                            continue;
-                        if (registPt.RegistInfo?.RegisterAGVName == AGV.Name)
-                            continue;
-                        try
-                        {
-                            LOG.WARN($"剩餘路徑註冊點新增:{registPt.TagNumber}:註冊者:{registPt.RegistInfo.RegisterAGVName}");
-                            trafficInfo.waitPoints.Enqueue(registPt);
-                        }
-                        catch (Exception)
-                        {
-                            continue;
-                        }
-                    }
-                    index++;
-                }
-                LOG.WARN($"等待AGV抵達等待點-{waitPoint.Name}");
-                while (!waitingInfo.IsWaiting)
-                {
-                    Thread.Sleep(1);
-                    if (taskCancel.IsCancellationRequested)
-                        return;
-                }
-                taskSequence += 1;
-            }
-        }
-
-        private clsTaskDownloadData CreateGoToWaitPointTaskAndJoinToSegment(clsPathInfo trafficInfo, MapPoint waitPoint, out MapPoint conflicMapPoint)
-        {
-            if (TrackingTask == null)
-            {
-                throw new Exception("CreateGoToWaitPointTaskAndJoinToSegment Fail");
-            }
-            var oriTrafficInfo = TrackingTask.TrafficInfo;
-            clsTaskDownloadData oriTrackingOrderTask = JsonConvert.DeserializeObject<clsTaskDownloadData>(TrackingTask.ToJson());
-            var Trajectory = trafficInfo.stations.Select(pt => pt.TagNumber).ToList();
-            var index_of_conflicPoint = Trajectory.FindIndex(pt => pt == waitPoint.TagNumber) + 1;
-            conflicMapPoint = StaMap.GetPointByTagNumber(Trajectory[index_of_conflicPoint]);
-            clsMapPoint[] newTrajectory = new clsMapPoint[index_of_conflicPoint];
-            clsTaskDownloadData subTaskRunning = oriTrackingOrderTask;
-
-            try
-            {
-
-                oriTrackingOrderTask.ExecutingTrajecory.ToList().CopyTo(0, newTrajectory, 0, newTrajectory.Length);
-                newTrajectory.First().Theta = AGV.states.Coordination.Theta;
-                subTaskRunning.Trajectory = newTrajectory;
-                MapPoint[] newTrackingStations = new MapPoint[newTrajectory.Length];
-                trafficInfo.stations.CopyTo(0, newTrackingStations, 0, newTrackingStations.Length);
-                subTaskRunning.TrafficInfo.stations = newTrackingStations.ToList();
-                subTaskRunning.Action_Type = ACTION_TYPE.None;
-                UpdateCurrentTrackingTask(subTaskRunning, true);
-                string traj_display = string.Join("->", subTaskRunning.ExecutingTrajecory.Select(p => p.Point_ID));
-                Console.WriteLine($"New goto wait point task create,{subTaskRunning.Task_Simplex} , Segment Trajetory:{traj_display}");
-                return subTaskRunning;
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
-        }
         public async Task<SimpleRequestResponse> PostTaskCancelRequestToAGVAsync(RESET_MODE mode)
         {
             try
@@ -828,7 +447,7 @@ namespace VMSystem.AGV.TaskDispatch
                     TimeStamp = DateTime.Now,
                 };
                 SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"{HttpHost}/api/TaskDispatch/Cancel", reset_cmd);
-                LOG.WARN($"取消{AGV.Name}任務-[{currentTrackingTask.taskDownloadToAGV.Task_Simplex}]-[{mode}]-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
+                LOG.WARN($"取消{AGV.Name}任務-[{SubTaskTracking.DownloadData.Task_Simplex}]-[{mode}]-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
                 return taskStateResponse;
             }
             catch (Exception ex)
@@ -840,18 +459,18 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        public SimpleRequestResponse PostTaskRequestToAGVAsync(clsTaskDownloadData data)
+        public SimpleRequestResponse PostTaskRequestToAGVAsync(clsSubTask subtask)
         {
             try
             {
-                AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, currentTrackingTask.DestinePoint);
-                SimpleRequestResponse taskStateResponse = Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data).Result;
+                AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, subtask.Destination);
+                SimpleRequestResponse taskStateResponse = Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", subtask.DownloadData).Result;
                 return taskStateResponse;
             }
             catch (IlleagalTaskDispatchException ex)
             {
                 AbortOrder();
-                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGVCurrentPoint.Name);
+                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
                 return new SimpleRequestResponse { ReturnCode = RETURN_CODE.NG, Message = ex.Alarm_Code.ToString() };
             }
             catch (Exception ex)
@@ -863,193 +482,7 @@ namespace VMSystem.AGV.TaskDispatch
                 };
             }
         }
-        private void UpdateCurrentTrackingTask(clsTaskDownloadData subTaskRunning, bool is_use_for_wait_registe_release)
-        {
-            currentTrackingTask = new clsSegmentTask(this.OrderTaskName, taskSequence, subTaskRunning, is_use_for_wait_registe_release);
-        }
 
-        private void GetSourceAndDestineMapPoint()
-        {
-            string sourceTagStr = TaskOrder.From_Station;
-            string destineTagStr = TaskOrder.To_Station;
-
-            SourcePoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == sourceTagStr);
-            DestinePoint = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber.ToString() == destineTagStr);
-
-        }
-        private clsTaskDownloadData CreateMoveActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence)
-        {
-            currentActionType = ACTION_TYPE.None;
-            var pathPlanDto = OptimizdPathFind(fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.None,
-                Destination = toTag,
-                Task_Name = TaskName,
-                Station_Type = 0,
-                Task_Sequence = Task_Sequence,
-                Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-                TrafficInfo = pathPlanDto
-            };
-            return actionData;
-        }
-        private clsTaskDownloadData CreateChargeActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence, STATION_TYPE stationType = STATION_TYPE.Charge)
-        {
-
-            currentActionType = ACTION_TYPE.Charge;
-            var pathPlanDto = OptimizdPathFind(fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Charge,
-                Destination = toTag,
-                Height = 1,
-                Task_Name = TaskName,
-                Station_Type = stationType,
-                Task_Sequence = Task_Sequence,
-                Homing_Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-            };
-            actionData.TrafficInfo = pathPlanDto;
-            return actionData;
-        }
-        private clsTaskDownloadData CreateParkingActionTaskJob(string TaskName, int fromTag, int toTag, int Task_Sequence, STATION_TYPE stationType = STATION_TYPE.Charge)
-        {
-
-            currentActionType = ACTION_TYPE.Park;
-            var pathPlanDto = OptimizdPathFind(fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = ACTION_TYPE.Park,
-                Destination = toTag,
-                Height = 1,
-                Task_Name = TaskName,
-                Station_Type = stationType,
-                Task_Sequence = Task_Sequence,
-                Homing_Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-            };
-            actionData.TrafficInfo = pathPlanDto;
-            return actionData;
-        }
-
-        private clsTaskDownloadData CreateExitWorkStationActionTaskJob(string taskName, MapPoint currentMapPoint, int task_seq, ACTION_TYPE aCTION_TYPE = ACTION_TYPE.Discharge)
-        {
-            currentActionType = aCTION_TYPE;
-            MapPoint next_point = StaMap.Map.Points[currentMapPoint.Target.First().Key];
-            int fromTag = currentMapPoint.TagNumber;
-            int toTag = next_point.TagNumber;
-            var pathPlanDto = OptimizdPathFind(fromTag, toTag);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = aCTION_TYPE,
-                Destination = toTag,
-                Task_Name = taskName,
-                Station_Type = 0,
-                Task_Sequence = task_seq,
-                Homing_Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-                TrafficInfo = pathPlanDto
-            };
-            return actionData;
-        }
-
-        private clsTaskDownloadData CreateLDULDTaskJob(string TaskName, ACTION_TYPE Action, MapPoint EQPoint, int to_slot, string cstID, int TaskSeq)
-        {
-            currentActionType = Action;
-            var fromTag = StaMap.Map.Points[EQPoint.Target.First().Key].TagNumber;
-            var pathPlanDto = OptimizdPathFind(fromTag, EQPoint.TagNumber);
-            clsTaskDownloadData actionData = new clsTaskDownloadData()
-            {
-                Action_Type = Action,
-                Destination = EQPoint.TagNumber,
-                Height = to_slot,
-                Task_Name = TaskName,
-                Station_Type = EQPoint.StationType,
-                Task_Sequence = TaskSeq,
-                Homing_Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathPlanDto.stations),
-                CST = new clsCST[1]
-                {
-                    new clsCST
-                    {
-                         CST_ID = cstID
-                    }
-                }
-            };
-            actionData.TrafficInfo = pathPlanDto;
-            return actionData;
-        }
-
-        private clsPathInfo OptimizdPathFind(int fromTag, int toTag)
-        {
-            var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv != this.AGV);
-            clsPathInfo pathInfo = new clsPathInfo();
-            StaMap.TryGetPointByTagNumber(toTag, out MapPoint FinalPoint);
-            var regitedPoints = TrafficControlCenter.DynamicTrafficState.RegistedPoints;
-            var toAvoidPointsTags = regitedPoints.FindAll(pt => pt.RegistInfo != null).FindAll(pt => pt.RegistInfo?.RegisterAGVName != AGV.Name && pt.TagNumber != AGVCurrentPoint.TagNumber).Select(pt => pt.TagNumber).ToList();
-            toAvoidPointsTags.AddRange(otherAGVList.Select(agv => agv.states.Last_Visited_Node));//考慮移動路徑
-                                                                                                 //toAvoidPointsTags = toAvoidPointsTags.FindAll(pt => !otherAGVList.Select(agv => agv.currentMapPoint.TagNumber).Contains(pt));
-
-
-            var option = new PathFinderOption
-            {
-                ConstrainTags = toAvoidPointsTags
-            };
-
-            option.ConstrainTags = option.ConstrainTags.Distinct().ToList();
-
-            var pathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag, option);//考慮AGV阻擋下，最短路徑
-
-            if (pathPlanDto == null) //沒有任何路線可以行走
-            {
-                var shortestPathPlanDto = pathFinder.FindShortestPathByTagNumber(StaMap.Map.Points, fromTag, toTag);//不考慮AGV阻擋下，最短路徑
-                if (shortestPathPlanDto == null)
-                {
-
-                    throw new NoPathForNavigatorException();
-                }
-
-                var pathTags = shortestPathPlanDto.stations.Select(pt => pt.TagNumber).ToList();
-                Dictionary<int, MapPoint> waitPointsDict = new Dictionary<int, MapPoint>();
-                foreach (var conflicTag in option.ConstrainTags)
-                {
-                    var index = pathTags.IndexOf(conflicTag);
-                    var waitPtIndex = index - 1;
-                    if (waitPtIndex >= 0)
-                    {
-                        waitPointsDict.Add(index, shortestPathPlanDto.stations[waitPtIndex]);
-                    }
-                }
-                var waitPoints = waitPointsDict.OrderBy(kp => kp.Key).Select(kp => kp.Value);
-
-
-                foreach (var pt in waitPoints)
-                {
-                    pathInfo.waitPoints.Enqueue(pt);
-                }
-                pathInfo.stations = shortestPathPlanDto.stations;
-                return pathInfo;
-            }
-            else
-            {
-                foreach (var pt in pathPlanDto.stations)
-                {
-                    StaMap.RegistPoint(AGV.Name, pt, out string err_msg);
-                }
-                return pathPlanDto;
-            }
-        }
-        internal void ChangeTaskStatus()
-        {
-            var status = TASK_RUN_STATUS.FAILURE;
-            if (previousCompleteAction == ACTION_TYPE.Unknown)
-                return;
-
-            if (TaskOrder.Action == ACTION_TYPE.Carry)
-            {
-                status = previousCompleteAction == ACTION_TYPE.Load ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
-            }
-            else
-                status = previousCompleteAction == TaskOrder.Action ? TASK_RUN_STATUS.ACTION_FINISH : TASK_RUN_STATUS.FAILURE;
-            ChangeTaskStatus(status, $"");
-
-        }
         internal void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
         {
             if (TaskOrder == null)
@@ -1073,6 +506,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void CompleteOrder()
         {
+
             ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
         }
@@ -1135,34 +569,5 @@ namespace VMSystem.AGV.TaskDispatch
 
     }
 
-    public class clsSegmentTask
-    {
-        public string Task_Simple { get; set; }
-        public bool IsWaitConflicTask { get; set; } = false;
-        public clsTaskDownloadData taskDownloadToAGV { get; set; }
-        public TASK_RUN_STATUS Run_Status { get; set; } = TASK_RUN_STATUS.WAIT;
-        public MapPoint DestinePoint { get; set; }
-        public clsSegmentTask(string taskName, int sequence, clsTaskDownloadData taskDownloadToAGV, bool is_use_for_wait_registe_release)
-        {
-            Task_Simple = taskName + $"-{sequence}";
-            Sequence = sequence;
-            taskDownloadToAGV.Task_Sequence = sequence;
-            this.taskDownloadToAGV = taskDownloadToAGV;
-            IsWaitConflicTask = is_use_for_wait_registe_release;
-            DetermineDestinePoint();
-        }
-
-        private void DetermineDestinePoint()
-        {
-            var actionType = taskDownloadToAGV.Action_Type;
-            DestinePoint = StaMap.GetPointByTagNumber(taskDownloadToAGV.ExecutingTrajecory.Last().Point_ID);
-
-        }
-
-        public int Sequence { get; }
-
-
-
-    }
 
 }

@@ -25,7 +25,6 @@ namespace VMSystem.AGV
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapPoint currentMapPoint { get; }
-        clsMapPoint[] RemainTrajectory { get; }
         bool Online(out string message);
         bool Offline(out string message);
 
