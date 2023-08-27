@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Alarm.VMS_ALARM;
 using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE.Helpers;
@@ -13,6 +14,8 @@ using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Linq;
+using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
@@ -28,11 +31,12 @@ namespace VMSystem.AGV
             this.options = options;
             Name = name;
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
-            RestorePreviousLocationFromDatabase();
+            RestoreStatesFromDatabase();
             AutoParkWorker();
             AliveCheck();
 
         }
+
 
         public virtual clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_FORK;
 
@@ -113,6 +117,61 @@ namespace VMSystem.AGV
             }
         }
 
+        public List<clsAlarmDto> previousAlarmCodes = new List<clsAlarmDto>();
+        public RunningStatus.clsAlarmCode[] AlarmCodes
+        {
+            set
+            {
+                if (value.Length == 0 && previousAlarmCodes.Count != 0)
+                {
+                    var previousUnCheckdeAlarms = AlarmManagerCenter.uncheckedAlarms.FindAll(alarm => alarm.Equipment_Name == Name);
+                    AlarmManagerCenter.SetAlarmsAllCheckedByEquipmentName(Name);
+                    previousAlarmCodes.Clear();
+                }
+                if (value.Length > 0)
+                {
+                    int[] newAlarmodes = value.Select(alarm => alarm.Alarm_ID).ToArray();
+                    int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
+                    
+                    foreach (int alarm_code in _previousAlarmCodes) //舊的
+                    {
+                        if (!newAlarmodes.Contains(alarm_code))
+                        {
+                            AlarmManagerCenter.SetAlarmChecked(Name, alarm_code);
+                            previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
+                        }
+                    }
+
+                    foreach (RunningStatus.clsAlarmCode alarm in value)
+                    {
+                        if (!_previousAlarmCodes.Contains(alarm.Alarm_ID)) //New Aalrm!
+                        {
+
+                            var alarmDto = new clsAlarmDto
+                            {
+                                AlarmCode = alarm.Alarm_ID,
+                                Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
+                                Description_En = alarm.Alarm_Description,
+                                Equipment_Name = Name,
+                                Checked = false,
+                                OccurLocation = currentMapPoint.Name,
+                                Time = DateTime.Now,
+                                Task_Name = taskDispatchModule.TaskStatusTracker.OrderTaskName,
+                                Source = ALARM_SOURCE.EQP,
+
+                            };
+                            AlarmManagerCenter.AddAlarm(alarmDto);
+                            previousAlarmCodes.Add(alarmDto);
+                        }
+                        else
+                        {
+                            AlarmManagerCenter.UpdateAlarmDuration(Name, alarm.Alarm_ID);
+                        }
+                    }
+
+                }
+            }
+        }
         public AvailabilityHelper availabilityHelper { get; private set; }
         private RunningStatus _states = new RunningStatus();
         public RunningStatus states
@@ -121,9 +180,12 @@ namespace VMSystem.AGV
             set
             {
                 currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
+                AlarmCodes = value.Alarm_Code;
                 _states = value;
             }
         }
+
+
         public Map map { get; set; }
 
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
@@ -431,7 +493,16 @@ namespace VMSystem.AGV
             }
         }
 
+        private void RestoreStatesFromDatabase()
+        {
+            RestorePreviousAlarmsFromDatabase();
+            RestorePreviousLocationFromDatabase();
+        }
+        private void RestorePreviousAlarmsFromDatabase()
+        {
+            previousAlarmCodes = AlarmManagerCenter.GetAlarmsByEqName(Name).Where(alarm => alarm.Checked == false).ToList();
 
+        }
         private void RestorePreviousLocationFromDatabase()
         {
             if (simulationMode)
