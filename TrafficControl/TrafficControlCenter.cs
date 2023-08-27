@@ -146,12 +146,12 @@ namespace VMSystem.TrafficControl
                         }
                     );
                     DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt=>pt.RegistInfo!=null).FindAll(pt => pt.RegistInfo.IsRegisted);
-                    var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
-                    foreach (var agv in VMSManager.AllAGV)
-                    {
-                        if (!agv.options.Simulation && agv.connected)
-                            await agv.PublishTrafficDynamicData(DynamicTrafficState);
-                    }
+                    //var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
+                    //foreach (var agv in VMSManager.AllAGV)
+                    //{
+                    //    if (!agv.options.Simulation && agv.connected)
+                    //        await agv.PublishTrafficDynamicData(DynamicTrafficState);
+                    //}
                 }
                 catch (Exception ex)
                 {
