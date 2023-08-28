@@ -151,7 +151,7 @@ namespace VMSystem.VMS
                     {
 
                     }
-                  
+
                 }
             });
         }
@@ -420,5 +420,13 @@ namespace VMSystem.VMS
             return true;
         }
 
+        internal static MapPoint GetAGVCurrentMapPointByName(string AGVName)
+        {
+            var agv = AllAGV.FirstOrDefault(agv => agv.Name == AGVName);
+            if (agv != null)
+                return agv.currentMapPoint;
+            else
+                return null;
+        }
     }
 }

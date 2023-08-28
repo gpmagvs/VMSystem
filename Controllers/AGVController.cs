@@ -7,6 +7,7 @@ using VMSystem.VMS;
 using Newtonsoft.Json;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 
 namespace VMSystem.Controllers
 {
@@ -15,7 +16,7 @@ namespace VMSystem.Controllers
     public class AGVController : ControllerBase
     {   //api/VmsManager/AGVStatus?AGVName=agvname
         [HttpPost("AGVStatus")]
-        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model, RunningStatus status)
+        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model, clsRunningStatus status)
         {
             if (!VMSManager.TryGetAGV(AGVName, Model, out IAGV agv))
             {
@@ -29,7 +30,6 @@ namespace VMSystem.Controllers
             {
 
                 agv.states = status;
-
                 return Ok(new
                 {
                     ReturnCode = 0,

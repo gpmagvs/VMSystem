@@ -25,7 +25,7 @@ namespace VMSystem.VMS
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
-                    agv.UpdateAGVStates(e.Header.Values.First());
+                    agv.states = (e.Header.Values.First());
                     client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(e, "0106", RETURN_CODE.OK));
                 }
             });

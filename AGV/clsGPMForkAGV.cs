@@ -101,7 +101,15 @@ namespace VMSystem.AGV
             get => previousMapPoint;
             set
             {
-                if (previousMapPoint != value)
+
+                if (previousMapPoint == null)
+                {
+
+                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                    previousMapPoint = value;
+                    return;
+                }
+                if (previousMapPoint.TagNumber != value.TagNumber)
                 {
                     if (previousMapPoint != null)
                     {
@@ -118,7 +126,7 @@ namespace VMSystem.AGV
         }
 
         public List<clsAlarmDto> previousAlarmCodes = new List<clsAlarmDto>();
-        public RunningStatus.clsAlarmCode[] AlarmCodes
+        public AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] AlarmCodes
         {
             set
             {
@@ -130,19 +138,22 @@ namespace VMSystem.AGV
                 }
                 if (value.Length > 0)
                 {
-                    int[] newAlarmodes = value.Select(alarm => alarm.Alarm_ID).ToArray();
+                    int[] newAlarmodes = value.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
                     int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
-                    
-                    foreach (int alarm_code in _previousAlarmCodes) //舊的
+
+                    if(newAlarmodes.Length > 0)
                     {
-                        if (!newAlarmodes.Contains(alarm_code))
+                        foreach (int alarm_code in _previousAlarmCodes) //舊的
                         {
-                            AlarmManagerCenter.SetAlarmChecked(Name, alarm_code);
-                            previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
+                            if (!newAlarmodes.Contains(alarm_code))
+                            {
+                                AlarmManagerCenter.SetAlarmChecked(Name, alarm_code);
+                                previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
+                            }
                         }
                     }
 
-                    foreach (RunningStatus.clsAlarmCode alarm in value)
+                    foreach (AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode alarm in value)
                     {
                         if (!_previousAlarmCodes.Contains(alarm.Alarm_ID)) //New Aalrm!
                         {
@@ -174,8 +185,8 @@ namespace VMSystem.AGV
             }
         }
         public AvailabilityHelper availabilityHelper { get; private set; }
-        private RunningStatus _states = new RunningStatus();
-        public RunningStatus states
+        private clsRunningStatus _states = new clsRunningStatus();
+        public clsRunningStatus states
         {
             get => _states;
             set
@@ -513,14 +524,21 @@ namespace VMSystem.AGV
             }
             else
             {
-                int.TryParse(AGVStatusDBHelper.GetAGVStateByName(Name).CurrentLocation, out int tag);
-                states.Last_Visited_Node = tag;
-                previousMapPoint = StaMap.GetPointByTagNumber(tag);
-                states.Coordination.X = previousMapPoint.X;
-                states.Coordination.Y = previousMapPoint.Y;
-                states.Coordination.Theta = previousMapPoint.Direction;
+                var status = AGVStatusDBHelper.GetAGVStateByName(Name);
+                if (status == null)
+                {
 
-                StaMap.RegistPoint(Name, previousMapPoint, out string msg);
+                }
+                else
+                {
+                    int.TryParse(status.CurrentLocation, out int tag);
+                    states.Last_Visited_Node = tag;
+                    previousMapPoint = StaMap.GetPointByTagNumber(tag);
+                    states.Coordination.X = previousMapPoint.X;
+                    states.Coordination.Y = previousMapPoint.Y;
+                    states.Coordination.Theta = previousMapPoint.Direction;
+                    StaMap.RegistPoint(Name, previousMapPoint, out string msg);
+                }
             }
         }
 

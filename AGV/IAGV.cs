@@ -21,7 +21,7 @@ namespace VMSystem.AGV
         bool connected { get; set; }
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; }
-        RunningStatus states { get; set; }
+        clsRunningStatus states { get; set; }
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapPoint currentMapPoint { get; }

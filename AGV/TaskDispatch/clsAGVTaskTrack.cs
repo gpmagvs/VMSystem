@@ -67,8 +67,8 @@ namespace VMSystem.AGV.TaskDispatch
         public ACTION_TYPE currentActionType { get; private set; } = ACTION_TYPE.Unknown;
         public ACTION_TYPE nextActionType { get; private set; } = ACTION_TYPE.Unknown;
         private CancellationTokenSource taskCancel = new CancellationTokenSource();
-
         private TASK_RUN_STATUS _TaskRunningStatus = TASK_RUN_STATUS.NO_MISSION;
+
         public TASK_RUN_STATUS TaskRunningStatus
         {
             get => _TaskRunningStatus;
@@ -124,6 +124,7 @@ namespace VMSystem.AGV.TaskDispatch
                 finishSubTaskNum = 0;
                 taskCancel = new CancellationTokenSource();
                 taskSequence = 0;
+                SubTaskTracking = null;
                 waitingInfo.IsWaiting = false;
                 SubTasks = CreateSubTaskLinks(TaskOrder);
                 CompletedSubTasks = new Stack<clsSubTask>();
@@ -145,7 +146,8 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void DownloadTaskToAGV()
         {
-            var _task = SubTasks.Dequeue();
+            clsSubTask _task;
+            _task = SubTasks.Dequeue();
             _task.Source = AGV.currentMapPoint;
             _task.StartAngle = AGV.states.Coordination.Theta;
             _task.CreateTaskToAGV(TaskOrder, taskSequence);
@@ -280,21 +282,26 @@ namespace VMSystem.AGV.TaskDispatch
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
                     var orderStatus = IsTaskOrderCompleteSuccess(feedbackData);
-                    CompletedSubTasks.Push(SubTaskTracking);
-                    LOG.INFO($"Task Order Status: {orderStatus.ToJson()}");
                     if (orderStatus.Status == ORDER_STATUS.COMPLETED | orderStatus.Status == ORDER_STATUS.NO_ORDER)
                     {
+                        CompletedSubTasks.Push(SubTaskTracking);
+                        if (SubTaskTracking.Action == ACTION_TYPE.None)
+                        {
+                            if (!CheckAGVPose(out string message))
+                            {
+                                SubTasks.Prepend(SubTaskTracking);
+                                DownloadTaskToAGV();
+                            }
+                        }
                         CompleteOrder();
                         return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
-                    try
+                    else
                     {
                         DownloadTaskToAGV();
                     }
-                    catch (IlleagalTaskDispatchException ex)
-                    {
-                        AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
-                    }
+
+                    LOG.INFO($"Task Order Status: {orderStatus.ToJson()}");
                     break;
                 case TASK_RUN_STATUS.WAIT:
                     break;
@@ -315,7 +322,8 @@ namespace VMSystem.AGV.TaskDispatch
             EXECUTING,
             COMPLETED,
             FAILURE,
-            NO_ORDER
+            NO_ORDER,
+            EXECUTING_WAITING
         }
 
         public class clsOrderStatus
@@ -336,61 +344,15 @@ namespace VMSystem.AGV.TaskDispatch
                     Status = ORDER_STATUS.NO_ORDER
                 };
             }
-
             previousCompleteAction = SubTaskTracking.Action;
             var orderACtion = TaskOrder.Action;
             bool isOrderCompleted = false;
             string msg = string.Empty;
-            switch (orderACtion)  //任務訂單的類型
-            {
-                case ACTION_TYPE.None: //一般移動訂單
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Unload:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.LoadAndPark:
-                    break;
-                case ACTION_TYPE.Forward:
-                    break;
-                case ACTION_TYPE.Backward:
-                    break;
-                case ACTION_TYPE.FaB:
-                    break;
-                case ACTION_TYPE.Measure:
-                    break;
-                case ACTION_TYPE.Load:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Charge:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Carry:
-                    isOrderCompleted = (previousCompleteAction == ACTION_TYPE.Load) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Discharge:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Escape:
-                    break;
-                case ACTION_TYPE.Park:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.Unpark:
-                    isOrderCompleted = (previousCompleteAction == orderACtion) && CheckAGVPose(out msg);
-                    break;
-                case ACTION_TYPE.ExchangeBattery:
-                    break;
-                case ACTION_TYPE.Hold:
-                    break;
-                case ACTION_TYPE.Break:
-                    break;
-                case ACTION_TYPE.Unknown:
-                    break;
-                default:
-                    break;
-            }
-            finishSubTaskNum = isOrderCompleted ? finishSubTaskNum += 1 : finishSubTaskNum;
+
+            if (orderACtion != ACTION_TYPE.Carry)
+                isOrderCompleted = previousCompleteAction == orderACtion;
+            else
+                isOrderCompleted = previousCompleteAction == ACTION_TYPE.Load;
             return new clsOrderStatus
             {
                 Status = isOrderCompleted ? ORDER_STATUS.COMPLETED : ORDER_STATUS.EXECUTING
