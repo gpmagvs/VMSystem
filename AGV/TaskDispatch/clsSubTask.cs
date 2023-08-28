@@ -32,7 +32,10 @@ namespace VMSystem.AGV.TaskDispatch
                 Station_Type = Destination.StationType,
             };
             Trajectory.Last().Theta = DestineStopAngle;
-            Trajectory.First().Theta = StartAngle;
+            if (Trajectory.Length > 1)
+            {
+                Trajectory.First().Theta = StartAngle;
+            }
             if (Action == ACTION_TYPE.None)
                 DownloadData.Trajectory = Trajectory;
             else
