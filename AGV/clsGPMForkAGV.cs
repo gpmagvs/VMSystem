@@ -151,7 +151,8 @@ namespace VMSystem.AGV
                             {
                                 AlarmCode = alarm.Alarm_ID,
                                 Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
-                                Description_En = alarm.Alarm_Description,
+                                Description_En = alarm.Alarm_Description_EN,
+                                Description_Zh = alarm.Alarm_Description,
                                 Equipment_Name = Name,
                                 Checked = false,
                                 OccurLocation = currentMapPoint.Name,
