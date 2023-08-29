@@ -136,12 +136,12 @@ namespace VMSystem.AGV
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            TaskStatusTracker.Start(agv, executingTask);
+            await TaskStatusTracker.Start(agv, executingTask);
         }
 
 
 
-        public async Task<int>  TaskFeedback(FeedbackData feedbackData)
+        public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
             var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
             return (int)response;

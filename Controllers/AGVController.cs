@@ -63,7 +63,7 @@ namespace VMSystem.Controllers
                 if (isOnlineTagExist)
                 {
                     double agvLocOffset = point.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y);
-                    if (agvLocOffset > 1)
+                    if (agvLocOffset > 0.20) //0.2m
                     {
                         aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_TOO_FAR_FROM_POINT;
                         errMsg = "AGV上線之位置與圖資差距過大";

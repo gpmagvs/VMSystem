@@ -115,27 +115,31 @@ namespace VMSystem.AGV.TaskDispatch
         public Stack<clsSubTask> CompletedSubTasks = new Stack<clsSubTask>();
 
         public clsSubTask SubTaskTracking;
-        public void Start(IAGV AGV, clsTaskDto TaskOrder)
+        public async Task Start(IAGV AGV, clsTaskDto TaskOrder)
         {
-            try
+            await Task.Run(() =>
             {
-                this.TaskOrder = TaskOrder;
-                OrderTaskName = TaskOrder.TaskName;
-                finishSubTaskNum = 0;
-                taskCancel = new CancellationTokenSource();
-                taskSequence = 0;
-                SubTaskTracking = null;
-                waitingInfo.IsWaiting = false;
-                SubTasks = CreateSubTaskLinks(TaskOrder);
-                CompletedSubTasks = new Stack<clsSubTask>();
-                StartExecuteOrder();
-                StartRecordTrjectory();
-                LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
-            }
-            catch (IlleagalTaskDispatchException ex)
-            {
-                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
-            }
+                try
+                {
+                    this.TaskOrder = TaskOrder;
+                    OrderTaskName = TaskOrder.TaskName;
+                    finishSubTaskNum = 0;
+                    taskCancel = new CancellationTokenSource();
+                    taskSequence = 0;
+                    SubTaskTracking = null;
+                    waitingInfo.IsWaiting = false;
+                    SubTasks = CreateSubTaskLinks(TaskOrder);
+                    CompletedSubTasks = new Stack<clsSubTask>();
+                    StartExecuteOrder();
+                    StartRecordTrjectory();
+                    LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
+                }
+                catch (IlleagalTaskDispatchException ex)
+                {
+                    AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
+                }
+            });
+
         }
 
         private void StartExecuteOrder()
@@ -146,12 +150,21 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void DownloadTaskToAGV()
         {
+            if (SubTasks.Count == 0)
+            {
+                AlarmManagerCenter.AddAlarm(ALARMS.SubTask_Queue_Empty_But_Try_DownloadTask_To_AGV);
+                return;
+            }
             clsSubTask _task;
             _task = SubTasks.Dequeue();
             _task.Source = AGV.currentMapPoint;
             _task.StartAngle = AGV.states.Coordination.Theta;
             _task.CreateTaskToAGV(TaskOrder, taskSequence);
-            PostTaskRequestToAGVAsync(_task);
+            if (PostTaskRequestToAGVAsync(_task).ReturnCode != RETURN_CODE.OK)
+            {
+                AbortOrder();
+                return;
+            }
             SubTaskTracking = _task;
             taskSequence += 1;
         }
@@ -215,7 +228,7 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     Destination = work_destine,
                     Action = taskOrder.Action == ACTION_TYPE.Carry ? ACTION_TYPE.Unload : taskOrder.Action,
-                    DestineStopAngle = work_destine.Direction,
+                    DestineStopAngle = work_destine.Direction_Secondary_Point,
                     StartAngle = work_destine.Direction,
                 };
 
@@ -223,14 +236,14 @@ namespace VMSystem.AGV.TaskDispatch
 
                 if (isCarry)
                 {
-                    var destine_point = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));//終點
-                    var destine_move_to_destine = StaMap.GetPointByIndex(destine_point.Target.Keys.First());//終點之二次定位點
+                    var workstation_point = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));//終點
+                    var secondary_of_destine_workstation = StaMap.GetPointByIndex(workstation_point.Target.Keys.First());//終點之二次定位點
                     //monve
                     clsSubTask subTask_move_to_load_workstation = new clsSubTask
                     {
-                        Destination = destine_move_to_destine,
+                        Destination = secondary_of_destine_workstation,
                         Action = ACTION_TYPE.None,
-                        DestineStopAngle = destine_move_to_destine.Direction,
+                        DestineStopAngle = workstation_point.Direction_Secondary_Point,
                         StartAngle = AGV.states.Coordination.Theta
 
                     };
@@ -240,10 +253,10 @@ namespace VMSystem.AGV.TaskDispatch
                     clsSubTask subTask_load = new clsSubTask
                     {
                         Action = ACTION_TYPE.Load,
-                        Source = destine_move_to_destine,
-                        Destination = destine_point,
-                        DestineStopAngle = destine_point.Direction,
-                        StartAngle = destine_point.Direction,
+                        Source = secondary_of_destine_workstation,
+                        Destination = workstation_point,
+                        DestineStopAngle = workstation_point.Direction,
+                        StartAngle = workstation_point.Direction,
                     };
                     task_links.Enqueue(subTask_load);
                 }
@@ -285,14 +298,14 @@ namespace VMSystem.AGV.TaskDispatch
                     if (orderStatus.Status == ORDER_STATUS.COMPLETED | orderStatus.Status == ORDER_STATUS.NO_ORDER)
                     {
                         CompletedSubTasks.Push(SubTaskTracking);
-                        if (SubTaskTracking.Action == ACTION_TYPE.None)
-                        {
-                            if (!CheckAGVPose(out string message))
-                            {
-                                SubTasks.Prepend(SubTaskTracking);
-                                DownloadTaskToAGV();
-                            }
-                        }
+                        //if (SubTaskTracking.Action == ACTION_TYPE.None)
+                        //{
+                        //    if (!CheckAGVPose(out string message))
+                        //    {
+                        //        SubTasks.Prepend(SubTaskTracking);
+                        //        DownloadTaskToAGV();
+                        //    }
+                        //}
                         CompleteOrder();
                         return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
@@ -422,6 +435,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, subtask.Destination);
                 SimpleRequestResponse taskStateResponse = Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", subtask.DownloadData).Result;
+
                 return taskStateResponse;
             }
             catch (IlleagalTaskDispatchException ex)
