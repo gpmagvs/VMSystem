@@ -60,7 +60,7 @@ namespace VMSystem.Controllers
                 {
                     try
                     {
-                        await Task.Delay(10);
+                        await Task.Delay(500);
                         byte[] rev_buffer = new byte[4096];
                         websocket_client.ReceiveAsync(new ArraySegment<byte>(rev_buffer), CancellationToken.None);
 
