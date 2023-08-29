@@ -4,7 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
@@ -87,10 +87,10 @@ namespace VMSystem.AGV.TaskDispatch
         }
 
 
-        private string HttpHost => $"http://{AGV.options.HostIP}:{AGV.options.HostPort}";
+        HttpHelper AGVHttp;
+        
         public clsAGVTaskTrack()
         {
-
             StartTaskStatusWatchDog();
         }
 
@@ -121,6 +121,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 try
                 {
+                    AGVHttp = new HttpHelper($"http://{AGV.options.HostIP}:{AGV.options.HostPort}");
                     this.TaskOrder = TaskOrder;
                     OrderTaskName = TaskOrder.TaskName;
                     finishSubTaskNum = 0;
@@ -416,7 +417,7 @@ namespace VMSystem.AGV.TaskDispatch
                     Task_Name = OrderTaskName,
                     TimeStamp = DateTime.Now,
                 };
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"{HttpHost}/api/TaskDispatch/Cancel", reset_cmd);
+                SimpleRequestResponse taskStateResponse = await AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
                 LOG.WARN($"取消{AGV.Name}任務-[{SubTaskTracking.DownloadData.Task_Simplex}]-[{mode}]-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
                 return taskStateResponse;
             }
@@ -434,7 +435,7 @@ namespace VMSystem.AGV.TaskDispatch
             try
             {
                 AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, subtask.Destination);
-                SimpleRequestResponse taskStateResponse = Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", subtask.DownloadData).Result;
+                SimpleRequestResponse taskStateResponse = AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", subtask.DownloadData).Result;
 
                 return taskStateResponse;
             }

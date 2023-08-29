@@ -1,6 +1,6 @@
 ﻿using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using System.Collections.Generic;
@@ -43,7 +43,7 @@ namespace VMSystem.AGV
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
         public AGV_ORDERABLE_STATUS OrderExecuteState => GetAGVReceiveOrderStatus();
-        private string HttpHost => $"http://{agv.options.HostIP}:{agv.options.HostPort}";
+
         public virtual List<clsTaskDto> taskList
         {
             get
@@ -154,7 +154,7 @@ namespace VMSystem.AGV
         /// <param name="LDULD">0:load , 1:unlod</param>
         private async Task LDULDFinishReport(int EQTag, int LDULD)
         {
-            await Http.PostAsync<object, object>($"{AGVSConfigulator.SysConfigs.AGVSHost}/api/Task/LDULDFinishFeedback?agv_name={agv.Name}&EQTag={EQTag}&LDULD={LDULD}", null);
+            await agv.AGVHttp.PostAsync<object, object>($"/api/Task/LDULDFinishFeedback?agv_name={agv.Name}&EQTag={EQTag}&LDULD={LDULD}", null);
         }
 
         public async Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData data)
@@ -164,7 +164,7 @@ namespace VMSystem.AGV
                 if (agv.options.Simulation)
                     return await AgvSimulation.ActionRequestHandler(data);
 
-                SimpleRequestResponse taskStateResponse = await Http.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"{HttpHost}/api/TaskDispatch/Execute", data);
+                SimpleRequestResponse taskStateResponse = await agv.AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", data);
                 return taskStateResponse;
             }
             catch (Exception ex)

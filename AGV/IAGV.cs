@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.AGV.TaskDispatch;
+using AGVSystemCommonNet6.HttpTools;
 
 namespace VMSystem.AGV
 {
@@ -18,6 +19,7 @@ namespace VMSystem.AGV
         AGV_MODEL model { get; set; }
         string Name { get; set; }
         clsAGVOptions options { get; set; }
+        HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; }
@@ -38,7 +40,7 @@ namespace VMSystem.AGV
         int CalculatePathCost(Map map, object toTag);
         AGVStatusDBHelper AGVStatusDBHelper { get; }
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
-         void UpdateAGVStates(RunningStatus status);
+        void UpdateAGVStates(RunningStatus status);
         Task PublishTrafficDynamicData(clsDynamicTrafficState dynamicTrafficState);
 
         void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint);

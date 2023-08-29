@@ -7,11 +7,12 @@ using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.TASK;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Linq;
@@ -34,7 +35,7 @@ namespace VMSystem.AGV
             RestoreStatesFromDatabase();
             AutoParkWorker();
             AliveCheck();
-
+            AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
         }
 
 
@@ -45,6 +46,27 @@ namespace VMSystem.AGV
         public virtual clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
+
+        public AvailabilityHelper availabilityHelper { get; private set; }
+        private clsRunningStatus _states = new clsRunningStatus();
+        public clsRunningStatus states
+        {
+            get => _states;
+            set
+            {
+                currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
+                AlarmCodes = value.Alarm_Code;
+                _states = value;
+            }
+        }
+
+
+        public Map map { get; set; }
+
+        public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
+        public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
+        public IAGVTaskDispather taskDispatchModule { get; set; }
+        public clsAGVOptions options { get; set; }
 
         /// <summary>
         /// 當前任務規劃移動軌跡
@@ -141,7 +163,7 @@ namespace VMSystem.AGV
                     int[] newAlarmodes = value.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
                     int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
 
-                    if(newAlarmodes.Length > 0)
+                    if (newAlarmodes.Length > 0)
                     {
                         foreach (int alarm_code in _previousAlarmCodes) //舊的
                         {
@@ -184,28 +206,6 @@ namespace VMSystem.AGV
                 }
             }
         }
-        public AvailabilityHelper availabilityHelper { get; private set; }
-        private clsRunningStatus _states = new clsRunningStatus();
-        public clsRunningStatus states
-        {
-            get => _states;
-            set
-            {
-                currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
-                AlarmCodes = value.Alarm_Code;
-                _states = value;
-            }
-        }
-
-
-        public Map map { get; set; }
-
-        public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
-        public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
-        public IAGVTaskDispather taskDispatchModule { get; set; }
-        public clsAGVOptions options { get; set; }
-
-        internal string HttpHost => $"http://{options.HostIP}:{options.HostPort}";
 
         /// <summary>
         /// 
@@ -218,6 +218,7 @@ namespace VMSystem.AGV
             }
         }
 
+        public HttpHelper AGVHttp { get; set; }
 
         private void AliveCheck()
         {
@@ -253,7 +254,7 @@ namespace VMSystem.AGV
             {
                 if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
                 {
-                    await Http.PostAsync<clsDynamicTrafficState, object>($"{HttpHost}/api/TrafficState/DynamicTrafficState", data);
+                    await AGVHttp.PostAsync<clsDynamicTrafficState, object>($"/api/TrafficState/DynamicTrafficState", data);
                 }
             }
             catch (Exception ex)
@@ -337,7 +338,7 @@ namespace VMSystem.AGV
         {
             try
             {
-                this.states = await Http.GetAsync<RunningStatus>($"{HttpHost}/api/AGV/RunningState");
+                this.states = await AGVHttp.GetAsync<RunningStatus>($"/api/AGV/RunningState");
                 if (states.Last_Visited_Node != this.states.Last_Visited_Node)
                 {
                     Console.WriteLine($"{Name}:Last Visited Node : {states.Last_Visited_Node}");
@@ -357,7 +358,7 @@ namespace VMSystem.AGV
 
         private async Task<clsEnums.ONLINE_STATE> GetOnlineState()
         {
-            var state_code = await Http.GetAsync<int>($"{HttpHost}/api/AGV/OnlineState");
+            var state_code = await AGVHttp.GetAsync<int>($"/api/AGV/OnlineState");
             return state_code == 1 ? clsEnums.ONLINE_STATE.ONLINE : clsEnums.ONLINE_STATE.OFFLINE;
         }
 
@@ -378,7 +379,7 @@ namespace VMSystem.AGV
 
             //taskDispatchModule.CancelTask();
 
-            var resDto = Http.GetAsync<clsAPIRequestResult>($"{HttpHost}/api/AGV/agv_offline").Result;
+            var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
             online_state = clsEnums.ONLINE_STATE.OFFLINE;
 
             message = resDto.Message;
@@ -415,7 +416,7 @@ namespace VMSystem.AGV
                 return false;
             }
 
-            var resDto = Http.GetAsync<clsAPIRequestResult>($"{HttpHost}/api/AGV/agv_online").Result;
+            var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
             if (!resDto.Success)
             {
                 AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);

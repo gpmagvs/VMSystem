@@ -1,5 +1,5 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using Newtonsoft.Json;
 using System.IO.Compression;

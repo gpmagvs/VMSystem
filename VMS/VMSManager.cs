@@ -1,6 +1,6 @@
 ﻿using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpHelper;
+using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
