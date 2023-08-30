@@ -44,13 +44,8 @@ namespace VMSystem.AGV
         private PathFinder pathFinder = new PathFinder();
         public AGV_ORDERABLE_STATUS OrderExecuteState => GetAGVReceiveOrderStatus();
 
-        public virtual List<clsTaskDto> taskList
-        {
-            get
-            {
-                return TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State != TASK_RUN_STATUS.FAILURE && f.DesignatedAGVName == agv.Name);
-            }
-        }
+        public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
+
         public clsMapPoint[] CurrentTrajectory { get; set; }
 
         public clsAGVSimulation AgvSimulation;
@@ -74,11 +69,6 @@ namespace VMSystem.AGV
             };
         }
 
-        public void AddTask(clsTaskDto taskDto)
-        {
-
-            taskList.Add(taskDto);
-        }
 
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
@@ -94,11 +84,13 @@ namespace VMSystem.AGV
         }
         protected virtual void TaskAssignWorker()
         {
+          
             Task.Run(async () =>
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(100);
+                    taskList = TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State != TASK_RUN_STATUS.FAILURE && f.DesignatedAGVName == agv.Name);
                     try
                     {
                         if (OrderExecuteState != AGV_ORDERABLE_STATUS.EXECUTABLE)
@@ -117,16 +109,16 @@ namespace VMSystem.AGV
                     }
                     catch (NoPathForNavigatorException ex)
                     {
-                        TaskStatusTracker.AbortOrder();
+                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
-                        TaskStatusTracker.AbortOrder();
+                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
                     catch (Exception ex)
                     {
-                        TaskStatusTracker.AbortOrder();
+                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ex.Message);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
 

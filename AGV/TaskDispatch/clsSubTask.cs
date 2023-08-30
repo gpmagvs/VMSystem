@@ -16,7 +16,6 @@ namespace VMSystem.AGV.TaskDispatch
         /// 停車角度
         /// </summary>
         public double DestineStopAngle { get; set; }
-        public double StartAngle { get; set; }
 
         public clsTaskDownloadData DownloadData { get; private set; }
         public string ExecuteOrderAGVName { get; private set; }

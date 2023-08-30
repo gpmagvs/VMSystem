@@ -88,7 +88,7 @@ namespace VMSystem.AGV.TaskDispatch
 
 
         HttpHelper AGVHttp;
-        
+
         public clsAGVTaskTrack()
         {
             StartTaskStatusWatchDog();
@@ -158,12 +158,17 @@ namespace VMSystem.AGV.TaskDispatch
             }
             clsSubTask _task;
             _task = SubTasks.Dequeue();
-            _task.Source = AGV.currentMapPoint;
-            _task.StartAngle = AGV.states.Coordination.Theta;
-            _task.CreateTaskToAGV(TaskOrder, taskSequence);
-            if (PostTaskRequestToAGVAsync(_task).ReturnCode != RETURN_CODE.OK)
+
+            if (_task.Action == ACTION_TYPE.None)
             {
-                AbortOrder();
+                _task.Source = AGV.currentMapPoint;
+            }
+
+            _task.CreateTaskToAGV(TaskOrder, taskSequence);
+            var agv_task_return_code = PostTaskRequestToAGVAsync(_task).ReturnCode;
+            if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK)
+            {
+                AbortOrder(agv_task_return_code);
                 return;
             }
             SubTaskTracking = _task;
@@ -185,8 +190,8 @@ namespace VMSystem.AGV.TaskDispatch
                 var destine = StaMap.GetPointByIndex(AGV.currentMapPoint.Target.Keys.First());
                 var subTask_move_out_from_workstation = new clsSubTask()
                 {
+                    Source = AGV.currentMapPoint,
                     Destination = destine,
-                    StartAngle = AGV.currentMapPoint.Direction,
                     DestineStopAngle = AGV.currentMapPoint.Direction,
                 };
                 if (agvLocating_station_type == STATION_TYPE.Charge)
@@ -217,7 +222,6 @@ namespace VMSystem.AGV.TaskDispatch
                 Destination = destine_move_to,
                 Action = ACTION_TYPE.None,
                 DestineStopAngle = thetaToStop,
-                StartAngle = AGV.states.Coordination.Theta
             };
             task_links.Enqueue(subTask_move_to_);
 
@@ -227,10 +231,10 @@ namespace VMSystem.AGV.TaskDispatch
                 var work_destine = StaMap.GetPointByTagNumber(int.Parse(isCarry ? taskOrder.From_Station : taskOrder.To_Station));
                 clsSubTask subTask_working_station = new clsSubTask
                 {
+                    Source = StaMap.GetPointByIndex(work_destine.Target.Keys.First()),
                     Destination = work_destine,
                     Action = taskOrder.Action == ACTION_TYPE.Carry ? ACTION_TYPE.Unload : taskOrder.Action,
-                    DestineStopAngle = work_destine.Direction_Secondary_Point,
-                    StartAngle = work_destine.Direction,
+                    DestineStopAngle = work_destine.Direction,
                 };
 
                 task_links.Enqueue(subTask_working_station);
@@ -245,7 +249,6 @@ namespace VMSystem.AGV.TaskDispatch
                         Destination = secondary_of_destine_workstation,
                         Action = ACTION_TYPE.None,
                         DestineStopAngle = workstation_point.Direction_Secondary_Point,
-                        StartAngle = AGV.states.Coordination.Theta
 
                     };
                     //workstation destine
@@ -257,7 +260,6 @@ namespace VMSystem.AGV.TaskDispatch
                         Source = secondary_of_destine_workstation,
                         Destination = workstation_point,
                         DestineStopAngle = workstation_point.Direction,
-                        StartAngle = workstation_point.Direction,
                     };
                     task_links.Enqueue(subTask_load);
                 }
@@ -281,7 +283,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 taskCancel.Cancel();
                 _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
-                AbortOrder();
+                AbortOrder(TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN);
                 return TASK_FEEDBACK_STATUS_CODE.OK;
             }
             switch (task_status)
@@ -351,7 +353,7 @@ namespace VMSystem.AGV.TaskDispatch
         /// <returns></returns>
         private clsOrderStatus IsTaskOrderCompleteSuccess(FeedbackData feedbackData)
         {
-            if (TaskOrder == null)
+            if (TaskOrder == null | SubTaskTracking == null)
             {
                 return new clsOrderStatus
                 {
@@ -430,27 +432,28 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        public SimpleRequestResponse PostTaskRequestToAGVAsync(clsSubTask subtask)
+        public TaskDownloadRequestResponse PostTaskRequestToAGVAsync(clsSubTask subtask)
         {
             try
             {
                 AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, subtask.Destination);
-                SimpleRequestResponse taskStateResponse = AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", subtask.DownloadData).Result;
+                TaskDownloadRequestResponse taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", subtask.DownloadData).Result;
 
                 return taskStateResponse;
             }
             catch (IlleagalTaskDispatchException ex)
             {
-                AbortOrder();
+                AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL, ex.Alarm_Code.ToString());
                 AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
-                return new SimpleRequestResponse { ReturnCode = RETURN_CODE.NG, Message = ex.Alarm_Code.ToString() };
+                return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL, Message = ex.Alarm_Code.ToString() };
             }
             catch (Exception ex)
             {
                 LOG.Critical(ex);
-                return new SimpleRequestResponse
+                return new TaskDownloadRequestResponse
                 {
-                    ReturnCode = RETURN_CODE.System_Error
+                    ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION,
+                    Message = ex.Message
                 };
             }
         }
@@ -482,10 +485,42 @@ namespace VMSystem.AGV.TaskDispatch
             ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
         }
-        internal void AbortOrder()
+        internal void AbortOrder(TASK_DOWNLOAD_RETURN_CODES agv_task_return_code, string message = "")
         {
             taskCancel.Cancel();
-            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE);
+            ChangeTaskStatus(TASK_RUN_STATUS.FAILURE, failure_reason: message == "" ? agv_task_return_code.ToString() : message);
+            ALARMS alarm_code = ALARMS.AGV_STATUS_DOWN;
+            switch (agv_task_return_code)
+            {
+                case TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN:
+                    alarm_code = ALARMS.AGV_STATUS_DOWN;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.AGV_NOT_ON_TAG:
+                    alarm_code = ALARMS.AGV_AT_UNKNON_TAG_LOCATION;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.WORKSTATION_NOT_SETTING_YET:
+                    alarm_code = ALARMS.AGV_WORKSTATION_DATA_NOT_SETTING;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.AGV_BATTERY_LOW_LEVEL:
+
+                    alarm_code = ALARMS.AGV_BATTERY_LOW_LEVEL;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.AGV_CANNOT_GO_TO_WORKSTATION_WITH_NORMAL_MOVE_ACTION:
+                    alarm_code = ALARMS.CANNOT_DISPATCH_NORMAL_MOVE_TASK_WHEN_DESTINE_IS_WORKSTATION;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL:
+                    alarm_code = ALARMS.CANNOT_DISPATCH_TASK_WITH_ILLEAGAL_STATUS;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION:
+                    alarm_code = ALARMS.SYSTEM_ERROR;
+                    break;
+                case TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION:
+                    alarm_code = ALARMS.TRAFFIC_BLOCKED_NO_PATH_FOR_NAVIGATOR;
+                    break;
+                default:
+                    break;
+            }
+            AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.ALARM, Equipment_Name: AGV.Name, location: AGV.currentMapPoint.Name, OrderTaskName);
         }
 
         internal async void CancelOrder()
