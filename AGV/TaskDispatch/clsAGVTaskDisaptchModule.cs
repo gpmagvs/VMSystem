@@ -84,7 +84,7 @@ namespace VMSystem.AGV
         }
         protected virtual void TaskAssignWorker()
         {
-          
+
             Task.Run(async () =>
             {
                 while (true)
@@ -100,7 +100,7 @@ namespace VMSystem.AGV
                         var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
                         var _ExecutingTask = taskOrderedByPriority.First();
 
-                        if (!BeforeDispatchTaskWorkCheck(_ExecutingTask, out ALARMS alarm_code))
+                        if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
                         {
                             AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
                             continue;
@@ -135,6 +135,17 @@ namespace VMSystem.AGV
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
+            var task_tracking = taskList.FirstOrDefault(task => task.TaskName == feedbackData.TaskName);
+            if (task_tracking == null)
+            {
+                LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
+                return 0;
+            }
+            else
+            {
+                if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
+                    return 0;
+            }
             var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
             return (int)response;
         }

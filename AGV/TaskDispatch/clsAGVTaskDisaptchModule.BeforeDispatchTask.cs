@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using System.Collections.Generic;
@@ -18,54 +19,59 @@ namespace VMSystem.AGV
         /// <param name="_ExecutingTask"></param>
         /// <param name="alarm_code"></param>
         /// <returns></returns>
-        private bool BeforeDispatchTaskWorkCheck(clsTaskDto _ExecutingTask, out ALARMS alarm_code)
+        private bool CheckTaskOrderContentAndTryFindBestWorkStation(clsTaskDto _ExecutingTask, out ALARMS alarm_code)
         {
             if (!IsTaskContentCorrectCheck(_ExecutingTask, out int tag, out alarm_code))
                 return false;
 
             if (tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park | _ExecutingTask.Action == ACTION_TYPE.Charge))
             {
-                if (!SearchDestineStation(_ExecutingTask.Action, out string to_station_name, out alarm_code))
+                LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
+                if (!SearchDestineStation(_ExecutingTask.Action, out MapPoint workstation, out alarm_code))
                 {
                     UpdateTaskDtoData(ref _ExecutingTask, TASK_RUN_STATUS.FAILURE);
                     return false;
                 }
-
-                _ExecutingTask.To_Station = to_station_name;
-
+                LOG.INFO($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
+                _ExecutingTask.To_Station = workstation.TagNumber.ToString();
             }
-            UpdateTaskDtoData(ref _ExecutingTask , TASK_RUN_STATUS.NAVIGATING);
+            UpdateTaskDtoData(ref _ExecutingTask, TASK_RUN_STATUS.NAVIGATING);
             return true;
         }
 
-        private bool SearchDestineStation(ACTION_TYPE action, out string station_name, out ALARMS alarm_code)
+        private bool SearchDestineStation(ACTION_TYPE action, out MapPoint optimized_workstation, out ALARMS alarm_code)
         {
-            station_name = "";
+            optimized_workstation = null;
             alarm_code = ALARMS.NONE;
+
+            var alarm_code_if_occur = action == ACTION_TYPE.Charge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
+
             if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge)
             {
                 alarm_code = ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH;
                 return false;
             }
             var map_points = StaMap.Map.Points.Values.ToList();
-            List<MapPoint> points_found = new List<MapPoint>();
+            List<MapPoint> workstations = new List<MapPoint>();
             if (action == ACTION_TYPE.Park)
-                points_found = StaMap.GetParkableStations();
+                workstations = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
-                points_found = StaMap.GetChargeableStations();
+                workstations = StaMap.GetChargeableStations();
 
-            var currentTag = agv.states.Last_Visited_Node;
-            var othersAGVLocTags = VMSManager.AllAGV.FindAll(agv => agv != this.agv).Select(agv => agv.states.Last_Visited_Node);
-            points_found = points_found.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber));
-            StaMap.TryGetPointByTagNumber(currentTag, out MapPoint currentStation);
-            points_found.OrderBy(pt => pt.CalculateDistance(currentStation));
-            if (points_found.Count == 0)
+
+            var othersAGV = VMSManager.AllAGV.FindAll(agv => agv != this.agv);
+            var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
+            var othersAGVNavigatingDestine = othersAGV.FindAll(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN).Select(agv => int.Parse(agv.taskDispatchModule.TaskStatusTracker.TaskOrder.To_Station));
+            workstations = workstations.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber) && !othersAGVNavigatingDestine.Contains(point.TagNumber));
+            if (workstations.Count == 0)
             {
-                alarm_code = action == ACTION_TYPE.Charge ? ALARMS.NO_AVAILABLE_CHARGE_PILE :
-                                             ALARMS.NO_AVAILABLE_PARK_STATION;
+                alarm_code = alarm_code_if_occur;
                 return false;
             }
-            station_name = points_found.First().TagNumber.ToString();
+            PathFinder _pathFinder = new PathFinder();
+            var distance_of_destine = workstations.ToDictionary(point => point, point => _pathFinder.FindShortestPath(StaMap.Map.Points, agv.currentMapPoint, point).total_travel_distance);
+            var ordered = distance_of_destine.OrderBy(kp => kp.Value);
+            optimized_workstation = ordered.First().Key;
             return true;
         }
 
@@ -94,7 +100,7 @@ namespace VMSystem.AGV
         /// 更新起點、接收時間、狀態等
         /// </summary>
         /// <param name="executingTask"></param>
-        protected virtual void UpdateTaskDtoData(ref clsTaskDto executingTask,TASK_RUN_STATUS state )
+        protected virtual void UpdateTaskDtoData(ref clsTaskDto executingTask, TASK_RUN_STATUS state)
         {
             if (executingTask.Action != ACTION_TYPE.Carry)
                 executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
