@@ -360,6 +360,13 @@ namespace VMSystem.AGV.TaskDispatch
                     Status = ORDER_STATUS.NO_ORDER
                 };
             }
+            if (TaskOrder.TaskName != feedbackData.TaskName)
+            {
+                return new clsOrderStatus
+                {
+                    Status = ORDER_STATUS.NO_ORDER
+                };
+            }
             previousCompleteAction = SubTaskTracking.Action;
             var orderACtion = TaskOrder.Action;
             bool isOrderCompleted = false;
