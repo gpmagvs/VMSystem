@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
@@ -29,13 +30,19 @@ namespace VMSystem.AGV
                 LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
                 if (!SearchDestineStation(_ExecutingTask.Action, out MapPoint workstation, out alarm_code))
                 {
-                    UpdateTaskDtoData(ref _ExecutingTask, TASK_RUN_STATUS.FAILURE);
+                    
+                    using (var db = new AGVSDatabase())
+                    {
+                        var tk=db.tables.Tasks.Where(tk=>tk.TaskName== _ExecutingTask.TaskName).FirstOrDefault();
+                        tk.State = TASK_RUN_STATUS.FAILURE;
+                        tk.FinishTime = DateTime.Now;
+                        db.SaveChanges();
+                    }
                     return false;
                 }
                 LOG.INFO($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
                 _ExecutingTask.To_Station = workstation.TagNumber.ToString();
             }
-            UpdateTaskDtoData(ref _ExecutingTask, TASK_RUN_STATUS.NAVIGATING);
             return true;
         }
 
@@ -106,7 +113,10 @@ namespace VMSystem.AGV
                 executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
             executingTask.RecieveTime = DateTime.Now;
             executingTask.State = state;
-            TaskDBHelper.Update(executingTask);
+            using (var db = new AGVSDatabase())
+            {
+                db.tables.Tasks.Update(executingTask);
+            }
         }
     }
 }

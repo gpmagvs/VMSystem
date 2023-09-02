@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
@@ -105,7 +106,7 @@ namespace VMSystem.AGV.TaskDispatch
                     if (TaskOrder == null)
                         continue;
 
-                    TaskRunningStatus = TaskDBHelper.GetTaskStateByID(OrderTaskName);
+                    TaskRunningStatus = await TaskDBHelper.GetTaskStateByID(OrderTaskName);
 
                 }
             });
@@ -149,7 +150,7 @@ namespace VMSystem.AGV.TaskDispatch
             DownloadTaskToAGV();
         }
 
-        private void DownloadTaskToAGV()
+        private async void DownloadTaskToAGV()
         {
             if (SubTasks.Count == 0)
             {
@@ -170,6 +171,15 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 AbortOrder(agv_task_return_code);
                 return;
+            }
+            if (taskSequence == 0)
+            {
+                TaskOrder.State = TASK_RUN_STATUS.NAVIGATING;
+                using (var agvs = new AGVSDatabase())
+                {
+                    agvs.tables.Tasks.Update(TaskOrder);
+                    agvs.tables.SaveChanges();
+                }
             }
             SubTaskTracking = _task;
             taskSequence += 1;
@@ -476,13 +486,23 @@ namespace VMSystem.AGV.TaskDispatch
                 waitingInfo.IsWaiting = false;
                 TaskOrder.FailureReason = failure_reason;
                 TaskOrder.FinishTime = DateTime.Now;
-                TaskDBHelper.Update(TaskOrder);
+
+                using (var agvs = new AGVSDatabase())
+                {
+                    agvs.tables.Tasks.Update(TaskOrder);
+                    agvs.tables.SaveChanges();
+                }
                 TaskOrder = null;
                 _TaskRunningStatus = TASK_RUN_STATUS.NO_MISSION;
             }
             else
             {
-                TaskDBHelper.Update(TaskOrder);
+
+                using (var agvs = new AGVSDatabase())
+                {
+                    agvs.tables.Tasks.Update(TaskOrder);
+                    agvs.tables.SaveChanges();
+                }
             }
         }
 

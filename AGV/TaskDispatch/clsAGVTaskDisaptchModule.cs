@@ -23,6 +23,8 @@ using System.Timers;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using VMSystem.AGV.TaskDispatch;
+using AGVSystemCommonNet6.DATABASE;
+using Microsoft.EntityFrameworkCore;
 
 namespace VMSystem.AGV
 {
@@ -90,7 +92,10 @@ namespace VMSystem.AGV
                 while (true)
                 {
                     await Task.Delay(100);
-                    taskList = TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State != TASK_RUN_STATUS.FAILURE && f.DesignatedAGVName == agv.Name);
+                    using (var database = new AGVSDatabase())
+                    {
+                        taskList = database.tables.Tasks.AsNoTracking().Where(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                    }
                     try
                     {
                         if (OrderExecuteState != AGV_ORDERABLE_STATUS.EXECUTABLE)
@@ -105,6 +110,7 @@ namespace VMSystem.AGV
                             AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
                             continue;
                         }
+                        await Task.Delay(1000);
                         await ExecuteTaskAsync(_ExecutingTask);
                     }
                     catch (NoPathForNavigatorException ex)
@@ -135,19 +141,23 @@ namespace VMSystem.AGV
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
-            var task_tracking = taskList.FirstOrDefault(task => task.TaskName == feedbackData.TaskName);
-            if (task_tracking == null)
+            using (var db = new AGVSDatabase())
             {
-                LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
-                return 0;
-            }
-            else
-            {
-                if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
+                var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
+                if (task_tracking == null)
+                {
+                    LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
                     return 0;
+                }
+                else
+                {
+                    if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
+                        return 0;
+                }
+                var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
+                return (int)response;
             }
-            var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
-            return (int)response;
+
         }
 
         /// <summary>
