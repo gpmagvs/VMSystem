@@ -10,11 +10,6 @@ namespace VMSystem.AGV.TaskDispatch
     public interface IAGVTaskDispather
     {
         List<clsTaskDto> taskList { get; set; }
-        /// <summary>
-        /// 尚未完成的任務列表
-        /// </summary>
-        List<clsTaskDto> incompletedTaskList => taskList.FindAll(t => t.State != TASK_RUN_STATUS.ACTION_FINISH);
-
         clsMapPoint[] CurrentTrajectory { get; set; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
         void CancelTask();

@@ -1,8 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using VMSystem.AGV;
 using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
 using static AGVSystemCommonNet6.clsEnums;
-using VMSystem.AGV;
 
 namespace VMSystem.VMS
 {
@@ -13,6 +13,7 @@ namespace VMSystem.VMS
         private static void TcpServer_OnClientConnected(object? sender, clsAGVSTcpClientHandler clientState)
         {
             clientState.OnClientOnlineModeQuery += ClientState_OnTCPClientOnlineModeQuery;
+            clientState.OnClientOnlineRequesting += ClientState_OnClientOnlineRequesting;
             clientState.OnClientRunningStatusReport += ClientState_OnTCPClientRunningStatusReport;
             clientState.OnClientTaskFeedback += ClientState_OnClientTaskFeedback;
         }
@@ -39,11 +40,38 @@ namespace VMSystem.VMS
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
                     agv.connected = true;
+                    client.SendJsonReply(AGVSMessageFactory.createOnlineModeAckData(e, agv.online_mode_req == ONLINE_STATE.ONLINE ? REMOTE_MODE.ONLINE : REMOTE_MODE.OFFLINE));
                 }
-                client.SendJsonReply(AGVSMessageFactory.createOnlineModeAckData(e, REMOTE_MODE.OFFLINE));
             });
         }
 
+        /// <summary>
+        /// AGV要求上下線
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="request_message"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private static void ClientState_OnClientOnlineRequesting(object? sender, clsOnlineModeRequestMessage request_message)
+        {
+            Task.Factory.StartNew(() =>
+            {
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
+                if (TryGetAGV(request_message.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
+                {
+                    var remote_req = request_message.Header.Values.First().ModeRequest;
+                    if (remote_req == REMOTE_MODE.ONLINE)
+                        agv.AGVOnlineFromAGV(out string msg); 
+                    else
+                        agv.AGVOfflineFromAGV(out string msg);
+
+                    client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(request_message, "0104", RETURN_CODE.OK));
+                }
+                else
+                {
+                    client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(request_message, "0104", RETURN_CODE.NG));
+                }
+            });
+        }
         private static void ClientState_OnClientTaskFeedback(object? sender, clsTaskFeedbackMessage e)
         {
             Task.Factory.StartNew(() =>

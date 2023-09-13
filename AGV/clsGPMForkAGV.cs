@@ -14,6 +14,7 @@ using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.TASK;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using RosSharp.RosBridgeClient;
 using System.Diagnostics;
 using System.Linq;
 using System.Security.Claims;
@@ -88,11 +89,13 @@ namespace VMSystem.AGV
                     bool reconnected = !_connected && value;
                     _connected = value;
                     if (reconnected)
-                        Offline(out string message);
+                        AGVOfflineFromAGV(out string message);
                 }
             }
         }
 
+
+        public ONLINE_STATE online_mode_req { get; set; } = ONLINE_STATE.OFFLINE;
 
         public clsEnums.ONLINE_STATE _online_state;
         public clsEnums.ONLINE_STATE online_state
@@ -219,7 +222,6 @@ namespace VMSystem.AGV
         }
 
         public HttpHelper AGVHttp { get; set; }
-
         private void AliveCheck()
         {
             Task.Run(async () =>
@@ -362,31 +364,75 @@ namespace VMSystem.AGV
             return state_code == 1 ? clsEnums.ONLINE_STATE.ONLINE : clsEnums.ONLINE_STATE.OFFLINE;
         }
 
-        public bool Offline(out string message)
+        public bool AGVOnlineFromAGVS(out string message)
         {
             message = string.Empty;
-            if (!connected)
+            if (!CheckAGVStateToOnline(out message))
             {
-                message = AddNewAlarm(ALARMS.GET_OFFLINE_REQ_BUT_AGV_DISCONNECT, ALARM_SOURCE.AGVS);
+                online_mode_req = ONLINE_STATE.OFFLINE;
                 return false;
             }
-            if (simulationMode)
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
-                online_state = clsEnums.ONLINE_STATE.OFFLINE;
-                taskDispatchModule.CancelTask();
+                var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
+                if (!resDto.Success)
+                {
+                    AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
+                }
+                message = resDto.Message;
+                return resDto.Success;
+            }
+            else
+            {
+                online_mode_req = ONLINE_STATE.ONLINE;
+                return true;
+            }
+        }
+
+        public bool AGVOfflineFromAGVS(out string message)
+        {
+            message = string.Empty;
+
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
+            {
+                var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
+                if (!resDto.Success)
+                {
+                    AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
+                }
+                message = resDto.Message;
+                return resDto.Success;
+            }
+            else
+            {
+                online_mode_req = ONLINE_STATE.OFFLINE;
+                return true;
+            }
+        }
+        public bool AGVOfflineFromAGV(out string message)
+        {
+            message = string.Empty;
+            online_mode_req = online_state =  clsEnums.ONLINE_STATE.OFFLINE;
+            return true;
+        }
+
+        public bool AGVOnlineFromAGV(out string message)
+        {
+            message = string.Empty;
+            if (!CheckAGVStateToOnline(out message))
+            {
+                online_mode_req = online_state = ONLINE_STATE.OFFLINE;
+                return false;
+            }
+            else
+            {
+                online_mode_req = online_state =  ONLINE_STATE.ONLINE;
                 return true;
             }
 
-            //taskDispatchModule.CancelTask();
 
-            var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
-            online_state = clsEnums.ONLINE_STATE.OFFLINE;
-
-            message = resDto.Message;
-            return resDto.Success;
         }
-
-        public bool Online(out string message)
+        private bool CheckAGVStateToOnline(out string message)
         {
             message = string.Empty;
             if (!connected)
@@ -415,19 +461,8 @@ namespace VMSystem.AGV
                 message = $"AGV當前狀態禁止上線({main_state})";
                 return false;
             }
-
-            var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
-            if (!resDto.Success)
-            {
-                AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
-            }
-            else
-                online_state = clsEnums.ONLINE_STATE.ONLINE;
-
-            message = resDto.Message;
-            return resDto.Success;
+            return true;
         }
-
         public string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING)
         {
             AGVSystemCommonNet6.Alarm.clsAlarmCode alarm = AlarmManagerCenter.GetAlarmCode(alarm_enum);

@@ -44,7 +44,20 @@ namespace VMSystem.AGV
 
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
-        public AGV_ORDERABLE_STATUS OrderExecuteState => GetAGVReceiveOrderStatus();
+
+        private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.NO_ORDER;
+        public AGV_ORDERABLE_STATUS OrderExecuteState
+        {
+            get => previous_OrderExecuteState;
+            set
+            {
+                if (previous_OrderExecuteState != value)
+                {
+                    previous_OrderExecuteState = value;
+                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}");
+                }
+            }
+        }
 
         public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
 
@@ -74,6 +87,10 @@ namespace VMSystem.AGV
 
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
+            using (var database = new AGVSDatabase())
+            {
+                taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+            }
             if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                 return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
             if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != clsEnums.MAIN_STATUS.Charging)
@@ -91,27 +108,24 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    await Task.Delay(100);
-                    using (var database = new AGVSDatabase())
-                    {
-                        taskList = database.tables.Tasks.AsNoTracking().Where(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                    }
+                    await Task.Delay(10);
+
                     try
                     {
-                        if (OrderExecuteState != AGV_ORDERABLE_STATUS.EXECUTABLE)
-                            continue;
-
-
-                        var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
-                        var _ExecutingTask = taskOrderedByPriority.First();
-
-                        if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
+                        OrderExecuteState = GetAGVReceiveOrderStatus();
+                        if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
-                            AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
-                            continue;
+                            var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
+                            var _ExecutingTask = taskOrderedByPriority.First();
+
+                            if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
+                            {
+                                AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
+                                continue;
+                            }
+                            await Task.Delay(1000);
+                            await ExecuteTaskAsync(_ExecutingTask);
                         }
-                        await Task.Delay(1000);
-                        await ExecuteTaskAsync(_ExecutingTask);
                     }
                     catch (NoPathForNavigatorException ex)
                     {

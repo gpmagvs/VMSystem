@@ -21,14 +21,19 @@ namespace VMSystem.AGV
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }
+
+        ONLINE_STATE online_mode_req { get; set; }
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; }
         clsRunningStatus states { get; set; }
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapPoint currentMapPoint { get; }
-        bool Online(out string message);
-        bool Offline(out string message);
+        bool AGVOnlineFromAGV(out string message);
+        bool AGVOfflineFromAGV(out string message);
+
+        bool AGVOnlineFromAGVS(out string message);
+        bool AGVOfflineFromAGVS(out string message);
 
         /// <summary>
         /// 
