@@ -103,11 +103,8 @@ namespace VMSystem.AGV
                     {
                         if (OrderExecuteState != AGV_ORDERABLE_STATUS.EXECUTABLE)
                             continue;
-
-
                         var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
                         var _ExecutingTask = taskOrderedByPriority.First();
-
                         if (!BeforeDispatchTaskWorkCheck(_ExecutingTask, out ALARMS alarm_code))
                         {
                             AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
@@ -137,6 +134,7 @@ namespace VMSystem.AGV
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
             TaskStatusTracker.Start(agv, executingTask);
+            executingTask.StartTime = DateTime.Now;
         }
 
 
