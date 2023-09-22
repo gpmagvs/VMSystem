@@ -98,7 +98,11 @@ namespace VMSystem.VMS
                 {
                     var yuntech_fork_agvList = item.Value.AGV_List.Select(kp => new clsYunTechAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new YunTechAgvVMS(yuntech_fork_agvList);
-
+                }
+                else if (vms_type == VMS_GROUP.GPM_INSPECTION_AGV)
+                {
+                    var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
+                    VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
                 VMSList.Add(item.Key, VMSTeam);
             }

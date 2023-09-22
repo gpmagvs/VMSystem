@@ -78,10 +78,13 @@ namespace VMSystem.AGV
             this.agv = agv;
             TaskAssignWorker();
             AgvSimulation = new clsAGVSimulation(this);
-            TaskStatusTracker = new clsAGVTaskTrack()
-            {
-                AGV = agv
-            };
+
+            if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
+                TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
+            else
+                TaskStatusTracker = new clsAGVTaskTrack();
+
+            TaskStatusTracker.AGV = agv;
         }
 
 

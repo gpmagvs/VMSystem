@@ -62,7 +62,6 @@ namespace VMSystem.AGV.TaskDispatch
         }
 
         private int finishSubTaskNum = 0;
-
         private ACTION_TYPE previousCompleteAction = ACTION_TYPE.Unknown;
         private ACTION_TYPE carryTaskCompleteAction = ACTION_TYPE.Unknown;
         public ACTION_TYPE currentActionType { get; private set; } = ACTION_TYPE.Unknown;
@@ -132,6 +131,7 @@ namespace VMSystem.AGV.TaskDispatch
                     waitingInfo.IsWaiting = false;
                     SubTasks = CreateSubTaskLinks(TaskOrder);
                     CompletedSubTasks = new Stack<clsSubTask>();
+
                     StartExecuteOrder();
                     StartRecordTrjectory();
                     LOG.INFO($"{AGV.Name}- {TaskOrder.Action} 訂單開始,動作:{string.Join("->", TrackingActions)}");
@@ -146,8 +146,19 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void StartExecuteOrder()
         {
+            UpdateTaskStartTime();
             taskSequence = 0;
             DownloadTaskToAGV();
+        }
+
+        private void UpdateTaskStartTime()
+        {
+            using (var agvs = new AGVSDatabase())
+            {
+                var _task = agvs.tables.Tasks.FirstOrDefault(tk => tk.TaskName == this.TaskOrder.TaskName);
+                _task.StartTime = DateTime.Now;
+                agvs.tables.SaveChanges();
+            }
         }
 
         private async void DownloadTaskToAGV()
@@ -189,7 +200,7 @@ namespace VMSystem.AGV.TaskDispatch
         /// 生成任務鏈
         /// </summary>
         /// <returns></returns>
-        private Queue<clsSubTask> CreateSubTaskLinks(clsTaskDto taskOrder)
+        protected virtual Queue<clsSubTask> CreateSubTaskLinks(clsTaskDto taskOrder)
         {
             bool isCarry = taskOrder.Action == ACTION_TYPE.Carry;
             Queue<clsSubTask> task_links = new Queue<clsSubTask>();

@@ -138,9 +138,6 @@ namespace VMSystem.AGV
                 {
                     if (previousMapPoint != null)
                     {
-
-                        //
-
                         StaMap.UnRegistPoint(Name, previousMapPoint, out string UnRegisterrmsg);
                     }
 
