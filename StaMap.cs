@@ -65,6 +65,13 @@ namespace VMSystem
             return point;
         }
 
+        internal static MapPoint GetPointByName(string name)
+        {
+            var point = Map.Points.FirstOrDefault(pt => pt.Value.Name == name);
+            if (point.Value != null)
+                return point.Value;
+            return null;
+        }
         internal static MapPoint GetPointByIndex(int index)
         {
             var point = Map.Points.FirstOrDefault(pt => pt.Key == index);
@@ -132,5 +139,6 @@ namespace VMSystem
         {
             return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
+
     }
 }

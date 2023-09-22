@@ -41,11 +41,14 @@ namespace VMSystem.AGV.TaskDispatch
                         Destination = InPointOfBay,
                     };
                     task_links.Enqueue(move_task);
+                    string lastMesPtName = bay.Points.Last();
+                    MapPoint  LastMeasurePoint = StaMap.GetPointByName(lastMesPtName);
+
                     clsSubTask measure_task = new clsSubTask()
                     {
                         Action = ACTION_TYPE.Measure,
                         Source = InPointOfBay,
-                        Destination = StaMap.GetPointByTagNumber(int.Parse(bay.Points.Last()))
+                        Destination = LastMeasurePoint
                     };
                     task_links.Enqueue(measure_task);
                 }
@@ -68,9 +71,9 @@ namespace VMSystem.AGV.TaskDispatch
                 task_links.Enqueue(move_task);
                 clsSubTask exchange_task = new clsSubTask()
                 {
-                    Action = ACTION_TYPE.Measure,
+                    Action = ACTION_TYPE.ExchangeBattery,
                     Source = InPointOfExanger,
-                    Destination = InPointOfExanger
+                    Destination = exchangerPoint
                 };
                 task_links.Enqueue(exchange_task);
             }

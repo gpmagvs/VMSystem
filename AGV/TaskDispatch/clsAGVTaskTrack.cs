@@ -441,6 +441,8 @@ namespace VMSystem.AGV.TaskDispatch
         {
             try
             {
+                if (SubTaskTracking == null)
+                    return new SimpleRequestResponse { ReturnCode = RETURN_CODE.OK };
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
                 {
                     ResetMode = mode,

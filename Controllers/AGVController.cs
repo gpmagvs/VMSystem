@@ -59,11 +59,15 @@ namespace VMSystem.Controllers
             ALARMS aramCode = ALARMS.NONE;
             if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
             {
+                if(agv.model == AGV_MODEL.INSPECTION_AGV)
+                {
+                    tag = agv.states.Last_Visited_Node;
+                }
                 bool isOnlineTagExist = StaMap.TryGetPointByTagNumber(tag, out var point);
                 if (isOnlineTagExist)
                 {
                     double agvLocOffset = point.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y);
-                    if (agvLocOffset > 0.20) //0.2m
+                    if (agvLocOffset > 1.50) //0.2m
                     {
                         aramCode = ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_TOO_FAR_FROM_POINT;
                         errMsg = "AGV上線之位置與圖資差距過大";

@@ -208,7 +208,7 @@ namespace VMSystem.VMS
         {
             if (AllAGV.Count == 0)
                 return new List<IAGV>();
-            return AllAGV.FindAll(agv => agv.Name == agv_name && agv.model == model);
+            return AllAGV.FindAll(agv => agv.Name == agv_name );
         }
 
         internal static List<VMSViewModel> GetVMSViewData()
