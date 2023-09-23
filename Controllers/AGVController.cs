@@ -8,6 +8,8 @@ using Newtonsoft.Json;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.Controllers
 {
@@ -52,6 +54,39 @@ namespace VMSystem.Controllers
             }
         }
 
+        [HttpPost("ReportMeasure")]
+        public async Task<IActionResult> ReportMeasure(string AGVName, AGV_MODEL Model, [FromBody] clsMeasureResult measureResult)
+        {
+            if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
+            {
+                string BayName = StaMap.GetBayNameByMesLocation(measureResult.location);
+                measureResult.AGVName = AGVName;
+                measureResult.BayName = BayName;
+                LOG.INFO($"AGV-{AGVName} Report Measure Data: {measureResult.ToJson()}");
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        using (var database = new AGVSDatabase())
+                        {
+                            database.tables.InstrumentMeasureResult.Add(measureResult);
+                            database.SaveChanges();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LOG.ERROR(ex.Message, ex);
+                        AlarmManagerCenter.AddAlarm(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                    }
+
+                });
+                return Ok(new { ReturnCode = 0, Message = "" });
+            }
+            else
+            {
+                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+            }
+        }
         [HttpPost("OnlineReq")]
         public async Task<IActionResult> OnlineRequest(string AGVName, int tag)
         {
@@ -59,7 +94,7 @@ namespace VMSystem.Controllers
             ALARMS aramCode = ALARMS.NONE;
             if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
             {
-                if(agv.model == AGV_MODEL.INSPECTION_AGV)
+                if (agv.model == AGV_MODEL.INSPECTION_AGV)
                 {
                     tag = agv.states.Last_Visited_Node;
                 }

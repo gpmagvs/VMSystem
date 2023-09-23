@@ -16,9 +16,10 @@ namespace VMSystem.AGV.TaskDispatch
         {
             Queue<clsSubTask> task_links = new Queue<clsSubTask>();
             var agvPoint = StaMap.GetPointByTagNumber(AGV.currentMapPoint.TagNumber);
+
             if (taskOrder.Action == ACTION_TYPE.None)
             {
-                var destinPoint= StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));
+                var destinPoint = StaMap.GetPointByTagNumber(int.Parse(taskOrder.To_Station));
                 clsSubTask move_task = new clsSubTask()
                 {
                     Action = ACTION_TYPE.None,
@@ -42,7 +43,7 @@ namespace VMSystem.AGV.TaskDispatch
                     };
                     task_links.Enqueue(move_task);
                     string lastMesPtName = bay.Points.Last();
-                    MapPoint  LastMeasurePoint = StaMap.GetPointByName(lastMesPtName);
+                    MapPoint LastMeasurePoint = StaMap.GetPointByName(lastMesPtName);
 
                     clsSubTask measure_task = new clsSubTask()
                     {

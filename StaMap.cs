@@ -45,7 +45,14 @@ namespace VMSystem
             var avoidStations = Map.Points.Values.ToList().FindAll(sta => sta.IsAvoid);
             return avoidStations;
         }
-
+        internal static string GetBayNameByMesLocation(string location)
+        {
+            var Bay = Map.Bays.FirstOrDefault(bay => bay.Value.Points.Contains(location));
+            if (Bay.Key != null)
+                return Bay.Key;
+            else
+                return "Unknown_Bay";
+        }
         internal static bool TryGetPointByTagNumber(int tagNumber, out MapPoint point)
         {
             point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tagNumber);
@@ -139,6 +146,7 @@ namespace VMSystem
         {
             return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
+
 
     }
 }
