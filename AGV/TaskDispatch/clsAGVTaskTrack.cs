@@ -146,19 +146,21 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void StartExecuteOrder()
         {
-            UpdateTaskStartTime();
+            UpdateTaskStartPointAndTime();
             taskSequence = 0;
             DownloadTaskToAGV();
         }
 
-        private void UpdateTaskStartTime()
+        private void UpdateTaskStartPointAndTime()
         {
             using (var agvs = new AGVSDatabase())
             {
-                var _task = agvs.tables.Tasks.FirstOrDefault(tk => tk.TaskName == this.TaskOrder.TaskName);
-                _task.StartTime = DateTime.Now;
+                TaskOrder.StartTime = DateTime.Now;
+                TaskOrder.From_Station = AGV.currentMapPoint.Name;
+                agvs.tables.Tasks.Update(TaskOrder);
                 agvs.tables.SaveChanges();
             }
+         
         }
 
         private async void DownloadTaskToAGV()

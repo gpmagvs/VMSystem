@@ -65,20 +65,19 @@ namespace VMSystem.Controllers
                 LOG.INFO($"AGV-{AGVName} Report Measure Data: {measureResult.ToJson()}");
                 _ = Task.Run(() =>
                 {
-                    try
+                    using (var database = new AGVSDatabase())
                     {
-                        using (var database = new AGVSDatabase())
+                        try
                         {
                             database.tables.InstrumentMeasureResult.Add(measureResult);
                             database.SaveChanges();
                         }
+                        catch (Exception ex)
+                        {
+                            LOG.ERROR(ex.Message, ex);
+                            AlarmManagerCenter.AddAlarm(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        LOG.ERROR(ex.Message, ex);
-                        AlarmManagerCenter.AddAlarm(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
-                    }
-
                 });
                 return Ok(new { ReturnCode = 0, Message = "" });
             }

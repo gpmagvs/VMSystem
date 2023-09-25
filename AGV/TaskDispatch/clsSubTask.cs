@@ -41,7 +41,6 @@ namespace VMSystem.AGV.TaskDispatch
                 DownloadData.Trajectory = TrajectoryToExecute;
             else
             {
-
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
         }
