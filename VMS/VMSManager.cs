@@ -132,7 +132,8 @@ namespace VMSystem.VMS
                                 {
                                     AGV_Name = agv.Name,
                                     Enabled = agv.options.Enabled,
-                                    BatteryLevel = agv.states.Electric_Volume.Length == 0 ? 0 : agv.states.Electric_Volume[0],
+                                    BatteryLevel_1 = agv.states.Electric_Volume[0],
+                                    BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
                                     OnlineStatus = agv.online_state,
                                     MainStatus = agv.states.AGV_Status,
                                     CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
@@ -208,7 +209,7 @@ namespace VMSystem.VMS
         {
             if (AllAGV.Count == 0)
                 return new List<IAGV>();
-            return AllAGV.FindAll(agv => agv.Name == agv_name );
+            return AllAGV.FindAll(agv => agv.Name == agv_name);
         }
 
         internal static List<VMSViewModel> GetVMSViewData()

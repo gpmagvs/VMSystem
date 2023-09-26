@@ -15,7 +15,7 @@ namespace VMSystem.AGV
     public class clsAGVSimulation
     {
         private IAGV agv => dispatcherModule.agv;
-        private double batteryLevelSim = 100.0;
+        private double[] batteryLevelSim = new double[] { 100.0, 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
         private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
         private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
@@ -32,7 +32,7 @@ namespace VMSystem.AGV
                     var agv_data = agvStates.FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
                     if (agv_data != null)
                     {
-                        batteryLevelSim = agv_data.BatteryLevel;
+                        batteryLevelSim = new double[] { agv_data.BatteryLevel_1, agv_data.BatteryLevel_2 };
                         agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
                     }
                 }
@@ -259,13 +259,13 @@ namespace VMSystem.AGV
                 {
                     if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
                     {
-                        if (batteryLevelSim >= 100)
+                        if (batteryLevelSim[1] >= 100)
                         {
-                            batteryLevelSim = 100;
+                            batteryLevelSim[1] = 100;
                         }
                         else
                         {
-                            batteryLevelSim += 5; //充電模擬
+                            batteryLevelSim[1] += 5; //充電模擬
                         }
 
                     }
@@ -274,16 +274,16 @@ namespace VMSystem.AGV
                         //模擬電量衰減
                         if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                         {
-                            batteryLevelSim -= 0.005;
+                            batteryLevelSim[1] -= 0.005;
                         }
                         else
                         {
-                            batteryLevelSim -= 0.01;//跑貨耗電比較快
+                            batteryLevelSim[1] -= 0.01;//跑貨耗電比較快
                         }
-                        if (batteryLevelSim <= 0)
-                            batteryLevelSim = 1;
+                        if (batteryLevelSim[1] <= 0)
+                            batteryLevelSim[1] = 1;
                     }
-                    agv.states.Electric_Volume = new double[2] { batteryLevelSim, batteryLevelSim };
+                    agv.states.Electric_Volume = batteryLevelSim;
                     _ = Task.Factory.StartNew(async () =>
                     {
                         await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);
