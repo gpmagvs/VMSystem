@@ -160,7 +160,7 @@ namespace VMSystem.AGV.TaskDispatch
                 agvs.tables.Tasks.Update(TaskOrder);
                 agvs.tables.SaveChanges();
             }
-         
+
         }
 
         private async void DownloadTaskToAGV()
@@ -258,6 +258,8 @@ namespace VMSystem.AGV.TaskDispatch
                     Destination = work_destine,
                     Action = taskOrder.Action == ACTION_TYPE.Carry ? ACTION_TYPE.Unload : taskOrder.Action,
                     DestineStopAngle = work_destine.Direction,
+                    CarrierID = taskOrder.Carrier_ID
+
                 };
 
                 task_links.Enqueue(subTask_working_station);
@@ -283,6 +285,7 @@ namespace VMSystem.AGV.TaskDispatch
                         Source = secondary_of_destine_workstation,
                         Destination = workstation_point,
                         DestineStopAngle = workstation_point.Direction,
+                        CarrierID = taskOrder.Carrier_ID
                     };
                     task_links.Enqueue(subTask_load);
                 }

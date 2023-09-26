@@ -19,6 +19,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         public clsTaskDownloadData DownloadData { get; private set; }
         public string ExecuteOrderAGVName { get; private set; }
+        public string CarrierID { get; set; } = "";
 
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
         internal void CreateTaskToAGV(clsTaskDto order, int sequence)
@@ -34,6 +35,7 @@ namespace VMSystem.AGV.TaskDispatch
                 Task_Sequence = sequence,
                 Task_Name = order.TaskName,
                 Station_Type = Destination.StationType,
+                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } }
 
             };
             TrajectoryToExecute.Last().Theta = DestineStopAngle;
