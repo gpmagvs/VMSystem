@@ -376,7 +376,10 @@ namespace VMSystem.AGV
                 {
                     AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
                 }
+                else
+                    online_state = ONLINE_STATE.ONLINE;
                 message = resDto.Message;
+
                 return resDto.Success;
             }
             else
@@ -397,6 +400,8 @@ namespace VMSystem.AGV
                 {
                     AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
                 }
+                else
+                    online_state = ONLINE_STATE.OFFLINE;
                 message = resDto.Message;
                 return resDto.Success;
             }
@@ -409,7 +414,7 @@ namespace VMSystem.AGV
         public bool AGVOfflineFromAGV(out string message)
         {
             message = string.Empty;
-            online_mode_req = online_state =  clsEnums.ONLINE_STATE.OFFLINE;
+            online_mode_req = online_state = clsEnums.ONLINE_STATE.OFFLINE;
             return true;
         }
 
@@ -423,7 +428,7 @@ namespace VMSystem.AGV
             }
             else
             {
-                online_mode_req = online_state =  ONLINE_STATE.ONLINE;
+                online_mode_req = online_state = ONLINE_STATE.ONLINE;
                 return true;
             }
 
