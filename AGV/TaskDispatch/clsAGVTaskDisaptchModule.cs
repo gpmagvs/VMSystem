@@ -151,12 +151,15 @@ namespace VMSystem.AGV
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            if (executingTask.Action == ACTION_TYPE.Measure && agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV)
-            {
+            if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
-            }
             else
-                TaskStatusTracker = new clsAGVTaskTrack() { AGV = agv };
+            {
+                if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
+                    TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
+                else
+                    TaskStatusTracker = new clsAGVTaskTrack() { AGV = agv };
+            }
 
             await TaskStatusTracker.Start(agv, executingTask);
         }
