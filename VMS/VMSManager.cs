@@ -142,7 +142,7 @@ namespace VMSystem.VMS
                                     Connected = agv.connected,
                                     Group = agv.VMSGroup,
                                     Model = agv.model,
-                                    TaskName = agv.taskDispatchModule.TaskStatusTracker.OrderTaskName,
+                                    TaskName = agv.main_state== MAIN_STATUS.RUN? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName:"",
                                     TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
                                     TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
                                     CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
