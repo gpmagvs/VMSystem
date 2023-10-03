@@ -30,7 +30,10 @@ namespace VMSystem.Controllers
             }
             else
             {
+                if (status.AGV_Reset_Flag != agv.states.AGV_Reset_Flag)
+                {
 
+                }
                 agv.states = status;
                 return Ok(new
                 {
@@ -170,6 +173,33 @@ namespace VMSystem.Controllers
                 return Ok(response);
             }
         }
+
+
+
+
+
+        //api/VmsManager/OnlineMode
+        [HttpGet("CarrierVirtualID")]
+        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_MODEL Model = AGV_MODEL.UNKNOWN)
+        {
+            LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
+            if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
+            {
+                var virtual_id = $"UN{DateTime.Now.ToString("yyMMddHHmmssfff")}";
+                LOG.TRACE($"{AGVName} Query Carrier Virtual ID.={virtual_id}");
+                return Ok(new clsCarrierVirtualIDResponseWebAPI
+                {
+                    TimeStamp = DateTime.Now,
+                    VirtualID = virtual_id
+                });
+            }
+            else
+            {
+                throw new Exception();
+            }
+        }
+
+
 
     }
 }
