@@ -6,6 +6,7 @@ using System.IO.Compression;
 using AGVSystemCommonNet6.Configuration;
 using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
+using System;
 
 namespace VMSystem
 {
@@ -92,7 +93,16 @@ namespace VMSystem
             int index = Map.Points.FirstOrDefault(k => k.Value.TagNumber == mapPoint.TagNumber).Key;
             return index;
         }
-
+        internal static bool RegistPoint(string Name, IEnumerable<MapPoint> mapPoints, out string error_message)
+        {
+            error_message = string.Empty;
+            foreach (var item in mapPoints)
+            {
+                if (!RegistPoint(Name, item, out error_message))
+                    return false;
+            }
+            return true;
+        }
         internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message)
         {
             error_message = string.Empty; ;
@@ -146,7 +156,39 @@ namespace VMSystem
         {
             return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
+        /// <summary>
+        /// 取得除指令AGV名稱以外的所有註冊點位
+        /// </summary>
+        /// <param name="expect_agv_name"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        internal static List<MapPoint> GetRegistedPoint(string expect_agv_name)
+        {
+            return Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.IsRegisted && pt.RegistInfo.RegisterAGVName != expect_agv_name).ToList();
+        }
 
+        internal static List<MapPoint> GetRegistedPointsOfPath(List<MapPoint> path_to_nav, string navigating_agv_name)
+        {
+            //若路徑上有點位被註冊=>移動至被註冊點之前一點
+            List<MapPoint> registedPoints = StaMap.GetRegistedPoint(navigating_agv_name);
+            
+            IEnumerable<MapPoint> commonItems = registedPoints.Intersect(path_to_nav, new MapPointComparer());
+            return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToList();
+        }
 
+        public class MapPointComparer : IEqualityComparer<MapPoint>
+        {
+            public bool Equals(MapPoint x, MapPoint y)
+            {
+                if (x == null || y == null)
+                    return false;
+
+                return x.TagNumber == y.TagNumber;
+            }
+
+            public int GetHashCode(MapPoint obj)
+            {
+                return obj.TagNumber.GetHashCode();
+            }
+        }
     }
 }
