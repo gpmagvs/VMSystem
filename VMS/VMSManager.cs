@@ -108,7 +108,10 @@ namespace VMSystem.VMS
             }
             SaveVMSVehicleGroupSetting();
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-            TcpServer.Connect();
+            if (TcpServer.Connect())
+            {
+                LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.Port})");
+            }
 
             AGVStatesStoreWorker();
 
@@ -142,7 +145,7 @@ namespace VMSystem.VMS
                                     Connected = agv.connected,
                                     Group = agv.VMSGroup,
                                     Model = agv.model,
-                                    TaskName = agv.main_state== MAIN_STATUS.RUN? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName:"",
+                                    TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName : "",
                                     TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
                                     TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
                                     CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
