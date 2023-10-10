@@ -342,10 +342,16 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                     else if (orderStatus.Status == ORDER_STATUS.EXECUTING_WAITING)
                     {
-                        waitingInfo.IsWaiting = true;
-                        waitingInfo.WaitingPoint = SubTaskTracking.GetNextPointToGo(AGV.currentMapPoint);
-                        WaitingRegistReleaseAndGo();
-                        break;
+                        try
+                        {
+                            waitingInfo.IsWaiting = true;
+                            waitingInfo.WaitingPoint = SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation);
+                            WaitingRegistReleaseAndGo();
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                        }
                     }
                     else
                     {
@@ -404,6 +410,8 @@ namespace VMSystem.AGV.TaskDispatch
         {
             public ORDER_STATUS Status = ORDER_STATUS.NO_ORDER;
             public string FailureReason = "";
+
+            public MapPoint AGVLocation { get; internal set; }
         }
         /// <summary>
         /// 判斷AGV是否順利完成訂單
@@ -432,11 +440,13 @@ namespace VMSystem.AGV.TaskDispatch
 
             if (SubTaskTracking.Action == ACTION_TYPE.None) //處理移動任務的回報
             {
-                if (SubTaskTracking.Destination.TagNumber != AGV.currentMapPoint.TagNumber)
+                var agv_currentMapPoint = SubTaskTracking.EntirePathPlan[feedbackData.PointIndex];
+                if (SubTaskTracking.Destination.TagNumber != agv_currentMapPoint.TagNumber)
                 {
                     return new clsOrderStatus
                     {
-                        Status = ORDER_STATUS.EXECUTING_WAITING
+                        Status = ORDER_STATUS.EXECUTING_WAITING,
+                        AGVLocation = agv_currentMapPoint
                     };
                 }
             }

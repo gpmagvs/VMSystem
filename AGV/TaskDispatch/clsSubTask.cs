@@ -80,7 +80,14 @@ namespace VMSystem.AGV.TaskDispatch
 
         internal MapPoint GetNextPointToGo(MapPoint currentMapPoint)
         {
-            return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.TagNumber && !pt.IsVirtualPoint && EntirePathPlan.IndexOf(pt) > EntirePathPlan.IndexOf(currentMapPoint));
+            try
+            {
+                return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.TagNumber && !pt.IsVirtualPoint && EntirePathPlan.IndexOf(pt) > EntirePathPlan.IndexOf(currentMapPoint));
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
     }
 }

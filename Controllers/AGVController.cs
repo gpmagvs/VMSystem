@@ -128,7 +128,10 @@ namespace VMSystem.Controllers
                 errMsg = $"{AGVName} Not Registed In ASGVSystem";
             }
             if (aramCode != ALARMS.NONE)
+            {
+                agv.AGVOfflineFromAGVS(out string msg);
                 AlarmManagerCenter.AddAlarm(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+            }
             return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }
 

@@ -22,6 +22,6 @@ namespace VMSystem.AGV.TaskDispatch
     public class clsWaitingInfo
     {
         public bool IsWaiting { get; set; } = false;
-        public MapPoint WaitingPoint { get; internal set; }
+        public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
     }
 }
