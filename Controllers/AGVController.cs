@@ -30,7 +30,10 @@ namespace VMSystem.Controllers
             }
             else
             {
+                if (status.AGV_Reset_Flag != agv.states.AGV_Reset_Flag)
+                {
 
+                }
                 agv.states = status;
                 return Ok(new
                 {
@@ -125,7 +128,10 @@ namespace VMSystem.Controllers
                 errMsg = $"{AGVName} Not Registed In ASGVSystem";
             }
             if (aramCode != ALARMS.NONE)
+            {
+                agv.AGVOfflineFromAGVS(out string msg);
                 AlarmManagerCenter.AddAlarm(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+            }
             return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }
 
@@ -170,6 +176,33 @@ namespace VMSystem.Controllers
                 return Ok(response);
             }
         }
+
+
+
+
+
+        //api/VmsManager/OnlineMode
+        [HttpGet("CarrierVirtualID")]
+        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_MODEL Model = AGV_MODEL.UNKNOWN)
+        {
+            LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
+            if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
+            {
+                var virtual_id = $"UN{DateTime.Now.ToString("yyMMddHHmmssfff")}";
+                LOG.TRACE($"{AGVName} Query Carrier Virtual ID.={virtual_id}");
+                return Ok(new clsCarrierVirtualIDResponseWebAPI
+                {
+                    TimeStamp = DateTime.Now,
+                    VirtualID = virtual_id
+                });
+            }
+            else
+            {
+                throw new Exception();
+            }
+        }
+
+
 
     }
 }
