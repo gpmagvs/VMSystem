@@ -27,6 +27,12 @@ namespace VMSystem.AGV.TaskDispatch
             ExecuteOrderAGVName = order.DesignatedAGVName;
             PathFinder pathFinder = new PathFinder();
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map.Points, Source, Destination);
+            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
+            {
+                var RegistPathToParts = optimiedPath.stations.Where(eachpoint => string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
+                bool IsRegistSuccess = TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
+                //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
+            }
             var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
             DownloadData = new clsTaskDownloadData
             {
