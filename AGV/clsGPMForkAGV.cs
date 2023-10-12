@@ -518,17 +518,25 @@ namespace VMSystem.AGV
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_TO_NOT_EQ_STATION);
                 }
+
+                LOG.INFO($"[{Name}]-Check cargo status  before dispatch Load Task= {states.Cargo_Status}");
                 if (states.Cargo_Status == 0)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_WHEN_AGV_NO_CARGO);
                 }
+               
             }
             if (action == ACTION_TYPE.Unload)
             {
+                LOG.INFO($"[{Name}]-Check cargo status before dispatch Unload Task= {states.Cargo_Status}");
                 if (!DestinePoint.IsEquipment)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_TO_NOT_EQ_STATION);
 
+                }
+                if (states.Cargo_Status == 1)
+                {
+                    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
                 }
                 //if (states.Cargo_Status == 1)
                 //{

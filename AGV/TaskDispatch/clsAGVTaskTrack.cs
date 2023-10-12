@@ -157,7 +157,8 @@ namespace VMSystem.AGV.TaskDispatch
             using (var agvs = new AGVSDatabase())
             {
                 TaskOrder.StartTime = DateTime.Now;
-                TaskOrder.From_Station = AGV.currentMapPoint.Name;
+                if (TaskOrder.Action != ACTION_TYPE.Carry)
+                    TaskOrder.From_Station = AGV.currentMapPoint.Name;
                 agvs.tables.Tasks.Update(TaskOrder);
                 agvs.tables.SaveChanges();
             }
@@ -171,6 +172,7 @@ namespace VMSystem.AGV.TaskDispatch
                 AlarmManagerCenter.AddAlarm(ALARMS.SubTask_Queue_Empty_But_Try_DownloadTask_To_AGV);
                 return;
             }
+
 
             var agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
 
@@ -544,7 +546,7 @@ namespace VMSystem.AGV.TaskDispatch
                 if (IsAGVAlreadyAtFinalPointOfTrajectory)
                     return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
 
-                AGV.CheckAGVStatesBeforeDispatchTask(nextActionType, _task.Destination);
+                AGV.CheckAGVStatesBeforeDispatchTask(_task.Action, _task.Destination);
                 TaskDownloadRequestResponse taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
 
                 return taskStateResponse;
