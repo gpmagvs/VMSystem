@@ -18,6 +18,7 @@ using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.PathFinder;
+using static VMSystem.AGV.TaskDispatch.clsAGVTaskTrack;
 
 namespace VMSystem.AGV.TaskDispatch
 {
@@ -173,7 +174,6 @@ namespace VMSystem.AGV.TaskDispatch
                 return;
             }
 
-
             var agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
 
             if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK && agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
@@ -191,7 +191,6 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
             SubTaskTracking = _task;
-
 
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
@@ -348,6 +347,7 @@ namespace VMSystem.AGV.TaskDispatch
                         {
                             waitingInfo.IsWaiting = true;
                             waitingInfo.WaitingPoint = SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation);
+                            waitingInfo.Descrption = $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行";
                             WaitingRegistReleaseAndGo();
                             break;
                         }
@@ -529,19 +529,37 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        public TaskDownloadRequestResponse PostTaskRequestToAGVAsync(out clsSubTask _task, bool isMovingSeqmentTask = false)
+        public TaskDownloadRequestResponse PostTaskRequestToAGVAsync(out clsSubTask task, bool isMovingSeqmentTask = false)
         {
-            _task = null;
+            clsSubTask _task = null;
+            task = null;
             try
             {
                 _task = !isMovingSeqmentTask ? SubTasks.Dequeue() : SubTaskTracking;
+                task = _task;
 
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;
 
                 var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
-                _task.CreateTaskToAGV(TaskOrder, taskSeq, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                _task.CreateTaskToAGV(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                if (isSegmentTaskCreated)
+                {
+                    Task.Factory.StartNew(() =>
+                    {
+                        try
+                        {
+                            waitingInfo.IsWaiting = true;
+                            waitingInfo.WaitingPoint = _task.GetNextPointToGo(lastPt);
+                            waitingInfo.Descrption = $"前往-{lastPt.Point_ID} 等待-{waitingInfo.WaitingPoint.TagNumber}可通行";
+                            WaitingRegistReleaseAndGo();
+                        }
+                        catch (Exception ex)
+                        {
+                        }
 
+                    });
+                }
                 bool IsAGVAlreadyAtFinalPointOfTrajectory = _task.DownloadData.ExecutingTrajecory.Last().Point_ID == AGV.currentMapPoint.TagNumber && Math.Abs(CalculateThetaError(_task.DownloadData.ExecutingTrajecory.Last().Theta)) < 5;
                 if (IsAGVAlreadyAtFinalPointOfTrajectory)
                     return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
