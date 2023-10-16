@@ -22,8 +22,10 @@ namespace VMSystem.AGV.TaskDispatch
         public string CarrierID { get; set; } = "";
         public List<MapPoint> EntirePathPlan { get; private set; } = new List<MapPoint>();
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
-        internal void CreateTaskToAGV(clsTaskDto order, int sequence, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
+        internal void CreateTaskToAGV(clsTaskDto order, int sequence, out bool isSegment ,out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
         {
+            lastPt = null;
+            isSegment = false;
             ExecuteOrderAGVName = order.DesignatedAGVName;
             PathFinder pathFinder = new PathFinder();
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map.Points, Source, Destination);
@@ -45,6 +47,7 @@ namespace VMSystem.AGV.TaskDispatch
                         MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
                         optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
                         optimiedPath.stations = seqmentPath.ToList();
+                        isSegment = true;
                     }
                 }
             }
@@ -76,6 +79,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
+            lastPt = TrajectoryToExecute.Last();
         }
 
         internal MapPoint GetNextPointToGo(MapPoint currentMapPoint)
@@ -83,6 +87,18 @@ namespace VMSystem.AGV.TaskDispatch
             try
             {
                 return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.TagNumber && !pt.IsVirtualPoint && EntirePathPlan.IndexOf(pt) > EntirePathPlan.IndexOf(currentMapPoint));
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+        internal MapPoint GetNextPointToGo(clsMapPoint currentMapPoint)
+        {
+            try
+            {
+                var tagNumberList = EntirePathPlan.Select(pt => pt.TagNumber).ToList();
+                return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.Point_ID && !pt.IsVirtualPoint && EntirePathPlan.IndexOf(pt) > tagNumberList.IndexOf(currentMapPoint.Point_ID));
             }
             catch (Exception ex)
             {
