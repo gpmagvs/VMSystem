@@ -82,7 +82,10 @@ namespace VMSystem.AGV
             if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
             else
-                TaskStatusTracker = new clsAGVTaskTrack();
+            {
+                TaskStatusTracker = new clsAGVTaskTrack(this);
+                //TaskStatusTracker.AgvSimulation = new clsAGVSimulation(this);
+            }
 
             TaskStatusTracker.AGV = agv;
         }
@@ -158,7 +161,7 @@ namespace VMSystem.AGV
                 if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
                     TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
                 else
-                    TaskStatusTracker = new clsAGVTaskTrack() { AGV = agv };
+                    TaskStatusTracker = new clsAGVTaskTrack(this) { AGV = agv };
             }
 
             await TaskStatusTracker.Start(agv, executingTask);
@@ -202,7 +205,8 @@ namespace VMSystem.AGV
             try
             {
                 if (agv.options.Simulation)
-                    return await AgvSimulation.ActionRequestHandler(data);
+                    return new SimpleRequestResponse();
+                    //return await AgvSimulation.ActionRequestHandler(data);
 
                 SimpleRequestResponse taskStateResponse = await agv.AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", data);
                 return taskStateResponse;

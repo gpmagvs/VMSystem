@@ -34,20 +34,21 @@ namespace VMSystem.AGV
                     {
                         batteryLevelSim = new double[] { agv_data.BatteryLevel_1, agv_data.BatteryLevel_2 };
                         agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
+                        agv.states = agv.states;
                     }
                 }
                 BatterSimulation();
             }
         }
-        public async Task<SimpleRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
+        public async Task<TaskDownloadRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
         {
             agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN;
             moveCancelTokenSource?.Cancel();
             await Task.Delay(1000);
             MoveTask(data);
-            return new SimpleRequestResponse
+            return new TaskDownloadRequestResponse
             {
-                ReturnCode = RETURN_CODE.OK
+                ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK
             };
         }
         clsTaskDownloadData previousTaskData;
