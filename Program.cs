@@ -16,6 +16,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
+PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();

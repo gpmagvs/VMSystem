@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Configuration;
 using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 using System;
+using VMSystem.TrafficControl;
 
 namespace VMSystem
 {
@@ -135,6 +136,7 @@ namespace VMSystem
             {
 
                 bool success = mapPoint.TryUnRegistPoint(Name, out var _info);
+                PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
                 if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
                     foreach (var item in mapPoint.RegistsPointIndexs)
