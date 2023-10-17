@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.MAP;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using System.Xml.Linq;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using Microsoft.Extensions.Options;
 
 namespace VMSystem.AGV
 {
@@ -102,10 +103,12 @@ namespace VMSystem.AGV
                         if (action == ACTION_TYPE.Load)
                         {
                             agv.states.CSTID = new string[0];
+                            agv.states.Cargo_Status = 0;
                         }
                         else
                         {
                             agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
+                            agv.states.Cargo_Status = 1;
                         }
                         NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), stateDto, moveCancelTokenSource.Token);
                     }
@@ -120,6 +123,7 @@ namespace VMSystem.AGV
                         agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
                     else
                         agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+
 
                     stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
@@ -159,6 +163,7 @@ namespace VMSystem.AGV
 
                 if (currentTag == stationTag)
                 {
+                    idx += 1;
                     continue;
                 }
                 if (action == ACTION_TYPE.None)
@@ -181,6 +186,7 @@ namespace VMSystem.AGV
                     SimulationThetaChange(agv.states.Coordination.Theta, targetAngle);
                     agv.states.Coordination.Theta = targetAngle;
                 }
+                MoveChangeSimulation(currentX, currentY, station.X, station.Y);
                 Thread.Sleep(1000);
                 agv.states.Coordination.X = station.X;
                 agv.states.Coordination.Y = station.Y;
@@ -201,8 +207,26 @@ namespace VMSystem.AGV
 
                     }
                 }
+                agv.states = agv.states;
+            idx += 1;
+            }
+        }
 
-                idx += 1;
+        private void MoveChangeSimulation(double CurrentX,double CurrentY,double TargetX,double TargetY)
+        {
+            double O_Distance_X = TargetX - CurrentX;
+            double O_Distance_Y = TargetY - CurrentY;
+            double O_Distance_All = Math.Pow(Math.Pow(O_Distance_X, 2) + Math.Pow(O_Distance_Y, 2), 0.5); //用來計算總共幾秒
+            double speed = 1;
+            double TotalSpendTime = Math.Ceiling(O_Distance_All / speed);
+            double MoveSpeed_X = O_Distance_X / TotalSpendTime;
+            double MoveSpeed_Y = O_Distance_Y / TotalSpendTime;
+
+            for (int i = 0; i < TotalSpendTime; i++)
+            {
+                agv.states.Coordination.X = CurrentX +i * MoveSpeed_X; 
+                agv.states.Coordination.Y = CurrentY + i * MoveSpeed_Y;
+                Thread.Sleep(100);
             }
         }
 

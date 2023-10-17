@@ -23,5 +23,6 @@ namespace VMSystem.AGV.TaskDispatch
     {
         public bool IsWaiting { get; set; } = false;
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
+        public string Descrption { get; set; } = "";
     }
 }
