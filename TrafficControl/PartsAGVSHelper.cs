@@ -25,9 +25,10 @@ namespace VMSystem.TrafficControl
 
         public static void LoadParameters(string FilePath)
         {
+            var Parameters = new PartAGVConnectParameters();
             if (File.Exists(FilePath))
             {
-                var Parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<PartAGVConnectParameters>(File.ReadAllText(FilePath));
+                Parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<PartAGVConnectParameters>(File.ReadAllText(FilePath));
                 NeedRegistRequestToParts = Parameters.NeedRegistRequestToParts;
                 port = Parameters.Port;
                 PartsServerIP = Parameters.PartServerIP;
@@ -36,7 +37,7 @@ namespace VMSystem.TrafficControl
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
             }
-            File.WriteAllText(FilePath, JsonConvert.SerializeObject(new PartAGVConnectParameters(), Formatting.Indented));
+            File.WriteAllText(FilePath, JsonConvert.SerializeObject(Parameters, Formatting.Indented));
         }
 
         public static bool RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
