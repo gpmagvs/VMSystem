@@ -181,7 +181,7 @@ namespace VMSystem.AGV.TaskDispatch
                 return;
             }
             TASK_DOWNLOAD_RETURN_CODES agv_task_return_code = default;
-          
+
             agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
             if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK && agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
@@ -386,7 +386,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             Task.Factory.StartNew(() =>
             {
-                while (waitingInfo.WaitingPoint.RegistInfo.IsRegisted&&waitingInfo.WaitingPoint.RegistInfo.RegisterAGVName != AGV.Name)
+                while (waitingInfo.WaitingPoint.RegistInfo.IsRegisted && waitingInfo.WaitingPoint.RegistInfo.RegisterAGVName != AGV.Name)
                 {
                     Thread.Sleep(1000);
                     if (taskCancel.IsCancellationRequested)

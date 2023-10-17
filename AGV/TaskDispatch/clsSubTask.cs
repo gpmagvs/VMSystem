@@ -39,9 +39,16 @@ namespace VMSystem.AGV.TaskDispatch
                 if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                 {//查詢現在Parts用掉的點位
                     Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName();
-                    var RegistedPointsByParts = RegistAreaFromPartsDB.Values.Where(item => item != "AMCAGV");
+                    var RegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item=>item.Key);
                     var PartsRegistedPoints = optimiedPath.stations.Where(item => RegistedPointsByParts.Contains(item.Name));
                     regitedPoints.AddRange(PartsRegistedPoints);
+                    foreach (var item in PartsRegistedPoints)
+                    {
+                        var RegistPointInfo = new clsMapPoiintRegist();
+                        item.TryRegistPoint("Parts", out RegistPointInfo);
+                    }
+                    Task.Run(() => UpdatePartRegistedPointInfo(PartsRegistedPoints.ToList()));
+                    
                 }
 
                 regitedPoints.AddRange(VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName).Select(agv => agv.currentMapPoint));
@@ -97,6 +104,31 @@ namespace VMSystem.AGV.TaskDispatch
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
             lastPt = TrajectoryToExecute.Last();
+        }
+
+        internal void UpdatePartRegistedPointInfo(List<MapPoint> RegistPointByPart)
+        {
+            while (true)
+            {
+                Thread.Sleep(5000);
+                Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName();
+                var UpdatedRegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item => item.Key);
+
+                foreach (var item in RegistPointByPart.ToArray())
+                {
+                    if (!UpdatedRegistedPointsByParts.Contains(item.Name))
+                    {
+                        string Error;
+                        item.TryUnRegistPoint("Parts", out Error);
+                        RegistPointByPart.Remove(item);
+                    }
+                }
+                if (RegistPointByPart.Count == 0 )
+                {
+                    break;
+                }
+
+            }
         }
 
         internal MapPoint GetNextPointToGo(MapPoint currentMapPoint)
