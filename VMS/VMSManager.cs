@@ -108,10 +108,13 @@ namespace VMSystem.VMS
             }
             SaveVMSVehicleGroupSetting();
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-            if (await TcpServer.Connect())
+            Task.Factory.StartNew(async () =>
             {
-                LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.Port})");
-            }
+                if (await TcpServer.Connect())
+                {
+                    LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.Port})");
+                }
+            });
 
             AGVStatesStoreWorker();
 
