@@ -355,7 +355,7 @@ namespace VMSystem.AGV.TaskDispatch
                             waitingInfo.IsWaiting = true;
                             waitingInfo.WaitingPoint = SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation);
                             waitingInfo.Descrption = $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行";
-                            WaitingRegistReleaseAndGo();
+                            // WaitingRegistReleaseAndGo();
                             break;
                         }
                         catch (Exception ex)
