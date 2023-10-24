@@ -1,4 +1,6 @@
-﻿using Microsoft.Win32;
+﻿using AGVSystemCommonNet6.Configuration;
+using Microsoft.Win32;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,9 +12,33 @@ namespace VMSystem.TrafficControl
 {
     internal class PartsAGVSHelper
     {
+        public class PartAGVConnectParameters
+        {
+            public bool NeedRegistRequestToParts;
+            public int Port = 433;
+            public string PartServerIP = "127.0.0.1";
+        }
+
         public static bool NeedRegistRequestToParts = false;
         public static int port = 433;
         public static string PartsServerIP = "127.0.0.1";
+
+        public static void LoadParameters(string FilePath)
+        {
+            var Parameters = new PartAGVConnectParameters();
+            if (File.Exists(FilePath))
+            {
+                Parameters = Newtonsoft.Json.JsonConvert.DeserializeObject<PartAGVConnectParameters>(File.ReadAllText(FilePath));
+                NeedRegistRequestToParts = Parameters.NeedRegistRequestToParts;
+                port = Parameters.Port;
+                PartsServerIP = Parameters.PartServerIP;
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
+            }
+            File.WriteAllText(FilePath, JsonConvert.SerializeObject(Parameters, Formatting.Indented));
+        }
 
         public static bool RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
         {
@@ -38,7 +64,7 @@ namespace VMSystem.TrafficControl
             {
                 return new Dictionary<string, string>();
             }
-            string QueryResult =  TrafficRegistEvent("Regist", new List<string>(), "");
+            string QueryResult =  TrafficRegistEvent("Query", new List<string>(), "");
             if (QueryResult == "NG")
             {
                 return new Dictionary<string, string>();
@@ -62,8 +88,16 @@ namespace VMSystem.TrafficControl
             string SendOutMessage = Newtonsoft.Json.JsonConvert.SerializeObject(SendObject);
 
             Socket ClientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            ClientSocket.Connect(PartsServerIP, port);
-            ClientSocket.Send(Encoding.ASCII.GetBytes(SendOutMessage));
+            try
+            {
+                ClientSocket.Connect(PartsServerIP, port);
+                ClientSocket.Send(Encoding.ASCII.GetBytes(SendOutMessage));
+            }
+            catch (Exception exp)
+            {
+                //無法連線
+                return "NG";
+            }
             int retryCount = 0;
             while (true)
             {

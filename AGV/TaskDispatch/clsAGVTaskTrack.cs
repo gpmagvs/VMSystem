@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
+using Microsoft.AspNetCore.Identity;
 using Newtonsoft.Json;
 using RosSharp.RosBridgeClient;
 using System.Collections.Generic;
@@ -71,6 +72,8 @@ namespace VMSystem.AGV.TaskDispatch
         private CancellationTokenSource taskCancel = new CancellationTokenSource();
         private TASK_RUN_STATUS _TaskRunningStatus = TASK_RUN_STATUS.NO_MISSION;
 
+        public clsAGVSimulation AgvSimulation = null;
+
         public TASK_RUN_STATUS TaskRunningStatus
         {
             get => _TaskRunningStatus;
@@ -91,8 +94,12 @@ namespace VMSystem.AGV.TaskDispatch
 
         HttpHelper AGVHttp;
 
-        public clsAGVTaskTrack()
+        public clsAGVTaskTrack(clsAGVTaskDisaptchModule DispatchModule = null)
         {
+            if (DispatchModule != null)
+            {
+                AgvSimulation = new clsAGVSimulation(DispatchModule);
+            }
             StartTaskStatusWatchDog();
         }
 
@@ -173,9 +180,9 @@ namespace VMSystem.AGV.TaskDispatch
                 AlarmManagerCenter.AddAlarm(ALARMS.SubTask_Queue_Empty_But_Try_DownloadTask_To_AGV);
                 return;
             }
+            TASK_DOWNLOAD_RETURN_CODES agv_task_return_code = default;
 
-            var agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
-
+            agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
             if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK && agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
                 AbortOrder(agv_task_return_code);
@@ -379,7 +386,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             Task.Factory.StartNew(() =>
             {
-                while (waitingInfo.WaitingPoint.RegistInfo.IsRegisted)
+                while (waitingInfo.WaitingPoint.RegistInfo.IsRegisted && waitingInfo.WaitingPoint.RegistInfo.RegisterAGVName != AGV.Name)
                 {
                     Thread.Sleep(1000);
                     if (taskCancel.IsCancellationRequested)
@@ -565,9 +572,17 @@ namespace VMSystem.AGV.TaskDispatch
                     return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
 
                 AGV.CheckAGVStatesBeforeDispatchTask(_task.Action, _task.Destination);
-                TaskDownloadRequestResponse taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
+                if (AGV.options.Simulation)
+                {
+                    TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
+                    return taskStateResponse;
+                }
+                else
+                {
+                    TaskDownloadRequestResponse taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
 
-                return taskStateResponse;
+                    return taskStateResponse;
+                }
             }
             catch (IlleagalTaskDispatchException ex)
             {

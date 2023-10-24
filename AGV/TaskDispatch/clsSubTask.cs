@@ -39,10 +39,16 @@ namespace VMSystem.AGV.TaskDispatch
                 if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                 {//查詢現在Parts用掉的點位
                     Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName();
-                    var RegistedPointsByParts = RegistAreaFromPartsDB.Values.Where(item => item != "AMCAGV");
+                    var RegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item=>item.Key);
                     var PartsRegistedPoints = optimiedPath.stations.Where(item => RegistedPointsByParts.Contains(item.Name));
                     regitedPoints.AddRange(PartsRegistedPoints);
-
+                    foreach (var item in PartsRegistedPoints)
+                    {
+                        var RegistPointInfo = new clsMapPoiintRegist();
+                        item.TryRegistPoint("Parts", out RegistPointInfo);
+                    }
+                    Task.Run(() => UpdatePartRegistedPointInfo(PartsRegistedPoints.ToList()));
+                    
                 }
 
                 regitedPoints.AddRange(VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName).Select(agv => agv.currentMapPoint));
@@ -59,13 +65,14 @@ namespace VMSystem.AGV.TaskDispatch
                         optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
                         optimiedPath.stations = seqmentPath.ToList();
                         isSegment = true;
-                        if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
-                        {
-                            var RegistPathToParts = optimiedPath.stations.Where(eachpoint => string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
-                            bool IsRegistSuccess = TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
-                            //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
-                        }
+                        
                     }
+                }
+                if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
+                {
+                    var RegistPathToParts = optimiedPath.stations.Where(eachpoint => !string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
+                    bool IsRegistSuccess = TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
+                    //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
                 }
             }
 
@@ -97,6 +104,31 @@ namespace VMSystem.AGV.TaskDispatch
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
             lastPt = TrajectoryToExecute.Last();
+        }
+
+        internal void UpdatePartRegistedPointInfo(List<MapPoint> RegistPointByPart)
+        {
+            while (true)
+            {
+                Thread.Sleep(5000);
+                Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName();
+                var UpdatedRegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item => item.Key);
+
+                foreach (var item in RegistPointByPart.ToArray())
+                {
+                    if (!UpdatedRegistedPointsByParts.Contains(item.Name))
+                    {
+                        string Error;
+                        item.TryUnRegistPoint("Parts", out Error);
+                        RegistPointByPart.Remove(item);
+                    }
+                }
+                if (RegistPointByPart.Count == 0 )
+                {
+                    break;
+                }
+
+            }
         }
 
         internal MapPoint GetNextPointToGo(MapPoint currentMapPoint)
