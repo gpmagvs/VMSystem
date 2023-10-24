@@ -77,7 +77,7 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static void Initialize(ConfigurationManager configuration)
+        internal static async void Initialize(ConfigurationManager configuration)
         {
             var _configs = ReadVMSVehicleGroupSetting();
             if (_configs != null)
@@ -108,7 +108,7 @@ namespace VMSystem.VMS
             }
             SaveVMSVehicleGroupSetting();
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-            if (TcpServer.Connect())
+            if (await TcpServer.Connect())
             {
                 LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.Port})");
             }
