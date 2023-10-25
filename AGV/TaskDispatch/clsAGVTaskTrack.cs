@@ -449,18 +449,13 @@ namespace VMSystem.AGV.TaskDispatch
 
             if (SubTaskTracking.Action == ACTION_TYPE.None) //處理移動任務的回報
             {
-                //if (SubTaskTracking.SubPathPlan.Last() == SubTaskTracking.EntirePathPlan.Last())
-                //{
-
-                //}
-                //var agv_currentMapPoint = SubTaskTracking.SubPathPlan[feedbackData.PointIndex];
-                //var agv_currentMapPoint = SubTaskTracking.EntirePathPlan[feedbackData.PointIndex];
-                if (SubTaskTracking.Destination.TagNumber != AGV.currentMapPoint.TagNumber)
+                var agv_currentMapPoint = SubTaskTracking.EntirePathPlan[feedbackData.PointIndex];
+                if (SubTaskTracking.Destination.TagNumber != agv_currentMapPoint.TagNumber)
                 {
                     return new clsOrderStatus
                     {
                         Status = ORDER_STATUS.EXECUTING_WAITING,
-                        AGVLocation = AGV.currentMapPoint
+                        AGVLocation = agv_currentMapPoint
                     };
                 }
             }
@@ -564,7 +559,7 @@ namespace VMSystem.AGV.TaskDispatch
                             waitingInfo.IsWaiting = true;
                             waitingInfo.WaitingPoint = _task.GetNextPointToGo(lastPt);
                             waitingInfo.Descrption = $"前往-{lastPt.Point_ID} 等待-{waitingInfo.WaitingPoint.TagNumber}可通行";
-                            //WaitingRegistReleaseAndGo();
+                            WaitingRegistReleaseAndGo();
                         }
                         catch (Exception ex)
                         {
