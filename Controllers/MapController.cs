@@ -39,28 +39,7 @@ namespace VMSystem.Controllers
         [HttpGet("/ws/DynamicTrafficData")]
         public async Task GetDynamicTrafficData()
         {
-            if (HttpContext.WebSockets.IsWebSocketRequest)
-            {
-                var websocket_client = await HttpContext.WebSockets.AcceptWebSocketAsync();
-                byte[] rev_buffer = new byte[4096];
-                while (websocket_client.State == System.Net.WebSockets.WebSocketState.Open)
-                {
-                    try
-                    {
-                        await Task.Delay(100);
-                        websocket_client.ReceiveAsync(new ArraySegment<byte>(rev_buffer), CancellationToken.None);
-                        await websocket_client.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(TrafficControlCenter.DynamicTrafficState))), System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            }
+            await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.DynamicTrafficData);
         }
     }
 }

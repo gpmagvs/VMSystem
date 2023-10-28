@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.User;
 using Microsoft.Data.Sqlite;
 using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using VMSystem.Controllers;
 
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
@@ -76,4 +77,7 @@ TrafficControlCenter.Initialize();
 
 TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
 dbheper.SetRunningTaskWait();
+
+WebsocketClientMiddleware.StartViewDataCollect();
+
 app.Run();
