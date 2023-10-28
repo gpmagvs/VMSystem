@@ -17,10 +17,13 @@ namespace VMSystem.AGV.TaskDispatch
         /// </summary>
         public double DestineStopAngle { get; set; }
 
+        public MapPoint LastStopPoint { get; set; }
+
         public clsTaskDownloadData DownloadData { get; private set; }
         public string ExecuteOrderAGVName { get; private set; }
         public string CarrierID { get; set; } = "";
         public List<MapPoint> EntirePathPlan { get; private set; } = new List<MapPoint>();
+        public List<MapPoint> SubPathPlan { get; private set; } = new List<MapPoint>();
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
         internal void CreateTaskToAGV(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
         {
@@ -36,11 +39,22 @@ namespace VMSystem.AGV.TaskDispatch
                 //若路徑上有點位被註冊=>移動至被註冊點之前一點
                 List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
 
+                int NowPositionIndex = optimiedPath.stations.IndexOf(LastStopPoint);
+                var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
+                if (NowPositionIndex == -1)
+                {
+                    FollowingStations = optimiedPath.stations.ToArray();
+                }
+                else
+                {
+                    Array.Copy(optimiedPath.stations.ToArray(), NowPositionIndex, FollowingStations, 0, optimiedPath.stations.Count - NowPositionIndex);
+                }
                 if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
-                {//查詢現在Parts用掉的點位
+                {
+                    //查詢現在Parts用掉的點位
                     Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName().Result;
                     var RegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item => item.Key);
-                    var PartsRegistedPoints = optimiedPath.stations.Where(item => RegistedPointsByParts.Contains(item.Name));
+                    var PartsRegistedPoints = FollowingStations.Where(item => RegistedPointsByParts.Contains(item.Name));
                     regitedPoints.AddRange(PartsRegistedPoints);
                     foreach (var item in PartsRegistedPoints)
                     {
@@ -68,17 +82,19 @@ namespace VMSystem.AGV.TaskDispatch
 
                     }
                 }
+                SubPathPlan = optimiedPath.stations;
                 if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                 {
                     Task.Factory.StartNew(async () =>
                     {
-                        var RegistPathToParts = optimiedPath.stations.Where(eachpoint => !string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
+                        var FollwingStationsToRegist = SubPathPlan.Intersect(FollowingStations);
+                        var RegistPathToParts = FollwingStationsToRegist.Where(eachpoint => !string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
                         bool IsRegistSuccess = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
                     });
                     //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
                 }
             }
-
+            LastStopPoint = optimiedPath.stations.Last();
             var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
             if (!StaMap.RegistPoint(ExecuteOrderAGVName, optimiedPath.stations, out string msg))
             {

@@ -95,7 +95,7 @@ namespace VMSystem.AGV
                         TaskStatus = TASK_RUN_STATUS.ACTION_START
                     };
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
-                    NewMethod(action, ExecutingTrajecory, stateDto, moveCancelTokenSource.Token);
+                    NewMethod(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
                         //模擬LDULD
@@ -110,7 +110,7 @@ namespace VMSystem.AGV
                             agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
                             agv.states.Cargo_Status = 1;
                         }
-                        NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), stateDto, moveCancelTokenSource.Token);
+                        NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
                     double finalTheta = ExecutingTrajecory.Last().Theta;
                     SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
@@ -136,7 +136,7 @@ namespace VMSystem.AGV
             });
         }
 
-        private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, FeedbackData stateDto, CancellationToken cancelToken)
+        private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
             double rotateSpeed = 10;
             double moveSpeed = 10;
@@ -196,7 +196,8 @@ namespace VMSystem.AGV
                 agv.states.Last_Visited_Node = stationTag;
                 StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 
-                stateDto.PointIndex = idx;
+                stateDto.PointIndex =OriginTrajectory.ToList().IndexOf(station);
+                //stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                 int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
 
