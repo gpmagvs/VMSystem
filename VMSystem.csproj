@@ -1,8 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
-
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
+	<AssemblyVersion>10.29.3</AssemblyVersion>
+	<InformationalVersion>23.7.7.1</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
     <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
@@ -29,6 +30,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-	
+
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="powershell.exe -ExecutionPolicy Bypass -File &quot;AutoVersionModify.ps1&quot;&#xD;&#xA;" />
+  </Target>
 
 </Project>
+
+
