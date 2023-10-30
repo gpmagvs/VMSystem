@@ -17,6 +17,7 @@ namespace VMSystem.AGV.TaskDispatch
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; }
         public clsAGVTaskTrack TaskStatusTracker { get; set; }
+        string ExecutingTaskName { get; set; }
     }
 
     public class clsWaitingInfo

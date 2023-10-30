@@ -190,7 +190,7 @@ namespace VMSystem.AGV
                                 Checked = false,
                                 OccurLocation = currentMapPoint.Name,
                                 Time = DateTime.Now,
-                                Task_Name = taskDispatchModule.TaskStatusTracker.OrderTaskName,
+                                Task_Name = taskDispatchModule.ExecutingTaskName,
                                 Source = ALARM_SOURCE.EQP,
 
                             };

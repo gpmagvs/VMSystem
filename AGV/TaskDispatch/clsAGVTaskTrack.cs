@@ -327,7 +327,16 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 taskCancel.Cancel();
                 _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
-                AbortOrder(TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN);
+
+                //嘗試抓取車載回報的異常碼
+
+                string agv_alarm = "";
+                if (AGV.states.Alarm_Code.Any())
+                {
+                    agv_alarm = string.Join(",", AGV.states.Alarm_Code.Select(alarm =>  alarm.FullDescription));
+                }
+
+                AbortOrder(TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN, agv_alarm);
                 return TASK_FEEDBACK_STATUS_CODE.OK;
             }
             switch (task_status)
@@ -355,6 +364,8 @@ namespace VMSystem.AGV.TaskDispatch
                             waitingInfo.IsWaiting = true;
                             waitingInfo.WaitingPoint = SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation);
                             waitingInfo.Descrption = $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行";
+                            TrafficControlCenter.RaiseAGVGoAwayRequest(waitingInfo.WaitingPoint.TagNumber, SubTaskTracking.EntirePathPlan, AGV.Name);
+
                             // WaitingRegistReleaseAndGo();
                             break;
                         }
@@ -552,6 +563,10 @@ namespace VMSystem.AGV.TaskDispatch
                 _task.CreateTaskToAGV(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
                 if (isSegmentTaskCreated)
                 {
+                    LOG.INFO($"Navigation Path of {AGV.Name} is segment!!!!! ");
+
+                    TrafficControlCenter.RaiseAGVGoAwayRequest(_task.LastStopPoint.TagNumber, _task.EntirePathPlan, AGV.Name);
+
                     Task.Factory.StartNew(() =>
                     {
                         try
@@ -609,6 +624,7 @@ namespace VMSystem.AGV.TaskDispatch
             ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
         }
+
         internal void AbortOrder(TASK_DOWNLOAD_RETURN_CODES agv_task_return_code, string message = "")
         {
             UnRegistPointsRegisted();

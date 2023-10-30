@@ -25,6 +25,7 @@ using static AGVSystemCommonNet6.MAP.PathFinder;
 using VMSystem.AGV.TaskDispatch;
 using AGVSystemCommonNet6.DATABASE;
 using Microsoft.EntityFrameworkCore;
+using AGVSystemCommonNet6.AGVDispatch.RunMode;
 
 namespace VMSystem.AGV
 {
@@ -54,7 +55,21 @@ namespace VMSystem.AGV
                 if (previous_OrderExecuteState != value)
                 {
                     previous_OrderExecuteState = value;
-                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}");
+                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
+                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER )
+                    {
+                        if (SystemModes.RunMode ==RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
+                        {
+                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
+                            TaskDBHelper.Add(new clsTaskDto
+                            {
+                                Action = ACTION_TYPE.Charge,
+                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                                DispatcherName = "VMS",
+                                DesignatedAGVName = agv.Name,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -135,15 +150,18 @@ namespace VMSystem.AGV
                     }
                     catch (NoPathForNavigatorException ex)
                     {
+                        ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
+                        ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
                     catch (Exception ex)
                     {
+                        ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ex.Message);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
@@ -152,6 +170,8 @@ namespace VMSystem.AGV
             });
         }
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
+        public string ExecutingTaskName { get; set; } = "";
+
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
@@ -164,6 +184,7 @@ namespace VMSystem.AGV
                     TaskStatusTracker = new clsAGVTaskTrack(this) { AGV = agv };
             }
 
+            ExecutingTaskName = executingTask.TaskName;
             await TaskStatusTracker.Start(agv, executingTask);
         }
 
@@ -171,6 +192,9 @@ namespace VMSystem.AGV
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
+            var task_status = feedbackData.TaskStatus;
+            if (task_status == TASK_RUN_STATUS.ACTION_FINISH | task_status == TASK_RUN_STATUS.FAILURE | task_status == TASK_RUN_STATUS.CANCEL | task_status == TASK_RUN_STATUS.NO_MISSION)
+                ExecutingTaskName = "";
             using (var db = new AGVSDatabase())
             {
                 var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
@@ -185,6 +209,7 @@ namespace VMSystem.AGV
                         return 0;
                 }
                 var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
+
                 return (int)response;
             }
 
@@ -206,7 +231,7 @@ namespace VMSystem.AGV
             {
                 if (agv.options.Simulation)
                     return new SimpleRequestResponse();
-                    //return await AgvSimulation.ActionRequestHandler(data);
+                //return await AgvSimulation.ActionRequestHandler(data);
 
                 SimpleRequestResponse taskStateResponse = await agv.AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", data);
                 return taskStateResponse;

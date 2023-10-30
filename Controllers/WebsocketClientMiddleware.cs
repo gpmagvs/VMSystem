@@ -57,6 +57,9 @@ namespace VMSystem.Controllers
                     while (!closeFlag)
                     {
                         await Task.Delay(100);
+
+                        if (OnViewDataFetching == null)
+                            return;
                         var data = OnViewDataFetching();
                         if (data != null)
                         {
