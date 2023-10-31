@@ -37,6 +37,7 @@ namespace VMSystem.AGV
             AutoParkWorker();
             AliveCheck();
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
+            LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
         }
 
 
@@ -524,7 +525,7 @@ namespace VMSystem.AGV
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_WHEN_AGV_NO_CARGO);
                 }
-               
+
             }
             if (action == ACTION_TYPE.Unload)
             {

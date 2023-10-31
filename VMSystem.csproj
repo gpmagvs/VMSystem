@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
-	<AssemblyVersion>10.30.36</AssemblyVersion>
+	<AssemblyVersion>10.31.1</AssemblyVersion>
 	<InformationalVersion>23.7.7.1</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
@@ -36,6 +36,7 @@
   </Target>
 
 </Project>
+
 
 
 
