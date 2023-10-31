@@ -151,7 +151,8 @@ namespace VMSystem.VMS
                                     TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName : "",
                                     TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
                                     TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
-                                    CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
+                                    CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType,
+                                    TransferProcess = agv.taskDispatchModule.TaskStatusTracker.transferProcess
                                 };
                             };
                             await dBHelper.Update(AllAGV.Select(agv => CreateDTO(agv)));

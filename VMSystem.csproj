@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
-	<AssemblyVersion>10.31.1</AssemblyVersion>
+	<AssemblyVersion>10.31.15</AssemblyVersion>
 	<InformationalVersion>23.7.7.1</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
@@ -32,10 +32,24 @@
   </ItemGroup>
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="powershell.exe -ExecutionPolicy Bypass -File &quot;AutoVersionModify.ps1&quot;&#xD;&#xA;" />
+    <!--<Exec Command="powershell.exe -ExecutionPolicy Bypass -File &quot;AutoVersionModify.ps1&quot;&#xD;&#xA;" />-->
   </Target>
 
 </Project>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
