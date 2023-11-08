@@ -22,6 +22,7 @@ using VMSystem.AGV.TaskDispatch;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsAGVTaskDisaptchModule;
 
 namespace VMSystem.AGV
 {
@@ -86,11 +87,12 @@ namespace VMSystem.AGV
 
                 if (_connected != value)
                 {
-
                     bool reconnected = !_connected && value;
                     _connected = value;
-                    if (reconnected)
-                        AGVOfflineFromAGV(out string message);
+                    if (!_connected)
+                    {
+                        online_mode_req = online_state = ONLINE_STATE.OFFLINE;
+                    }
                 }
             }
         }
@@ -118,6 +120,8 @@ namespace VMSystem.AGV
         {
             get
             {
+                if ((int)states.AGV_Status == 0)
+                    return clsEnums.MAIN_STATUS.IDLE;
                 return states.AGV_Status;
             }
         }
@@ -220,6 +224,19 @@ namespace VMSystem.AGV
         }
 
         public HttpHelper AGVHttp { get; set; }
+
+        private bool _IsTrafficTaskExecuting = false;
+        public bool IsTrafficTaskExecuting
+        {
+            get => _IsTrafficTaskExecuting;
+            set
+            {
+                _IsTrafficTaskExecuting = value;
+                IsTrafficTaskFinish = !value;
+            }
+        }
+        public bool IsTrafficTaskFinish { get; set; } = false;
+
         private void AliveCheck()
         {
             Task.Run(async () =>
@@ -235,7 +252,7 @@ namespace VMSystem.AGV
                             //availabilityHelper.UpdateAGVMainState(main_state);
                             continue;
                         }
-                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 65)
+                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 10)
                         {
                             connected = false;
                         }
@@ -305,7 +322,7 @@ namespace VMSystem.AGV
             });
         }
 
-        public async void UpdateAGVStates(RunningStatus status)
+        public async void UpdateAGVStates(clsRunningStatus status)
         {
             this.states = status;
             availabilityHelper.UpdateAGVMainState(main_state);
@@ -338,7 +355,7 @@ namespace VMSystem.AGV
         {
             try
             {
-                this.states = await AGVHttp.GetAsync<RunningStatus>($"/api/AGV/RunningState");
+                this.states = await AGVHttp.GetAsync<clsRunningStatus>($"/api/AGV/RunningState");
                 if (states.Last_Visited_Node != this.states.Last_Visited_Node)
                 {
                     Console.WriteLine($"{Name}:Last Visited Node : {states.Last_Visited_Node}");
@@ -365,7 +382,7 @@ namespace VMSystem.AGV
         public bool AGVOnlineFromAGVS(out string message)
         {
             message = string.Empty;
-            if (!CheckAGVStateToOnline(out message))
+            if (!CheckAGVStateToOnline(IsAGVRaiseRequest: false, out message))
             {
                 online_mode_req = ONLINE_STATE.OFFLINE;
                 return false;
@@ -422,7 +439,7 @@ namespace VMSystem.AGV
         public bool AGVOnlineFromAGV(out string message)
         {
             message = string.Empty;
-            if (!CheckAGVStateToOnline(out message))
+            if (!CheckAGVStateToOnline(IsAGVRaiseRequest: true, out message))
             {
                 online_mode_req = online_state = ONLINE_STATE.OFFLINE;
                 return false;
@@ -435,10 +452,10 @@ namespace VMSystem.AGV
 
 
         }
-        private bool CheckAGVStateToOnline(out string message)
+        private bool CheckAGVStateToOnline(bool IsAGVRaiseRequest, out string message)
         {
             message = string.Empty;
-            if (!connected)
+            if (!IsAGVRaiseRequest && !connected) //由派車系統發起上線請求才需要檢查連線狀態
             {
                 message = AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_DISCONNECT, ALARM_SOURCE.AGVS);
                 return false;
@@ -501,6 +518,7 @@ namespace VMSystem.AGV
 
         public void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint)
         {
+            bool IsCheckAGVCargoStatus = AGVSConfigulator.SysConfigs.TaskControlConfigs.CheckAGVCargoStatusWhenLDULDAction;
             if (action == ACTION_TYPE.None && currentMapPoint.StationType != STATION_TYPE.Normal)
             {
                 throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_MOVE_TASK_IN_WORKSTATION);
@@ -511,8 +529,6 @@ namespace VMSystem.AGV
                 throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_NORMAL_MOVE_TASK_WHEN_DESTINE_IS_WORKSTATION);
             }
 
-            //if ((action == ACTION_TYPE.Park | action == ACTION_TYPE.Unload) && states.Cargo_Status == 1)
-            //throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_INTO_WORKSTATION_TASK_WHEN_AGV_HAS_CARGO);
             if (action == ACTION_TYPE.Load)//放貨任務
             {
                 if (!DestinePoint.IsEquipment)
@@ -521,7 +537,7 @@ namespace VMSystem.AGV
                 }
 
                 LOG.INFO($"[{Name}]-Check cargo status  before dispatch Load Task= {states.Cargo_Status}");
-                if (states.Cargo_Status == 0)
+                if (states.Cargo_Status == 0 && IsCheckAGVCargoStatus)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_WHEN_AGV_NO_CARGO);
                 }
@@ -535,15 +551,10 @@ namespace VMSystem.AGV
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_TO_NOT_EQ_STATION);
 
                 }
-                if (states.Cargo_Status == 1)
+                if (states.Cargo_Status == 1 && IsCheckAGVCargoStatus)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
                 }
-                //if (states.Cargo_Status == 1)
-                //{
-                //    throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
-
-                //}
             }
             if (action == ACTION_TYPE.Charge && !DestinePoint.IsChargeAble())
             {
@@ -571,7 +582,7 @@ namespace VMSystem.AGV
             }
             else
             {
-                var status = AGVStatusDBHelper.GetAGVStateByName(Name);
+                var status = AGVStatusDBHelper.GetAGVStateByAGVName(Name);
                 if (status == null)
                 {
 

@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using VMSystem.TrafficControl;
@@ -33,8 +34,22 @@ namespace VMSystem.AGV.TaskDispatch
             PathFinder pathFinder = new PathFinder();
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map.Points, Source, Destination);
             EntirePathPlan = optimiedPath.stations;
+            var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
+
             if (Action == ACTION_TYPE.None)
             {
+                var agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
+                if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+                {
+                    foreach (var agv_too_near in agv_too_near_from_path)
+                    {
+                        var too_near_points = optimiedPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
+                        foreach (var point in too_near_points)
+                        {
+                            StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
+                        }
+                    }
+                }
 
                 //若路徑上有點位被註冊=>移動至被註冊點之前一點
                 List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
@@ -65,7 +80,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                 }
 
-                regitedPoints.AddRange(VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName).Select(agv => agv.currentMapPoint));
+                regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
                 regitedPoints = regitedPoints.Distinct().ToList();
                 if (regitedPoints.Any()) //有點位被註冊
                 {

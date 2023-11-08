@@ -132,7 +132,7 @@ namespace VMSystem.Controllers
             {
                 while (true)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(10);
                     DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM();
                     AGVNaviPathsInfo = ViewModelFactory.GetAGVNaviPathsInfoVM();
                     VMSAliveCheck = ViewModelFactory.GetVMSAliveCheckVM();

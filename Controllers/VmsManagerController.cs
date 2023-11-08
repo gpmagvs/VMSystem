@@ -13,6 +13,7 @@ using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 using System.Xml.Linq;
 using System;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 
 namespace VMSystem.Controllers
 {
@@ -25,6 +26,12 @@ namespace VMSystem.Controllers
         public async Task GetVMSStatus()
         {
             await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.VMSStatus);
+        }
+
+        [HttpGet("AGVStatus")]
+        public async Task<IActionResult> GetAGVStatus()
+        {
+            return Ok(VMSManager.AGVStatueDtoStored.Values.ToArray());
         }
 
         [HttpPost("ExecuteTask")]
@@ -52,7 +59,7 @@ namespace VMSystem.Controllers
                 try
                 {
                     bool online_success = agv.AGVOnlineFromAGVS(out string msg);
-                    return Ok(new { ReturnCode = online_success?0:404, Message = msg });
+                    return Ok(new { ReturnCode = online_success ? 0 : 404, Message = msg });
                 }
                 catch (Exception ex)
                 {
@@ -75,7 +82,7 @@ namespace VMSystem.Controllers
             {
                 if (agv.options.Simulation)
                 {
-                    agv.UpdateAGVStates(new RunningStatus
+                    agv.UpdateAGVStates(new clsRunningStatus
                     {
                         AGV_Status = MAIN_STATUS.IDLE,
                         Last_Visited_Node = agv.states.Last_Visited_Node

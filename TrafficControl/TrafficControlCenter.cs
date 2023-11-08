@@ -30,13 +30,17 @@ namespace VMSystem.TrafficControl
 
         private static async void HandleRunModeOn()
         {
-            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => !agv.currentMapPoint.IsCharge).ToList();
+            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => !agv.currentMapPoint.IsCharge &&
+                                                                        agv.main_state == MAIN_STATUS.IDLE &&
+                                                                        agv.states.Cargo_Status == 0 &&
+                                                                        agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER)
+                                                                        .ToList();
             foreach (var agv in needGoToChargeAgvList)
             {
                 if (agv.states.Cargo_Status != 0)
                 {
                     AlarmManagerCenter.AddAlarm(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
-                    continue;
+                    return;
                 }
                 using (TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper())
                 {
@@ -98,8 +102,11 @@ namespace VMSystem.TrafficControl
             ExecutedAGVList = new List<IAGV>();
             var pathTags = OnRequestAGVNavingPath.Select(pt => pt.TagNumber).ToList();
             pathTags = pathTags.FindAll(tag => pathTags.IndexOf(tag) > pathTags.IndexOf(tagNumber));
+            MapPoint destinePt = OnRequestAGVNavingPath.Last();
             LOG.WARN($"{OnRequestAGVName} raise Fucking Stupid AGV Go Away(AGV Should Leave Tag{string.Join(",", pathTags)}) Rquest");
-            var agvListOfNeedGoway = VMSManager.AllAGV.Where(agv => agv.Name != OnRequestAGVName && pathTags.Contains(agv.states.Last_Visited_Node));
+
+            //佔據導航路徑或與路徑任何一點干涉
+            var agvListOfNeedGoway = VMSManager.AllAGV.Where(agv => agv.Name != OnRequestAGVName && pathTags.Contains(agv.states.Last_Visited_Node) | OnRequestAGVNavingPath.Any(pt => pt.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y) * 100.0 <= agv.options.VehicleLength));
             if (!agvListOfNeedGoway.Any())
                 return false;
 
@@ -114,7 +121,7 @@ namespace VMSystem.TrafficControl
                     tagListAvoid.AddRange(parkingPtUsedList);
                     tagListAvoid.AddRange(VMSManager.AllAGV.Where(_agv => _agv.Name != agv.Name).Select(_agv => _agv.states.Last_Visited_Node));
                     tagListAvoid.AddRange(pathTags);
-                    var ptToParking = FindTagToParking(agv.states.Last_Visited_Node, tagListAvoid);
+                    var ptToParking = FindTagToParking(agv.states.Last_Visited_Node, tagListAvoid, agv.options.VehicleLength / 100.0);
                     if (ptToParking == -1)
                     {
                         LOG.TRACE($"[Traffic] {OnRequestAGVName} Request {agv.Name} Far away from {tagNumber} but no tag can park.");
@@ -130,7 +137,7 @@ namespace VMSystem.TrafficControl
                         Carrier_ID = "",
                         DispatcherName = "Traffic",
                         RecieveTime = DateTime.Now,
-                        Priority = 9,
+                        Priority = 10,
                         To_Station = ptToParking.ToString()
                     });
                 });
@@ -155,7 +162,7 @@ namespace VMSystem.TrafficControl
             }
             return ExecutedAGVList.Count > 0;
         }
-        private static int FindTagToParking(int startTag, List<int> avoidTagList)
+        private static int FindTagToParking(int startTag, List<int> avoidTagList, double vechiel_length)
         {
             List<int> _avoidTagList = new List<int>();
             _avoidTagList.Add(startTag);
@@ -173,11 +180,14 @@ namespace VMSystem.TrafficControl
             }
             //依據走行總距離由小至大排序
             pfResultCollection = pfResultCollection.Where(pf => pf.waitPoints.Count == 0).OrderBy(pf => pf.total_travel_distance).ToList();
+
             if (pfResultCollection.Count > 0)
             {
                 //過濾出不會與[要求趕車之AGV]路徑衝突的路徑
-
                 pfResultCollection = pfResultCollection.Where(pf => pf.tags.Any(tag => !_avoidTagList.Contains(tag))).ToList();
+                var _avoidMapPoints = StaMap.Map.Points.Values.ToList().FindAll(pt => _avoidTagList.Contains(pt.TagNumber));
+
+                pfResultCollection = pfResultCollection.Where(pf => _avoidMapPoints.All(pt => pt.CalculateDistance(pf.stations.Last()) >= vechiel_length)).ToList();
 
                 return pfResultCollection.First().stations.Last().TagNumber;
             }

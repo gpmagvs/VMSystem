@@ -16,8 +16,22 @@ namespace VMSystem.VMS
             clientState.OnClientOnlineRequesting += ClientState_OnClientOnlineRequesting;
             clientState.OnClientRunningStatusReport += ClientState_OnTCPClientRunningStatusReport;
             clientState.OnClientTaskFeedback += ClientState_OnClientTaskFeedback;
+
+            clientState.OnTcpSocketDisconnect += ClientState_OnTcpSocketDisconnect;
         }
 
+        private static void ClientState_OnTcpSocketDisconnect(object? sender, EventArgs e)
+        {
+            Task.Factory.StartNew(() =>
+            {
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
+                if (TryGetAGV(client.AGV_Name, AGV_MODEL.FORK_AGV, out IAGV agv))
+                {
+                    agv.online_mode_req = ONLINE_STATE.OFFLINE;
+                    agv.online_state = ONLINE_STATE.OFFLINE;
+                }
+            });
+        }
 
         private static void ClientState_OnTCPClientRunningStatusReport(object? sender, clsRunningStatusReportMessage e)
         {
@@ -26,7 +40,7 @@ namespace VMSystem.VMS
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
-                    agv.states = (e.Header.Values.First());
+                    agv.states = (e.Header.Values.First()).ToWebAPIRunningStatusObject();
                     client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(e, "0106", RETURN_CODE.OK));
                 }
             });
@@ -60,7 +74,7 @@ namespace VMSystem.VMS
                 {
                     var remote_req = request_message.Header.Values.First().ModeRequest;
                     if (remote_req == REMOTE_MODE.ONLINE)
-                        agv.AGVOnlineFromAGV(out string msg); 
+                        agv.AGVOnlineFromAGV(out string msg);
                     else
                         agv.AGVOfflineFromAGV(out string msg);
 
