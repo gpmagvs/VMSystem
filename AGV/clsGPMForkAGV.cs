@@ -11,6 +11,7 @@ using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices;
+using AGVSystemCommonNet6.StopRegion;
 using AGVSystemCommonNet6.TASK;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -30,6 +31,7 @@ namespace VMSystem.AGV
         public clsGPMForkAGV(string name, clsAGVOptions options)
         {
             availabilityHelper = new AvailabilityHelper(name);
+            StopRegionHelper = new StopRegionHelper(name);
             this.options = options;
             Name = name;
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
@@ -49,6 +51,7 @@ namespace VMSystem.AGV
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
 
         public AvailabilityHelper availabilityHelper { get; private set; }
+        public StopRegionHelper StopRegionHelper { get; private set; }
         private clsRunningStatus _states = new clsRunningStatus();
         public clsRunningStatus states
         {
@@ -308,6 +311,7 @@ namespace VMSystem.AGV
         {
             this.states = status;
             availabilityHelper.UpdateAGVMainState(main_state);
+            StopRegionHelper.UpdateStopRegionData(main_state, status.Last_Visited_Node.ToString()) ;
         }
 
         public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)

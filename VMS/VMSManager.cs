@@ -155,6 +155,16 @@ namespace VMSystem.VMS
                                 };
                             };
                             await dBHelper.Update(AllAGV.Select(agv => CreateDTO(agv)));
+                            foreach (var item in AllAGV)
+                            {
+                                item.UpdateAGVStates(new RunningStatus
+                                {
+                                    Electric_Volume = item.states.Electric_Volume,
+                                    AGV_Status = item.states.AGV_Status,
+                                    Last_Visited_Node = item.states.Last_Visited_Node,
+                                    Coordination = item.states.Coordination
+                                });
+                            }
                         }
 
                     }
