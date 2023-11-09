@@ -35,7 +35,7 @@ namespace VMSystem
             if (Map == null)
                 Download();
 
-            var chargeableStations = Map.Points.Values.ToList().FindAll(sta => sta.IsChargeAble());
+            var chargeableStations = Map.Points.Values.Where(sta =>sta.Enable&& sta.IsChargeAble()).ToList();
             return chargeableStations;
         }
 

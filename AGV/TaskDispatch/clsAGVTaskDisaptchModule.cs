@@ -117,24 +117,25 @@ namespace VMSystem.AGV
 
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
-            using (var database = new AGVSDatabase())
-            {
-                taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-            }
             if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                 return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
-            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != clsEnums.MAIN_STATUS.Charging)
+            if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                 return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
-
+            if (agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                return AGV_ORDERABLE_STATUS.EXECUTING;
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
                 if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.FINISH && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.NOT_START_YET)
                     return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
             }
 
+            using (var database = new AGVSDatabase())
+            {
+                taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+            }
             if (taskList.Count == 0)
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(task => task.State == TASK_RUN_STATUS.NAVIGATING) | taskList.Any(task => task.TaskName == TaskStatusTracker.OrderTaskName))
+            if (taskList.Any(tk=>tk.State== TASK_RUN_STATUS.NAVIGATING&&tk.DesignatedAGVName==agv.Name))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
@@ -145,7 +146,7 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    Thread.Sleep(10);
+                    await Task.Delay(200);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();

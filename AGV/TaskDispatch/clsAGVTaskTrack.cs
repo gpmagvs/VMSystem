@@ -709,37 +709,6 @@ namespace VMSystem.AGV.TaskDispatch
                 if (isSegmentTaskCreated)
                 {
                     LOG.INFO($"Navigation Path of {AGV.Name} is segment!!!!! ");
-                    //暫時解註冊
-                    //UnRegistPointsRegisted();
-                    //bool isAnyAGVGoToPark = TrafficControlCenter.RaiseAGVGoAwayRequest(_task.LastStopPoint.TagNumber, _task.EntirePathPlan, AGV.Name, out List<IAGV> agvListToPark);
-                    //if (isAnyAGVGoToPark)
-                    //{
-                    //    waitingInfo.IsWaiting = true;
-                    //    waitingInfo.Descrption = $"等待 {string.Join(",", agvListToPark.Select(agv => agv.Name))} 移車";
-                    //    LOG.TRACE($"Wait To Park AGV on going");
-
-                    //    while (agvListToPark.All(agv => !agv.IsTrafficTaskExecuting))
-                    //    {
-                    //        if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL)
-                    //            return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_CANCEL };
-                    //        Thread.Sleep(1);
-                    //    }
-                    //    LOG.TRACE($"ALL To Park AGV Is On the way!");
-                    //    LOG.TRACE($"Wait To Park AGV Reach Park Point");
-                    //    while (agvListToPark.All(agv => !agv.IsTrafficTaskFinish))
-                    //    {
-                    //        if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL)
-                    //            return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_CANCEL };
-                    //        Thread.Sleep(1);
-                    //    }
-                    //    LOG.TRACE($"ALL To Park AGV Is Reach Park Point!");
-                    //    waitingInfo.IsWaiting = false;
-                    //    waitingInfo.Descrption = "";
-                    //    taskSeq = taskSequence;
-                    //    _task.CreateTaskToAGV(TaskOrder, taskSeq, out isSegmentTaskCreated, out lastPt, false, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
-                    //    return _DispatchTaskToAGV(_task);
-
-                    //}
                     Task.Factory.StartNew(() =>
                     {
                         try

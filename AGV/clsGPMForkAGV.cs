@@ -173,14 +173,17 @@ namespace VMSystem.AGV
 
                     if (newAlarmodes.Length > 0)
                     {
-                        foreach (int alarm_code in _previousAlarmCodes) //舊的
+                        Task.Factory.StartNew(async() =>
                         {
-                            if (!newAlarmodes.Contains(alarm_code))
+                            foreach (int alarm_code in _previousAlarmCodes) //舊的
                             {
-                                AlarmManagerCenter.SetAlarmChecked(Name, alarm_code);
-                                previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
+                                if (!newAlarmodes.Contains(alarm_code))
+                                {
+                                    await AlarmManagerCenter.SetAlarmCheckedAsync(Name, alarm_code);
+                                    previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
+                                }
                             }
-                        }
+                        });
                     }
 
                     foreach (AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode alarm in value)
