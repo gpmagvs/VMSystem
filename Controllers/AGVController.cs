@@ -46,14 +46,24 @@ namespace VMSystem.Controllers
         [HttpPost("TaskFeedback")]
         public async Task<IActionResult> TaskFeedback(string AGVName, AGV_MODEL Model, [FromBody] FeedbackData feedbackData)
         {
-            if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
+            try
             {
-                int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
-                return Ok(new { ReturnCode = confirmed_code, Message = "" });
+
+                if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
+                {
+                    int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
+                    return Ok(new { ReturnCode = confirmed_code, Message = "" });
+                }
+                else
+                {
+                    return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+                }
             }
-            else
+            catch (Exception ex)
             {
-                return Ok(new { ReturnCode = 1, Message = "AGV Not Found" });
+                AlarmManagerCenter.AddAlarm(ALARMS.AGV_TaskFeedback_ERROR, Equipment_Name: AGVName);
+                LOG.Critical(ex);
+                return Ok(new { ReturnCode = 1, Message = ex.Message });
             }
         }
 

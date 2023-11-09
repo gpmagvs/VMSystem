@@ -17,6 +17,7 @@ namespace VMSystem.AGV.TaskDispatch
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; }
         public clsAGVTaskTrack TaskStatusTracker { get; set; }
+        string ExecutingTaskName { get; set; }
     }
 
     public class clsWaitingInfo
@@ -24,5 +25,12 @@ namespace VMSystem.AGV.TaskDispatch
         public bool IsWaiting { get; set; } = false;
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
         public string Descrption { get; set; } = "";
+
+        public void UpdateInfo(bool IsWaiting, string descrption = "", MapPoint WaitingPoint = null)
+        {
+            this.IsWaiting = IsWaiting;
+            this.Descrption = descrption;
+            this.WaitingPoint = WaitingPoint == null ? new MapPoint() : WaitingPoint;
+        }
     }
 }

@@ -9,7 +9,6 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using VMSystem.AGV;
-using VMSystem.ViewModel;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using System.Diagnostics;
 using AGVSystemCommonNet6.Log;
@@ -22,6 +21,10 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using System.Xml.Linq;
+using AGVSystemCommonNet6.ViewModels;
+using VMSystem.AGV.TaskDispatch;
+using System.Collections.Concurrent;
+using AGVSystemCommonNet6.Tools.Database;
 
 namespace VMSystem.VMS
 {
@@ -79,6 +82,8 @@ namespace VMSystem.VMS
 
         internal static async void Initialize(ConfigurationManager configuration)
         {
+            clsAGVTaskTrack.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
+            clsOptimizeAGVDispatcher.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
             var _configs = ReadVMSVehicleGroupSetting();
             if (_configs != null)
             {
@@ -112,14 +117,22 @@ namespace VMSystem.VMS
             {
                 if (await TcpServer.Connect())
                 {
-                    LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.Port})");
+                    LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
                 }
             });
 
             AGVStatesStoreWorker();
+            TaskDatabaseChangeWorker();
 
         }
 
+        private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
+        private static void ClsAGVTaskTrack_OnTaskDBChangeRequestRaising(object? sender, clsTaskDto task_data_dto)
+        {
+            WaitingForWriteToTaskDatabaseQueue.Enqueue(task_data_dto);
+        }
+
+        internal static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored = new Dictionary<string, clsAGVStateDto>();
         private static void AGVStatesStoreWorker()
         {
 
@@ -127,52 +140,77 @@ namespace VMSystem.VMS
             {
                 while (true)
                 {
-                    Thread.Sleep(100);
+                    await Task.Delay(10);
                     try
                     {
-                        using (AGVStatusDBHelper dBHelper = new AGVStatusDBHelper())
+                        clsAGVStateDto CreateDTO(IAGV agv)
                         {
-                            clsAGVStateDto CreateDTO(IAGV agv)
+                            var dto = new clsAGVStateDto
                             {
-                                return new clsAGVStateDto
-                                {
-                                    AGV_Name = agv.Name,
-                                    Enabled = agv.options.Enabled,
-                                    BatteryLevel_1 = agv.states.Electric_Volume[0],
-                                    BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
-                                    OnlineStatus = agv.online_state,
-                                    MainStatus = agv.states.AGV_Status,
-                                    CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
-                                    CurrentLocation = agv.states.Last_Visited_Node.ToString(),
-                                    Theta = agv.states.Coordination.Theta,
-                                    Connected = agv.connected,
-                                    Group = agv.VMSGroup,
-                                    Model = agv.model,
-                                    TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName : "",
-                                    TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
-                                    TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
-                                    CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
-                                };
+                                AGV_Name = agv.Name,
+                                Enabled = agv.options.Enabled,
+                                BatteryLevel_1 = agv.states.Electric_Volume[0],
+                                BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
+                                OnlineStatus = agv.online_state,
+                                MainStatus = agv.states.AGV_Status,
+                                CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
+                                CurrentLocation = agv.states.Last_Visited_Node.ToString(),
+                                Theta = agv.states.Coordination.Theta,
+                                Connected = agv.connected,
+                                Group = agv.VMSGroup,
+                                Model = agv.model,
+                                TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName : "",
+                                TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                                TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
+                                CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType,
+                                TransferProcess = agv.taskDispatchModule.TaskStatusTracker.transferProcess,
+                                IsCharging = agv.states.IsCharging
                             };
-                            await dBHelper.Update(AllAGV.Select(agv => CreateDTO(agv)));
-                            foreach (var item in AllAGV)
-                            {
-                                item.UpdateAGVStates(new RunningStatus
-                                {
-                                    Electric_Volume = item.states.Electric_Volume,
-                                    AGV_Status = item.states.AGV_Status,
-                                    Last_Visited_Node = item.states.Last_Visited_Node,
-                                    Coordination = item.states.Coordination
-                                });
-                            }
-                        }
+                            if (!AGVStatueDtoStored.ContainsKey(dto.AGV_Name))
+                                AGVStatueDtoStored.Add(dto.AGV_Name, dto);
+                            AGVStatueDtoStored[dto.AGV_Name] = dto;
+                            return dto;
+                        };
 
+                        foreach (var item in AllAGV)
+                        {
+                            item.UpdateAGVStates(item.states);
+                        }
+                        var datas = AllAGV.Select(agv => CreateDTO(agv));
+                        _ = Task.Factory.StartNew(async () =>
+                        {
+                            await Task.Delay(500);
+                            AGVStatusDBHelper dBHelper = new AGVStatusDBHelper();
+                            await dBHelper.Update(datas);
+                            dBHelper.Dispose();
+                        });
                     }
                     catch (Exception ex)
                     {
 
                     }
 
+                }
+            });
+        }
+
+        private static void TaskDatabaseChangeWorker()
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(1);
+                    if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
+                    {
+                        WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto);
+                        using (var database = new AGVSDatabase())
+                        {
+                            database.tables.Tasks.Update(dto);
+                            int save_cnt = await database.SaveChanges();
+                            LOG.INFO($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}");
+                        }
+                    }
                 }
             });
         }

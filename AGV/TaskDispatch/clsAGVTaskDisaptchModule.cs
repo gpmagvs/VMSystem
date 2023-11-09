@@ -25,6 +25,8 @@ using static AGVSystemCommonNet6.MAP.PathFinder;
 using VMSystem.AGV.TaskDispatch;
 using AGVSystemCommonNet6.DATABASE;
 using Microsoft.EntityFrameworkCore;
+using AGVSystemCommonNet6.AGVDispatch.RunMode;
+using System.Runtime.CompilerServices;
 
 namespace VMSystem.AGV
 {
@@ -40,6 +42,7 @@ namespace VMSystem.AGV
             AGV_STATUS_ERROR,
             NO_ORDER,
             AGV_OFFLINE,
+            EXECUTING_RESUME,
         }
 
         public IAGV agv;
@@ -54,12 +57,33 @@ namespace VMSystem.AGV
                 if (previous_OrderExecuteState != value)
                 {
                     previous_OrderExecuteState = value;
-                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}");
+                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
+                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
+                    {
+                        if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
+                        {
+                            if (agv.states.Cargo_Status != 0)
+                            {
+                                AlarmManagerCenter.AddAlarm(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
+                                return;
+                            }
+                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
+                            TaskDBHelper.Add(new clsTaskDto
+                            {
+                                Action = ACTION_TYPE.Charge,
+                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                                DispatcherName = "VMS",
+                                DesignatedAGVName = agv.Name,
+                                RecieveTime = DateTime.Now,
+                            });
+                        }
+                    }
                 }
             }
         }
 
         public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
+        public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
 
         public clsMapPoint[] CurrentTrajectory { get; set; }
 
@@ -101,50 +125,90 @@ namespace VMSystem.AGV
                 return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
             if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != clsEnums.MAIN_STATUS.Charging)
                 return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
+
+            if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+            {
+                if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.FINISH && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.NOT_START_YET)
+                    return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
+            }
+
             if (taskList.Count == 0)
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(task => task.State == TASK_RUN_STATUS.NAVIGATING))
+            if (taskList.Any(task => task.State == TASK_RUN_STATUS.NAVIGATING) | taskList.Any(task => task.TaskName == TaskStatusTracker.OrderTaskName))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
         protected virtual void TaskAssignWorker()
         {
 
-            Task.Run(async () =>
+            Task.Factory.StartNew(async () =>
             {
                 while (true)
                 {
-                    await Task.Delay(10);
-
+                    Thread.Sleep(10);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
                         if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
-                            var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
+                            var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
                             var _ExecutingTask = taskOrderedByPriority.First();
 
+                            if (_ExecutingTask.Action == ACTION_TYPE.Charge)
+                            {
+                                Thread.Sleep(200);
+                                using (var database = new AGVSDatabase())
+                                {
+                                    taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                                    if (taskList.Any(task => task.Action == ACTION_TYPE.Carry))
+                                    {
+                                        var chare_task = database.tables.Tasks.First(tk => tk.TaskName == _ExecutingTask.TaskName);
+                                        chare_task.FailureReason = "Transfer Task Is Raised";
+                                        chare_task.FinishTime = DateTime.Now;
+                                        chare_task.State = TASK_RUN_STATUS.CANCEL;
+                                        OnTaskDBChangeRequestRaising?.Invoke(this, chare_task);
+                                        continue;
+                                    }
+                                }
+                            }
                             if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
                             {
                                 AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
                                 continue;
                             }
-                            await Task.Delay(1000);
+                            agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
+                            _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
+                            OnTaskDBChangeRequestRaising?.Invoke(this, _ExecutingTask);
                             await ExecuteTaskAsync(_ExecutingTask);
+                        }
+                        else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)
+                        {
+                            using (var database = new AGVSDatabase())
+                            {
+                                var _lastPauseTask = database.tables.Tasks.Where(f => f.DesignatedAGVName == agv.Name && f.TaskName == TaskStatusTracker.OrderTaskName).FirstOrDefault();
+                                if (_lastPauseTask != null)
+                                {
+                                    await ExecuteTaskAsync(_lastPauseTask);
+
+                                }
+                            }
                         }
                     }
                     catch (NoPathForNavigatorException ex)
                     {
+                        ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
+                        ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
                     catch (Exception ex)
                     {
-                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ex.Message);
+                        ExecutingTaskName = "";
+                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
                     }
 
@@ -152,8 +216,19 @@ namespace VMSystem.AGV
             });
         }
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
+        public string ExecutingTaskName { get; set; } = "";
+
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
+            bool IsResumeTransferTask = false;
+            TRANSFER_PROCESS lastTransferProcess = default;
+            if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+            {
+                IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
+                lastTransferProcess = TaskStatusTracker.transferProcess;
+            }
+
+
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
             else
@@ -164,13 +239,20 @@ namespace VMSystem.AGV
                     TaskStatusTracker = new clsAGVTaskTrack(this) { AGV = agv };
             }
 
-            await TaskStatusTracker.Start(agv, executingTask);
+            ExecutingTaskName = executingTask.TaskName;
+            await TaskStatusTracker.Start(agv, executingTask, IsResumeTransferTask, lastTransferProcess);
         }
 
 
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
+            var task_status = feedbackData.TaskStatus;
+            if (task_status == TASK_RUN_STATUS.ACTION_FINISH | task_status == TASK_RUN_STATUS.FAILURE | task_status == TASK_RUN_STATUS.CANCEL | task_status == TASK_RUN_STATUS.NO_MISSION)
+            {
+                ExecutingTaskName = "";
+                agv.IsTrafficTaskExecuting = false;
+            }
             using (var db = new AGVSDatabase())
             {
                 var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
@@ -185,6 +267,7 @@ namespace VMSystem.AGV
                         return 0;
                 }
                 var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
+
                 return (int)response;
             }
 
@@ -206,7 +289,7 @@ namespace VMSystem.AGV
             {
                 if (agv.options.Simulation)
                     return new SimpleRequestResponse();
-                    //return await AgvSimulation.ActionRequestHandler(data);
+                //return await AgvSimulation.ActionRequestHandler(data);
 
                 SimpleRequestResponse taskStateResponse = await agv.AGVHttp.PostAsync<SimpleRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", data);
                 return taskStateResponse;
@@ -227,10 +310,10 @@ namespace VMSystem.AGV
             var _ExecutingTask = new AGVSystemCommonNet6.TASK.clsTaskDto()
             {
                 DesignatedAGVName = agv.Name,
-                DispatcherName = "TMC",
+                DispatcherName = "Traffic",
                 Carrier_ID = task_download_data.CST.FirstOrDefault().CST_ID,
                 TaskName = task_download_data.Task_Name,
-                Priority = 5,
+                Priority = 10,
                 Action = task_download_data.Action_Type,
                 To_Station = task_download_data.Destination.ToString(),
                 RecieveTime = DateTime.Now,

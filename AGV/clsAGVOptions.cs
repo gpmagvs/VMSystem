@@ -17,5 +17,12 @@
         public int InitTag { get; set; } = 1;
 
         public bool Enabled { get; set; } = true;
+        /// <summary>
+        /// 車身長度
+        /// <remark>
+        /// 單位:cm
+        /// </remark>
+        /// </summary>
+        public double VehicleLength { get; set; } = 145.0;
     }
 }

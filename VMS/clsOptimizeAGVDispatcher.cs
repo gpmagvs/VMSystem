@@ -1,14 +1,18 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.TASK;
 using AGVSystemCommonNet6.Tools.Database;
+using Microsoft.EntityFrameworkCore;
 using VMSystem.AGV;
 
 namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
     {
+        public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
+
         /// <summary>
         /// 取得沒有指定AGV的任務
         /// </summary>
@@ -26,18 +30,22 @@ namespace VMSystem.VMS
                 while (true)
                 {
                     await Task.Delay(1000);
-
+                    using (var database = new AGVSDatabase())
+                    {
+                        taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                    }
                     if (taskList.Count == 0)
                         continue;
 
                     //將任務依照優先度排序
                     var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
                     var _taskDto = taskOrderedByPriority.First();
-
+                    if (_taskDto.DesignatedAGVName != "")
+                        continue;
                     IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
                     agv = AGV;
                     _taskDto.DesignatedAGVName = AGV.Name;
-                    UpdateTaskDtoData(ref _taskDto, TASK_RUN_STATUS.WAIT);
+                    OnTaskDBChangeRequestRaising?.Invoke(this, _taskDto);
                     //ExecuteTaskAsync(ExecutingTask);
                 }
             });
@@ -63,15 +71,17 @@ namespace VMSystem.VMS
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out refStation);
             }
 
-            var agvSortedByDistance = VMSManager.AllAGV.OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y));
+            var agvSortedByDistance = VMSManager.AllAGV.OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
+            if (agvSortedByDistance.Count() > 1)
+            {
+                if (agvSortedByDistance.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
+                    return agvSortedByDistance.First();
+                else
+                {
+                    return agvSortedByDistance.First(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE);
+                }
+            }
             return agvSortedByDistance.First();
-        }
-
-        protected override void UpdateTaskDtoData(ref clsTaskDto executingTask, TASK_RUN_STATUS state)
-        {
-            executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
-            executingTask.State = state;
-            TaskDBHelper.Update(executingTask);
         }
     }
 }

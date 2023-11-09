@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.RunMode;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem
 {
@@ -16,6 +17,7 @@ namespace VMSystem
                 if (_RunMode != value)
                 {
                     _RunMode = value;
+                    LOG.INFO($"Run Mode Switch to {_RunMode}");
                     if (_RunMode == RUN_MODE.RUN)
                     {
                         if (OnRunModeON != null)

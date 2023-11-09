@@ -12,8 +12,6 @@ namespace VMSystem.AGV
 {
     public partial class clsAGVTaskDisaptchModule
     {
-
-
         /// <summary>
         /// 
         /// </summary>
@@ -30,13 +28,12 @@ namespace VMSystem.AGV
                 LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
                 if (!SearchDestineStation(_ExecutingTask.Action, out MapPoint workstation, out alarm_code))
                 {
-                    
                     using (var db = new AGVSDatabase())
                     {
-                        var tk=db.tables.Tasks.Where(tk=>tk.TaskName== _ExecutingTask.TaskName).FirstOrDefault();
+                        var tk = db.tables.Tasks.Where(tk => tk.TaskName == _ExecutingTask.TaskName).FirstOrDefault();
                         tk.State = TASK_RUN_STATUS.FAILURE;
                         tk.FinishTime = DateTime.Now;
-                        db.SaveChanges();
+                        OnTaskDBChangeRequestRaising?.Invoke(this, tk);
                     }
                     return false;
                 }
@@ -68,18 +65,37 @@ namespace VMSystem.AGV
 
             var othersAGV = VMSManager.AllAGV.FindAll(agv => agv != this.agv);
             var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
-            var othersAGVNavigatingDestine = othersAGV.FindAll(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN).Select(agv => int.Parse(agv.taskDispatchModule.TaskStatusTracker.TaskOrder.To_Station));
-            workstations = workstations.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber) && !othersAGVNavigatingDestine.Contains(point.TagNumber));
+
+            while (true)
+            {
+                Thread.Sleep(1);
+                using (var database = new AGVSDatabase())
+                {
+                    var chargeTasks = database.tables.Tasks.Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING | tk.State == TASK_RUN_STATUS.WAIT));
+                    if (chargeTasks.Count() == 0)
+                        break;
+                    if (chargeTasks.All(tk => tk.To_Station == "-1") && chargeTasks.All(tk => tk.DesignatedAGVName != this.agv.Name))
+                        continue;
+                    workstations = workstations.FindAll(station => !chargeTasks.Select(tk => tk.To_Station).Contains(station.TagNumber + ""));
+                    break;
+                }
+            }
+
+
+            workstations = workstations.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber));
             if (workstations.Count == 0)
             {
                 alarm_code = alarm_code_if_occur;
                 return false;
             }
             PathFinder _pathFinder = new PathFinder();
-            var distance_of_destine = workstations.ToDictionary(point => point, point => _pathFinder.FindShortestPath(StaMap.Map.Points, agv.currentMapPoint, point).total_travel_distance);
+
+            Dictionary<MapPoint, double> distance_of_destine = workstations.ToDictionary(point => point, point => _pathFinder.FindShortestPath(StaMap.Map.Points, agv.currentMapPoint, point).total_travel_distance);
             var ordered = distance_of_destine.OrderBy(kp => kp.Value);
-            optimized_workstation = ordered.First().Key;
+            var _optimized_workstation = ordered.FirstOrDefault(kp => _pathFinder.FindShortestPath(StaMap.Map.Points, this.agv.currentMapPoint, kp.Key).stations.Select(pt => pt.TagNumber).Intersect(othersAGVLocTags).Count() == 0);
+            optimized_workstation = _optimized_workstation.Key == null ? ordered.First().Key : _optimized_workstation.Key;
             return true;
+
         }
 
         /// <summary>
@@ -101,22 +117,6 @@ namespace VMSystem.AGV
                 }
             }
             return true;
-        }
-
-        /// <summary>
-        /// 更新起點、接收時間、狀態等
-        /// </summary>
-        /// <param name="executingTask"></param>
-        protected virtual void UpdateTaskDtoData(ref clsTaskDto executingTask, TASK_RUN_STATUS state)
-        {
-            if (executingTask.Action != ACTION_TYPE.Carry)
-                executingTask.From_Station = agv.states.Last_Visited_Node.ToString();
-            executingTask.RecieveTime = DateTime.Now;
-            executingTask.State = state;
-            using (var db = new AGVSDatabase())
-            {
-                db.tables.Tasks.Update(executingTask);
-            }
         }
     }
 }
