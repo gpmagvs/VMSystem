@@ -30,7 +30,7 @@ namespace VMSystem.AGV.TaskDispatch
     /// <summary>
     /// 追蹤AGV任務鍊
     /// </summary>
-    public class clsAGVTaskTrack:IDisposable
+    public class clsAGVTaskTrack : IDisposable
     {
         public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
         public IAGV AGV;
@@ -887,7 +887,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             TrajectoryStoreTimer?.Stop();
             TrajectoryStoreTimer?.Dispose();
-            LOG.TRACE($" {AGV.Name} End Store trajectory of Task-{OrderTaskName}");
+            LOG.WARN($"{AGV.Name} End Store trajectory of Task-{OrderTaskName}");
         }
 
         /// <summary>
@@ -895,11 +895,11 @@ namespace VMSystem.AGV.TaskDispatch
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
+        private async void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
         {
-            StoreTrajectory();
+            await StoreTrajectory();
         }
-        private void StoreTrajectory()
+        private async Task StoreTrajectory()
         {
             if (TaskOrder == null)
             {
@@ -912,7 +912,11 @@ namespace VMSystem.AGV.TaskDispatch
             double y = AGV.states.Coordination.Y;
             double theta = AGV.states.Coordination.Theta;
             TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-            helper.StoreTrajectory(taskID, agvName, x, y, theta);
+            var result=  await helper.StoreTrajectory(taskID, agvName, x, y, theta);
+            if (!result.success)
+            {
+                LOG.ERROR($"[{AGV.Name}] trajectory store of task {OrderTaskName} DB ERROR : {result.error_msg}");
+            }
         }
 
         protected virtual void Dispose(bool disposing)
