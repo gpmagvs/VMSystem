@@ -30,7 +30,7 @@ namespace VMSystem.AGV.TaskDispatch
     /// <summary>
     /// 追蹤AGV任務鍊
     /// </summary>
-    public class clsAGVTaskTrack
+    public class clsAGVTaskTrack:IDisposable
     {
         public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
         public IAGV AGV;
@@ -764,6 +764,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void CompleteOrder()
         {
+            EndReocrdTrajectory();
             UnRegistPointsRegisted();
             ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
@@ -783,6 +784,8 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 WaitingForResume = false;
                 ChangeTaskStatus(TASK_RUN_STATUS.FAILURE, failure_reason: message == "" ? alarm_code.ToString() : message);
+                EndReocrdTrajectory();
+
             }
             if (alarm_code == ALARMS.NONE)
             {
@@ -822,6 +825,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         internal async void CancelOrder()
         {
+            EndReocrdTrajectory();
             UnRegistPointsRegisted();
             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
             taskCancel.Cancel();
@@ -848,7 +852,6 @@ namespace VMSystem.AGV.TaskDispatch
             TaskOrder.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH | status == TASK_RUN_STATUS.WAIT)
             {
-                EndReocrdTrajectory();
                 waitingInfo.UpdateInfo(false);
                 TaskOrder.FailureReason = failure_reason;
                 TaskOrder.FinishTime = DateTime.Now;
@@ -868,7 +871,8 @@ namespace VMSystem.AGV.TaskDispatch
                 OnTaskDBChangeRequestRaising?.Invoke(this, TaskOrder);
             }
         }
-        System.Timers.Timer TrajectoryStoreTimer;
+        System.Timers.Timer? TrajectoryStoreTimer;
+        private bool disposedValue;
 
         private void StartRecordTrjectory()
         {
@@ -879,14 +883,11 @@ namespace VMSystem.AGV.TaskDispatch
             TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
             TrajectoryStoreTimer.Enabled = true;
         }
-        private void EndReocrdTrajectory()
+        public void EndReocrdTrajectory()
         {
-            if(TrajectoryStoreTimer==null)
-                return;
-            TrajectoryStoreTimer.Enabled = false;
-            TrajectoryStoreTimer.Stop();
-            TrajectoryStoreTimer.Dispose();
-            LOG.TRACE($"End Store {AGV.Name} trajectory");
+            TrajectoryStoreTimer?.Stop();
+            TrajectoryStoreTimer?.Dispose();
+            LOG.TRACE($" {AGV.Name} End Store trajectory of Task-{OrderTaskName}");
         }
 
         /// <summary>
@@ -914,7 +915,32 @@ namespace VMSystem.AGV.TaskDispatch
             helper.StoreTrajectory(taskID, agvName, x, y, theta);
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: 處置受控狀態 (受控物件)
+                }
+                EndReocrdTrajectory();
+                disposedValue = true;
+            }
+        }
 
+        // // TODO: 僅有當 'Dispose(bool disposing)' 具有會釋出非受控資源的程式碼時，才覆寫完成項
+        // ~clsAGVTaskTrack()
+        // {
+        //     // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 
 
