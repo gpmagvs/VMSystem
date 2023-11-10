@@ -11,6 +11,7 @@ using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices;
+using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.TASK;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;

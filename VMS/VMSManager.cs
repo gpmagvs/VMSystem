@@ -25,6 +25,7 @@ using AGVSystemCommonNet6.ViewModels;
 using VMSystem.AGV.TaskDispatch;
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
+using AGVSystemCommonNet6.Microservices.VMS;
 
 namespace VMSystem.VMS
 {
@@ -84,7 +85,7 @@ namespace VMSystem.VMS
         {
             clsAGVTaskTrack.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
             clsOptimizeAGVDispatcher.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
-            var _configs = ReadVMSVehicleGroupSetting();
+            var _configs = VMSSerivces.ReadVMSVehicleGroupSetting(Vehicle_Json_file);
             if (_configs != null)
             {
                 _vehicle_configs = _configs;
@@ -111,7 +112,9 @@ namespace VMSystem.VMS
                 }
                 VMSList.Add(item.Key, VMSTeam);
             }
-            SaveVMSVehicleGroupSetting();
+
+            var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
+            VMSSerivces.SaveVMSVehicleGroupSetting( Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
             Task.Factory.StartNew(async () =>
             {
@@ -218,7 +221,7 @@ namespace VMSystem.VMS
                             {
                                 entity.Update(dto);
                                 int save_cnt = await database.SaveChanges();
-                                LOG.INFO($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}");
+                                LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", false);
                             }
                         }
                     }
@@ -231,28 +234,6 @@ namespace VMSystem.VMS
             });
         }
 
-        private static Dictionary<VMS_GROUP, VMSConfig>? ReadVMSVehicleGroupSetting()
-        {
-            if (File.Exists(Vehicle_Json_file))
-            {
-                var json = File.ReadAllText(Vehicle_Json_file);
-                if (json == null)
-                {
-                    return null;
-                }
-                return JsonConvert.DeserializeObject<Dictionary<VMS_GROUP, VMSConfig>>(json);
-            }
-            else
-            {
-                return null;
-            }
-        }
-        private static void SaveVMSVehicleGroupSetting()
-        {
-            var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
-            File.WriteAllText(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
-
-        }
         public static void Initialize()
         {
             ForkAGVVMS = new GPMForkAgvVMS();
