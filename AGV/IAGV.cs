@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.AGV.TaskDispatch;
 using AGVSystemCommonNet6.HttpTools;
+using AGVSystemCommonNet6.Microservices.VMS;
 
 namespace VMSystem.AGV
 {

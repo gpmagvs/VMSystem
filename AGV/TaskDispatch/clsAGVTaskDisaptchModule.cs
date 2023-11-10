@@ -27,6 +27,7 @@ using AGVSystemCommonNet6.DATABASE;
 using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.AGVDispatch.RunMode;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ObjectiveC;
 
 namespace VMSystem.AGV
 {
@@ -203,6 +204,7 @@ namespace VMSystem.AGV
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
+                        LOG.Critical(ex);
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
@@ -221,6 +223,8 @@ namespace VMSystem.AGV
 
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
+            TaskStatusTracker?.Dispose();
+
             bool IsResumeTransferTask = false;
             TRANSFER_PROCESS lastTransferProcess = default;
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)

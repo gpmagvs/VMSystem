@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using AGVSystemCommonNet6.Microservices.VMS;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -47,10 +48,5 @@ namespace VMSystem
         }
 
 
-        public class VMSConfig
-        {
-            public Dictionary<string, clsAGVOptions> AGV_List { get; set; }
-
-        }
     }
 }
