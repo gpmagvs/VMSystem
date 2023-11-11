@@ -124,7 +124,10 @@ namespace VMSystem.AGV
 
                     StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
 
-                    if (agv.currentMapPoint.IsChargeAble())
+
+                    agv.states.IsCharging = agv.currentMapPoint.IsChargeAble();
+
+                    if (agv.states.IsCharging)
                         agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
                     else
                         agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
