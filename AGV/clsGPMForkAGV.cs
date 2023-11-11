@@ -36,11 +36,11 @@ namespace VMSystem.AGV
             StopRegionHelper = new StopRegionHelper(name);
             this.options = options;
             Name = name;
-            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
             RestoreStatesFromDatabase();
             AutoParkWorker();
             AliveCheck();
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
+            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
         }
 
