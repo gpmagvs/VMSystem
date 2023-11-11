@@ -25,7 +25,7 @@ namespace VMSystem.AGV
 
         ONLINE_STATE online_mode_req { get; set; }
         ONLINE_STATE online_state { get; set; }
-        MAIN_STATUS main_state { get; }
+        MAIN_STATUS main_state { get; set; }
         clsRunningStatus states { get; set; }
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
@@ -49,7 +49,6 @@ namespace VMSystem.AGV
         bool IsTrafficTaskFinish { get; set; }
 
         string AddNewAlarm(ALARMS alarm_enum, ALARM_SOURCE source = ALARM_SOURCE.EQP, ALARM_LEVEL Level = ALARM_LEVEL.WARNING);
-        void UpdateAGVStates(clsRunningStatus status);
         Task PublishTrafficDynamicData(clsDynamicTrafficState dynamicTrafficState);
 
         void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint);

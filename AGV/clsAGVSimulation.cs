@@ -22,6 +22,7 @@ namespace VMSystem.AGV
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
         private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
         private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
+        clsRunningStatus runningSTatus = new clsRunningStatus();
         public clsAGVSimulation(clsAGVTaskDisaptchModule dispatcherModule)
         {
             this.dispatcherModule = dispatcherModule;
@@ -32,22 +33,35 @@ namespace VMSystem.AGV
 
                 if (agvStates != null)
                 {
-                    batteryLevelSim = new double[] { agvStates.BatteryLevel_1, agvStates.BatteryLevel_2 };
-                    agv.states.Last_Visited_Node = int.Parse(agvStates.CurrentLocation);
+                    runningSTatus.Last_Visited_Node = int.Parse(agvStates.CurrentLocation);
                 }
                 else
                 {
-                    agv.states.Last_Visited_Node = agv.options.InitTag;
+                    runningSTatus.Last_Visited_Node = agv.options.InitTag;
                 }
-                var loc = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
-                agv.states.Coordination = new clsCoordination(loc.X, loc.Y, loc.Direction);
-                agv.states = agv.states;
+                var loc = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+                runningSTatus.Coordination = new clsCoordination(loc.X, loc.Y, loc.Direction);
+                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                 BatterSimulation();
+                ReportRunningStatusSimulation();
             }
         }
+
+        private void ReportRunningStatusSimulation()
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(1);
+                    agv.states = runningSTatus;
+                }
+            });
+        }
+
         public async Task<TaskDownloadRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
         {
-            agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN;
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
             moveCancelTokenSource?.Cancel();
             await Task.Delay(00);
             MoveTask(data);
@@ -106,32 +120,30 @@ namespace VMSystem.AGV
                         Thread.Sleep(1000);
                         if (action == ACTION_TYPE.Load)
                         {
-                            agv.states.CSTID = new string[0];
-                            agv.states.Cargo_Status = 0;
+                            runningSTatus.CSTID = new string[0];
+                            runningSTatus.Cargo_Status = 0;
                         }
                         else
                         {
-                            agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
-                            agv.states.Cargo_Status = 1;
+                            runningSTatus.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
+                            runningSTatus.Cargo_Status = 1;
                         }
                         ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
                         BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
                     double finalTheta = ExecutingTrajecory.Last().Theta;
-                    SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
-                    agv.states.Coordination.Theta = finalTheta;
+                    SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
+                    runningSTatus.Coordination.Theta = finalTheta;
                     Thread.Sleep(1000);
 
-                    StaMap.TryGetPointByTagNumber(agv.states.Last_Visited_Node, out var point);
+                    StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
 
+                    runningSTatus.IsCharging = agv.currentMapPoint.IsChargeAble();
 
-                    agv.states.IsCharging = agv.currentMapPoint.IsChargeAble();
-
-                    if (agv.states.IsCharging)
-                        agv.states.AGV_Status = clsEnums.MAIN_STATUS.Charging;
+                    if (runningSTatus.IsCharging)
+                        runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.Charging;
                     else
-                        agv.states.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-
+                        runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
 
                     stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
@@ -189,10 +201,10 @@ namespace VMSystem.AGV
                 {
                     throw new TaskCanceledException();
                 }
-                int currentTag = agv.states.Last_Visited_Node;
-                double currentX = agv.states.Coordination.X;
-                double currentY = agv.states.Coordination.Y;
-                double currentAngle = agv.states.Coordination.Theta;
+                int currentTag = runningSTatus.Last_Visited_Node;
+                double currentX = runningSTatus.Coordination.X;
+                double currentY = runningSTatus.Coordination.Y;
+                double currentAngle = runningSTatus.Coordination.Theta;
                 int stationTag = station.Point_ID;
 
                 if (currentTag == stationTag)
@@ -217,19 +229,19 @@ namespace VMSystem.AGV
                     }
                     double rotateTime = Math.Abs(angleDiff) / rotateSpeed; // 计算旋转时间 在 rotateTime 时间内将 AGV 旋转到目标角度
                     double moveTime = Math.Sqrt(deltaX * deltaX + deltaY * deltaY) / moveSpeed;
-                    SimulationThetaChange(agv.states.Coordination.Theta, targetAngle);
-                    agv.states.Coordination.Theta = targetAngle;
+                    SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
+                    runningSTatus.Coordination.Theta = targetAngle;
                 }
                 MoveChangeSimulation(currentX, currentY, station.X, station.Y);
                 //Thread.Sleep(1000);
-                agv.states.Coordination.X = station.X;
-                agv.states.Coordination.Y = station.Y;
+                runningSTatus.Coordination.X = station.X;
+                runningSTatus.Coordination.Y = station.Y;
 
-                var pt = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
+                var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
                 string err_msg = "";
                 Task.Factory.StartNew(() => StaMap.UnRegistPoint(agv.Name, pt, out err_msg));
 
-                agv.states.Last_Visited_Node = stationTag;
+                runningSTatus.Last_Visited_Node = stationTag;
                 StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
@@ -244,7 +256,6 @@ namespace VMSystem.AGV
 
                     }
                 }
-                agv.states = agv.states;
                 idx += 1;
             }
         }
@@ -261,8 +272,8 @@ namespace VMSystem.AGV
 
             for (int i = 0; i < TotalSpendTime; i++)
             {
-                agv.states.Coordination.X = CurrentX + i * MoveSpeed_X;
-                agv.states.Coordination.Y = CurrentY + i * MoveSpeed_Y;
+                runningSTatus.Coordination.X = CurrentX + i * MoveSpeed_X;
+                runningSTatus.Coordination.Y = CurrentY + i * MoveSpeed_Y;
                 Thread.Sleep(100);
             }
         }
@@ -289,7 +300,7 @@ namespace VMSystem.AGV
                 {
                     if (moveCancelTokenSource.IsCancellationRequested)
                         throw new TaskCanceledException();
-                    agv.states.Coordination.Theta -= deltaTheta;
+                    runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
                 }
@@ -303,7 +314,7 @@ namespace VMSystem.AGV
                 {
                     if (moveCancelTokenSource.IsCancellationRequested)
                         throw new TaskCanceledException();
-                    agv.states.Coordination.Theta += deltaTheta;
+                    runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep(10);
                 }
@@ -312,9 +323,6 @@ namespace VMSystem.AGV
 
         private void BatterSimulation()
         {
-
-
-
             Task.Factory.StartNew(async () =>
             {
                 while (true)
@@ -345,7 +353,7 @@ namespace VMSystem.AGV
                         if (batteryLevelSim[1] <= 0)
                             batteryLevelSim[1] = 1;
                     }
-                    agv.states.Electric_Volume = batteryLevelSim;
+                    runningSTatus.Electric_Volume = batteryLevelSim;
                     _ = Task.Factory.StartNew(async () =>
                     {
                         await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);

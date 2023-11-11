@@ -94,12 +94,8 @@ namespace VMSystem.Controllers
             {
                 if (agv.options.Simulation)
                 {
-                    agv.UpdateAGVStates(new clsRunningStatus
-                    {
-                        AGV_Status = MAIN_STATUS.IDLE,
-                        Last_Visited_Node = agv.states.Last_Visited_Node
-                    });
                     agv.online_state = ONLINE_STATE.OFFLINE;
+                    agv.states.AGV_Status = MAIN_STATUS.IDLE;
                 }
                 else
                 {

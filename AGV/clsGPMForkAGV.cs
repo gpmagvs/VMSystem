@@ -64,6 +64,7 @@ namespace VMSystem.AGV
                 currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
+                main_state = value.AGV_Status;
             }
         }
 
@@ -120,13 +121,18 @@ namespace VMSystem.AGV
                 }
             }
         }
+        public clsEnums.MAIN_STATUS _main_state = MAIN_STATUS.Unknown;
         public clsEnums.MAIN_STATUS main_state
         {
-            get
+            get => _main_state;
+            set
             {
-                if ((int)states.AGV_Status == 0)
-                    return clsEnums.MAIN_STATUS.IDLE;
-                return states.AGV_Status;
+                if (value != _main_state)
+                {
+                    availabilityHelper.UpdateAGVMainState(value);
+                    StopRegionHelper.UpdateStopRegionData(value, states.Last_Visited_Node.ToString());
+                    _main_state = value;
+                }
             }
         }
         public MapPoint previousMapPoint { get; private set; } = null;
@@ -174,7 +180,7 @@ namespace VMSystem.AGV
 
                     if (newAlarmodes.Length > 0)
                     {
-                        Task.Factory.StartNew(async() =>
+                        Task.Factory.StartNew(async () =>
                         {
                             foreach (int alarm_code in _previousAlarmCodes) //舊的
                             {
@@ -206,7 +212,7 @@ namespace VMSystem.AGV
                                 Source = ALARM_SOURCE.EQP,
 
                             };
-                             AlarmManagerCenter.AddAlarmAsync(alarmDto);
+                            AlarmManagerCenter.AddAlarmAsync(alarmDto);
                             previousAlarmCodes.Add(alarmDto);
                         }
                         else
@@ -332,8 +338,7 @@ namespace VMSystem.AGV
         public async void UpdateAGVStates(clsRunningStatus status)
         {
             this.states = status;
-            availabilityHelper.UpdateAGVMainState(main_state);
-            StopRegionHelper.UpdateStopRegionData(main_state, status.Last_Visited_Node.ToString()) ;
+
         }
 
         public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
@@ -501,7 +506,7 @@ namespace VMSystem.AGV
 
             };
             alarmSave.Task_Name = taskDispatchModule.TaskStatusTracker.OrderTaskName;
-             AlarmManagerCenter.AddAlarmAsync(alarmSave);
+            AlarmManagerCenter.AddAlarmAsync(alarmSave);
             return alarmSave.Description_Zh;
         }
 
