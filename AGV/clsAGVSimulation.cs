@@ -97,7 +97,7 @@ namespace VMSystem.AGV
                         TaskStatus = TASK_RUN_STATUS.ACTION_START
                     };
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
-                    NewMethod(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                    BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
                         //模擬LDULD
@@ -113,7 +113,7 @@ namespace VMSystem.AGV
                             agv.states.Cargo_Status = 1;
                         }
                         ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
-                        NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                        BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
                     double finalTheta = ExecutingTrajecory.Last().Theta;
                     SimulationThetaChange(agv.states.Coordination.Theta, finalTheta);
@@ -139,7 +139,7 @@ namespace VMSystem.AGV
             });
         }
 
-        private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType,string EQName)
+        private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
         {
             try
             {
@@ -165,7 +165,7 @@ namespace VMSystem.AGV
 
         }
 
-        private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
+        private void BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
             double rotateSpeed = 10;
             double moveSpeed = 10;
@@ -222,12 +222,12 @@ namespace VMSystem.AGV
 
                 var pt = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
                 string err_msg = "";
-                Task.Factory.StartNew(() => StaMap.UnRegistPoint(agv.Name, pt, out err_msg ));
-                
+                Task.Factory.StartNew(() => StaMap.UnRegistPoint(agv.Name, pt, out err_msg));
+
                 agv.states.Last_Visited_Node = stationTag;
                 StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 
-                stateDto.PointIndex =OriginTrajectory.ToList().IndexOf(station);
+                stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
                 //stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                 int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
@@ -240,11 +240,11 @@ namespace VMSystem.AGV
                     }
                 }
                 agv.states = agv.states;
-            idx += 1;
+                idx += 1;
             }
         }
 
-        private void MoveChangeSimulation(double CurrentX,double CurrentY,double TargetX,double TargetY)
+        private void MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY)
         {
             double O_Distance_X = TargetX - CurrentX;
             double O_Distance_Y = TargetY - CurrentY;
@@ -256,7 +256,7 @@ namespace VMSystem.AGV
 
             for (int i = 0; i < TotalSpendTime; i++)
             {
-                agv.states.Coordination.X = CurrentX +i * MoveSpeed_X; 
+                agv.states.Coordination.X = CurrentX + i * MoveSpeed_X;
                 agv.states.Coordination.Y = CurrentY + i * MoveSpeed_Y;
                 Thread.Sleep(100);
             }
