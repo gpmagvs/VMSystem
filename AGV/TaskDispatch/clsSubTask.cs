@@ -81,7 +81,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
 
                 regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
-                regitedPoints = regitedPoints.Distinct().ToList();
+                regitedPoints = regitedPoints.Where(pt=>pt!=null).Distinct().ToList();
                 if (regitedPoints.Any()) //有點位被註冊
                 {
                     var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
