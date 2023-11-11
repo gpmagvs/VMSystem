@@ -395,6 +395,7 @@ namespace VMSystem.AGV
                 online_mode_req = ONLINE_STATE.OFFLINE;
                 return false;
             }
+
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
@@ -468,12 +469,6 @@ namespace VMSystem.AGV
                 message = AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_DISCONNECT, ALARM_SOURCE.AGVS);
                 return false;
             }
-            if (simulationMode)
-            {
-                online_state = clsEnums.ONLINE_STATE.ONLINE;
-                return true;
-            }
-
             var currentTag = states.Last_Visited_Node;
 
             if (!StaMap.CheckTagExistOnMap(currentTag))

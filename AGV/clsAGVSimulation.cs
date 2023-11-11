@@ -28,18 +28,20 @@ namespace VMSystem.AGV
             if (agv.options.Simulation)
             {
                 //從資料庫取得狀態數據
-                List<AGVSystemCommonNet6.clsAGVStateDto> agvStates = agvStateDbHelper.GetALL();
+                AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
 
-                if (agvStates.Count > 0)
+                if (agvStates != null)
                 {
-                    var agv_data = agvStates.FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
-                    if (agv_data != null)
-                    {
-                        batteryLevelSim = new double[] { agv_data.BatteryLevel_1, agv_data.BatteryLevel_2 };
-                        agv.states.Last_Visited_Node = int.Parse(agv_data.CurrentLocation);
-                        agv.states = agv.states;
-                    }
+                    batteryLevelSim = new double[] { agvStates.BatteryLevel_1, agvStates.BatteryLevel_2 };
+                    agv.states.Last_Visited_Node = int.Parse(agvStates.CurrentLocation);
                 }
+                else
+                {
+                    agv.states.Last_Visited_Node = agv.options.InitTag;
+                }
+                var loc = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
+                agv.states.Coordination = new clsCoordination(loc.X, loc.Y, loc.Direction);
+                agv.states = agv.states;
                 BatterSimulation();
             }
         }

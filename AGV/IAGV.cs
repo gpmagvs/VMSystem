@@ -29,7 +29,7 @@ namespace VMSystem.AGV
         clsRunningStatus states { get; set; }
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
-        MapPoint currentMapPoint { get; }
+        MapPoint currentMapPoint { get; set; }
         bool AGVOnlineFromAGV(out string message);
         bool AGVOfflineFromAGV(out string message);
 
