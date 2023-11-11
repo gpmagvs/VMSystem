@@ -90,9 +90,9 @@ namespace VMSystem.AGV
             }
             PathFinder _pathFinder = new PathFinder();
 
-            Dictionary<MapPoint, double> distance_of_destine = workstations.ToDictionary(point => point, point => _pathFinder.FindShortestPath(StaMap.Map.Points, agv.currentMapPoint, point).total_travel_distance);
+            Dictionary<MapPoint, double> distance_of_destine = workstations.ToDictionary(point => point, point => _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, point).total_travel_distance);
             var ordered = distance_of_destine.OrderBy(kp => kp.Value);
-            var _optimized_workstation = ordered.FirstOrDefault(kp => _pathFinder.FindShortestPath(StaMap.Map.Points, this.agv.currentMapPoint, kp.Key).stations.Select(pt => pt.TagNumber).Intersect(othersAGVLocTags).Count() == 0);
+            var _optimized_workstation = ordered.FirstOrDefault(kp => _pathFinder.FindShortestPath(StaMap.Map, this.agv.currentMapPoint, kp.Key).stations.Select(pt => pt.TagNumber).Intersect(othersAGVLocTags).Count() == 0);
             optimized_workstation = _optimized_workstation.Key == null ? ordered.First().Key : _optimized_workstation.Key;
             return true;
 

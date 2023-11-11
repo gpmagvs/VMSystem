@@ -515,7 +515,7 @@ namespace VMSystem.AGV
         {
             int _toTag = int.Parse(toTag.ToString());
             PathFinder pathFinder = new PathFinder();
-            PathFinder.clsPathInfo path_plan_info = pathFinder.FindShortestPathByTagNumber(map.Points, states.Last_Visited_Node, _toTag);
+            PathFinder.clsPathInfo path_plan_info = pathFinder.FindShortestPathByTagNumber(map, states.Last_Visited_Node, _toTag);
             return (int)Math.Round(path_plan_info.total_travel_distance);
         }
 

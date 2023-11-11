@@ -32,7 +32,7 @@ namespace VMSystem.AGV.TaskDispatch
             isSegment = false;
             ExecuteOrderAGVName = order.DesignatedAGVName;
             PathFinder pathFinder = new PathFinder();
-            var optimiedPath = pathFinder.FindShortestPath(StaMap.Map.Points, Source, Destination);
+            var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
             EntirePathPlan = optimiedPath.stations;
             var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
 
@@ -81,7 +81,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
 
                 regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
-                regitedPoints = regitedPoints.Where(pt=>pt!=null).Distinct().ToList();
+                regitedPoints = regitedPoints.Where(pt => pt != null).Distinct().ToList();
                 if (regitedPoints.Any()) //有點位被註冊
                 {
                     var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);

@@ -175,7 +175,7 @@ namespace VMSystem.TrafficControl
             List<clsPathInfo> pfResultCollection = new List<clsPathInfo>();
             foreach (var validPT in ptAvaliable)
             {
-                var pfResult = pf.FindShortestPath(StaMap.Map.Points, startPT, validPT, new PathFinderOption { OnlyNormalPoint = true });
+                var pfResult = pf.FindShortestPath(StaMap.Map, startPT, validPT, new PathFinderOption { OnlyNormalPoint = true });
                 if (pfResult != null)
                     pfResultCollection.Add(pfResult);
             }
