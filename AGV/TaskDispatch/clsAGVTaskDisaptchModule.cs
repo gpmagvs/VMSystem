@@ -65,7 +65,7 @@ namespace VMSystem.AGV
                         {
                             if (agv.states.Cargo_Status != 0)
                             {
-                                AlarmManagerCenter.AddAlarm(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
+                                AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
                                 return;
                             }
                             LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
@@ -175,7 +175,7 @@ namespace VMSystem.AGV
                             }
                             if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
                             {
-                                AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS);
+                                await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);
                                 continue;
                             }
                             agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
@@ -200,7 +200,7 @@ namespace VMSystem.AGV
                     {
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION);
-                        AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
@@ -212,7 +212,7 @@ namespace VMSystem.AGV
                     {
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
-                        AlarmManagerCenter.AddAlarm(ALARMS.TRAFFIC_ABORT);
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
                     }
 
                 }

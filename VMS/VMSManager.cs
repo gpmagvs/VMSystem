@@ -227,7 +227,7 @@ namespace VMSystem.VMS
                     }
                     catch (Exception ex)
                     {
-                        AlarmManagerCenter.AddAlarm(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
+                        await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
                     }
 
                 }
@@ -408,7 +408,7 @@ namespace VMSystem.VMS
                         taskData.To_Station = ToStationTag.ToString();
                     }
                     else
-                        AlarmManagerCenter.AddAlarm(ALARMS.NO_AVAILABLE_CHARGE_PILE, level: ALARM_LEVEL.WARNING, taskName: taskData.TaskName);
+                         AlarmManagerCenter.AddAlarmAsync(ALARMS.NO_AVAILABLE_CHARGE_PILE, level: ALARM_LEVEL.WARNING, taskName: taskData.TaskName);
                 }
             }
             if (action == ACTION_TYPE.None)

@@ -170,7 +170,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 catch (IlleagalTaskDispatchException ex)
                 {
-                    AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
+                     AlarmManagerCenter.AddAlarmAsync(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
                 }
             });
 
@@ -207,7 +207,7 @@ namespace VMSystem.AGV.TaskDispatch
 
             if (SubTasks.Count == 0 && !isMovingSeqmentTask)
             {
-                AlarmManagerCenter.AddAlarm(ALARMS.SubTask_Queue_Empty_But_Try_DownloadTask_To_AGV);
+                await AlarmManagerCenter.AddAlarmAsync(ALARMS.SubTask_Queue_Empty_But_Try_DownloadTask_To_AGV);
                 return;
             }
             TASK_DOWNLOAD_RETURN_CODES agv_task_return_code = default;
@@ -697,9 +697,9 @@ namespace VMSystem.AGV.TaskDispatch
                     else if (_task.Action != ACTION_TYPE.None)
                     {
                         if (VMSManager.AllAGV.Any(agv => agv.currentMapPoint.TagNumber == _task.Destination.TagNumber))
-                            AlarmManagerCenter.AddAlarm(ALARMS.Destine_EQ_Has_AGV);
+                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Destine_EQ_Has_AGV);
                         else
-                            AlarmManagerCenter.AddAlarm(ALARMS.Destine_EQ_Has_Registed);
+                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Destine_EQ_Has_Registed);
 
                         return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION };
                     }
@@ -728,7 +728,7 @@ namespace VMSystem.AGV.TaskDispatch
             catch (IlleagalTaskDispatchException ex)
             {
                 AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL, ALARMS.TASK_DOWNLOAD_DATA_ILLEAGAL, ex.Alarm_Code.ToString());
-                AlarmManagerCenter.AddAlarm(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
+                 AlarmManagerCenter.AddAlarmAsync(ex.Alarm_Code, Equipment_Name: AGV.Name, taskName: OrderTaskName, location: AGV.currentMapPoint.Name);
                 return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL, Message = ex.Alarm_Code.ToString() };
             }
             catch (Exception ex)
@@ -820,7 +820,7 @@ namespace VMSystem.AGV.TaskDispatch
                         break;
                 }
             }
-            AlarmManagerCenter.AddAlarm(alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.ALARM, Equipment_Name: AGV.Name, location: AGV.currentMapPoint?.Name, OrderTaskName);
+             AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.ALARM, Equipment_Name: AGV.Name, location: AGV.currentMapPoint?.Name, OrderTaskName);
         }
 
         internal async void CancelOrder()

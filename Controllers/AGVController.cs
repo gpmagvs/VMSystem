@@ -61,7 +61,7 @@ namespace VMSystem.Controllers
             }
             catch (Exception ex)
             {
-                AlarmManagerCenter.AddAlarm(ALARMS.AGV_TaskFeedback_ERROR, Equipment_Name: AGVName);
+                await AlarmManagerCenter.AddAlarmAsync(ALARMS.AGV_TaskFeedback_ERROR, Equipment_Name: AGVName);
                 LOG.Critical(ex);
                 return Ok(new { ReturnCode = 1, Message = ex.Message });
             }
@@ -88,7 +88,7 @@ namespace VMSystem.Controllers
                         catch (Exception ex)
                         {
                             LOG.ERROR(ex.Message, ex);
-                            AlarmManagerCenter.AddAlarm(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
                         }
                     }
                 });
@@ -140,7 +140,7 @@ namespace VMSystem.Controllers
             if (aramCode != ALARMS.NONE)
             {
                 agv.AGVOfflineFromAGVS(out string msg);
-                AlarmManagerCenter.AddAlarm(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                await AlarmManagerCenter.AddAlarmAsync(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
             }
             return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }

@@ -203,7 +203,7 @@ namespace VMSystem.AGV
                                 Source = ALARM_SOURCE.EQP,
 
                             };
-                            AlarmManagerCenter.AddAlarm(alarmDto);
+                             AlarmManagerCenter.AddAlarmAsync(alarmDto);
                             previousAlarmCodes.Add(alarmDto);
                         }
                         else
@@ -344,7 +344,7 @@ namespace VMSystem.AGV
             catch (Exception ex)
             {
                 Console.WriteLine("SaveStateToDatabase Fail " + ex.Message);
-                AlarmManagerCenter.AddAlarm(ALARMS.ERROR_WHEN_AGV_STATUS_WRITE_TO_DB, ALARM_SOURCE.EQP, ALARM_LEVEL.WARNING, Name);
+                await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_AGV_STATUS_WRITE_TO_DB, ALARM_SOURCE.EQP, ALARM_LEVEL.WARNING, Name);
                 return false;
             }
 
@@ -502,7 +502,7 @@ namespace VMSystem.AGV
 
             };
             alarmSave.Task_Name = taskDispatchModule.TaskStatusTracker.OrderTaskName;
-            AlarmManagerCenter.AddAlarm(alarmSave);
+             AlarmManagerCenter.AddAlarmAsync(alarmSave);
             return alarmSave.Description_Zh;
         }
 

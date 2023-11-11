@@ -30,16 +30,17 @@ namespace VMSystem.TrafficControl
 
         private static async void HandleRunModeOn()
         {
-            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => !agv.currentMapPoint.IsCharge &&
+            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv=>agv.currentMapPoint!=null).Where(agv => !agv.currentMapPoint.IsCharge &&
                                                                         agv.main_state == MAIN_STATUS.IDLE &&
                                                                         agv.states.Cargo_Status == 0 &&
                                                                         agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER)
                                                                         .ToList();
+
             foreach (var agv in needGoToChargeAgvList)
             {
                 if (agv.states.Cargo_Status != 0)
                 {
-                    AlarmManagerCenter.AddAlarm(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
+                    await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
                     return;
                 }
                 using (TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper())

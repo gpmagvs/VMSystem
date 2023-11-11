@@ -31,7 +31,7 @@ namespace VMSystem.Controllers
         /// <param name="mode"></param>
         /// <returns></returns>
         [HttpPost("RunMode")]
-        public async Task<IActionResult> RunMode(RUN_MODE mode)
+        public async Task<IActionResult> RunMode(RUN_MODE mode, bool? forecing_change = false)
         {
             bool confirm = SystemModes.RunModeSwitch(mode, out string message);
             return Ok(new { confirm = confirm, message });
