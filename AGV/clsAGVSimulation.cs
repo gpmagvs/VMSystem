@@ -10,6 +10,8 @@ using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using System.Xml.Linq;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
+using System.Net.Sockets;
+using System.Text;
 
 namespace VMSystem.AGV
 {
@@ -45,7 +47,7 @@ namespace VMSystem.AGV
         {
             agv.states.AGV_Status = clsEnums.MAIN_STATUS.RUN;
             moveCancelTokenSource?.Cancel();
-            await Task.Delay(1000);
+            await Task.Delay(00);
             MoveTask(data);
             return new TaskDownloadRequestResponse
             {
@@ -110,6 +112,7 @@ namespace VMSystem.AGV
                             agv.states.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
                             agv.states.Cargo_Status = 1;
                         }
+                        ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
                         NewMethod(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
                     double finalTheta = ExecutingTrajecory.Last().Theta;
@@ -134,6 +137,32 @@ namespace VMSystem.AGV
                     move_task = null;
                 }
             });
+        }
+
+        private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType,string EQName)
+        {
+            try
+            {
+                var ClientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                ClientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+                try
+                {
+                    string Action = ActionType == ACTION_TYPE.Load ? "Load" : "Unload";
+                    ClientSocket.Connect("127.0.0.1", 100);
+                    ClientSocket.Send(Encoding.ASCII.GetBytes($"{Action},{EQName}"));
+                }
+                catch (Exception ex)
+                {
+                    ClientSocket.Dispose();
+                }
+                Thread.Sleep(500);
+                ClientSocket.Close();
+            }
+            catch (Exception)
+            {
+
+            }
+
         }
 
         private void NewMethod(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
@@ -187,12 +216,14 @@ namespace VMSystem.AGV
                     agv.states.Coordination.Theta = targetAngle;
                 }
                 MoveChangeSimulation(currentX, currentY, station.X, station.Y);
-                Thread.Sleep(1000);
+                //Thread.Sleep(1000);
                 agv.states.Coordination.X = station.X;
                 agv.states.Coordination.Y = station.Y;
 
                 var pt = StaMap.GetPointByTagNumber(agv.states.Last_Visited_Node);
-                StaMap.UnRegistPoint(agv.Name, pt, out string err_msg);
+                string err_msg = "";
+                Task.Factory.StartNew(() => StaMap.UnRegistPoint(agv.Name, pt, out err_msg ));
+                
                 agv.states.Last_Visited_Node = stationTag;
                 StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 

@@ -24,6 +24,7 @@ using System.Xml.Linq;
 using AGVSystemCommonNet6.ViewModels;
 using VMSystem.AGV.TaskDispatch;
 using System.Collections.Concurrent;
+using AGVSystemCommonNet6.Tools.Database;
 using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.Microservices.VMS;
 
@@ -188,10 +189,10 @@ namespace VMSystem.VMS
                             }
                             else
                             {
-
-                            }
+}
                             AGVStatueDtoStored[entity.AGV_Name] = entity;
                         }
+
                     }
                     catch (Exception ex)
                     {
