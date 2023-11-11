@@ -11,9 +11,13 @@
 
   <ItemGroup>
     <Compile Remove="Models\**" />
+    <Compile Remove="ViewModel\**" />
     <Content Remove="Models\**" />
+    <Content Remove="ViewModel\**" />
     <EmbeddedResource Remove="Models\**" />
+    <EmbeddedResource Remove="ViewModel\**" />
     <None Remove="Models\**" />
+    <None Remove="ViewModel\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,10 +33,6 @@
     <Content Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="ViewModel\" />
   </ItemGroup>
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
