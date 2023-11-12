@@ -14,6 +14,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.TASK;
+using VMSystem.AGV.TaskDispatch;
 
 namespace VMSystem.TrafficControl
 {
@@ -23,6 +24,7 @@ namespace VMSystem.TrafficControl
         internal static void Initialize()
         {
             SystemModes.OnRunModeON += HandleRunModeOn;
+            clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
             Task.Run(() => TrafficStateCollectorWorker());
         }
 
@@ -30,7 +32,7 @@ namespace VMSystem.TrafficControl
 
         private static async void HandleRunModeOn()
         {
-            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv=>agv.currentMapPoint!=null).Where(agv => !agv.currentMapPoint.IsCharge &&
+            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => agv.currentMapPoint != null).Where(agv => !agv.currentMapPoint.IsCharge &&
                                                                         agv.main_state == MAIN_STATUS.IDLE &&
                                                                         agv.states.Cargo_Status == 0 &&
                                                                         agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER)
@@ -58,6 +60,14 @@ namespace VMSystem.TrafficControl
             }
         }
 
+        private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
+        {
+            if (waitingInfo.IsWaiting)
+                LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
+            else
+                LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
+        }
+
         private static async void TrafficStateCollectorWorker()
         {
             while (true)
@@ -65,11 +75,6 @@ namespace VMSystem.TrafficControl
                 await Task.Delay(10);
                 try
                 {
-                    List<MapPoint> ConvertToMapPoint(clsMapPoint[] taskTrajecotry)
-                    {
-                        return taskTrajecotry.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)).ToList();
-                    };
-
                     DynamicTrafficState.AGVTrafficStates = VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv =>
                         new clsAGVTrafficState
                         {
@@ -78,16 +83,11 @@ namespace VMSystem.TrafficControl
                             AGVStatus = agv.main_state,
                             IsOnline = agv.online_state == ONLINE_STATE.ONLINE,
                             TaskRecieveTime = agv.main_state != MAIN_STATUS.RUN ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder.RecieveTime,
-                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? new List<MapPoint>() : ConvertToMapPoint(agv.taskDispatchModule.CurrentTrajectory),
+                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? new List<MapPoint>() : agv.taskDispatchModule.CurrentTrajectory.ToList(),
                         }
                     );
                     DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt => pt.RegistInfo != null).FindAll(pt => pt.RegistInfo.IsRegisted);
-                    //var sjon = JsonConvert.SerializeObject(DynamicTrafficState, Formatting.Indented);
-                    //foreach (var agv in VMSManager.AllAGV)
-                    //{
-                    //    if (!agv.options.Simulation && agv.connected)
-                    //        await agv.PublishTrafficDynamicData(DynamicTrafficState);
-                    //}
+                 
                 }
                 catch (Exception ex)
                 {

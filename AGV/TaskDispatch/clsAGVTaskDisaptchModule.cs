@@ -86,7 +86,13 @@ namespace VMSystem.AGV
         public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
         public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
 
-        public clsMapPoint[] CurrentTrajectory { get; set; }
+        public MapPoint[] CurrentTrajectory
+        {
+            get
+            {
+                return TaskStatusTracker.SubTaskTracking.EntirePathPlan.ToArray();
+            }
+        }
 
         public clsAGVSimulation AgvSimulation;
 
@@ -136,7 +142,7 @@ namespace VMSystem.AGV
             }
             if (taskList.Count == 0)
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(tk=>tk.State== TASK_RUN_STATUS.NAVIGATING&&tk.DesignatedAGVName==agv.Name))
+            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }

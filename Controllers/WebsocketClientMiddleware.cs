@@ -69,7 +69,7 @@ namespace VMSystem.Controllers
                                 await client.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data))), WebSocketMessageType.Text, true, CancellationToken.None);
                                 data = null;
                             }
-                            catch (Exception)
+                            catch (Exception ex)
                             {
                                 return;
                             }

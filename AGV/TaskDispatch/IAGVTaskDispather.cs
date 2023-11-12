@@ -10,7 +10,7 @@ namespace VMSystem.AGV.TaskDispatch
     public interface IAGVTaskDispather
     {
         List<clsTaskDto> taskList { get; set; }
-        clsMapPoint[] CurrentTrajectory { get; set; }
+        MapPoint[] CurrentTrajectory { get;}
         Task<int> TaskFeedback(FeedbackData feedbackData);
         void CancelTask();
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
@@ -22,15 +22,34 @@ namespace VMSystem.AGV.TaskDispatch
 
     public class clsWaitingInfo
     {
-        public bool IsWaiting { get; set; } = false;
+        [NonSerialized]
+        public IAGV Agv;
+
+        [NonSerialized]
+        public static Action<clsWaitingInfo> OnAGVWaitingStatusChanged;
+        private bool _IsWaiting = false;
+        public bool IsWaiting
+        {
+            get => _IsWaiting;
+            set
+            {
+                if (_IsWaiting != value)
+                {
+                    _IsWaiting = value;
+                    if (OnAGVWaitingStatusChanged != null)
+                        OnAGVWaitingStatusChanged(this);
+                }
+            }
+        }
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
         public string Descrption { get; set; } = "";
 
-        public void UpdateInfo(bool IsWaiting, string descrption = "", MapPoint WaitingPoint = null)
+        public void UpdateInfo(IAGV Agv, bool IsWaiting, string descrption = "", MapPoint WaitingPoint = null)
         {
-            this.IsWaiting = IsWaiting;
+            this.Agv = Agv;
             this.Descrption = descrption;
-            this.WaitingPoint = WaitingPoint == null ? new MapPoint() : WaitingPoint;
+            this.WaitingPoint = WaitingPoint == null ? this.WaitingPoint : WaitingPoint;
+            this.IsWaiting = IsWaiting;
         }
     }
 }

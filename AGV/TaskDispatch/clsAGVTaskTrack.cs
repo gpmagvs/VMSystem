@@ -160,7 +160,7 @@ namespace VMSystem.AGV.TaskDispatch
                     taskCancel = new CancellationTokenSource();
                     taskSequence = 0;
                     SubTaskTracking = null;
-                    waitingInfo.UpdateInfo(false);
+                    waitingInfo.UpdateInfo(AGV,false);
                     WaitingForResume = false;
                     SubTasks = CreateSubTaskLinks(TaskOrder);
                     CompletedSubTasks = new Stack<clsSubTask>();
@@ -428,7 +428,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         try
                         {
-                            waitingInfo.UpdateInfo(true, $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行", SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation));
+                            waitingInfo.UpdateInfo(AGV, true, $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行", SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation));
                             //TrafficControlCenter.RaiseAGVGoAwayRequest(waitingInfo.WaitingPoint.TagNumber, SubTaskTracking.EntirePathPlan, AGV.Name, out var executedAGVList);
                             // WaitingRegistReleaseAndGo();
                             break;
@@ -488,7 +488,7 @@ namespace VMSystem.AGV.TaskDispatch
                       return false;
                   }
                   LOG.INFO($"{waitingInfo.WaitingPoint.Name}已解除註冊,任務下發");
-                  waitingInfo = new clsWaitingInfo();
+                  waitingInfo.UpdateInfo(this.AGV,false);
                   DownloadTaskToAGV(true);
                   return true;
               });
@@ -687,12 +687,12 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
                     {
-                        waitingInfo.UpdateInfo(true, $"等待{_task.Destination.Name}可通行{(agv_too_near_from_path.Any() ? $"(預估將與{string.Join(",", agv_too_near_from_path.Select(a => a.Name))} 發生碰撞)" : "")}");
+                        waitingInfo.UpdateInfo(AGV, true, $"等待{_task.Destination.Name}可通行{(agv_too_near_from_path.Any() ? $"(預估將與{string.Join(",", agv_too_near_from_path.Select(a => a.Name))} 發生碰撞)" : "")}");
                         while (desineRegistInfo.IsRegisted)
                         {
                             Thread.Sleep(1);
                         }
-                        waitingInfo.UpdateInfo(false);
+                        waitingInfo.UpdateInfo(AGV, false);
                     }
                     else if (_task.Action != ACTION_TYPE.None)
                     {
@@ -713,7 +713,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         try
                         {
-                            waitingInfo.UpdateInfo(true, $"前往-{lastPt.Point_ID} 等待-{waitingInfo.WaitingPoint.TagNumber}可通行", _task.GetNextPointToGo(lastPt));
+                            waitingInfo.UpdateInfo(AGV, true, $"前往-{lastPt.Point_ID} 等待-{waitingInfo.WaitingPoint.TagNumber}可通行", _task.GetNextPointToGo(lastPt));
                             WaitingRegistReleaseAndGo();
                         }
                         catch (Exception ex)
@@ -852,7 +852,7 @@ namespace VMSystem.AGV.TaskDispatch
             TaskOrder.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH | status == TASK_RUN_STATUS.WAIT)
             {
-                waitingInfo.UpdateInfo(false);
+                waitingInfo.UpdateInfo(AGV, false);
                 TaskOrder.FailureReason = failure_reason;
                 TaskOrder.FinishTime = DateTime.Now;
                 using (var agvs = new AGVSDatabase())

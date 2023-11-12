@@ -79,7 +79,7 @@ namespace VMSystem.AGV
         /// <summary>
         /// 當前任務規劃移動軌跡
         /// </summary>
-        public clsMapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
+        public MapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
 
         public bool connected
