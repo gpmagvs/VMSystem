@@ -75,8 +75,17 @@ StaMap.Download();
 VMSManager.Initialize(builder.Configuration);
 TrafficControlCenter.Initialize();
 
-TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
-dbheper.SetRunningTaskWait();
+try
+{
+    TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
+    dbheper.SetRunningTaskWait();
+}
+catch (Exception ex)
+{
+    LOG.Critical(ex);
+    Thread.Sleep(3000);
+    Environment.Exit(1);
+}
 
 WebsocketClientMiddleware.StartViewDataCollect();
 

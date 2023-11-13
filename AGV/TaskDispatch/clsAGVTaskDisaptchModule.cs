@@ -327,7 +327,8 @@ namespace VMSystem.AGV
                 Action = task_download_data.Action_Type,
                 To_Station = task_download_data.Destination.ToString(),
                 RecieveTime = DateTime.Now,
-                State = TASK_RUN_STATUS.WAIT
+                State = TASK_RUN_STATUS.WAIT,
+                IsTrafficControlTask = true,
             };
             TaskDBHelper.Add(_ExecutingTask);
         }

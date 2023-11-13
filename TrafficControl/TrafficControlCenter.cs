@@ -284,7 +284,8 @@ namespace VMSystem.TrafficControl
                 DispatcherName = "Traffic",
                 RecieveTime = DateTime.Now,
                 Priority = 10,
-                To_Station = ptToParking.ToString()
+                To_Station = ptToParking.ToString(),
+                IsTrafficControlTask = true
             };
             await TaskDBHelper.Add(tafTasOrder);
             return true;
