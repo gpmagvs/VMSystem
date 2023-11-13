@@ -13,7 +13,6 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices;
 using AGVSystemCommonNet6.StopRegion;
 using AGVSystemCommonNet6.Microservices.VMS;
-using AGVSystemCommonNet6.TASK;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RosSharp.RosBridgeClient;
@@ -25,6 +24,7 @@ using VMSystem.VMS;
 using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsAGVTaskDisaptchModule;
+using AGVSystemCommonNet6.AGVDispatch;
 
 namespace VMSystem.AGV
 {

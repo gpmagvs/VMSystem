@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE.Helpers;
-using AGVSystemCommonNet6.TASK;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
@@ -35,9 +34,10 @@ namespace VMSystem.Controllers
                     nav_path = agv.NavigatingTagPath,
                     theta = agv.states.Coordination.Theta,
                     waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo,
-                    states = new {
-                        is_online =agv.online_state== ONLINE_STATE.ONLINE,
-                        is_executing_task= taskRuningStatus == TASK_RUN_STATUS.NAVIGATING| taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
+                    states = new
+                    {
+                        is_online = agv.online_state == ONLINE_STATE.ONLINE,
+                        is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING | taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
                         main_status = agv.main_state
                     },
                     currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType

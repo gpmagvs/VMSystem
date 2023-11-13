@@ -2,10 +2,9 @@
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.TASK;
 using System.Collections.Generic;
 using System.Diagnostics;
-using static AGVSystemCommonNet6.TASK.clsTaskDto;
+using static AGVSystemCommonNet6.AGVDispatch.clsTaskDto;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using Newtonsoft.Json;
@@ -28,6 +27,7 @@ using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.AGVDispatch.RunMode;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.ObjectiveC;
+using AGVSystemCommonNet6.AGVDispatch;
 
 namespace VMSystem.AGV
 {
@@ -317,7 +317,7 @@ namespace VMSystem.AGV
 
         public void DispatchTrafficTask(clsTaskDownloadData task_download_data)
         {
-            var _ExecutingTask = new AGVSystemCommonNet6.TASK.clsTaskDto()
+            var _ExecutingTask = new clsTaskDto()
             {
                 DesignatedAGVName = agv.Name,
                 DispatcherName = "Traffic",

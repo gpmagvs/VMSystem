@@ -1,10 +1,10 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.TASK;
 using System.Collections.Generic;
 using VMSystem.VMS;
 

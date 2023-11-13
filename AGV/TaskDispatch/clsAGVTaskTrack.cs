@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
@@ -9,7 +10,6 @@ using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.TASK;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;

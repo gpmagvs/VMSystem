@@ -13,9 +13,9 @@ using Newtonsoft.Json;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.TASK;
 using VMSystem.AGV.TaskDispatch;
 using System.Collections.Concurrent;
+using AGVSystemCommonNet6.AGVDispatch;
 
 namespace VMSystem.TrafficControl
 {
@@ -165,7 +165,7 @@ namespace VMSystem.TrafficControl
         public DateTime OccurTime { get; }
         public DateTime StartSolveTime { get; private set; }
 
-        AGVSystemCommonNet6.TASK.clsTaskDto tafTasOrder;
+        clsTaskDto tafTasOrder;
         internal async void StartSolve()
         {
             StartSolveTime = DateTime.Now;
@@ -275,7 +275,7 @@ namespace VMSystem.TrafficControl
                 return false;
             }
             LOG.TRACE($"[Traffic] Request {_Agv_GoAway.Name} Go to Tag {ptToParking}");
-            tafTasOrder = new AGVSystemCommonNet6.TASK.clsTaskDto
+            tafTasOrder = new clsTaskDto
             {
                 Action = ACTION_TYPE.None,
                 TaskName = $"TAF_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",

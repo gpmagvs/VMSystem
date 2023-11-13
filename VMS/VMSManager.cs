@@ -2,7 +2,6 @@
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.TASK;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Linq;
