@@ -25,6 +25,7 @@ using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsAGVTaskDisaptchModule;
 using AGVSystemCommonNet6.AGVDispatch;
+using System.Net.NetworkInformation;
 
 namespace VMSystem.AGV
 {
@@ -39,6 +40,7 @@ namespace VMSystem.AGV
             RestoreStatesFromDatabase();
             AutoParkWorker();
             AliveCheck();
+            PingCheck();
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
@@ -81,6 +83,27 @@ namespace VMSystem.AGV
         /// </summary>
         public MapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
+        private bool _pingSuccess = false;
+        public bool pingSuccess
+        {
+            get => _pingSuccess;
+            set
+            {
+                if (_pingSuccess != value)
+                {
+                    _pingSuccess = value;
+                    if (!value)
+                    {
+                        LOG.ERROR($"{Name} Ping Fail({options.HostIP})");
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: currentMapPoint.Name);
+                    }
+                    else
+                    {
+                        AlarmManagerCenter.SetAlarmCheckedAsync(Name, ALARMS.PING_CHECK_FAIL, "SystemAuto");
+                    }
+                }
+            }
+        }
 
         public bool connected
         {
@@ -249,6 +272,36 @@ namespace VMSystem.AGV
             }
         }
         public bool IsTrafficTaskFinish { get; set; } = false;
+
+        public async Task<bool> PingServer()
+        {
+            Ping pingSender = new Ping();
+            // 設定要 ping 的主機或 IP
+            string address = options.HostIP;
+            try
+            {
+                PingReply reply = pingSender.Send(address);
+                bool ping_success = reply.Status == IPStatus.Success;
+                return ping_success;
+            }
+            catch (PingException ex)
+            {
+                Console.WriteLine($"Ping Error: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void PingCheck()
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(1000);
+                    pingSuccess = await PingServer();
+                }
+            });
+        }
 
         private void AliveCheck()
         {

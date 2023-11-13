@@ -160,7 +160,7 @@ namespace VMSystem.VMS
                             {
                                 AGV_Name = agv.Name,
                                 Enabled = agv.options.Enabled,
-                                BatteryLevel_1 = agv.states.Electric_Volume[0],
+                                BatteryLevel_1 = agv.states.Electric_Volume.Length > 1 ? agv.states.Electric_Volume[0] : -1,
                                 BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
                                 OnlineStatus = agv.online_state,
                                 MainStatus = agv.states.AGV_Status,
@@ -202,7 +202,8 @@ namespace VMSystem.VMS
                     }
                     catch (Exception ex)
                     {
-
+                        LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤",ex);
+                        await Task.Delay(1000);
                     }
 
                 }
