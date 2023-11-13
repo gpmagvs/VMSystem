@@ -27,6 +27,7 @@ using System.Collections.Concurrent;
 using AGVSystemCommonNet6.Tools.Database;
 using Microsoft.EntityFrameworkCore;
 using AGVSystemCommonNet6.Microservices.VMS;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.VMS
 {
@@ -71,7 +72,14 @@ namespace VMSystem.VMS
                 return outputs.FindAll(agv => agv.options.Enabled);
             }
         }
-
+        internal static List<IAGV> GetAGVListExpectSpeficAGV(IAGV agv)
+        {
+            return GetAGVListExpectSpeficAGV(agv.Name);
+        }
+        internal static List<IAGV> GetAGVListExpectSpeficAGV(string agv_name)
+        {
+            return AllAGV.FindAll(agv => agv.Name != agv_name);
+        }
         internal static List<IAGV> RunningAGVList
         {
             get
@@ -84,8 +92,7 @@ namespace VMSystem.VMS
 
         internal static async void Initialize(ConfigurationManager configuration)
         {
-            clsAGVTaskTrack.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
-            clsOptimizeAGVDispatcher.OnTaskDBChangeRequestRaising += ClsAGVTaskTrack_OnTaskDBChangeRequestRaising;
+            clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
             var _configs = VMSSerivces.ReadVMSVehicleGroupSetting(Vehicle_Json_file);
             if (_configs != null)
             {
@@ -115,7 +122,7 @@ namespace VMSystem.VMS
             }
 
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
-            VMSSerivces.SaveVMSVehicleGroupSetting( Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
+            VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
             Task.Factory.StartNew(async () =>
             {
@@ -131,7 +138,7 @@ namespace VMSystem.VMS
         }
 
         private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
-        private static void ClsAGVTaskTrack_OnTaskDBChangeRequestRaising(object? sender, clsTaskDto task_data_dto)
+        private static void HandleTaskDBChangeRequestRaising(object? sender, clsTaskDto task_data_dto)
         {
             WaitingForWriteToTaskDatabaseQueue.Enqueue(task_data_dto);
         }
@@ -189,7 +196,7 @@ namespace VMSystem.VMS
                             }
                             else
                             {
-}
+                            }
                             AGVStatueDtoStored[entity.AGV_Name] = entity;
                         }
 
@@ -240,6 +247,10 @@ namespace VMSystem.VMS
             ForkAGVVMS = new GPMForkAgvVMS();
         }
 
+        internal static IAGV GetAGVByName(string AGVName)
+        {
+            return AllAGV.FirstOrDefault(agv => agv.Name == AGVName);
+        }
         public static bool TryGetAGV(string AGVName, AGV_MODEL Model, out IAGV agv)
         {
             agv = null;
@@ -409,7 +420,7 @@ namespace VMSystem.VMS
                         taskData.To_Station = ToStationTag.ToString();
                     }
                     else
-                         AlarmManagerCenter.AddAlarmAsync(ALARMS.NO_AVAILABLE_CHARGE_PILE, level: ALARM_LEVEL.WARNING, taskName: taskData.TaskName);
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.NO_AVAILABLE_CHARGE_PILE, level: ALARM_LEVEL.WARNING, taskName: taskData.TaskName);
                 }
             }
             if (action == ACTION_TYPE.None)
@@ -485,5 +496,6 @@ namespace VMSystem.VMS
             else
                 return null;
         }
+
     }
 }

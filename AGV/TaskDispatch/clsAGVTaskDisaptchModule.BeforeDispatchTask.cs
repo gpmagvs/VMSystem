@@ -33,7 +33,7 @@ namespace VMSystem.AGV
                         var tk = db.tables.Tasks.Where(tk => tk.TaskName == _ExecutingTask.TaskName).FirstOrDefault();
                         tk.State = TASK_RUN_STATUS.FAILURE;
                         tk.FinishTime = DateTime.Now;
-                        OnTaskDBChangeRequestRaising?.Invoke(this, tk);
+                        TaskStatusTracker.RaiseTaskDtoChange(this, tk);
                     }
                     return false;
                 }

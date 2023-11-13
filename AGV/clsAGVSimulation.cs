@@ -15,7 +15,7 @@ using System.Text;
 
 namespace VMSystem.AGV
 {
-    public class clsAGVSimulation
+    public partial class clsAGVSimulation
     {
         private IAGV agv => dispatcherModule.agv;
         private double[] batteryLevelSim = new double[] { 100.0, 100.0 };
@@ -232,7 +232,7 @@ namespace VMSystem.AGV
                     SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
                     runningSTatus.Coordination.Theta = targetAngle;
                 }
-                MoveChangeSimulation(currentX, currentY, station.X, station.Y);
+                MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeed);
                 //Thread.Sleep(1000);
                 runningSTatus.Coordination.X = station.X;
                 runningSTatus.Coordination.Y = station.Y;
@@ -260,12 +260,11 @@ namespace VMSystem.AGV
             }
         }
 
-        private void MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY)
+        private void MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY, double speed = 1)
         {
             double O_Distance_X = TargetX - CurrentX;
             double O_Distance_Y = TargetY - CurrentY;
             double O_Distance_All = Math.Pow(Math.Pow(O_Distance_X, 2) + Math.Pow(O_Distance_Y, 2), 0.5); //用來計算總共幾秒
-            double speed = 1;
             double TotalSpendTime = Math.Ceiling(O_Distance_All / speed);
             double MoveSpeed_X = O_Distance_X / TotalSpendTime;
             double MoveSpeed_Y = O_Distance_Y / TotalSpendTime;

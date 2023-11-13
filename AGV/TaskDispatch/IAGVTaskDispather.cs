@@ -10,9 +10,9 @@ namespace VMSystem.AGV.TaskDispatch
     public interface IAGVTaskDispather
     {
         List<clsTaskDto> taskList { get; set; }
-        MapPoint[] CurrentTrajectory { get;}
+        MapPoint[] CurrentTrajectory { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
-        void CancelTask();
+        Task<string> CancelTask();
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; }
@@ -41,15 +41,32 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
         }
+        public int ParkingTag { get; private set; }
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
-        public string Descrption { get; set; } = "";
+        public string Descrption { get; private set; } = "";
 
-        public void UpdateInfo(IAGV Agv, bool IsWaiting, string descrption = "", MapPoint WaitingPoint = null)
+        public DateTime StartWaitingTime { get; private set; }
+        public void SetStatusNoWaiting(IAGV Agv)
         {
             this.Agv = Agv;
-            this.Descrption = descrption;
-            this.WaitingPoint = WaitingPoint == null ? this.WaitingPoint : WaitingPoint;
-            this.IsWaiting = IsWaiting;
+            this.IsWaiting = false;
+        }
+        public void SetStatusGoToWaitingPoint(IAGV Agv, int parkingTag, MapPoint ConflicPoint)
+        {
+            this.Agv = Agv;
+            this.WaitingPoint = ConflicPoint;
+            this.IsWaiting = true;
+            this.ParkingTag = parkingTag;
+            Descrption = $"前往-{parkingTag} 等待-{ConflicPoint.TagNumber}可通行";
+        }
+        public void SetStatusWaitingConflictPointRelease(IAGV Agv, int parkingTag, MapPoint ConflicPoint)
+        {
+            this.Agv = Agv;
+            this.WaitingPoint = ConflicPoint;
+            this.IsWaiting = true;
+            this.ParkingTag = parkingTag;
+            Descrption = $"等待-{ConflicPoint.TagNumber}可通行";
+            StartWaitingTime = DateTime.Now;
         }
     }
 }

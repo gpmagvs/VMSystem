@@ -6,13 +6,12 @@ using AGVSystemCommonNet6.TASK;
 using AGVSystemCommonNet6.Tools.Database;
 using Microsoft.EntityFrameworkCore;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch;
 
 namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
     {
-        public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
-
         /// <summary>
         /// 取得沒有指定AGV的任務
         /// </summary>
@@ -45,7 +44,7 @@ namespace VMSystem.VMS
                     IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
                     agv = AGV;
                     _taskDto.DesignatedAGVName = AGV.Name;
-                    OnTaskDBChangeRequestRaising?.Invoke(this, _taskDto);
+                    TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
                     //ExecuteTaskAsync(ExecutingTask);
                 }
             });

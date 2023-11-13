@@ -84,7 +84,6 @@ namespace VMSystem.AGV
         }
 
         public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
-        public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
 
         public MapPoint[] CurrentTrajectory
         {
@@ -174,7 +173,7 @@ namespace VMSystem.AGV
                                         chare_task.FailureReason = "Transfer Task Is Raised";
                                         chare_task.FinishTime = DateTime.Now;
                                         chare_task.State = TASK_RUN_STATUS.CANCEL;
-                                        OnTaskDBChangeRequestRaising?.Invoke(this, chare_task);
+                                        TaskStatusTracker.RaiseTaskDtoChange(this, chare_task);
                                         continue;
                                     }
                                 }
@@ -186,7 +185,7 @@ namespace VMSystem.AGV
                             }
                             agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                             _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
-                            OnTaskDBChangeRequestRaising?.Invoke(this, _ExecutingTask);
+                            TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
                             await ExecuteTaskAsync(_ExecutingTask);
                         }
                         else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)
@@ -333,9 +332,9 @@ namespace VMSystem.AGV
             TaskDBHelper.Add(_ExecutingTask);
         }
 
-        public void CancelTask()
+        public async Task<string> CancelTask()
         {
-            TaskStatusTracker.CancelOrder();
+            return await TaskStatusTracker.CancelOrder();
         }
 
 

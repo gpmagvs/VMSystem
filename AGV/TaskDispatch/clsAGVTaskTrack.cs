@@ -30,9 +30,8 @@ namespace VMSystem.AGV.TaskDispatch
     /// <summary>
     /// 追蹤AGV任務鍊
     /// </summary>
-    public class clsAGVTaskTrack : IDisposable
+    public class clsAGVTaskTrack : clsTaskDatabaseWriteableAbstract, IDisposable
     {
-        public static event EventHandler<clsTaskDto> OnTaskDBChangeRequestRaising;
         public IAGV AGV;
         protected TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
 
@@ -160,7 +159,7 @@ namespace VMSystem.AGV.TaskDispatch
                     taskCancel = new CancellationTokenSource();
                     taskSequence = 0;
                     SubTaskTracking = null;
-                    waitingInfo.UpdateInfo(AGV,false);
+                    waitingInfo.SetStatusNoWaiting(AGV);
                     WaitingForResume = false;
                     SubTasks = CreateSubTaskLinks(TaskOrder);
                     CompletedSubTasks = new Stack<clsSubTask>();
@@ -190,7 +189,7 @@ namespace VMSystem.AGV.TaskDispatch
                 TaskOrder.StartTime = DateTime.Now;
                 if (TaskOrder.Action != ACTION_TYPE.Carry)
                     TaskOrder.From_Station = AGV.currentMapPoint.Name;
-                OnTaskDBChangeRequestRaising?.Invoke(this, TaskOrder);
+                RaiseTaskDtoChange(this, TaskOrder);
 
             }
             catch (Exception ex)
@@ -428,9 +427,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         try
                         {
-                            waitingInfo.UpdateInfo(AGV, true, $"等待-{waitingInfo.WaitingPoint.TagNumber}可通行", SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation));
-                            //TrafficControlCenter.RaiseAGVGoAwayRequest(waitingInfo.WaitingPoint.TagNumber, SubTaskTracking.EntirePathPlan, AGV.Name, out var executedAGVList);
-                            // WaitingRegistReleaseAndGo();
+                            waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation));
                             break;
                         }
                         catch (Exception ex)
@@ -488,7 +485,7 @@ namespace VMSystem.AGV.TaskDispatch
                       return false;
                   }
                   LOG.INFO($"{waitingInfo.WaitingPoint.Name}已解除註冊,任務下發");
-                  waitingInfo.UpdateInfo(this.AGV,false);
+                  waitingInfo.SetStatusNoWaiting(AGV);
                   DownloadTaskToAGV(true);
                   return true;
               });
@@ -687,12 +684,12 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
                     {
-                        waitingInfo.UpdateInfo(AGV, true, $"等待{_task.Destination.Name}可通行{(agv_too_near_from_path.Any() ? $"(預估將與{string.Join(",", agv_too_near_from_path.Select(a => a.Name))} 發生碰撞)" : "")}");
+                        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(_task.Destination));
                         while (desineRegistInfo.IsRegisted)
                         {
                             Thread.Sleep(1);
                         }
-                        waitingInfo.UpdateInfo(AGV, false);
+                        waitingInfo.SetStatusNoWaiting(AGV);
                     }
                     else if (_task.Action != ACTION_TYPE.None)
                     {
@@ -713,7 +710,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         try
                         {
-                            waitingInfo.UpdateInfo(AGV, true, $"前往-{lastPt.Point_ID} 等待-{waitingInfo.WaitingPoint.TagNumber}可通行", _task.GetNextPointToGo(lastPt));
+                            waitingInfo.SetStatusGoToWaitingPoint(AGV, lastPt.Point_ID, _task.GetNextPointToGo(lastPt));
                             WaitingRegistReleaseAndGo();
                         }
                         catch (Exception ex)
@@ -823,13 +820,14 @@ namespace VMSystem.AGV.TaskDispatch
             AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.ALARM, Equipment_Name: AGV.Name, location: AGV.currentMapPoint?.Name, OrderTaskName);
         }
 
-        internal async void CancelOrder()
+        internal async Task<string> CancelOrder()
         {
             EndReocrdTrajectory();
             UnRegistPointsRegisted();
             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
             taskCancel.Cancel();
             ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
+            return OrderTaskName;
 
         }
         private void UnRegistPointsRegisted()
@@ -852,7 +850,7 @@ namespace VMSystem.AGV.TaskDispatch
             TaskOrder.State = status;
             if (status == TASK_RUN_STATUS.FAILURE | status == TASK_RUN_STATUS.CANCEL | status == TASK_RUN_STATUS.ACTION_FINISH | status == TASK_RUN_STATUS.WAIT)
             {
-                waitingInfo.UpdateInfo(AGV, false);
+                waitingInfo.SetStatusNoWaiting(AGV);
                 TaskOrder.FailureReason = failure_reason;
                 TaskOrder.FinishTime = DateTime.Now;
                 using (var agvs = new AGVSDatabase())
@@ -860,7 +858,7 @@ namespace VMSystem.AGV.TaskDispatch
                     var existFailureReason = agvs.tables.Tasks.AsNoTracking().FirstOrDefault(task => task.TaskName == TaskOrder.TaskName).FailureReason;
                     if (existFailureReason != "")
                         TaskOrder.FailureReason = existFailureReason;
-                    OnTaskDBChangeRequestRaising?.Invoke(this, TaskOrder);
+                    RaiseTaskDtoChange(this, TaskOrder);
                 }
 
                 TaskOrder = null;
@@ -868,7 +866,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             else
             {
-                OnTaskDBChangeRequestRaising?.Invoke(this, TaskOrder);
+                RaiseTaskDtoChange(this, TaskOrder);
             }
         }
         System.Timers.Timer? TrajectoryStoreTimer;
