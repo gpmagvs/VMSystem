@@ -54,7 +54,7 @@ namespace VMSystem.AGV.TaskDispatch
                 //若路徑上有點位被註冊=>移動至被註冊點之前一點
                 List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
 
-                int NowPositionIndex = optimiedPath.stations.IndexOf(LastStopPoint);
+                int NowPositionIndex = LastStopPoint == null ? 0 : optimiedPath.stations.IndexOf(LastStopPoint);
                 var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
                 if (NowPositionIndex == -1)
                 {
@@ -165,11 +165,11 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        internal MapPoint GetNextPointToGo(MapPoint currentMapPoint)
+        internal MapPoint GetNextPointToGo(MapPoint currentMapPoint, bool includesVituralPoint = true)
         {
             try
             {
-                return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.TagNumber && !pt.IsVirtualPoint && EntirePathPlan.IndexOf(pt) > EntirePathPlan.IndexOf(currentMapPoint));
+                return EntirePathPlan.First(pt => pt.TagNumber != currentMapPoint.TagNumber && (includesVituralPoint ? true : !pt.IsVirtualPoint) && EntirePathPlan.IndexOf(pt) > EntirePathPlan.IndexOf(currentMapPoint));
             }
             catch (Exception ex)
             {

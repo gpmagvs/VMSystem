@@ -12,7 +12,7 @@ namespace VMSystem.AGV.TaskDispatch
         List<clsTaskDto> taskList { get; set; }
         MapPoint[] CurrentTrajectory { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
-        Task<string> CancelTask();
+        Task<string> CancelTask(bool unRegistPoints = true);
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; }
@@ -22,9 +22,13 @@ namespace VMSystem.AGV.TaskDispatch
 
     public class clsWaitingInfo
     {
+        public enum WAIT_STATUS
+        {
+            NO_WAIT, GO_TO_WAIT_PT, WAITING
+        }
         [NonSerialized]
         public IAGV Agv;
-
+        public WAIT_STATUS Status { get; set; }
         [NonSerialized]
         public static Action<clsWaitingInfo> OnAGVWaitingStatusChanged;
         private bool _IsWaiting = false;
@@ -36,8 +40,6 @@ namespace VMSystem.AGV.TaskDispatch
                 if (_IsWaiting != value)
                 {
                     _IsWaiting = value;
-                    if (OnAGVWaitingStatusChanged != null)
-                        OnAGVWaitingStatusChanged(this);
                 }
             }
         }
@@ -48,11 +50,13 @@ namespace VMSystem.AGV.TaskDispatch
         public DateTime StartWaitingTime { get; private set; }
         public void SetStatusNoWaiting(IAGV Agv)
         {
+            Status = WAIT_STATUS.NO_WAIT;
             this.Agv = Agv;
             this.IsWaiting = false;
         }
         public void SetStatusGoToWaitingPoint(IAGV Agv, int parkingTag, MapPoint ConflicPoint)
         {
+            Status = WAIT_STATUS.GO_TO_WAIT_PT;
             this.Agv = Agv;
             this.WaitingPoint = ConflicPoint;
             this.IsWaiting = true;
@@ -67,6 +71,9 @@ namespace VMSystem.AGV.TaskDispatch
             this.ParkingTag = parkingTag;
             Descrption = $"等待-{ConflicPoint.TagNumber}可通行";
             StartWaitingTime = DateTime.Now;
+            Status = WAIT_STATUS.WAITING;
+            if (OnAGVWaitingStatusChanged != null)
+                OnAGVWaitingStatusChanged(this);
         }
     }
 }

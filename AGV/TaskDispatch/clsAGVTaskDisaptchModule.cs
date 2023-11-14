@@ -89,6 +89,8 @@ namespace VMSystem.AGV
         {
             get
             {
+                if(TaskStatusTracker.SubTaskTracking==null)
+                    return new MapPoint[0];
                 return TaskStatusTracker.SubTaskTracking.EntirePathPlan.ToArray();
             }
         }
@@ -333,9 +335,10 @@ namespace VMSystem.AGV
             TaskDBHelper.Add(_ExecutingTask);
         }
 
-        public async Task<string> CancelTask()
+        public async Task<string> CancelTask(bool unRegistPoints = true)
         {
-            return await TaskStatusTracker.CancelOrder();
+            AgvSimulation.CancelTask();
+            return await TaskStatusTracker.CancelOrder(unRegistPoints);
         }
 
 

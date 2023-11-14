@@ -93,26 +93,29 @@ namespace VMSystem.AGV
             {
                 ExecutingTrajecory = data.ExecutingTrajecory;
             }
+            if (ExecutingTrajecory.Length == 0)
+                return;
+
             previousTaskData = data;
             ACTION_TYPE action = data.Action_Type;
 
             move_task = Task.Run(async () =>
             {
                 moveCancelTokenSource = new CancellationTokenSource();
-
+                var stateDto = new FeedbackData
+                {
+                    PointIndex = 0,
+                    TaskName = data.Task_Name,
+                    TaskSequence = data.Task_Sequence,
+                    TaskSimplex = data.Task_Simplex,
+                    TimeStamp = DateTime.Now.ToString(),
+                    TaskStatus = TASK_RUN_STATUS.ACTION_START
+                };
                 try
                 {
-                    var stateDto = new FeedbackData
-                    {
-                        PointIndex = 0,
-                        TaskName = data.Task_Name,
-                        TaskSequence = data.Task_Sequence,
-                        TaskSimplex = data.Task_Simplex,
-                        TimeStamp = DateTime.Now.ToString(),
-                        TaskStatus = TASK_RUN_STATUS.ACTION_START
-                    };
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                     BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
                         //模擬LDULD
@@ -151,6 +154,9 @@ namespace VMSystem.AGV
                 catch (Exception ex)
                 {
                     move_task = null;
+                    runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+                    stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                 }
             });
         }
@@ -180,7 +186,6 @@ namespace VMSystem.AGV
             }
 
         }
-
         private void BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
             double rotateSpeed = 10;
@@ -189,6 +194,10 @@ namespace VMSystem.AGV
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
+                if(moveCancelTokenSource.IsCancellationRequested)
+                {
+                    break;
+                }
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
                 while (TrafficControlCenter.DynamicTrafficState.GetTrafficStatusByTag(agv.Name, netMapPt.TagNumber) != clsDynamicTrafficState.TRAFFIC_ACTION.PASS)
@@ -238,10 +247,8 @@ namespace VMSystem.AGV
 
                 var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
                 string err_msg = "";
-                Task.Factory.StartNew(() => StaMap.UnRegistPoint(agv.Name, pt, out err_msg));
 
                 runningSTatus.Last_Visited_Node = stationTag;
-                StaMap.RegistPoint(agv.Name, StaMap.GetPointByTagNumber(stationTag), out err_msg);
 
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
                 //stateDto.PointIndex = idx;
@@ -272,7 +279,7 @@ namespace VMSystem.AGV
             {
                 runningSTatus.Coordination.X = CurrentX + i * MoveSpeed_X;
                 runningSTatus.Coordination.Y = CurrentY + i * MoveSpeed_Y;
-                Thread.Sleep(100);
+                Thread.Sleep(50);
             }
         }
 
@@ -359,6 +366,12 @@ namespace VMSystem.AGV
                     await Task.Delay(1000);
                 }
             });
+        }
+
+        internal void CancelTask()
+        {
+            moveCancelTokenSource?.Cancel();
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }
     }
 }

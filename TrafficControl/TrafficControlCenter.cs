@@ -65,7 +65,7 @@ namespace VMSystem.TrafficControl
 
         private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
         {
-            if (waitingInfo.IsWaiting)
+            if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)
             {
                 LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
                 //等待點由誰所註冊    
@@ -74,7 +74,7 @@ namespace VMSystem.TrafficControl
                 if (agv_ != null)
                 {
                     var waingInfoOfAgvRegistPt = agv_.taskDispatchModule.TaskStatusTracker.waitingInfo;
-                    if (waingInfoOfAgvRegistPt.IsWaiting && waingInfoOfAgvRegistPt.WaitingPoint.RegistInfo?.RegisterAGVName == waitingInfo.Agv.Name)
+                    if (waingInfoOfAgvRegistPt.Status == clsWaitingInfo.WAIT_STATUS.WAITING && waingInfoOfAgvRegistPt.WaitingPoint.RegistInfo?.RegisterAGVName == waitingInfo.Agv.Name)
                     {
                         //戶等
                         LOG.WARN($"Traffic Lock:{waitingInfo.Agv.Name}({waitingInfo.Agv.currentMapPoint.TagNumber}) and {agv_.Name}({agv_.currentMapPoint.TagNumber})  are waiting for each other");
@@ -174,16 +174,26 @@ namespace VMSystem.TrafficControl
         }
         private async void Solve(IAGV AgvToGo, IAGV AgvWait)
         {
+
             bool confirmed = await RaiseAGVGoAwayRequest();
             if (confirmed)
             {
-                string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask();
-                LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
+                AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
+                string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask(false);
+                await Task.Delay(500);
                 bool TAFTaskStartOrFinish = await AwaitTAFTaskStart();
-                if (TAFTaskStartOrFinish)
+                var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
+                await Task.Delay(1000);
+                tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
+
+                LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
+                while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
                 {
-                    SetCanceledTaskWait(canceledTaskName);
+                    await Task.Delay(1);
                 }
+                SetCanceledTaskWait(canceledTaskName);
+                LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
+
             }
             else
             {
@@ -192,6 +202,7 @@ namespace VMSystem.TrafficControl
                 _Agv_Waiting = Agv1.Name == _Agv_GoAway.Name ? Agv2 : Agv1;
                 Solve(_Agv_GoAway, _Agv_Waiting);
             }
+
         }
 
         private async Task<bool> AwaitTAFTaskStart()
@@ -259,10 +270,7 @@ namespace VMSystem.TrafficControl
             var pathes_of_waiting_agv = _Agv_Waiting.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan;
             var pathTags = pathes_of_waiting_agv.Select(pt => pt.TagNumber).ToList();
             MapPoint destinePt = pathes_of_waiting_agv.Last();
-
             LOG.WARN($"{_Agv_Waiting.Name} raise Fucking Stupid AGV Go Away(AGV Should Leave Tag{string.Join(",", pathTags)}) Rquest");
-
-
             TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
             List<int> tagListAvoid = new List<int>();
             tagListAvoid.AddRange(VMSManager.AllAGV.Where(_agv => _agv.Name != _Agv_Waiting.Name).Select(_agv => _agv.states.Last_Visited_Node));
@@ -283,7 +291,7 @@ namespace VMSystem.TrafficControl
                 Carrier_ID = "",
                 DispatcherName = "Traffic",
                 RecieveTime = DateTime.Now,
-                Priority = 10,
+                Priority = 99,
                 To_Station = ptToParking.ToString(),
                 IsTrafficControlTask = true
             };

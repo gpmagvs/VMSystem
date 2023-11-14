@@ -221,9 +221,8 @@ namespace VMSystem.AGV.TaskDispatch
 
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
-                await Task.Delay(1000);
                 LOG.INFO($"AGV Already locate in end of trajectory!");
-                HandleAGVFeedback(new FeedbackData
+                await HandleAGVFeedback(new FeedbackData
                 {
                     TaskName = SubTaskTracking.DownloadData.Task_Name,
                     TaskSimplex = SubTaskTracking.DownloadData.Task_Simplex,
@@ -375,7 +374,6 @@ namespace VMSystem.AGV.TaskDispatch
 
             var task_simplex = feedbackData.TaskSimplex;
             var task_status = feedbackData.TaskStatus;
-
             LOG.INFO($"{AGV.Name} Feedback Task Status:{task_simplex} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
             if (AGV.main_state == MAIN_STATUS.DOWN)
             {
@@ -427,7 +425,14 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         try
                         {
-                            waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation));
+                            waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
+                            var registInfoOfWaitFor = waitingInfo.WaitingPoint.RegistInfo;
+                            while (registInfoOfWaitFor.IsRegisted)
+                            {
+                                await Task.Delay(100);
+                            }
+                            waitingInfo.SetStatusNoWaiting(AGV);
+                            DownloadTaskToAGV(true);
                             break;
                         }
                         catch (Exception ex)
@@ -645,6 +650,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             try
             {
+                AgvSimulation.CancelTask();
                 if (SubTaskTracking == null)
                     return new SimpleRequestResponse { ReturnCode = RETURN_CODE.OK };
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
@@ -677,14 +683,15 @@ namespace VMSystem.AGV.TaskDispatch
 
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;
-                var agv_too_near_from_path = VMSManager.AllAGV.Where(_agv => _agv.Name != AGV.Name).Where(_agv => _task.EntirePathPlan.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
+
+                var agv_too_near_from_path = VMSManager.GetAGVListExpectSpeficAGV(AGV.Name).Where(_agv => _task.EntirePathPlan.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
                 var desineRegistInfo = _task.Destination.RegistInfo == null ? new clsMapPoiintRegist() : _task.Destination.RegistInfo;
 
-                if (desineRegistInfo.IsRegisted && desineRegistInfo.RegisterAGVName != AGV.Name | agv_too_near_from_path.Any())
+                if ((desineRegistInfo.IsRegisted && desineRegistInfo.RegisterAGVName != AGV.Name) | agv_too_near_from_path.Any())
                 {
                     if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
                     {
-                        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(_task.Destination));
+                        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(_task.Destination,true));
                         while (desineRegistInfo.IsRegisted)
                         {
                             Thread.Sleep(1);
@@ -703,22 +710,6 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
                 _task.CreateTaskToAGV(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
-                if (isSegmentTaskCreated)
-                {
-                    LOG.INFO($"Navigation Path of {AGV.Name} is segment!!!!! ");
-                    Task.Factory.StartNew(() =>
-                    {
-                        try
-                        {
-                            waitingInfo.SetStatusGoToWaitingPoint(AGV, lastPt.Point_ID, _task.GetNextPointToGo(lastPt));
-                            WaitingRegistReleaseAndGo();
-                        }
-                        catch (Exception ex)
-                        {
-                        }
-
-                    });
-                }
 
                 return _DispatchTaskToAGV(_task);
             }
@@ -765,12 +756,14 @@ namespace VMSystem.AGV.TaskDispatch
             UnRegistPointsRegisted();
             ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
+            AgvSimulation.CancelTask();
         }
 
         internal void AbortOrder(TASK_DOWNLOAD_RETURN_CODES agv_task_return_code, ALARMS alarm_code = ALARMS.NONE, string message = "")
         {
             UnRegistPointsRegisted();
             taskCancel.Cancel();
+            AgvSimulation.CancelTask();
 
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN && SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN && TaskOrder.Action == ACTION_TYPE.Carry)
             {
@@ -820,13 +813,14 @@ namespace VMSystem.AGV.TaskDispatch
             AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.ALARM, Equipment_Name: AGV.Name, location: AGV.currentMapPoint?.Name, OrderTaskName);
         }
 
-        internal async Task<string> CancelOrder()
+        internal async Task<string> CancelOrder(bool unRegistPoints = true)
         {
             EndReocrdTrajectory();
-            UnRegistPointsRegisted();
             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
             taskCancel.Cancel();
             ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
+            if (unRegistPoints)
+                UnRegistPointsRegisted();
             return OrderTaskName;
 
         }
