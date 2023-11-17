@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 using System;
 using VMSystem.TrafficControl;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem
 {
@@ -134,9 +135,8 @@ namespace VMSystem
             error_message = string.Empty;
             try
             {
-
                 bool success = mapPoint.TryUnRegistPoint(Name, out var _info);
-                PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
+                _ = PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
                 if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
                     foreach (var item in mapPoint.RegistsPointIndexs)
@@ -181,6 +181,19 @@ namespace VMSystem
         {
             var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tag);
             return point == null ? tag + "" : point.Name;
+        }
+
+        internal static List<MapPoint> GetAllRegistedPointsByName(string name)
+        {
+            return Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == name).ToList();
+        }
+
+        internal static void UnRegistPoints(string name, List<MapPoint> unRegistList)
+        {
+            foreach (var point in unRegistList)
+            {
+                UnRegistPoint(name, point, out string errmsg);
+            }
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>
