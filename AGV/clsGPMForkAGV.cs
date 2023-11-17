@@ -31,6 +31,8 @@ namespace VMSystem.AGV
 {
     public class clsGPMForkAGV : IAGV
     {
+        public clsAGVSimulation AgvSimulation { get; set; }
+
         public clsGPMForkAGV(string name, clsAGVOptions options)
         {
             availabilityHelper = new AvailabilityHelper(name);
@@ -44,6 +46,7 @@ namespace VMSystem.AGV
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
+            AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
         }
 
 
@@ -95,7 +98,7 @@ namespace VMSystem.AGV
                     if (!value)
                     {
                         LOG.ERROR($"{Name} Ping Fail({options.HostIP})");
-                        string location = currentMapPoint == null ? states.Last_Visited_Node+"" : currentMapPoint.Name;
+                        string location = currentMapPoint == null ? states.Last_Visited_Node + "" : currentMapPoint.Name;
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: location);
                     }
                     else
@@ -177,7 +180,20 @@ namespace VMSystem.AGV
                 {
                     if (previousMapPoint != null)
                     {
-                        StaMap.UnRegistPoint(Name, previousMapPoint, out string UnRegisterrmsg);
+                        List<MapPoint> unRegistList = new List<MapPoint>() { previousMapPoint };
+                        var extraNeedUnregistedPoints = previousMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
+                                                        .Where(pt => pt != null)
+                                                        .Where(pt => pt.RegistInfo != null)
+                                                        .Where(pt => pt.RegistInfo.RegisterAGVName == Name);
+
+                        extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
+                        unRegistList.AddRange(extraNeedUnregistedPoints);
+
+                        var agvRegistedPoints = StaMap.GetAllRegistedPointsByName(Name);
+
+
+                        StaMap.UnRegistPoints(Name, unRegistList);
+                        //registedPointList.Where(pt=> !pathTags.Contains(pt.TagNumber)).
                     }
 
                     StaMap.RegistPoint(Name, value, out string Registerrmsg);
@@ -280,8 +296,14 @@ namespace VMSystem.AGV
             // 設定要 ping 的主機或 IP
             string address = options.HostIP;
             try
-            {
-                PingReply reply = pingSender.Send(address);
+            {  // 創建PingOptions對象，並設置相關屬性
+                PingOptions options = new PingOptions
+                {
+                    Ttl = 128,                // 生存時間，可以根據需求設置
+                    DontFragment = false      // 是否允許分段，設為true表示不分段
+                };
+
+                PingReply reply = pingSender.Send(address,3000, new byte[32], options);
                 bool ping_success = reply.Status == IPStatus.Success;
                 return ping_success;
             }

@@ -89,13 +89,12 @@ namespace VMSystem.AGV
         {
             get
             {
-                if(TaskStatusTracker.SubTaskTracking==null)
+                if (TaskStatusTracker.SubTaskTracking == null)
                     return new MapPoint[0];
                 return TaskStatusTracker.SubTaskTracking.EntirePathPlan.ToArray();
             }
         }
 
-        public clsAGVSimulation AgvSimulation;
 
         public List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
 
@@ -109,7 +108,6 @@ namespace VMSystem.AGV
         {
             this.agv = agv;
             TaskAssignWorker();
-            AgvSimulation = new clsAGVSimulation(this);
 
             if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
@@ -337,7 +335,7 @@ namespace VMSystem.AGV
 
         public async Task<string> CancelTask(bool unRegistPoints = true)
         {
-            AgvSimulation.CancelTask();
+            agv.AgvSimulation.CancelTask();
             return await TaskStatusTracker.CancelOrder(unRegistPoints);
         }
 

@@ -55,7 +55,7 @@ namespace VMSystem.Controllers
         public async Task<IActionResult> OnlineRequet(string agv_name, AGV_MODEL model = AGV_MODEL.FORK_AGV)
         {
             Console.WriteLine($"要求 {agv_name}上線 ");
-            bool online_success = false; 
+            bool online_success = false;
             string msg = string.Empty;
 
             if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
@@ -69,7 +69,7 @@ namespace VMSystem.Controllers
                     }
                     else
                     {
-                         online_success = agv.AGVOnlineFromAGVS(out  msg);
+                        online_success = agv.AGVOnlineFromAGVS(out msg);
                     }
                     return Ok(new { ReturnCode = online_success ? 0 : 404, Message = msg });
                 }
@@ -94,6 +94,7 @@ namespace VMSystem.Controllers
             {
                 if (agv.options.Simulation)
                 {
+                    agv.AgvSimulation.CancelTask();
                     agv.online_state = ONLINE_STATE.OFFLINE;
                     agv.states.AGV_Status = MAIN_STATUS.IDLE;
                 }

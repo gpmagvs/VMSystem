@@ -112,10 +112,6 @@ namespace VMSystem.AGV.TaskDispatch
 
         public clsAGVTaskTrack(clsAGVTaskDisaptchModule DispatchModule = null)
         {
-            if (DispatchModule != null)
-            {
-                AgvSimulation = DispatchModule.AgvSimulation;
-            }
             StartTaskStatusWatchDog();
         }
 
@@ -146,6 +142,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         public async Task Start(IAGV AGV, clsTaskDto TaskOrder, bool IsResumeTransferTask = false, TRANSFER_PROCESS lastTransferProcess = default)
         {
+            AgvSimulation = AGV.AgvSimulation;
             if (TaskOrder == null)
                 return;
             this.IsResumeTransferTask = IsResumeTransferTask;
@@ -425,21 +422,28 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                     else if (orderStatus.Status == ORDER_STATUS.EXECUTING_WAITING)
                     {
-                        try
+                        _ = Task.Factory.StartNew(async () =>
                         {
-                            waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
-                            var registInfoOfWaitFor = waitingInfo.WaitingPoint.RegistInfo;
-                            while (registInfoOfWaitFor.IsRegisted)
+                            try
                             {
-                                await Task.Delay(100);
+                                waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
+                                var registInfoOfWaitFor = waitingInfo.WaitingPoint.RegistInfo;
+                                while (registInfoOfWaitFor.IsRegisted)
+                                {
+                                    await Task.Delay(100);
+                                    if (TaskRunningStatus != TASK_RUN_STATUS.NAVIGATING && TaskRunningStatus != TASK_RUN_STATUS.WAIT)
+                                    {
+                                        return;
+                                    }
+                                }
+                                waitingInfo.SetStatusNoWaiting(AGV);
+                                DownloadTaskToAGV(true);
                             }
-                            waitingInfo.SetStatusNoWaiting(AGV);
-                            DownloadTaskToAGV(true);
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                        }
+                            catch (Exception ex)
+                            {
+                            }
+                        });
+                        return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
                     else if (orderStatus.Status == ORDER_STATUS.FAILURE)
                     {
@@ -680,10 +684,10 @@ namespace VMSystem.AGV.TaskDispatch
             task = null;
             try
             {
-                _task = isMovingSeqmentTask ? SubTaskTracking:SubTasks.Dequeue()  ;
+                _task = isMovingSeqmentTask ? SubTaskTracking : SubTasks.Dequeue();
                 task = _task;
 
-                
+
 
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;

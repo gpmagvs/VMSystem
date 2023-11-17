@@ -35,10 +35,10 @@ namespace VMSystem.AGV.TaskDispatch
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
             EntirePathPlan = optimiedPath.stations;
             var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
-
+            List<IAGV> agv_too_near_from_path = new List<IAGV>();
             if (Action == ACTION_TYPE.None)
             {
-                var agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
+                agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
                 if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
                 {
                     foreach (var agv_too_near in agv_too_near_from_path)
@@ -147,6 +147,13 @@ namespace VMSystem.AGV.TaskDispatch
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
             lastPt = TrajectoryToExecute.Last();
+            var _lastPtTag = lastPt.Point_ID;
+            var agvConflic = agv_too_near_from_path.FirstOrDefault();
+            var RegisterName = agvConflic == null ? "System" : agvConflic.Name;
+            foreach (var item in EntirePathPlan.Where(pt => pt.TagNumber != _lastPtTag))
+            {
+                StaMap.RegistPoint(RegisterName, item, out msg);
+            }
         }
 
         internal void UpdatePartRegistedPointInfo(List<MapPoint> RegistPointByPart)

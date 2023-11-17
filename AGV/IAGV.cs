@@ -52,6 +52,7 @@ namespace VMSystem.AGV
 
         void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint);
 
+        clsAGVSimulation AgvSimulation { get; set; }
     }
 
 }

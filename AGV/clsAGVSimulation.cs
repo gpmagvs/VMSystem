@@ -94,6 +94,7 @@ namespace VMSystem.AGV
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
             if (previousTaskData != null && waitReplanflag)
             {
+
                 var lastPoint = previousTaskData.Trajectory.Last();
                 var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
                 ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
@@ -121,7 +122,7 @@ namespace VMSystem.AGV
                     TaskSequence = data.Task_Sequence,
                     TaskSimplex = data.Task_Simplex,
                     TimeStamp = DateTime.Now.ToString(),
-                    TaskStatus = TASK_RUN_STATUS.ACTION_START
+                    TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START
                 };
                 try
                 {
