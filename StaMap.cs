@@ -35,7 +35,7 @@ namespace VMSystem
             if (Map == null)
                 Download();
 
-            var chargeableStations = Map.Points.Values.Where(sta =>sta.Enable&& sta.IsChargeAble()).ToList();
+            var chargeableStations = Map.Points.Values.Where(sta => sta.Enable && sta.IsChargeAble()).ToList();
             return chargeableStations;
         }
 
@@ -172,9 +172,15 @@ namespace VMSystem
         {
             //若路徑上有點位被註冊=>移動至被註冊點之前一點
             List<MapPoint> registedPoints = StaMap.GetRegistedPoint(navigating_agv_name);
-            
+
             IEnumerable<MapPoint> commonItems = registedPoints.Intersect(path_to_nav, new MapPointComparer());
             return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToList();
+        }
+
+        internal static string GetStationNameByTag(int tag)
+        {
+            var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tag);
+            return point == null ? tag + "" : point.Name;
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>

@@ -146,6 +146,8 @@ namespace VMSystem.AGV.TaskDispatch
 
         public async Task Start(IAGV AGV, clsTaskDto TaskOrder, bool IsResumeTransferTask = false, TRANSFER_PROCESS lastTransferProcess = default)
         {
+            if (TaskOrder == null)
+                return;
             this.IsResumeTransferTask = IsResumeTransferTask;
             this.transferProcess = lastTransferProcess;
             await Task.Run(() =>
@@ -678,8 +680,10 @@ namespace VMSystem.AGV.TaskDispatch
             task = null;
             try
             {
-                _task = !isMovingSeqmentTask ? SubTasks.Dequeue() : SubTaskTracking;
+                _task = isMovingSeqmentTask ? SubTaskTracking:SubTasks.Dequeue()  ;
                 task = _task;
+
+                
 
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;
@@ -691,7 +695,9 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
                     {
-                        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(_task.Destination,true));
+                        var nextPt = task.Destination;
+                        //this.AGV;
+                        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, nextPt);
                         while (desineRegistInfo.IsRegisted)
                         {
                             Thread.Sleep(1);
@@ -710,7 +716,8 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
                 _task.CreateTaskToAGV(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
-
+                if (!isMovingSeqmentTask)
+                    SubTaskTracking = _task;
                 return _DispatchTaskToAGV(_task);
             }
             catch (IlleagalTaskDispatchException ex)
@@ -754,7 +761,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             EndReocrdTrajectory();
             UnRegistPointsRegisted();
-            ChangeTaskStatus(TASK_RUN_STATUS.ACTION_FINISH);
+            ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
             AgvSimulation.CancelTask();
         }
@@ -768,12 +775,12 @@ namespace VMSystem.AGV.TaskDispatch
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN && SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN && TaskOrder.Action == ACTION_TYPE.Carry)
             {
                 WaitingForResume = true;
-                ChangeTaskStatus(TASK_RUN_STATUS.WAIT, failure_reason: message == "" ? alarm_code.ToString() : message);
+                ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.WAIT, failure_reason: message == "" ? alarm_code.ToString() : message);
             }
             else
             {
                 WaitingForResume = false;
-                ChangeTaskStatus(TASK_RUN_STATUS.FAILURE, failure_reason: message == "" ? alarm_code.ToString() : message);
+                ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.FAILURE, failure_reason: message == "" ? alarm_code.ToString() : message);
                 EndReocrdTrajectory();
 
             }
@@ -818,7 +825,7 @@ namespace VMSystem.AGV.TaskDispatch
             EndReocrdTrajectory();
             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
             taskCancel.Cancel();
-            ChangeTaskStatus(TASK_RUN_STATUS.CANCEL);
+            ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.CANCEL);
             if (unRegistPoints)
                 UnRegistPointsRegisted();
             return OrderTaskName;
@@ -837,7 +844,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             LOG.WARN($"{AGV.Name}-交通解除註冊點完成");
         }
-        internal async void ChangeTaskStatus(TASK_RUN_STATUS status, string failure_reason = "")
+        internal async void ChangeTaskStatus(string TaskName, TASK_RUN_STATUS status, string failure_reason = "")
         {
             if (TaskOrder == null)
                 return;
@@ -849,7 +856,7 @@ namespace VMSystem.AGV.TaskDispatch
                 TaskOrder.FinishTime = DateTime.Now;
                 using (var agvs = new AGVSDatabase())
                 {
-                    var existFailureReason = agvs.tables.Tasks.AsNoTracking().FirstOrDefault(task => task.TaskName == TaskOrder.TaskName).FailureReason;
+                    var existFailureReason = agvs.tables.Tasks.AsNoTracking().FirstOrDefault(task => task.TaskName == TaskName).FailureReason;
                     if (existFailureReason != "")
                         TaskOrder.FailureReason = existFailureReason;
                     RaiseTaskDtoChange(this, TaskOrder);

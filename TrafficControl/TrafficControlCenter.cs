@@ -181,18 +181,28 @@ namespace VMSystem.TrafficControl
                 AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
                 string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask(false);
                 await Task.Delay(500);
-                bool TAFTaskStartOrFinish = await AwaitTAFTaskStart();
-                var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
-                await Task.Delay(1000);
-                tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
 
-                LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
-                while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
+                bool TAFTaskStartOrFinish = await AwaitTAFTaskStart();
+                if (TAFTaskStartOrFinish)
                 {
-                    await Task.Delay(1);
+                    LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
+
+                    var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
+                    await Task.Delay(1000);
+                    tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
+
+                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
+                    while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
+                    {
+                        await Task.Delay(1);
+                    }
+                    SetCanceledTaskWait(canceledTaskName);
+                    LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
                 }
-                SetCanceledTaskWait(canceledTaskName);
-                LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
+                else
+                {
+                    LOG.ERROR($"?????????");
+                }
 
             }
             else
@@ -214,7 +224,7 @@ namespace VMSystem.TrafficControl
                 var task = agvDB.tables.Tasks.FirstOrDefault(tk => tk.TaskName == tafTasOrder.TaskName);
                 if (task == null)
                     continue;
-                if (task.State == TASK_RUN_STATUS.NAVIGATING | task.State == TASK_RUN_STATUS.ACTION_FINISH)
+                if (task.State == TASK_RUN_STATUS.NAVIGATING | task.State == TASK_RUN_STATUS.ACTION_FINISH && _Agv_GoAway.taskDispatchModule.TaskStatusTracker.SubTaskTracking != null)
                 {
                     return true;
                 }
