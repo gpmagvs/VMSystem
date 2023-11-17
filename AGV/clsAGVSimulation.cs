@@ -11,9 +11,13 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
 using System.Net.Sockets;
 using System.Text;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem.AGV
 {
+    /// <summary>
+    /// AGV模擬器
+    /// </summary>
     public partial class clsAGVSimulation
     {
         private IAGV agv => dispatcherModule.agv;
@@ -72,27 +76,35 @@ namespace VMSystem.AGV
         clsTaskDownloadData previousTaskData;
         CancellationTokenSource moveCancelTokenSource;
         Task move_task;
+        bool _waitReplanflag = false;
+        bool waitReplanflag
+        {
+            get => _waitReplanflag;
+            set
+            {
+                if (_waitReplanflag != value)
+                {
+                    _waitReplanflag = value;
+                    LOG.TRACE($"{agv.Name} Replan Flag change to {value}");
+                }
+            }
+        }
         private void MoveTask(clsTaskDownloadData data)
         {
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
-            if (previousTaskData != null)
+            if (previousTaskData != null && waitReplanflag)
             {
-                if (previousTaskData.Task_Name == data.Task_Name && previousTaskData.Action_Type == data.Action_Type)
-                {
-                    var lastPoint = previousTaskData.Trajectory.Last();
-                    var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
-                    ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-                    Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
-                }
-                else
-                {
-                    ExecutingTrajecory = data.ExecutingTrajecory;
-                }
+                var lastPoint = previousTaskData.Trajectory.Last();
+                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+                ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
             }
             else
             {
                 ExecutingTrajecory = data.ExecutingTrajecory;
             }
+            waitReplanflag = data.ExecutingTrajecory.Last().Point_ID.ToString() != data.Destination.ToString();
+
             if (ExecutingTrajecory.Length == 0)
                 return;
 
@@ -154,6 +166,7 @@ namespace VMSystem.AGV
                 catch (Exception ex)
                 {
                     move_task = null;
+                    waitReplanflag = false;
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                     stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
@@ -194,8 +207,9 @@ namespace VMSystem.AGV
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
-                if(moveCancelTokenSource.IsCancellationRequested)
+                if (moveCancelTokenSource.IsCancellationRequested)
                 {
+                    waitReplanflag = false;
                     break;
                 }
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
