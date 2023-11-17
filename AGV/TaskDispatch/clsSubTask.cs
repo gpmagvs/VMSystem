@@ -116,6 +116,9 @@ namespace VMSystem.AGV.TaskDispatch
                 var tags = string.Join(",", optimiedPath.stations.Select(pt => pt.TagNumber));
                 throw new Exception($"{ExecuteOrderAGVName}- Regit Point({tags}) Fail...");
             }
+
+            Int32.TryParse(order.From_Station, out var fromTag);
+            Int32.TryParse(order.To_Station, out var toTag);
             DownloadData = new clsTaskDownloadData
             {
                 Action_Type = Action,
@@ -123,7 +126,13 @@ namespace VMSystem.AGV.TaskDispatch
                 Task_Sequence = sequence,
                 Task_Name = order.TaskName,
                 Station_Type = Destination.StationType,
-                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } }
+                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
+                OrderInfo = new clsTaskDownloadData.clsOrderInfo
+                {
+                    ActionName = order.Action,
+                    SourceName = StaMap.GetStationNameByTag(fromTag),
+                    DestineName = StaMap.GetStationNameByTag(toTag),
+                }
 
             };
             TrajectoryToExecute.Last().Theta = DestineStopAngle;
