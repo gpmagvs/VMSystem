@@ -213,7 +213,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             TASK_DOWNLOAD_RETURN_CODES agv_task_return_code = default;
 
-            agv_task_return_code = PostTaskRequestToAGVAsync(out var _task, isMovingSeqmentTask).ReturnCode;
+            agv_task_return_code = CalculationOptimizedPathAndSendTaskToAGV(out var _task, isMovingSeqmentTask).ReturnCode;
             if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK && agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
                 AbortOrder(agv_task_return_code);
@@ -674,7 +674,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        public TaskDownloadRequestResponse PostTaskRequestToAGVAsync(out clsSubTask task, bool isMovingSeqmentTask = false)
+        public TaskDownloadRequestResponse CalculationOptimizedPathAndSendTaskToAGV(out clsSubTask task, bool isMovingSeqmentTask = false)
         {
             clsSubTask _task = null;
             task = null;
@@ -715,7 +715,7 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                 }
                 var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
-                _task.CreateTaskToAGV(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                _task.GenOptimizePathOfTask(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
                 if (!isMovingSeqmentTask)
                     SubTaskTracking = _task;
                 return _DispatchTaskToAGV(_task);

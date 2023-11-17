@@ -26,7 +26,7 @@ namespace VMSystem.AGV.TaskDispatch
         public List<MapPoint> EntirePathPlan { get; private set; } = new List<MapPoint>();
         public List<MapPoint> SubPathPlan { get; private set; } = new List<MapPoint>();
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
-        internal void CreateTaskToAGV(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
+        internal void GenOptimizePathOfTask(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
         {
             lastPt = null;
             isSegment = false;
