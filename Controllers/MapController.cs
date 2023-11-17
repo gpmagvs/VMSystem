@@ -23,14 +23,14 @@ namespace VMSystem.Controllers
         public async Task<IActionResult> Regist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            bool result = StaMap.RegistPoint("System", map_point, out string err_msg);
+            bool result = StaMap.RegistPointBySystem(map_point, out var err_msg);
             return Ok(new { result = result, message = err_msg });
         }
         [HttpGet("Unregist")]
         public async Task<IActionResult> Unregist(int Tag_Number)
         {
             var map_point = StaMap.GetPointByTagNumber(Tag_Number);
-            bool result = StaMap.UnRegistPoint("System", map_point, out string err_msg);
+            bool result = StaMap.UnRegistPointBySystem(map_point, out string err_msg);
             return Ok(new { result = result, message = err_msg });
 
         }

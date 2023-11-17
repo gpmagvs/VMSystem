@@ -26,9 +26,11 @@ namespace VMSystem.TrafficControl
         {
             SystemModes.OnRunModeON += HandleRunModeOn;
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
+            clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
             Task.Run(() => TrafficStateCollectorWorker());
             Task.Run(() => TrafficInterLockSolveWorker());
         }
+
 
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
@@ -62,7 +64,28 @@ namespace VMSystem.TrafficControl
                 await Task.Delay(1000);
             }
         }
-
+        private static void ClsSubTask_OnPathClosedByAGVImpactDetecting(object? sender, List<MapPoint> path_points)
+        {
+            for (int i = 0; i < path_points.Count; i++)
+            {
+                if (i + 1 == path_points.Count)
+                    break;
+                var start_inedx = StaMap.GetIndexOfPoint(path_points[i]);
+                var end_index = StaMap.GetIndexOfPoint(path_points[i + 1]);
+                string path_id = $"{start_inedx}_{end_index}";
+                var path = StaMap.Map.Segments.FirstOrDefault(path => path.PathID == path_id);
+                if (path != null)
+                {
+                    DynamicTrafficState.ControledPathesByTraffic.TryAdd(path_id, path);
+                }
+                path_id = $"{end_index}_{start_inedx}";
+                path = StaMap.Map.Segments.FirstOrDefault(path => path.PathID == path_id);
+                if (path != null)
+                {
+                    DynamicTrafficState.ControledPathesByTraffic.TryAdd(path_id, path);
+                }
+            }
+        }
         private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
         {
             if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)

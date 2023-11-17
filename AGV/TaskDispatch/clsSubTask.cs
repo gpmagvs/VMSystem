@@ -25,6 +25,9 @@ namespace VMSystem.AGV.TaskDispatch
         public string CarrierID { get; set; } = "";
         public List<MapPoint> EntirePathPlan { get; private set; } = new List<MapPoint>();
         public List<MapPoint> SubPathPlan { get; private set; } = new List<MapPoint>();
+
+        public static event EventHandler<List<MapPoint>> OnPathClosedByAGVImpactDetecting;
+
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
         internal void GenOptimizePathOfTask(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
         {
@@ -148,12 +151,21 @@ namespace VMSystem.AGV.TaskDispatch
             }
             lastPt = TrajectoryToExecute.Last();
             var _lastPtTag = lastPt.Point_ID;
-            var agvConflic = agv_too_near_from_path.FirstOrDefault();
-            var RegisterName = agvConflic == null ? "System" : agvConflic.Name;
-            foreach (var item in EntirePathPlan.Where(pt => pt.TagNumber != _lastPtTag))
-            {
-                StaMap.RegistPoint(RegisterName, item, out msg);
-            }
+            RegistConflicPoints(_lastPtTag, agv_too_near_from_path);
+        }
+
+        private void RegistConflicPoints(int _lastPtTag, List<IAGV> agv_too_near_from_path)
+        {
+            var points = EntirePathPlan.Where(pt => pt.TagNumber != _lastPtTag).ToList();
+            if (points.Count() == 0)
+                return;
+            bool NotAGVConflic = agv_too_near_from_path.Count == 0;
+            if (!NotAGVConflic)
+                foreach (var item in points)
+                {
+                    StaMap.RegistPoint(agv_too_near_from_path.First().Name, item, out var msg);
+                }
+            OnPathClosedByAGVImpactDetecting?.Invoke(this, points);
         }
 
         internal void UpdatePartRegistedPointInfo(List<MapPoint> RegistPointByPart)
