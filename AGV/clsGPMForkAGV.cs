@@ -95,7 +95,8 @@ namespace VMSystem.AGV
                     if (!value)
                     {
                         LOG.ERROR($"{Name} Ping Fail({options.HostIP})");
-                        AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: currentMapPoint.Name);
+                        string location = currentMapPoint == null ? states.Last_Visited_Node+"" : currentMapPoint.Name;
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: location);
                     }
                     else
                     {
