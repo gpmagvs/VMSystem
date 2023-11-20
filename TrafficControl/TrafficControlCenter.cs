@@ -26,9 +26,11 @@ namespace VMSystem.TrafficControl
         {
             SystemModes.OnRunModeON += HandleRunModeOn;
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
+            clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
             Task.Run(() => TrafficStateCollectorWorker());
             Task.Run(() => TrafficInterLockSolveWorker());
         }
+
 
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
@@ -62,7 +64,28 @@ namespace VMSystem.TrafficControl
                 await Task.Delay(1000);
             }
         }
-
+        private static void ClsSubTask_OnPathClosedByAGVImpactDetecting(object? sender, List<MapPoint> path_points)
+        {
+            for (int i = 0; i < path_points.Count; i++)
+            {
+                if (i + 1 == path_points.Count)
+                    break;
+                var start_inedx = StaMap.GetIndexOfPoint(path_points[i]);
+                var end_index = StaMap.GetIndexOfPoint(path_points[i + 1]);
+                string path_id = $"{start_inedx}_{end_index}";
+                var path = StaMap.Map.Segments.FirstOrDefault(path => path.PathID == path_id);
+                if (path != null)
+                {
+                    DynamicTrafficState.ControledPathesByTraffic.TryAdd(path_id, path);
+                }
+                path_id = $"{end_index}_{start_inedx}";
+                path = StaMap.Map.Segments.FirstOrDefault(path => path.PathID == path_id);
+                if (path != null)
+                {
+                    DynamicTrafficState.ControledPathesByTraffic.TryAdd(path_id, path);
+                }
+            }
+        }
         private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
         {
             if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)
@@ -181,18 +204,28 @@ namespace VMSystem.TrafficControl
                 AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
                 string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask(false);
                 await Task.Delay(500);
-                bool TAFTaskStartOrFinish = await AwaitTAFTaskStart();
-                var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
-                await Task.Delay(1000);
-                tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
 
-                LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
-                while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
+                bool TAFTaskStartOrFinish = await AwaitTAFTaskStart();
+                if (TAFTaskStartOrFinish)
                 {
-                    await Task.Delay(1);
+                    LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
+
+                    var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
+                    await Task.Delay(1000);
+                    tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
+
+                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
+                    while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
+                    {
+                        await Task.Delay(1);
+                    }
+                    SetCanceledTaskWait(canceledTaskName);
+                    LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
                 }
-                SetCanceledTaskWait(canceledTaskName);
-                LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
+                else
+                {
+                    LOG.ERROR($"?????????");
+                }
 
             }
             else
@@ -214,7 +247,7 @@ namespace VMSystem.TrafficControl
                 var task = agvDB.tables.Tasks.FirstOrDefault(tk => tk.TaskName == tafTasOrder.TaskName);
                 if (task == null)
                     continue;
-                if (task.State == TASK_RUN_STATUS.NAVIGATING | task.State == TASK_RUN_STATUS.ACTION_FINISH)
+                if (task.State == TASK_RUN_STATUS.NAVIGATING | task.State == TASK_RUN_STATUS.ACTION_FINISH && _Agv_GoAway.taskDispatchModule.TaskStatusTracker.SubTaskTracking != null)
                 {
                     return true;
                 }

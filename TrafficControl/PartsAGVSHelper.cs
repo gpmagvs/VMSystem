@@ -49,19 +49,23 @@ namespace VMSystem.TrafficControl
                 return true;
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-            var result = await parts_service.Regist(AGVName,List_RegistNames);
+            var result = await parts_service.Regist(AGVName, List_RegistNames);
             return result.accept;
         }
 
         public static async Task<bool> UnRegistStationRequestToAGVS(List<string> List_UnRegistName, string AGVName = "AMCAGV")
         {
-            if (!NeedRegistRequestToParts)
+            return await await Task.Factory.StartNew(async () =>
             {
-                return true;
-            }
-            clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-            var result = await parts_service.Unregist(AGVName, List_UnRegistName);
-            return result.accept;
+
+                if (!NeedRegistRequestToParts)
+                {
+                    return true;
+                }
+                clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
+                var result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                return result.accept;
+            });
         }
 
         public static async Task<Dictionary<string, string>> QueryAGVSRegistedAreaName()

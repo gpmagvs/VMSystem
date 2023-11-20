@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Tools.Database;
 using Microsoft.EntityFrameworkCore;
@@ -28,31 +29,36 @@ namespace VMSystem.VMS
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
-                    using (var database = new AGVSDatabase())
-                    {
-                        taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                    }
-                    if (taskList.Count == 0)
-                        continue;
-
-                    //將任務依照優先度排序
-                    var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
-                    var _taskDto = taskOrderedByPriority.First();
-                    if (_taskDto.DesignatedAGVName != "")
-                        continue;
                     try
                     {
+                        await Task.Delay(1000);
+                        using (var database = new AGVSDatabase())
+                        {
+                            taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                        }
+                        if (taskList.Count == 0)
+                            continue;
+
+                        //將任務依照優先度排序
+                        var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
+                        var _taskDto = taskOrderedByPriority.First();
+                        if (_taskDto.DesignatedAGVName != "")
+                            continue;
                         IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
+                        if (AGV == null)
+                            continue;
+
                         agv = AGV;
                         _taskDto.DesignatedAGVName = AGV.Name;
                         TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
+                        //ExecuteTaskAsync(ExecutingTask);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
+                        LOG.ERROR(ex);
                         continue;
                     }
-                    //ExecuteTaskAsync(ExecutingTask);
+
                 }
             });
         }
@@ -81,10 +87,10 @@ namespace VMSystem.VMS
             if (agvSortedByDistance.Count() > 1)
             {
                 if (agvSortedByDistance.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
-                    return agvSortedByDistance.First();
+                    return agvSortedByDistance.FirstOrDefault();
                 else
                 {
-                    return agvSortedByDistance.First(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE);
+                    return agvSortedByDistance.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE);
                 }
             }
             return agvSortedByDistance.First();

@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using Newtonsoft.Json.Linq;
 using System;
 using VMSystem.TrafficControl;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem
 {
@@ -35,7 +36,7 @@ namespace VMSystem
             if (Map == null)
                 Download();
 
-            var chargeableStations = Map.Points.Values.Where(sta =>sta.Enable&& sta.IsChargeAble()).ToList();
+            var chargeableStations = Map.Points.Values.Where(sta => sta.Enable && sta.IsChargeAble()).ToList();
             return chargeableStations;
         }
 
@@ -104,20 +105,24 @@ namespace VMSystem
             }
             return true;
         }
-        internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message)
+        internal static bool RegistPointBySystem(MapPoint mapPoint, out string error_message, string AGVName = "")
+        {
+            return RegistPoint(AGVName, mapPoint, out error_message, true);
+        }
+        internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty; ;
             try
             {
                 if (mapPoint == null)
                     return false;
-                bool success = mapPoint.TryRegistPoint(Name, out var _info);
+                bool success = mapPoint.TryRegistPoint(Name, out var _info, IsBySystem);
                 if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
                     foreach (var item in mapPoint.RegistsPointIndexs)
                     {
                         if (StaMap.Map.Points.TryGetValue(item, out var pt))
-                            pt.TryRegistPoint(Name, out _info);
+                            pt.TryRegistPoint(Name, out _info, IsBySystem);
                     }
                 }
                 return success;
@@ -128,21 +133,23 @@ namespace VMSystem
                 return false;
             }
         }
-
-        internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message)
+        internal static bool UnRegistPointBySystem(MapPoint mapPoint, out string error_message)
+        {
+            return UnRegistPoint("System", mapPoint, out error_message, true);
+        }
+        internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
             try
             {
-
-                bool success = mapPoint.TryUnRegistPoint(Name, out var _info);
-                PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
+                bool success = mapPoint.TryUnRegistPoint(Name, out var _info, IsBySystem);
+                _ = PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
                 if (mapPoint.RegistsPointIndexs.Length > 0)
                 {
                     foreach (var item in mapPoint.RegistsPointIndexs)
                     {
                         if (StaMap.Map.Points.TryGetValue(item, out var pt))
-                            pt.TryUnRegistPoint(Name, out _info);
+                            pt.TryUnRegistPoint(Name, out _info, IsBySystem);
                     }
                 }
                 return success;
@@ -172,9 +179,28 @@ namespace VMSystem
         {
             //若路徑上有點位被註冊=>移動至被註冊點之前一點
             List<MapPoint> registedPoints = StaMap.GetRegistedPoint(navigating_agv_name);
-            
+
             IEnumerable<MapPoint> commonItems = registedPoints.Intersect(path_to_nav, new MapPointComparer());
             return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToList();
+        }
+
+        internal static string GetStationNameByTag(int tag)
+        {
+            var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tag);
+            return point == null ? tag + "" : point.Name;
+        }
+
+        internal static List<MapPoint> GetAllRegistedPointsByName(string name)
+        {
+            return Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == name).ToList();
+        }
+
+        internal static void UnRegistPoints(string name, List<MapPoint> unRegistList)
+        {
+            foreach (var point in unRegistList)
+            {
+                UnRegistPoint(name, point, out string errmsg);
+            }
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>

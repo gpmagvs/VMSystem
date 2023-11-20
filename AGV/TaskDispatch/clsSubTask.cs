@@ -25,8 +25,11 @@ namespace VMSystem.AGV.TaskDispatch
         public string CarrierID { get; set; } = "";
         public List<MapPoint> EntirePathPlan { get; private set; } = new List<MapPoint>();
         public List<MapPoint> SubPathPlan { get; private set; } = new List<MapPoint>();
+
+        public static event EventHandler<List<MapPoint>> OnPathClosedByAGVImpactDetecting;
+
         public bool IsSegmentTrejectory => Action == ACTION_TYPE.None && Destination.TagNumber != DownloadData.ExecutingTrajecory.Last().Point_ID;
-        internal void CreateTaskToAGV(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
+        internal void GenOptimizePathOfTask(clsTaskDto order, int sequence, out bool isSegment, out clsMapPoint lastPt, bool isMovingSeqmentTask = false, int agv_tag = -1, double agv_angle = -1)
         {
             lastPt = null;
             isSegment = false;
@@ -35,10 +38,10 @@ namespace VMSystem.AGV.TaskDispatch
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
             EntirePathPlan = optimiedPath.stations;
             var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
-
+            List<IAGV> agv_too_near_from_path = new List<IAGV>();
             if (Action == ACTION_TYPE.None)
             {
-                var agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
+                agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
                 if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
                 {
                     foreach (var agv_too_near in agv_too_near_from_path)
@@ -116,6 +119,9 @@ namespace VMSystem.AGV.TaskDispatch
                 var tags = string.Join(",", optimiedPath.stations.Select(pt => pt.TagNumber));
                 throw new Exception($"{ExecuteOrderAGVName}- Regit Point({tags}) Fail...");
             }
+
+            Int32.TryParse(order.From_Station, out var fromTag);
+            Int32.TryParse(order.To_Station, out var toTag);
             DownloadData = new clsTaskDownloadData
             {
                 Action_Type = Action,
@@ -123,7 +129,13 @@ namespace VMSystem.AGV.TaskDispatch
                 Task_Sequence = sequence,
                 Task_Name = order.TaskName,
                 Station_Type = Destination.StationType,
-                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } }
+                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
+                OrderInfo = new clsTaskDownloadData.clsOrderInfo
+                {
+                    ActionName = order.Action,
+                    SourceName = StaMap.GetStationNameByTag(fromTag),
+                    DestineName = StaMap.GetStationNameByTag(toTag),
+                }
 
             };
             TrajectoryToExecute.Last().Theta = DestineStopAngle;
@@ -138,6 +150,22 @@ namespace VMSystem.AGV.TaskDispatch
                 DownloadData.Homing_Trajectory = TrajectoryToExecute;
             }
             lastPt = TrajectoryToExecute.Last();
+            var _lastPtTag = lastPt.Point_ID;
+            RegistConflicPoints(_lastPtTag, agv_too_near_from_path);
+        }
+
+        private void RegistConflicPoints(int _lastPtTag, List<IAGV> agv_too_near_from_path)
+        {
+            var points = EntirePathPlan.Where(pt => pt.TagNumber != _lastPtTag).ToList();
+            if (points.Count() == 0)
+                return;
+            bool NotAGVConflic = agv_too_near_from_path.Count == 0;
+            if (!NotAGVConflic)
+                foreach (var item in points)
+                {
+                    StaMap.RegistPoint(agv_too_near_from_path.First().Name, item, out var msg);
+                }
+            OnPathClosedByAGVImpactDetecting?.Invoke(this, points);
         }
 
         internal void UpdatePartRegistedPointInfo(List<MapPoint> RegistPointByPart)
