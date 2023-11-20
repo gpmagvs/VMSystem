@@ -41,10 +41,17 @@ namespace VMSystem.VMS
                     var _taskDto = taskOrderedByPriority.First();
                     if (_taskDto.DesignatedAGVName != "")
                         continue;
-                    IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
-                    agv = AGV;
-                    _taskDto.DesignatedAGVName = AGV.Name;
-                    TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
+                    try
+                    {
+                        IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
+                        agv = AGV;
+                        _taskDto.DesignatedAGVName = AGV.Name;
+                        TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
                     //ExecuteTaskAsync(ExecutingTask);
                 }
             });
@@ -70,7 +77,7 @@ namespace VMSystem.VMS
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out refStation);
             }
 
-            var agvSortedByDistance = VMSManager.AllAGV.OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
+            var agvSortedByDistance = VMSManager.AllAGV.Where(agv=>agv.online_state == clsEnums.ONLINE_STATE.ONLINE).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
             if (agvSortedByDistance.Count() > 1)
             {
                 if (agvSortedByDistance.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))

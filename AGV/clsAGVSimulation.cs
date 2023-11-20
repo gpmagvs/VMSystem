@@ -136,7 +136,6 @@ namespace VMSystem.AGV
                     double finalTheta = ExecutingTrajecory.Last().Theta;
                     SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
                     runningSTatus.Coordination.Theta = finalTheta;
-                    Thread.Sleep(1000);
 
                     StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
 
@@ -184,7 +183,6 @@ namespace VMSystem.AGV
             {
 
             }
-
         }
         private void BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
@@ -279,7 +277,7 @@ namespace VMSystem.AGV
             {
                 runningSTatus.Coordination.X = CurrentX + i * MoveSpeed_X;
                 runningSTatus.Coordination.Y = CurrentY + i * MoveSpeed_Y;
-                Thread.Sleep(50);
+                Thread.Sleep((int)(1000/parameters.SpeedUpRate));
             }
         }
 
@@ -307,7 +305,7 @@ namespace VMSystem.AGV
                         throw new TaskCanceledException();
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep(10);
+                    Thread.Sleep((int)(1000/parameters.SpeedUpRate));
                 }
 
             }
@@ -321,7 +319,7 @@ namespace VMSystem.AGV
                         throw new TaskCanceledException();
                     runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep(10);
+                    Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
                 }
             }
         }
