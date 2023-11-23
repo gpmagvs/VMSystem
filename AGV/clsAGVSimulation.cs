@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using System.Net.Sockets;
 using System.Text;
 using AGVSystemCommonNet6.Log;
+using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 
 namespace VMSystem.AGV
 {
@@ -64,10 +65,17 @@ namespace VMSystem.AGV
 
         public async Task<TaskDownloadRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
         {
-            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
-            moveCancelTokenSource?.Cancel();
-            await Task.Delay(00);
-            MoveTask(data);
+            try
+            {
+                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
+                moveCancelTokenSource?.Cancel();
+                await Task.Delay(00);
+                MoveTask(data);
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex.StackTrace);
+            }
             return new TaskDownloadRequestResponse
             {
                 ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK
@@ -92,22 +100,29 @@ namespace VMSystem.AGV
         private void MoveTask(clsTaskDownloadData data)
         {
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
-            if (previousTaskData != null && waitReplanflag)
+            var StartIndex = data.ExecutingTrajecory.ToList().FindIndex(item => item.Point_ID == agv.currentMapPoint.TagNumber);
+            if (StartIndex == -1)
             {
+                StartIndex = 0;
+            }
+            var remainTragjectLen = data.ExecutingTrajecory.Length - StartIndex;
+            ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+            Array.Copy(data.ExecutingTrajecory, StartIndex, ExecutingTrajecory, 0, remainTragjectLen);
 
-                var lastPoint = previousTaskData.Trajectory.Last();
-                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
-                ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
-            }
-            else
-            {
-                ExecutingTrajecory = data.ExecutingTrajecory;
-            }
+            //if (previousTaskData != null && waitReplanflag)
+            //{
+            //    var lastPoint = previousTaskData.Trajectory.Last();
+            //    var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+            //    ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+            //    Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
+            //}
+            //else
+            //{
+            //    ExecutingTrajecory = data.ExecutingTrajecory;
+            //}
             waitReplanflag = data.ExecutingTrajecory.Last().Point_ID.ToString() != data.Destination.ToString();
 
-            if (ExecutingTrajecory.Length == 0)
-                return;
+            
 
             previousTaskData = data;
             ACTION_TYPE action = data.Action_Type;
@@ -209,6 +224,7 @@ namespace VMSystem.AGV
                 if (moveCancelTokenSource.IsCancellationRequested)
                 {
                     waitReplanflag = false;
+                    runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                     break;
                 }
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
@@ -257,8 +273,8 @@ namespace VMSystem.AGV
                 //Thread.Sleep(1000);
                 runningSTatus.Coordination.X = station.X;
                 runningSTatus.Coordination.Y = station.Y;
-
                 var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+                agv.currentMapPoint = pt;
                 string err_msg = "";
 
                 runningSTatus.Last_Visited_Node = stationTag;
@@ -317,7 +333,7 @@ namespace VMSystem.AGV
                 while (rotatedAngele <= shortestRotationAngle)
                 {
                     if (moveCancelTokenSource.IsCancellationRequested)
-                        throw new TaskCanceledException();
+                        return;
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep((int)(1000/parameters.SpeedUpRate));
@@ -331,7 +347,7 @@ namespace VMSystem.AGV
                 while (rotatedAngele <= shortestRotationAngle)
                 {
                     if (moveCancelTokenSource.IsCancellationRequested)
-                        throw new TaskCanceledException();
+                        return;
                     runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
                     Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
@@ -384,7 +400,7 @@ namespace VMSystem.AGV
         internal void CancelTask()
         {
             moveCancelTokenSource?.Cancel();
-            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+            //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }
     }
 }

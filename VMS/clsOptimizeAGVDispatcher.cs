@@ -90,7 +90,7 @@ namespace VMSystem.VMS
                     return agvSortedByDistance.FirstOrDefault();
                 else
                 {
-                    return agvSortedByDistance.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE);
+                    return agvSortedByDistance.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE||agv.main_state == clsEnums.MAIN_STATUS.Charging);
                 }
             }
             return agvSortedByDistance.First();

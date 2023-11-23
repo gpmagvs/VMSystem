@@ -27,7 +27,7 @@ namespace VMSystem.AGV
 
             public double ForkLifterSpeed { get; set; }
 
-            public double SpeedUpRate { get; set; } = 10;
+            public double SpeedUpRate { get; set; } = 4;
         }
     }
 }
