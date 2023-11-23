@@ -754,7 +754,13 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 else
                 {
-                    TaskDownloadRequestResponse taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
+                    TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
+                    if (AGV.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
+                        taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
+                    else
+                    {
+                        AGV.TcpClientHandler.SendTaskMessage(_task.DownloadData);
+                    }
                     return taskStateResponse;
                 }
             }

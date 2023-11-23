@@ -122,18 +122,36 @@ namespace VMSystem.VMS
 
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
-            TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-            Task.Factory.StartNew(async () =>
-            {
-                if (await TcpServer.Connect())
-                {
-                    LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
-                }
-            });
+            TcpServerInit();
 
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
 
+        }
+
+        private static void TcpServerInit()
+        {
+            TcpServer.OnClientConnected += TcpServer_OnClientConnected;
+
+            Task.Factory.StartNew(async () =>
+            {
+                try
+                {
+
+                    if (await TcpServer.Connect())
+                    {
+                        LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
+                    }
+                    else
+                    {
+
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LOG.ERROR(ex);
+                }
+            });
         }
 
         private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
