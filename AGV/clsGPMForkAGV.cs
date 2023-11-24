@@ -289,6 +289,7 @@ namespace VMSystem.AGV
             }
         }
         public bool IsTrafficTaskFinish { get; set; } = false;
+        public clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
 
         public async Task<bool> PingServer()
         {
@@ -303,7 +304,7 @@ namespace VMSystem.AGV
                     DontFragment = false      // 是否允許分段，設為true表示不分段
                 };
 
-                PingReply reply = pingSender.Send(address,3000, new byte[32], options);
+                PingReply reply = pingSender.Send(address, 3000, new byte[32], options);
                 bool ping_success = reply.Status == IPStatus.Success;
                 return ping_success;
             }

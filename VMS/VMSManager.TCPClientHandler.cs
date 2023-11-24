@@ -54,6 +54,7 @@ namespace VMSystem.VMS
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
                     agv.connected = true;
+                    agv.TcpClientHandler = client;
                     client.SendJsonReply(AGVSMessageFactory.createOnlineModeAckData(e, agv.online_mode_req == ONLINE_STATE.ONLINE ? REMOTE_MODE.ONLINE : REMOTE_MODE.OFFLINE));
                 }
             });

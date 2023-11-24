@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.AGV.TaskDispatch;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Microservices.VMS;
+using AGVSystemCommonNet6.AGVDispatch;
 
 namespace VMSystem.AGV
 {
@@ -53,6 +54,7 @@ namespace VMSystem.AGV
         void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint);
 
         clsAGVSimulation AgvSimulation { get; set; }
+        clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
     }
 
 }
