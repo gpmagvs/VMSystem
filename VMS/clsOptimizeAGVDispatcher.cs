@@ -32,9 +32,11 @@ namespace VMSystem.VMS
                     try
                     {
                         await Task.Delay(1000);
+                        List<string> List_TaskAGV = new List<string>();
                         using (var database = new AGVSDatabase())
                         {
                             taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                            List_TaskAGV= database.tables.Tasks.AsNoTracking().Where(task => (int)task.State < 6).Select(task => task.DesignatedAGVName).Distinct().ToList();
                         }
                         if (taskList.Count == 0)
                             continue;
@@ -44,7 +46,7 @@ namespace VMSystem.VMS
                         var _taskDto = taskOrderedByPriority.First();
                         if (_taskDto.DesignatedAGVName != "")
                             continue;
-                        IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto);
+                        IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto,List_TaskAGV);
                         if (AGV == null)
                             continue;
 
@@ -70,7 +72,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="taskDto"></param>
         /// <returns></returns>
-        private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto)
+        private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto,List<string> List_ExceptAGV)
         {
             MapPoint refStation = null;
             //取 放貨
@@ -84,16 +86,21 @@ namespace VMSystem.VMS
             }
 
             var agvSortedByDistance = VMSManager.AllAGV.Where(agv=>agv.online_state == clsEnums.ONLINE_STATE.ONLINE).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
-            if (agvSortedByDistance.Count() > 1)
+            var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => !List_ExceptAGV.Contains(item.Name));
+            if (AGVListRemoveTaskAGV.Count() == 0)
             {
-                if (agvSortedByDistance.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
-                    return agvSortedByDistance.FirstOrDefault();
+                return null;
+            }
+            if (AGVListRemoveTaskAGV.Count() > 1)
+            {
+                if (AGVListRemoveTaskAGV.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
+                    return AGVListRemoveTaskAGV.FirstOrDefault();
                 else
                 {
-                    return agvSortedByDistance.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE||agv.main_state == clsEnums.MAIN_STATUS.Charging);
+                    return AGVListRemoveTaskAGV.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE||agv.main_state == clsEnums.MAIN_STATUS.Charging);
                 }
             }
-            return agvSortedByDistance.First();
+            return AGVListRemoveTaskAGV.First();
         }
     }
 }
