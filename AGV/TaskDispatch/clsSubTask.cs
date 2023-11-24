@@ -34,6 +34,8 @@ namespace VMSystem.AGV.TaskDispatch
             lastPt = null;
             isSegment = false;
             ExecuteOrderAGVName = order.DesignatedAGVName;
+            var TargetAGVItem = VMSManager.AllAGV.First(item => item.Name == ExecuteOrderAGVName);
+
             PathFinder pathFinder = new PathFinder();
             var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
             EntirePathPlan = optimiedPath.stations;
@@ -41,19 +43,7 @@ namespace VMSystem.AGV.TaskDispatch
             List<IAGV> agv_too_near_from_path = new List<IAGV>();
             if (Action == ACTION_TYPE.None)
             {
-                agv_too_near_from_path = otherAGVList.Where(_agv => optimiedPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
-                if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
-                {
-                    foreach (var agv_too_near in agv_too_near_from_path)
-                    {
-                        var too_near_points = optimiedPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
-                        foreach (var point in too_near_points)
-                        {
-                            StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
-                        }
-                    }
-                }
-
+               
                 //若路徑上有點位被註冊=>移動至被註冊點之前一點
                 List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
 
@@ -80,7 +70,6 @@ namespace VMSystem.AGV.TaskDispatch
                         item.TryRegistPoint("Parts", out RegistPointInfo);
                     }
                     Task.Run(() => UpdatePartRegistedPointInfo(PartsRegistedPoints.ToList()));
-
                 }
 
                 regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
@@ -90,7 +79,7 @@ namespace VMSystem.AGV.TaskDispatch
                     var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
                     if (index_of_registed_pt != -1)
                     {
-                        var waitPoint = optimiedPath.stations.Last(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && optimiedPath.stations.IndexOf(pt) < index_of_registed_pt); //可以走的點就是已經被註冊的點之前的其他點
+                        var waitPoint = optimiedPath.stations.LastOrDefault(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && optimiedPath.stations.IndexOf(pt) < index_of_registed_pt); //可以走的點就是已經被註冊的點之前的其他點
                         var index_of_wait_point = optimiedPath.stations.IndexOf(waitPoint);
                         //
                         MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
@@ -114,7 +103,22 @@ namespace VMSystem.AGV.TaskDispatch
             }
             LastStopPoint = optimiedPath.stations.Last();
             var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
-            if (!StaMap.RegistPoint(ExecuteOrderAGVName, optimiedPath.stations, out string msg))
+
+            var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
+            agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
+            if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+            {
+                foreach (var agv_too_near in agv_too_near_from_path)
+                {
+                    var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
+                    foreach (var point in too_near_points)
+                    {
+                        StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
+                    }
+                }
+            }
+
+            if (!StaMap.RegistPoint(ExecuteOrderAGVName, RegistPath.stations, out string msg))
             {
                 var tags = string.Join(",", optimiedPath.stations.Select(pt => pt.TagNumber));
                 throw new Exception($"{ExecuteOrderAGVName}- Regit Point({tags}) Fail...");

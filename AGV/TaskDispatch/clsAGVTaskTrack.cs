@@ -732,7 +732,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             catch (Exception ex)
             {
-                LOG.Critical(ex);
+                LOG.Critical(ex.StackTrace);
                 return new TaskDownloadRequestResponse
                 {
                     ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION,
@@ -746,7 +746,6 @@ namespace VMSystem.AGV.TaskDispatch
                 if (IsAGVAlreadyAtFinalPointOfTrajectory)
                     return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
 
-                AGV.CheckAGVStatesBeforeDispatchTask(_task.Action, _task.Destination);
                 if (AGV.options.Simulation)
                 {
                     TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
@@ -754,12 +753,13 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 else
                 {
+                    AGV.CheckAGVStatesBeforeDispatchTask(_task.Action, _task.Destination);
                     TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
                     if (AGV.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
                         taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
                     else
                     {
-                        AGV.TcpClientHandler.SendTaskMessage(_task.DownloadData);
+                        taskStateResponse = AGV.TcpClientHandler.SendTaskMessage(_task.DownloadData);
                     }
                     return taskStateResponse;
                 }
@@ -778,6 +778,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         internal void AbortOrder(TASK_DOWNLOAD_RETURN_CODES agv_task_return_code, ALARMS alarm_code = ALARMS.NONE, string message = "")
         {
+            LOG.Critical(agv_task_return_code.ToString());
             UnRegistPointsRegisted();
             taskCancel.Cancel();
             AgvSimulation.CancelTask();
