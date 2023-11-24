@@ -34,7 +34,6 @@ namespace VMSystem.TrafficControl
 
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
-
         private static async void HandleRunModeOn()
         {
             var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => agv.currentMapPoint != null).Where(agv => !agv.currentMapPoint.IsCharge &&
@@ -42,7 +41,6 @@ namespace VMSystem.TrafficControl
                                                                         agv.states.Cargo_Status == 0 &&
                                                                         agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER)
                                                                         .ToList();
-
             foreach (var agv in needGoToChargeAgvList)
             {
                 if (agv.states.Cargo_Status != 0)
@@ -209,7 +207,6 @@ namespace VMSystem.TrafficControl
                 if (TAFTaskStartOrFinish)
                 {
                     LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
-
                     var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);

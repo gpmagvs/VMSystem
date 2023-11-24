@@ -678,6 +678,8 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
+        private static object RegistLockObject = new object();
+
         public TaskDownloadRequestResponse CalculationOptimizedPathAndSendTaskToAGV(out clsSubTask task, bool isMovingSeqmentTask = false)
         {
             clsSubTask _task = null;
@@ -719,7 +721,10 @@ namespace VMSystem.AGV.TaskDispatch
                     }
                 }
                 var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
-                _task.GenOptimizePathOfTask(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                lock (RegistLockObject)
+                {
+                    _task.GenOptimizePathOfTask(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                }
                 if (!isMovingSeqmentTask)
                     SubTaskTracking = _task;
                 return _DispatchTaskToAGV(_task);
