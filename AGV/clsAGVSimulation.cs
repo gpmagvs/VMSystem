@@ -74,7 +74,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.StackTrace);
+                LOG.ERROR(ex.Message, ex);
             }
             return new TaskDownloadRequestResponse
             {
@@ -105,6 +105,11 @@ namespace VMSystem.AGV
             {
                 var lastPoint = previousTaskData.Trajectory.Last();
                 var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+                if (remainTragjectLen == 0)
+                {
+
+                    return;
+                }
                 ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
                 Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
             }
@@ -389,6 +394,7 @@ namespace VMSystem.AGV
 
         internal void CancelTask()
         {
+            waitReplanflag = false;
             moveCancelTokenSource?.Cancel();
             //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }

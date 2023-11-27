@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -33,129 +34,141 @@ namespace VMSystem.AGV.TaskDispatch
         {
             lastPt = null;
             isSegment = false;
-            ExecuteOrderAGVName = order.DesignatedAGVName;
-            var TargetAGVItem = VMSManager.AllAGV.First(item => item.Name == ExecuteOrderAGVName);
-
-            PathFinder pathFinder = new PathFinder();
-            var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
-            EntirePathPlan = optimiedPath.stations;
-            var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
-            List<IAGV> agv_too_near_from_path = new List<IAGV>();
-            if (Action == ACTION_TYPE.None)
+            try
             {
-               
-                //若路徑上有點位被註冊=>移動至被註冊點之前一點
-                List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
-
-                int NowPositionIndex = LastStopPoint == null ? 0 : optimiedPath.stations.IndexOf(LastStopPoint);
-                var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
-                if (NowPositionIndex == -1)
+                ExecuteOrderAGVName = order.DesignatedAGVName;
+                var TargetAGVItem = VMSManager.AllAGV.First(item => item.Name == ExecuteOrderAGVName);
+                PathFinder pathFinder = new PathFinder();
+                var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination);
+                EntirePathPlan = optimiedPath.stations;
+                var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
+                List<IAGV> agv_too_near_from_path = new List<IAGV>();
+                if (Action == ACTION_TYPE.None)
                 {
-                    FollowingStations = optimiedPath.stations.ToArray();
+
+                    //若路徑上有點位被註冊=>移動至被註冊點之前一點
+                    List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
+                    int NowPositionIndex = LastStopPoint == null ? 0 : optimiedPath.stations.IndexOf(LastStopPoint);
+                    var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
+                    if (NowPositionIndex == -1)
+                    {
+                        FollowingStations = optimiedPath.stations.ToArray();
+                    }
+                    else
+                    {
+                        Array.Copy(optimiedPath.stations.ToArray(), NowPositionIndex, FollowingStations, 0, optimiedPath.stations.Count - NowPositionIndex);
+                    }
+                    if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
+                    {
+                        //查詢現在Parts用掉的點位
+                        Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName().Result;
+                        var RegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item => item.Key);
+                        var PartsRegistedPoints = FollowingStations.Where(item => RegistedPointsByParts.Contains(item.Name));
+                        regitedPoints.AddRange(PartsRegistedPoints);
+                        foreach (var item in PartsRegistedPoints)
+                        {
+                            var RegistPointInfo = new clsMapPoiintRegist();
+                            item.TryRegistPoint("Parts", out RegistPointInfo);
+                        }
+                        Task.Run(() => UpdatePartRegistedPointInfo(PartsRegistedPoints.ToList()));
+                    }
+
+                    regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
+                    regitedPoints = regitedPoints.Where(pt => pt != null).Distinct().ToList();
+                    if (regitedPoints.Any()) //有點位被註冊
+                    {
+                        var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
+                        if (index_of_registed_pt != -1)
+                        {
+                            var waitPoint = optimiedPath.stations.LastOrDefault(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && optimiedPath.stations.IndexOf(pt) < index_of_registed_pt); //可以走的點就是已經被註冊的點之前的其他點
+                            var index_of_wait_point = optimiedPath.stations.IndexOf(waitPoint);
+                            //
+                            MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
+                            optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
+                            optimiedPath.stations = seqmentPath.ToList();
+                            isSegment = true;
+
+                        }
+                    }
+
+
+                    if (optimiedPath.stations.Count != 0)
+                    {
+                        SubPathPlan = optimiedPath.stations;
+                        if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
+                        {
+                            Task.Factory.StartNew(async () =>
+                            {
+                                var FollwingStationsToRegist = SubPathPlan.Intersect(FollowingStations);
+                                var RegistPathToParts = FollwingStationsToRegist.Where(eachpoint => !string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
+                                bool IsRegistSuccess = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
+                            });
+                            //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
+                        }
+
+
+                        LastStopPoint = optimiedPath.stations.Last();
+                        var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
+                        agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
+                        if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+                        {
+                            foreach (var agv_too_near in agv_too_near_from_path)
+                            {
+                                var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
+                                foreach (var point in too_near_points)
+                                {
+                                    StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
+                                }
+                            }
+                        }
+
+                    }
+                    else//無路可走
+                    {
+                        var current_point_index = EntirePathPlan.FindIndex(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber);
+                        MapPoint[] path_gen = new MapPoint[current_point_index + 1];
+                        Array.Copy(EntirePathPlan.ToArray(), 0, path_gen, 0, path_gen.Length);
+                        optimiedPath.stations = path_gen.ToList();
+                    }
+
                 }
+                var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
+
+                Int32.TryParse(order.From_Station, out var fromTag);
+                Int32.TryParse(order.To_Station, out var toTag);
+                DownloadData = new clsTaskDownloadData
+                {
+                    Action_Type = Action,
+                    Destination = Destination.TagNumber,
+                    Task_Sequence = sequence,
+                    Task_Name = order.TaskName,
+                    Station_Type = Destination.StationType,
+                    CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
+                    OrderInfo = new clsTaskDownloadData.clsOrderInfo
+                    {
+                        ActionName = order.Action,
+                        SourceName = StaMap.GetStationNameByTag(fromTag),
+                        DestineName = StaMap.GetStationNameByTag(toTag),
+                    }
+
+                };
+
+
+                TrajectoryToExecute.Last().Theta = isMovingSeqmentTask ? agv_angle : DestineStopAngle;
+                if (Action == ACTION_TYPE.None)
+                    DownloadData.Trajectory = TrajectoryToExecute;
                 else
                 {
-                    Array.Copy(optimiedPath.stations.ToArray(), NowPositionIndex, FollowingStations, 0, optimiedPath.stations.Count - NowPositionIndex);
+                    DownloadData.Homing_Trajectory = TrajectoryToExecute;
                 }
-                if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
-                {
-                    //查詢現在Parts用掉的點位
-                    Dictionary<string, string> RegistAreaFromPartsDB = TrafficControl.PartsAGVSHelper.QueryAGVSRegistedAreaName().Result;
-                    var RegistedPointsByParts = RegistAreaFromPartsDB.Where(item => item.Value != "AMCAGV").Select(item => item.Key);
-                    var PartsRegistedPoints = FollowingStations.Where(item => RegistedPointsByParts.Contains(item.Name));
-                    regitedPoints.AddRange(PartsRegistedPoints);
-                    foreach (var item in PartsRegistedPoints)
-                    {
-                        var RegistPointInfo = new clsMapPoiintRegist();
-                        item.TryRegistPoint("Parts", out RegistPointInfo);
-                    }
-                    Task.Run(() => UpdatePartRegistedPointInfo(PartsRegistedPoints.ToList()));
-                }
-
-                regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
-                regitedPoints = regitedPoints.Where(pt => pt != null).Distinct().ToList();
-                if (regitedPoints.Any()) //有點位被註冊
-                {
-                    var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
-                    if (index_of_registed_pt != -1)
-                    {
-                        var waitPoint = optimiedPath.stations.LastOrDefault(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && optimiedPath.stations.IndexOf(pt) < index_of_registed_pt); //可以走的點就是已經被註冊的點之前的其他點
-                        var index_of_wait_point = optimiedPath.stations.IndexOf(waitPoint);
-                        //
-                        MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
-                        optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
-                        optimiedPath.stations = seqmentPath.ToList();
-                        isSegment = true;
-
-                    }
-                }
-                SubPathPlan = optimiedPath.stations;
-                if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
-                {
-                    Task.Factory.StartNew(async () =>
-                    {
-                        var FollwingStationsToRegist = SubPathPlan.Intersect(FollowingStations);
-                        var RegistPathToParts = FollwingStationsToRegist.Where(eachpoint => !string.IsNullOrEmpty(eachpoint.Name)).Select(eachpoint => eachpoint.Name).ToList();
-                        bool IsRegistSuccess = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(RegistPathToParts, "AMCAGV");
-                    });
-                    //執行註冊的動作 建TCP Socket、送Regist指令、確認可以註冊之後再往下進行，也許可以依照回傳值決定要走到哪裡，這個再跟Parts討論
-                }
+                lastPt = TrajectoryToExecute.Last();
+                var _lastPtTag = lastPt.Point_ID;
+                //RegistConflicPoints(_lastPtTag, agv_too_near_from_path);  }
             }
-            LastStopPoint = optimiedPath.stations.Last();
-            var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
-
-            var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
-            agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
-            if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+            catch (Exception ex)
             {
-                foreach (var agv_too_near in agv_too_near_from_path)
-                {
-                    var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
-                    foreach (var point in too_near_points)
-                    {
-                        StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
-                    }
-                }
+                LOG.Critical(ex);
             }
-
-            if (!StaMap.RegistPoint(ExecuteOrderAGVName, RegistPath.stations, out string msg))
-            {
-                var tags = string.Join(",", optimiedPath.stations.Select(pt => pt.TagNumber));
-                throw new Exception($"{ExecuteOrderAGVName}- Regit Point({tags}) Fail...");
-            }
-
-            Int32.TryParse(order.From_Station, out var fromTag);
-            Int32.TryParse(order.To_Station, out var toTag);
-            DownloadData = new clsTaskDownloadData
-            {
-                Action_Type = Action,
-                Destination = Destination.TagNumber,
-                Task_Sequence = sequence,
-                Task_Name = order.TaskName,
-                Station_Type = Destination.StationType,
-                CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
-                OrderInfo = new clsTaskDownloadData.clsOrderInfo
-                {
-                    ActionName = order.Action,
-                    SourceName = StaMap.GetStationNameByTag(fromTag),
-                    DestineName = StaMap.GetStationNameByTag(toTag),
-                }
-
-            };
-            TrajectoryToExecute.Last().Theta = DestineStopAngle;
-            if (isMovingSeqmentTask)
-            {
-                TrajectoryToExecute.First(pt => pt.Point_ID == agv_tag).Theta = agv_angle;
-            }
-            if (Action == ACTION_TYPE.None)
-                DownloadData.Trajectory = TrajectoryToExecute;
-            else
-            {
-                DownloadData.Homing_Trajectory = TrajectoryToExecute;
-            }
-            lastPt = TrajectoryToExecute.Last();
-            var _lastPtTag = lastPt.Point_ID;
-            RegistConflicPoints(_lastPtTag, agv_too_near_from_path);
         }
 
         private void RegistConflicPoints(int _lastPtTag, List<IAGV> agv_too_near_from_path)

@@ -216,6 +216,10 @@ namespace VMSystem.AGV.TaskDispatch
                 AbortOrder(agv_task_return_code);
                 return;
             }
+            else if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK)
+            {
+                RegistRemainPathTags();
+            }
             SubTaskTracking = _task;
 
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
@@ -229,6 +233,22 @@ namespace VMSystem.AGV.TaskDispatch
                 });
             }
 
+        }
+
+        private void RegistRemainPathTags()
+        {
+            var current_point_index = SubTaskTracking.EntirePathPlan.FindIndex(pt => pt.TagNumber == AGV.currentMapPoint.TagNumber);
+            MapPoint[] path_gen = new MapPoint[SubTaskTracking.EntirePathPlan.Count - current_point_index];
+            Array.Copy(SubTaskTracking.EntirePathPlan.ToArray(), 0, path_gen, 0, path_gen.Length);
+            var tags = string.Join(",", path_gen.Select(pt => pt.TagNumber));
+            if (StaMap.RegistPoint(AGV.Name, path_gen, out string msg))
+            {
+                LOG.TRACE($"{AGV.Name} Regist {tags}");
+            }
+            else
+            {
+
+            }
         }
 
         /// <summary>
@@ -427,8 +447,7 @@ namespace VMSystem.AGV.TaskDispatch
                             try
                             {
                                 waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
-                                var registInfoOfWaitFor = waitingInfo.WaitingPoint.RegistInfo;
-                                while (registInfoOfWaitFor.IsRegisted)
+                                while (StaMap.IsMapPointRegisted(waitingInfo.WaitingPoint, AGV.Name))
                                 {
                                     await Task.Delay(100);
                                     if (TaskRunningStatus != TASK_RUN_STATUS.NAVIGATING && TaskRunningStatus != TASK_RUN_STATUS.WAIT)
@@ -481,7 +500,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             return await Task.Factory.StartNew(() =>
               {
-                  while (waitingInfo.WaitingPoint.RegistInfo.IsRegisted && waitingInfo.WaitingPoint.RegistInfo.RegisterAGVName != AGV.Name)
+                  while (StaMap.IsMapPointRegisted(waitingInfo.WaitingPoint, AGV.Name))
                   {
                       Thread.Sleep(1000);
                       if (taskCancel.IsCancellationRequested)
@@ -695,14 +714,13 @@ namespace VMSystem.AGV.TaskDispatch
                 var agv_too_near_from_path = VMSManager.GetAGVListExpectSpeficAGV(AGV.Name).Where(_agv => _task.EntirePathPlan.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
                 var desineRegistInfo = _task.Destination.RegistInfo == null ? new clsMapPoiintRegist() : _task.Destination.RegistInfo;
 
-                if ((desineRegistInfo.IsRegisted && desineRegistInfo.RegisterAGVName != AGV.Name) | agv_too_near_from_path.Any())
+                if (StaMap.IsMapPointRegisted(_task.Destination, AGV.Name) | agv_too_near_from_path.Any())
                 {
                     if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
                     {
                         var nextPt = task.Destination;
-                        //this.AGV;
                         waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, nextPt);
-                        while (desineRegistInfo.IsRegisted)
+                        while (StaMap.IsMapPointRegisted(_task.Destination, AGV.Name))
                         {
                             Thread.Sleep(1);
                         }
@@ -845,15 +863,17 @@ namespace VMSystem.AGV.TaskDispatch
         private void UnRegistPointsRegisted()
         {
             //解除除了當前位置知所有註冊點
-            var allRegistedPoints = StaMap.Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == AGV.Name);
-            foreach (var pt in allRegistedPoints.Where(pt => pt.TagNumber != AGV.states.Last_Visited_Node))
+            var IsAllPointsUnRegisted = StaMap.UnRegistPointByName(AGV.Name, new int[] { AGV.states.Last_Visited_Node }, out int[] failTags);
+            //Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == AGV.Name);
+            if (IsAllPointsUnRegisted)
             {
-                if (!StaMap.UnRegistPoint(AGV.Name, pt, out var msg))
-                {
-                    LOG.WARN($"{AGV.Name}-交通解除註冊點{pt.TagNumber}失敗:{msg}");
-                }
+                LOG.WARN($"{AGV.Name}-交通解除註冊點完成");
             }
-            LOG.WARN($"{AGV.Name}-交通解除註冊點完成");
+            else
+            {
+                LOG.WARN($"{AGV.Name}-交通解除註冊點{string.Join("、", failTags)}失敗");
+            }
+
         }
         internal async void ChangeTaskStatus(string TaskName, TASK_RUN_STATUS status, string failure_reason = "")
         {

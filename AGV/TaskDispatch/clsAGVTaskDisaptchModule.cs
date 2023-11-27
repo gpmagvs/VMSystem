@@ -215,6 +215,7 @@ namespace VMSystem.AGV
                     }
                     catch (Exception ex)
                     {
+                        LOG.Critical(ex);
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
