@@ -74,7 +74,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.StackTrace);
+                LOG.ERROR(ex.Message, ex);
             }
             return new TaskDownloadRequestResponse
             {
@@ -100,29 +100,24 @@ namespace VMSystem.AGV
         private void MoveTask(clsTaskDownloadData data)
         {
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
-            var StartIndex = data.ExecutingTrajecory.ToList().FindIndex(item => item.Point_ID == agv.currentMapPoint.TagNumber);
-            if (StartIndex == -1)
+
+            if (previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
             {
-                StartIndex = 0;
+                var lastPoint = previousTaskData.Trajectory.Last();
+                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+                if (remainTragjectLen == 0)
+                {
+
+                    return;
+                }
+                ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
             }
-            var remainTragjectLen = data.ExecutingTrajecory.Length - StartIndex;
-            ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-            Array.Copy(data.ExecutingTrajecory, StartIndex, ExecutingTrajecory, 0, remainTragjectLen);
-
-            //if (previousTaskData != null && waitReplanflag)
-            //{
-            //    var lastPoint = previousTaskData.Trajectory.Last();
-            //    var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
-            //    ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-            //    Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
-            //}
-            //else
-            //{
-            //    ExecutingTrajecory = data.ExecutingTrajecory;
-            //}
+            else
+            {
+                ExecutingTrajecory = data.ExecutingTrajecory;
+            }
             waitReplanflag = data.ExecutingTrajecory.Last().Point_ID.ToString() != data.Destination.ToString();
-
-            
 
             previousTaskData = data;
             ACTION_TYPE action = data.Action_Type;
@@ -308,7 +303,7 @@ namespace VMSystem.AGV
             {
                 runningSTatus.Coordination.X = CurrentX + i * MoveSpeed_X;
                 runningSTatus.Coordination.Y = CurrentY + i * MoveSpeed_Y;
-                Thread.Sleep((int)(1000/parameters.SpeedUpRate));
+                Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
             }
         }
 
@@ -336,7 +331,7 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(1000/parameters.SpeedUpRate));
+                    Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
                 }
 
             }
@@ -399,6 +394,7 @@ namespace VMSystem.AGV
 
         internal void CancelTask()
         {
+            waitReplanflag = false;
             moveCancelTokenSource?.Cancel();
             //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }

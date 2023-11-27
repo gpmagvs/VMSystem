@@ -5,6 +5,7 @@ using System.Text;
 using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.VMS;
+using AGVSystemCommonNet6.HttpTools;
 
 namespace VMSystem.Controllers
 {
@@ -23,103 +24,15 @@ namespace VMSystem.Controllers
             if (_HttpContext.WebSockets.IsWebSocketRequest)
             {
                 WebSocket webSocket = await _HttpContext.WebSockets.AcceptWebSocketAsync();
-                MessageSender msg_sender = new MessageSender(webSocket, client_req);
-                msg_sender.OnViewDataFetching += () => { return GetData(client_req); };
-                await msg_sender.SendMessage();
-                msg_sender.Dispose();
+                clsWebsocktClientHandler clientHander = new clsWebsocktClientHandler(webSocket, client_req.ToString());
+                clientHander.OnDataFetching += (path) => { return GetData(path); };
+                await clientHander.StartBrocast();
             }
             else
             {
                 _HttpContext.Response.StatusCode = 400;
             }
         }
-        public class MessageSender : IDisposable
-        {
-            public WebSocket client { get; private set; }
-            public WS_DATA_TYPE client_req { get; }
-
-            internal delegate object OnViewDataFetchDelate();
-            internal OnViewDataFetchDelate OnViewDataFetching;
-            private bool disposedValue;
-
-            public MessageSender(WebSocket client, WS_DATA_TYPE client_req)
-            {
-                this.client = client;
-                this.client_req = client_req;
-            }
-
-            public async Task SendMessage()
-            {
-                var buff = new ArraySegment<byte>(new byte[10]);
-                bool closeFlag = false;
-                _ = Task.Factory.StartNew(async () =>
-                {
-                    while (!closeFlag)
-                    {
-                        await Task.Delay(100);
-
-                        if (OnViewDataFetching == null)
-                            return;
-                        var data = OnViewDataFetching();
-                        if (data != null)
-                        {
-                            try
-                            {
-
-                                await client.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data))), WebSocketMessageType.Text, true, CancellationToken.None);
-                                data = null;
-                            }
-                            catch (Exception ex)
-                            {
-                                return;
-                            }
-                        }
-                    }
-                });
-
-                while (true)
-                {
-                    try
-                    {
-                        await Task.Delay(100);
-                        WebSocketReceiveResult result = await client.ReceiveAsync(buff, CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        break;
-                    }
-                }
-                closeFlag = true;
-                client.Dispose();
-                GC.Collect();
-
-            }
-
-            protected virtual void Dispose(bool disposing)
-            {
-                if (!disposedValue)
-                {
-                    if (disposing)
-                    {
-                        // TODO: 處置受控狀態 (受控物件)
-                    }
-
-                    // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
-                    // TODO: 將大型欄位設為 Null
-                    OnViewDataFetching = null;
-                    client = null;
-                    disposedValue = true;
-                }
-            }
-            public void Dispose()
-            {
-                // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
-                Dispose(disposing: true);
-                GC.SuppressFinalize(this);
-            }
-        }
-
-
 
         private static object DynamicTrafficData;
         private static object AGVNaviPathsInfo;
@@ -141,28 +54,31 @@ namespace VMSystem.Controllers
             });
         }
 
-
-        private static object GetData(WS_DATA_TYPE client_req)
+        private static object GetData(string client_req)
         {
             object viewmodel = "";
             switch (client_req)
             {
-                case WS_DATA_TYPE.DynamicTrafficData:
+                case "DynamicTrafficData":
                     viewmodel = DynamicTrafficData;
                     break;
-                case WS_DATA_TYPE.AGVNaviPathsInfo:
+                case "AGVNaviPathsInfo":
                     viewmodel = AGVNaviPathsInfo;
                     break;
-                case WS_DATA_TYPE.VMSAliveCheck:
+                case "VMSAliveCheck":
                     viewmodel = VMSAliveCheck;
                     break;
-                case WS_DATA_TYPE.VMSStatus:
+                case "VMSStatus":
                     viewmodel = VMSStatus;
                     break;
                 default:
                     break;
             }
             return viewmodel;
+        }
+        private static object GetData(WS_DATA_TYPE client_req)
+        {
+            return GetData(client_req.ToString());
         }
 
         private static class ViewModelFactory

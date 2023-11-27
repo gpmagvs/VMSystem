@@ -185,13 +185,11 @@ namespace VMSystem.AGV
                                                         .Where(pt => pt != null)
                                                         .Where(pt => pt.RegistInfo != null)
                                                         .Where(pt => pt.RegistInfo.RegisterAGVName == Name);
-
-                        extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
-                        unRegistList.AddRange(extraNeedUnregistedPoints);
-
-                        var agvRegistedPoints = StaMap.GetAllRegistedPointsByName(Name);
-
-
+                        if (taskDispatchModule.CurrentTrajectory.Count() != 0)
+                        {
+                            extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
+                            unRegistList.AddRange(extraNeedUnregistedPoints);
+                        }
                         StaMap.UnRegistPoints(Name, unRegistList);
                         //registedPointList.Where(pt=> !pathTags.Contains(pt.TagNumber)).
                     }
