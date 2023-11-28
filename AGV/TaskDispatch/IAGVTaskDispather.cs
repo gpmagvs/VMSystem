@@ -15,7 +15,7 @@ namespace VMSystem.AGV.TaskDispatch
         Task<string> CancelTask(bool unRegistPoints = true);
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
-        AGV_ORDERABLE_STATUS OrderExecuteState { get; }
+        AGV_ORDERABLE_STATUS OrderExecuteState { get; set; }
         public clsAGVTaskTrack TaskStatusTracker { get; set; }
         string ExecutingTaskName { get; set; }
     }
