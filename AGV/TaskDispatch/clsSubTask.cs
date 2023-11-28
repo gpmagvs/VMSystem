@@ -153,8 +153,9 @@ namespace VMSystem.AGV.TaskDispatch
 
                 };
 
+                double stopAngle = order.Action == ACTION_TYPE.None? CalculationStopAngle(TrajectoryToExecute):DestineStopAngle;
+                TrajectoryToExecute.Last().Theta = stopAngle;
 
-                TrajectoryToExecute.Last().Theta = isMovingSeqmentTask ? agv_angle : DestineStopAngle;
                 if (Action == ACTION_TYPE.None)
                     DownloadData.Trajectory = TrajectoryToExecute;
                 else
@@ -169,6 +170,29 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 LOG.Critical(ex);
             }
+        }
+
+        private double CalculationStopAngle(clsMapPoint[] trajectoryToExecute)
+        {
+            var finalPt = trajectoryToExecute.Last();
+            var countDown2PtIndex = trajectoryToExecute.ToList().IndexOf(finalPt) - 1;
+            if (countDown2PtIndex < 0)
+                return DestineStopAngle;
+
+            var countDown2Pt = trajectoryToExecute[countDown2PtIndex];
+
+            double deltaX = finalPt.X - countDown2Pt.X;
+            double deltaY = finalPt.Y - countDown2Pt.Y;
+            // 使用 Atan2 來計算弧度，然後轉換為度
+            double angleInRadians = Math.Atan2(deltaY, deltaX);
+            double angleInDegrees = angleInRadians * (180 / Math.PI);
+            // 將角度調整到 -180 至 180 度的範圍
+            if (angleInDegrees > 180)
+            {
+                angleInDegrees -= 360;
+            }
+            return angleInDegrees;
+
         }
 
         private void RegistConflicPoints(int _lastPtTag, List<IAGV> agv_too_near_from_path)

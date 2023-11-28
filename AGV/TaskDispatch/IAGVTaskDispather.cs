@@ -43,6 +43,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
         }
+        internal ManualResetEvent AllowMoveResumeResetEvent = new ManualResetEvent(false);
         public int ParkingTag { get; private set; }
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
         public string Descrption { get; private set; } = "";
@@ -53,6 +54,8 @@ namespace VMSystem.AGV.TaskDispatch
             Status = WAIT_STATUS.NO_WAIT;
             this.Agv = Agv;
             this.IsWaiting = false;
+            if (OnAGVWaitingStatusChanged != null)
+                OnAGVWaitingStatusChanged(this);
         }
         public void SetStatusGoToWaitingPoint(IAGV Agv, int parkingTag, MapPoint ConflicPoint)
         {
@@ -72,6 +75,7 @@ namespace VMSystem.AGV.TaskDispatch
             Descrption = $"等待-{ConflicPoint.TagNumber}可通行";
             StartWaitingTime = DateTime.Now;
             Status = WAIT_STATUS.WAITING;
+            AllowMoveResumeResetEvent.Reset();
             if (OnAGVWaitingStatusChanged != null)
                 OnAGVWaitingStatusChanged(this);
         }

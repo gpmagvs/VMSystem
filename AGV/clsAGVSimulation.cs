@@ -105,7 +105,7 @@ namespace VMSystem.AGV
             {
                 var lastPoint = previousTaskData.Trajectory.Last();
                 var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
-                if (remainTragjectLen == 0)
+                if (remainTragjectLen <= 0)
                 {
 
                     return;
@@ -136,13 +136,13 @@ namespace VMSystem.AGV
                 };
                 try
                 {
-                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+                    await dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                     BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
 
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
                         //模擬LDULD
-                        Thread.Sleep(1000);
+                        Thread.Sleep(400);
                         if (action == ACTION_TYPE.Load)
                         {
                             runningSTatus.CSTID = new string[0];

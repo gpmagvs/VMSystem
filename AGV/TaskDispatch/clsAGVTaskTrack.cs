@@ -447,14 +447,7 @@ namespace VMSystem.AGV.TaskDispatch
                             try
                             {
                                 waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
-                                while (StaMap.IsMapPointRegisted(waitingInfo.WaitingPoint, AGV.Name))
-                                {
-                                    await Task.Delay(100);
-                                    if (TaskRunningStatus != TASK_RUN_STATUS.NAVIGATING && TaskRunningStatus != TASK_RUN_STATUS.WAIT)
-                                    {
-                                        return;
-                                    }
-                                }
+                                waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                                 waitingInfo.SetStatusNoWaiting(AGV);
                                 DownloadTaskToAGV(true);
                             }
@@ -720,10 +713,7 @@ namespace VMSystem.AGV.TaskDispatch
                     {
                         var nextPt = task.Destination;
                         waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, nextPt);
-                        while (StaMap.IsMapPointRegisted(_task.Destination, AGV.Name))
-                        {
-                            Thread.Sleep(1);
-                        }
+                        waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                         waitingInfo.SetStatusNoWaiting(AGV);
                     }
                     else if (_task.Action != ACTION_TYPE.None)

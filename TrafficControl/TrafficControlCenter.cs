@@ -22,16 +22,16 @@ namespace VMSystem.TrafficControl
     public class TrafficControlCenter
     {
         public static ConcurrentQueue<clsTrafficInterLockSolver> InterLockTrafficSituations { get; set; } = new ConcurrentQueue<clsTrafficInterLockSolver>();
+        public static List<clsWaitingInfo> AGVWaitingQueue = new List<clsWaitingInfo>();
         internal static void Initialize()
         {
             SystemModes.OnRunModeON += HandleRunModeOn;
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
             clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
+            StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
             Task.Run(() => TrafficInterLockSolveWorker());
         }
-
-
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
 
@@ -64,6 +64,16 @@ namespace VMSystem.TrafficControl
                 await Task.Delay(1000);
             }
         }
+
+        private static void StaMap_OnTagUnregisted(object? sender, int unregisted_tag)
+        {
+            var waiting_info_matched = AGVWaitingQueue.FirstOrDefault(waiting_info => waiting_info.WaitingPoint.TagNumber == unregisted_tag);
+            if (waiting_info_matched != null)
+            {
+                waiting_info_matched.AllowMoveResumeResetEvent.Set();
+            }
+        }
+
         private static void ClsSubTask_OnPathClosedByAGVImpactDetecting(object? sender, List<MapPoint> path_points)
         {
             for (int i = 0; i < path_points.Count; i++)
@@ -90,25 +100,39 @@ namespace VMSystem.TrafficControl
         {
             if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)
             {
+                AGVWaitingQueue.Add(waitingInfo);
                 LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
                 //等待點由誰所註冊    
-                var waitingForAGVName = waitingInfo.WaitingPoint.RegistInfo?.RegisterAGVName;
-                IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
-                if (agv_ != null)
+
+                bool isRegisted = StaMap.GetPointRegisterName(waitingInfo.WaitingPoint.TagNumber, out string waitingForAGVName);
+                if (isRegisted)
                 {
-                    var waingInfoOfAgvRegistPt = agv_.taskDispatchModule.TaskStatusTracker.waitingInfo;
-                    if (waingInfoOfAgvRegistPt.Status == clsWaitingInfo.WAIT_STATUS.WAITING && waingInfoOfAgvRegistPt.WaitingPoint.RegistInfo?.RegisterAGVName == waitingInfo.Agv.Name)
+                    IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
+                    var waingInfoOfAgvRegistPt = AGVWaitingQueue.FirstOrDefault(wait_info => wait_info.Agv == agv_ & wait_info.WaitingPoint == waitingInfo.Agv.currentMapPoint);
+                    if (waingInfoOfAgvRegistPt != null)
                     {
-                        //戶等
+                        //互相等待
                         LOG.WARN($"Traffic Lock:{waitingInfo.Agv.Name}({waitingInfo.Agv.currentMapPoint.TagNumber}) and {agv_.Name}({agv_.currentMapPoint.TagNumber})  are waiting for each other");
                         clsTrafficInterLockSolver interlockSolver = new clsTrafficInterLockSolver(waitingInfo.Agv, agv_);
                         InterLockTrafficSituations.Enqueue(interlockSolver);
                     }
+                    else
+                    {
+                        //等待註冊點解除註冊 
+                        waitingInfo.AllowMoveResumeResetEvent.WaitOne();
+                    }
+                }
+                else
+                {
+                    waitingInfo.AllowMoveResumeResetEvent.Set();
                 }
                 //var agv_conflic = VMSManager.GetAGVListExpectSpeficAGV(waitingInfo.Agv.Name).FirstOrDefault(agv => agv.taskDispatchModule.TaskStatusTracker.waitingInfo.WaitingPoint.TagNumber == agv.currentMapPoint.TagNumber)
             }
-            else
+            else if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.NO_WAIT)
+            {
                 LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
+                AGVWaitingQueue.Remove(waitingInfo);
+            }
         }
 
 
@@ -209,12 +233,15 @@ namespace VMSystem.TrafficControl
                 if (TAFTaskStartOrFinish)
                 {
                     LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
-
                     var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
-
                     LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
+                    bool tafTaskFinish = await AwaitTAFTaskFinish();
+                    if (tafTaskFinish)
+                    {
+                        AgvWait.taskDispatchModule.TaskStatusTracker.waitingInfo.AllowMoveResumeResetEvent.Set();
+                    }
                     while (tagsListPlan.Any(TagNumber => TagNumber == AgvWait.currentMapPoint.TagNumber))
                     {
                         await Task.Delay(1);
@@ -259,6 +286,24 @@ namespace VMSystem.TrafficControl
                 {
                     continue;
                 }
+            }
+        }
+
+        private async Task<bool> AwaitTAFTaskFinish()
+        {
+            while (true)
+            {
+                Thread.Sleep(10);
+                using var agvDB = new AGVSDatabase();
+                var task = agvDB.tables.Tasks.FirstOrDefault(tk => tk.TaskName == tafTasOrder.TaskName);
+                if (task == null)
+                    continue;
+                if (task.State == TASK_RUN_STATUS.ACTION_FINISH)
+                    return true;
+                else if (task.State == TASK_RUN_STATUS.CANCEL | task.State == TASK_RUN_STATUS.FAILURE)
+                    return false;
+                else
+                    continue;
             }
         }
         private void SetCanceledTaskWait(string canceledTaskName)

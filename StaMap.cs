@@ -18,6 +18,7 @@ namespace VMSystem
     {
         public static Map Map { get; set; }
         private static string MapFile => AGVSConfigulator.SysConfigs.MapConfigs.MapFileFullName;
+        internal static event EventHandler<int> OnTagUnregisted;
         public static void Download()
         {
             Map = MapManager.LoadMapFromFile();
@@ -173,7 +174,10 @@ namespace VMSystem
                 string registerName = RegistDictonery[TagNumber];
                 bool allow_remove = registerName == Name;
                 if (allow_remove)
+                {
                     RegistDictonery.Remove(TagNumber, out string name);
+                    OnTagUnregisted?.Invoke("", TagNumber);
+                }
                 error_message = allow_remove ? "" : $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
                 return allow_remove;
             }
@@ -266,6 +270,11 @@ namespace VMSystem
             }
             failure_tag = failTags.ToArray();
             return failure_tag.Length == 0;
+        }
+
+        internal static bool GetPointRegisterName(int tagNumber, out string agvName)
+        {
+            return RegistDictonery.TryGetValue(tagNumber, out agvName);
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>
