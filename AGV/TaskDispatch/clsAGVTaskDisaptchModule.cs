@@ -13,7 +13,6 @@ using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.Exceptions;
 using RosSharp.RosBridgeClient.MessageTypes.Sensor;
 using System.Threading.Tasks;
-using AGVSystemCommonNet6.Tools.Database;
 using VMSystem.VMS;
 using Microsoft.AspNetCore.Builder.Extensions;
 using Microsoft.Win32;
