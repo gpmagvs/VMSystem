@@ -1,32 +1,16 @@
-﻿using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpTools;
-using AGVSystemCommonNet6.MAP;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System.Linq;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
-using VMSystem.AGV;
-using AGVSystemCommonNet6.AGVDispatch.Messages;
-using System.Diagnostics;
-using AGVSystemCommonNet6.Log;
-using static AGVSystemCommonNet6.clsEnums;
+﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
-using static VMSystem.AppSettings;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.DATABASE.Helpers;
-using Microsoft.Extensions.Options;
-using static AGVSystemCommonNet6.Abstracts.CarComponent;
-using System.Xml.Linq;
-using AGVSystemCommonNet6.ViewModels;
-using VMSystem.AGV.TaskDispatch;
-using System.Collections.Concurrent;
-using AGVSystemCommonNet6.Tools.Database;
-using Microsoft.EntityFrameworkCore;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
-using VMSystem.TrafficControl;
+using AGVSystemCommonNet6.ViewModels;
+using Newtonsoft.Json;
+using System.Collections.Concurrent;
+using VMSystem.AGV;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.VMS
 {

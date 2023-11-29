@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Diagnostics;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.MAP;
-using static AGVSystemCommonNet6.Abstracts.CarComponent;
+using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
 using System.Xml.Linq;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;

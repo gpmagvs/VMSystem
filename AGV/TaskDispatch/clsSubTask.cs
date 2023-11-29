@@ -155,8 +155,9 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     Action_Type = Action,
                     Destination = Destination.TagNumber,
-                    Task_Sequence = sequence,
                     Task_Name = order.TaskName,
+                    Task_Simplex =$"{order.TaskName}-{sequence}" ,
+                    Task_Sequence = sequence,
                     Station_Type = Destination.StationType,
                     CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
                     OrderInfo = new clsTaskDownloadData.clsOrderInfo
