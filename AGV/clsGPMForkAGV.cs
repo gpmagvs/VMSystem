@@ -165,6 +165,12 @@ namespace VMSystem.AGV
                     previousMapPoint = value;
                     return;
                 }
+                if (value.IsEquipment)
+                {
+                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                    previousMapPoint = value;
+                    return;
+                }
                 if (previousMapPoint.TagNumber != value.TagNumber)
                 {
                     if (previousMapPoint != null)
