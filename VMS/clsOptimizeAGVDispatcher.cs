@@ -36,7 +36,7 @@ namespace VMSystem.VMS
                         using (var database = new AGVSDatabase())
                         {
                             taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                            List_TaskAGV = database.tables.Tasks.AsNoTracking().Where(task => task.State == TASK_RUN_STATUS.NAVIGATING && task.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                            List_TaskAGV = database.tables.Tasks.AsNoTracking().Where(task => task.State == TASK_RUN_STATUS.NAVIGATING || task.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
                         }
                         if (taskList.Count == 0)
                             continue;
