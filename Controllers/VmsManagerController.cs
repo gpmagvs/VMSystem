@@ -8,7 +8,7 @@ using VMSystem.AGV;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
-using static AGVSystemCommonNet6.Abstracts.CarComponent;
+using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
 using static AGVSystemCommonNet6.clsEnums;
 using System.Xml.Linq;
 using System;

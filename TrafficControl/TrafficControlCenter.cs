@@ -96,41 +96,49 @@ namespace VMSystem.TrafficControl
         }
         private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
         {
-            if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)
+            try
             {
-                AGVWaitingQueue.Add(waitingInfo);
-                LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
-                //等待點由誰所註冊    
-
-                bool isRegisted = StaMap.GetPointRegisterName(waitingInfo.WaitingPoint.TagNumber, out string waitingForAGVName);
-                if (isRegisted)
+                if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.WAITING)
                 {
-                    IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
-                    var waingInfoOfAgvRegistPt = AGVWaitingQueue.FirstOrDefault(wait_info => wait_info.Agv == agv_ & wait_info.WaitingPoint == waitingInfo.Agv.currentMapPoint);
-                    if (waingInfoOfAgvRegistPt != null)
+                    AGVWaitingQueue.Add(waitingInfo);
+                    LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
+                    //等待點由誰所註冊    
+
+                    bool isRegisted = StaMap.GetPointRegisterName(waitingInfo.WaitingPoint.TagNumber, out string waitingForAGVName);
+                    if (isRegisted)
                     {
-                        //互相等待
-                        LOG.WARN($"Traffic Lock:{waitingInfo.Agv.Name}({waitingInfo.Agv.currentMapPoint.TagNumber}) and {agv_.Name}({agv_.currentMapPoint.TagNumber})  are waiting for each other");
-                        clsTrafficInterLockSolver interlockSolver = new clsTrafficInterLockSolver(waitingInfo.Agv, agv_);
-                        InterLockTrafficSituations.Enqueue(interlockSolver);
+                        IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
+                        var waingInfoOfAgvRegistPt = AGVWaitingQueue.FirstOrDefault(wait_info => wait_info.Agv == agv_ & wait_info.WaitingPoint == waitingInfo.Agv.currentMapPoint);
+                        if (waingInfoOfAgvRegistPt != null)
+                        {
+                            //互相等待
+                            LOG.WARN($"Traffic Lock:{waitingInfo.Agv.Name}({waitingInfo.Agv.currentMapPoint.TagNumber}) and {agv_.Name}({agv_.currentMapPoint.TagNumber})  are waiting for each other");
+                            clsTrafficInterLockSolver interlockSolver = new clsTrafficInterLockSolver(waitingInfo.Agv, agv_);
+                            InterLockTrafficSituations.Enqueue(interlockSolver);
+                        }
+                        else
+                        {
+                            //等待註冊點解除註冊 
+                            waitingInfo.AllowMoveResumeResetEvent.WaitOne();
+                        }
                     }
                     else
                     {
-                        //等待註冊點解除註冊 
-                        waitingInfo.AllowMoveResumeResetEvent.WaitOne();
+                        waitingInfo.AllowMoveResumeResetEvent.Set();
                     }
+                    //var agv_conflic = VMSManager.GetAGVListExpectSpeficAGV(waitingInfo.Agv.Name).FirstOrDefault(agv => agv.taskDispatchModule.TaskStatusTracker.waitingInfo.WaitingPoint.TagNumber == agv.currentMapPoint.TagNumber)
                 }
-                else
+                else if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.NO_WAIT)
                 {
-                    waitingInfo.AllowMoveResumeResetEvent.Set();
+                    LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
+                    AGVWaitingQueue.Remove(waitingInfo);
                 }
-                //var agv_conflic = VMSManager.GetAGVListExpectSpeficAGV(waitingInfo.Agv.Name).FirstOrDefault(agv => agv.taskDispatchModule.TaskStatusTracker.waitingInfo.WaitingPoint.TagNumber == agv.currentMapPoint.TagNumber)
             }
-            else if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.NO_WAIT)
+            catch (Exception ex)
             {
-                LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
-                AGVWaitingQueue.Remove(waitingInfo);
+                throw ex;
             }
+            
         }
 
 
@@ -152,7 +160,7 @@ namespace VMSystem.TrafficControl
                             PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? new List<MapPoint>() : agv.taskDispatchModule.CurrentTrajectory.ToList(),
                         }
                     );
-                    DynamicTrafficState.RegistedPoints = StaMap.Map.Points.Values.ToList().FindAll(pt => pt.RegistInfo != null).FindAll(pt => pt.RegistInfo.IsRegisted);
+                    DynamicTrafficState.RegistedPoints = StaMap.RegistDictionary;
 
                 }
                 catch (Exception ex)

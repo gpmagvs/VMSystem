@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc.Diagnostics;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.MAP;
-using static AGVSystemCommonNet6.Abstracts.CarComponent;
 using System.Xml.Linq;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
@@ -224,11 +223,6 @@ namespace VMSystem.AGV
                 }
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
-                while (TrafficControlCenter.DynamicTrafficState.GetTrafficStatusByTag(agv.Name, netMapPt.TagNumber) != clsDynamicTrafficState.TRAFFIC_ACTION.PASS)
-                {
-                    Console.WriteLine($"Wait {netMapPt.Name} Release");
-                    Thread.Sleep(1000);
-                }
                 if (cancelToken.IsCancellationRequested)
                 {
                     throw new TaskCanceledException();

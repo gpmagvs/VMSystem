@@ -707,7 +707,7 @@ namespace VMSystem.AGV.TaskDispatch
                     _task.Source = AGV.currentMapPoint;
 
                 var agv_too_near_from_path = VMSManager.GetAGVListExpectSpeficAGV(AGV.Name).Where(_agv => _task.EntirePathPlan.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
-                var desineRegistInfo = _task.Destination.RegistInfo == null ? new clsMapPoiintRegist() : _task.Destination.RegistInfo;
+                var desineRegistInfo = _task.Destination.RegistInfo == null ? new clsPointRegistInfo() : _task.Destination.RegistInfo;
 
                 if (StaMap.IsMapPointRegisted(_task.Destination, AGV.Name) | agv_too_near_from_path.Any())
                 {

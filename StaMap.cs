@@ -11,6 +11,8 @@ using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using VMSystem.AGV;
 using VMSystem.VMS;
+using AGVSystemCommonNet6.Log;
+using System.Diagnostics.Eventing.Reader;
 
 namespace VMSystem
 {
@@ -19,12 +21,13 @@ namespace VMSystem
         public static Map Map { get; set; }
         private static string MapFile => AGVSConfigulator.SysConfigs.MapConfigs.MapFileFullName;
         internal static event EventHandler<int> OnTagUnregisted;
+        public static Dictionary<int, clsPointRegistInfo> RegistDictionary = new Dictionary<int, clsPointRegistInfo>();
+
         public static void Download()
         {
             Map = MapManager.LoadMapFromFile();
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
-        public static Dictionary<int, string> RegistDictonery { get; set; } = new Dictionary<int, string>();
         internal static List<MapPoint> GetParkableStations()
         {
             if (Map == null)
@@ -115,44 +118,43 @@ namespace VMSystem
         internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
+            var TagNumber = mapPoint.TagNumber;
             if (IsBySystem)
             {
-                RegistDictonery.Remove(mapPoint.TagNumber, out string name);
-                RegistDictonery.Add(mapPoint.TagNumber, "System");
+                mapPoint.RegistInfo = new clsPointRegistInfo("System");
+                RegistDictionary.Remove(TagNumber, out clsPointRegistInfo _info);
+                RegistDictionary.Add(TagNumber, mapPoint.RegistInfo);
+                LOG.TRACE($"{Name} Regist Tag {TagNumber}");
                 return true;
             }
-            if (RegistDictonery.ContainsKey(mapPoint.TagNumber))
+            if (RegistDictionary.ContainsKey(TagNumber))
             {
-                string registerName = RegistDictonery[mapPoint.TagNumber];
+                string registerName = RegistDictionary[TagNumber].RegisterAGVName;
                 bool _success = registerName == Name;
-                error_message = _success ? "" : $"Tag {mapPoint.TagNumber} is registed by [{registerName}]";
+                if (_success)
+                {
+                    LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+
+                }
+                else
+                {
+                    error_message = $"Tag {TagNumber} is registed by [{registerName}]";
+                    LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
+
+                }
                 return _success;
             }
             else
             {
-                bool registSuccess = RegistDictonery.TryAdd(mapPoint.TagNumber, Name);
-                return registSuccess;
-            }
-
-            try
-            {
-                if (mapPoint == null)
-                    return false;
-                bool success = mapPoint.TryRegistPoint(Name, out var _info, IsBySystem);
-                if (mapPoint.RegistsPointIndexs.Length > 0)
+                mapPoint.RegistInfo = new clsPointRegistInfo(Name);
+                bool registSuccess = RegistDictionary.TryAdd(TagNumber, mapPoint.RegistInfo);
+                if (registSuccess)
+                    LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                else
                 {
-                    foreach (var item in mapPoint.RegistsPointIndexs)
-                    {
-                        if (StaMap.Map.Points.TryGetValue(item, out var pt))
-                            pt.TryRegistPoint(Name, out _info, IsBySystem);
-                    }
+                    LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
                 }
-                return success;
-            }
-            catch (Exception ex)
-            {
-                error_message = ex.Message;
-                return false;
+                return registSuccess;
             }
         }
         internal static bool UnRegistPointBySystem(MapPoint mapPoint, out string error_message)
@@ -164,48 +166,43 @@ namespace VMSystem
         internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
+            var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
             if (IsBySystem)
             {
-                RegistDictonery.Remove(TagNumber, out string name);
+                RegistDictionary.Remove(TagNumber, out var _);
+                mapPoint.RegistInfo = new clsPointRegistInfo();
+                LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
                 return true;
             }
-            if (RegistDictonery.ContainsKey(TagNumber))
+            if (RegistDictionary.ContainsKey(TagNumber))
             {
-                string registerName = RegistDictonery[TagNumber];
+                string registerName = RegistDictionary[TagNumber].RegisterAGVName;
                 bool allow_remove = registerName == Name;
                 if (allow_remove)
                 {
-                    RegistDictonery.Remove(TagNumber, out string name);
-                    OnTagUnregisted?.Invoke("", TagNumber);
+                    mapPoint.RegistInfo = new clsPointRegistInfo();
+                    lock (RegistDictionary)
+                    {
+                        RegistDictionary.Remove(TagNumber, out var _);
+                        OnTagUnregisted?.Invoke("", TagNumber);
+                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+
+                        LOG.TRACE($"{RegistDictionary.ToJson()}");
+                    }
                 }
-                error_message = allow_remove ? "" : $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
+                else
+                {
+                    error_message = $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
+                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
+                }
+
                 return allow_remove;
             }
             else
             {
+                LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
                 return true;
             }
-
-
-            //try
-            //{
-            //    bool success = mapPoint.TryUnRegistPoint(Name, out var _info, IsBySystem);
-            //    _ = PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Name });
-            //    if (mapPoint.RegistsPointIndexs.Length > 0)
-            //    {
-            //        foreach (var item in mapPoint.RegistsPointIndexs)
-            //        {
-            //            if (StaMap.Map.Points.TryGetValue(item, out var pt))
-            //                pt.TryUnRegistPoint(Name, out _info, IsBySystem);
-            //        }
-            //    }
-            //    return success;
-            //}
-            //catch (Exception ex)
-            //{
-            //    error_message = ex.Message;
-            //    return false;
-            //}
         }
 
         internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
@@ -221,7 +218,7 @@ namespace VMSystem
         internal static List<MapPoint> GetRegistedPointWithNearPointOfPath(List<MapPoint> OriginPath,Dictionary<int,List<MapPoint>> DictAllNearPoint,string NowAGV)
         {
             List<MapPoint> OutputData = new List<MapPoint>();
-            var RegistDictWithoutNowAGV = RegistDictonery.Where(item => item.Value != NowAGV).ToDictionary(item=>item.Key,item=>item.Value);
+            var RegistDictWithoutNowAGV = RegistDictionary.Where(item => item.Value.RegisterAGVName != NowAGV).ToDictionary(item=>item.Key,item=>item.Value);
             foreach (var item in DictAllNearPoint)
             {
                 if (item.Value.Any(nearPoint=> RegistDictWithoutNowAGV.ContainsKey(nearPoint.TagNumber)))
@@ -234,7 +231,7 @@ namespace VMSystem
 
         internal static List<MapPoint> GetRegistedPointsOfPath(List<MapPoint> path_to_nav, string navigating_agv_name)
         {
-            var registPoints = RegistDictonery.Where(kp => kp.Value != navigating_agv_name).Select(kp => StaMap.GetPointByTagNumber(kp.Key));
+            var registPoints = RegistDictionary.Where(kp => kp.Value.RegisterAGVName != navigating_agv_name).Select(kp => StaMap.GetPointByTagNumber(kp.Key));
             IEnumerable<MapPoint> commonItems = registPoints.Intersect(path_to_nav, new MapPointComparer());
             return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToList();
         }
@@ -260,9 +257,9 @@ namespace VMSystem
 
         internal static bool IsMapPointRegisted(MapPoint waitingPoint, string queryer_name)
         {
-            if (RegistDictonery.TryGetValue(waitingPoint.TagNumber, out var result))
+            if (RegistDictionary.TryGetValue(waitingPoint.TagNumber, out var result))
             {
-                return result != queryer_name;
+                return result.RegisterAGVName != queryer_name;
             }
             else
                 return false;
@@ -272,7 +269,7 @@ namespace VMSystem
         {
             failure_tag = null;
             List<int> failTags = new List<int>();
-            foreach (var item in RegistDictonery.Where(kp => kp.Value == name & !exception_tags.Contains(kp.Key)))
+            foreach (var item in RegistDictionary.Where(kp => kp.Value.RegisterAGVName == name & !exception_tags.Contains(kp.Key)))
             {
                 int tag = item.Key;
                 bool unSuccess = UnRegistPoint(name, tag, out string msg, name == "System");
@@ -287,7 +284,11 @@ namespace VMSystem
 
         internal static bool GetPointRegisterName(int tagNumber, out string agvName)
         {
-            return RegistDictonery.TryGetValue(tagNumber, out agvName);
+            agvName = string.Empty;
+            if (!RegistDictionary.TryGetValue(tagNumber, out var _rinfo))
+                return false;
+            agvName = _rinfo.RegisterAGVName;
+            return agvName != null;
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>

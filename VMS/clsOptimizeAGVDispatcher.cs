@@ -4,10 +4,8 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
-using AGVSystemCommonNet6.Tools.Database;
 using Microsoft.EntityFrameworkCore;
 using VMSystem.AGV;
-using VMSystem.AGV.TaskDispatch;
 
 namespace VMSystem.VMS
 {
