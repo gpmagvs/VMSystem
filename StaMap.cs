@@ -218,6 +218,19 @@ namespace VMSystem
             return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
 
+        internal static List<MapPoint> GetRegistedPointWithNearPointOfPath(List<MapPoint> OriginPath,Dictionary<int,List<MapPoint>> DictAllNearPoint,string NowAGV)
+        {
+            List<MapPoint> OutputData = new List<MapPoint>();
+            var RegistDictWithoutNowAGV = RegistDictonery.Where(item => item.Value != NowAGV).ToDictionary(item=>item.Key,item=>item.Value);
+            foreach (var item in DictAllNearPoint)
+            {
+                if (item.Value.Any(nearPoint=> RegistDictWithoutNowAGV.ContainsKey(nearPoint.TagNumber)))
+                {
+                    OutputData.Add(StaMap.GetPointByTagNumber(item.Key));
+                }
+            }
+            return OutputData.OrderBy(pt=>OriginPath.IndexOf(pt)).ToList();
+        }
 
         internal static List<MapPoint> GetRegistedPointsOfPath(List<MapPoint> path_to_nav, string navigating_agv_name)
         {
