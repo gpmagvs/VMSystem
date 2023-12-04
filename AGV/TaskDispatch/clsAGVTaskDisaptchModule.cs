@@ -135,6 +135,8 @@ namespace VMSystem.AGV
 
         protected TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
 
+        public Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; } = new Dictionary<int, List<MapPoint>>();
+
         public clsAGVTaskDisaptchModule()
         {
             TaskAssignWorker();

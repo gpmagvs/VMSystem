@@ -14,6 +14,7 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
+using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
@@ -185,6 +186,24 @@ namespace VMSystem.AGV
                             extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
                             unRegistList.AddRange(extraNeedUnregistedPoints);
                         }
+                        // if (taskDispatchModule.Dict_PathNearPoint.ContainsKey(previousMapPoint.TagNumber))
+                        //{
+                        //    var PossibleUnRegistPoint = taskDispatchModule.Dict_PathNearPoint[previousMapPoint.TagNumber];
+                        //    unRegistList.AddRange(PossibleUnRegistPoint);
+                        //}
+                        //unRegistList = unRegistList.Distinct().ToList();
+                        
+                        //int NowPointIndex = Array.IndexOf(taskDispatchModule.CurrentTrajectory, value);
+                        //var FollowingTrajectory = taskDispatchModule.CurrentTrajectory.SubArray(NowPointIndex, taskDispatchModule.CurrentTrajectory.Length - NowPointIndex);
+                        //var Dict_FollowingNearPoint = taskDispatchModule.Dict_PathNearPoint.Where(item => FollowingTrajectory.Contains(StaMap.GetPointByIndex(item.Key))).ToDictionary(item=>item.Key,item=>item.Value);
+                        //foreach (var item in unRegistList.ToArray())
+                        //{
+                        //    if (Dict_FollowingNearPoint.Any(NearpointList=>NearpointList.Value.Contains(item)))
+                        //    {
+                        //        unRegistList.Remove(item);
+                        //    }
+                        //}
+
                         StaMap.UnRegistPoints(Name, unRegistList);
                         //registedPointList.Where(pt=> !pathTags.Contains(pt.TagNumber)).
                     }

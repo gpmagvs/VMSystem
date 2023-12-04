@@ -13,6 +13,7 @@ using VMSystem.AGV;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.Log;
 using System.Diagnostics.Eventing.Reader;
+using System.Runtime.InteropServices;
 
 namespace VMSystem
 {
@@ -22,10 +23,12 @@ namespace VMSystem
         private static string MapFile => AGVSConfigulator.SysConfigs.MapConfigs.MapFileFullName;
         internal static event EventHandler<int> OnTagUnregisted;
         public static Dictionary<int, clsPointRegistInfo> RegistDictionary = new Dictionary<int, clsPointRegistInfo>();
+        public static Dictionary<int, Dictionary<int, double>> Dict_AllPointDistance = new Dictionary<int, Dictionary<int, double>>();
 
         public static void Download()
         {
             Map = MapManager.LoadMapFromFile();
+            Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
         internal static List<MapPoint> GetParkableStations()
@@ -215,18 +218,18 @@ namespace VMSystem
             return Map.Points.Select(pt => pt.Value.TagNumber).Contains(currentTag);
         }
 
-        internal static List<MapPoint> GetRegistedPointWithNearPointOfPath(List<MapPoint> OriginPath,Dictionary<int,List<MapPoint>> DictAllNearPoint,string NowAGV)
+        internal static List<MapPoint> GetRegistedPointWithNearPointOfPath(List<MapPoint> OriginPath, Dictionary<int, List<MapPoint>> DictAllNearPoint, string NowAGV)
         {
             List<MapPoint> OutputData = new List<MapPoint>();
-            var RegistDictWithoutNowAGV = RegistDictionary.Where(item => item.Value.RegisterAGVName != NowAGV).ToDictionary(item=>item.Key,item=>item.Value);
+            var RegistDictWithoutNowAGV = RegistDictionary.Where(item => item.Value.RegisterAGVName != NowAGV).ToDictionary(item => item.Key, item => item.Value);
             foreach (var item in DictAllNearPoint)
             {
-                if (item.Value.Any(nearPoint=> RegistDictWithoutNowAGV.ContainsKey(nearPoint.TagNumber)))
+                if (item.Value.Any(nearPoint => RegistDictWithoutNowAGV.ContainsKey(nearPoint.TagNumber)))
                 {
                     OutputData.Add(StaMap.GetPointByTagNumber(item.Key));
                 }
             }
-            return OutputData.OrderBy(pt=>OriginPath.IndexOf(pt)).ToList();
+            return OutputData.OrderBy(pt => OriginPath.IndexOf(pt)).ToList();
         }
 
         internal static List<MapPoint> GetRegistedPointsOfPath(List<MapPoint> path_to_nav, string navigating_agv_name)
@@ -289,6 +292,55 @@ namespace VMSystem
                 return false;
             agvName = _rinfo.RegisterAGVName;
             return agvName != null;
+        }
+
+        internal static bool GetNearPointRegisterName(int tagNumber,string TargetAGV, out string AGVName, out int NearPointTag)
+        {
+            AGVName = string.Empty; 
+            NearPointTag = -1;
+            var TargetPoint = GetPointByTagNumber(tagNumber);
+            //var List_NearPointTag = TargetPoint.Target.Where(item => (item.Value * 100) < 100).Select(item => item.Key);
+            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < 1).Select(item => item.Key);
+            foreach (var item in List_NearPointTag)
+            {
+                var MapPointData = GetPointByTagNumber(item);
+                if (RegistDictionary.TryGetValue(MapPointData.TagNumber, out var _RegistInfo))
+                {
+                    if (_RegistInfo.RegisterAGVName == TargetAGV) //自己跟自己不卡控
+                        continue;
+                    AGVName = _RegistInfo.RegisterAGVName;
+                    NearPointTag = item;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        internal static Dictionary<int, Dictionary<int, double>> GetAllPointDistance(Map MapData, double DistanceLimit)
+        {
+            Dictionary<int, Dictionary<int, double>> Dict_OutputData = new Dictionary<int, Dictionary<int, double>>();
+            foreach (var TargetPoint in MapData.Points)
+            {
+                var TargetPointData = TargetPoint.Value;
+                Dict_OutputData.Add(TargetPointData.TagNumber, new Dictionary<int, double>());
+
+                foreach (var RelatePoint in MapData.Points)
+                {
+                    if (RelatePoint.Key == TargetPoint.Key)
+                    {
+                        continue;
+                    }
+                    var RelatePointData = RelatePoint.Value;
+                    var Distance = CalculateDistance(TargetPointData.X, RelatePointData.X, TargetPointData.Y, RelatePointData.Y);
+                    Dict_OutputData[TargetPointData.TagNumber].Add(RelatePointData.TagNumber, Distance);
+                }
+            }
+            return Dict_OutputData;
+        }
+
+        internal static double CalculateDistance(double X1, double X2, double Y1, double Y2)
+        {
+            return Math.Pow(Math.Pow(X1 - X2, 2) + Math.Pow(Y1 - Y2, 2) * 1.0, 0.5);
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>

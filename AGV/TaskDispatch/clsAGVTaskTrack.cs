@@ -218,7 +218,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             else if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK)
             {
-                RegistRemainPathTags();
+              // RegistRemainPathTags();
             }
             SubTaskTracking = _task;
 

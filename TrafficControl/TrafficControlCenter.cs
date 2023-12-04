@@ -102,11 +102,17 @@ namespace VMSystem.TrafficControl
                 {
                     AGVWaitingQueue.Add(waitingInfo);
                     LOG.INFO($"AGV-{waitingInfo.Agv.Name} waiting {waitingInfo.WaitingPoint.Name} passable.");
-                    //等待點由誰所註冊    
+                    //等待點由誰所註冊   
 
                     bool isRegisted = StaMap.GetPointRegisterName(waitingInfo.WaitingPoint.TagNumber, out string waitingForAGVName);
-                    if (isRegisted)
+                    bool isNearPointRegisted = StaMap.GetNearPointRegisterName(waitingInfo.WaitingPoint.TagNumber, waitingInfo.Agv.Name, out string waitingNearAGVName, out int NearAGVPointTag);
+                    if (isRegisted || isNearPointRegisted)
                     {
+                        if (!isRegisted)
+                        {
+                            waitingInfo.WaitingPoint = StaMap.GetPointByTagNumber(NearAGVPointTag) ;
+                            waitingForAGVName = waitingNearAGVName;
+                        }
                         IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
                         var waingInfoOfAgvRegistPt = AGVWaitingQueue.FirstOrDefault(wait_info => wait_info.Agv == agv_ & wait_info.WaitingPoint == waitingInfo.Agv.currentMapPoint);
                         if (waingInfoOfAgvRegistPt != null)

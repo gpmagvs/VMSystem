@@ -18,6 +18,8 @@ namespace VMSystem.AGV.TaskDispatch
         AGV_ORDERABLE_STATUS OrderExecuteState { get; set; }
         public clsAGVTaskTrack TaskStatusTracker { get; set; }
         string ExecutingTaskName { get; set; }
+
+        Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; }
     }
 
     public class clsWaitingInfo
