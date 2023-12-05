@@ -338,6 +338,25 @@ namespace VMSystem
             return Dict_OutputData;
         }
 
+        internal static List<int> GetNearPointListByPointAndDistance(int TagNumber,double DistanceLimit)
+        {
+            if (!Dict_AllPointDistance.ContainsKey(TagNumber))
+                return new List<int>();
+
+            return Dict_AllPointDistance[TagNumber].Where(item => item.Value < DistanceLimit).Select(item=>item.Key).ToList();
+        }
+
+        internal static List<int> GetNearPointListByPathAndDistance(List<int> List_PathTags,double DistanceLimit)
+        {
+            List<int> OutputData = new List<int>();
+            foreach (var item in List_PathTags)
+            {
+                OutputData.AddRange(GetNearPointListByPointAndDistance(item,DistanceLimit));
+            }
+            OutputData = OutputData.Distinct().ToList();
+            return OutputData;
+        }
+
         internal static double CalculateDistance(double X1, double X2, double Y1, double Y2)
         {
             return Math.Pow(Math.Pow(X1 - X2, 2) + Math.Pow(Y1 - Y2, 2) * 1.0, 0.5);

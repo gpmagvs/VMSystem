@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.AspNetCore.Diagnostics;
+using System.Linq;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -51,7 +52,7 @@ namespace VMSystem.AGV.TaskDispatch
                 EntirePathPlan = optimiedPath.stations;
                 var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
-                var Dict_NearPoint = GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 100);
+                var Dict_NearPoint = GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1);
                 TargetAGVItem.taskDispatchModule.Dict_PathNearPoint = Dict_NearPoint;
 
                 try
@@ -88,9 +89,11 @@ namespace VMSystem.AGV.TaskDispatch
 
                     regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
                     regitedPoints = regitedPoints.Where(pt => pt != null).Distinct().ToList();
-                    if (regitedPoints.Any()) //有點位被註冊
+                    var RegistedMapPoint = optimiedPath.stations.Where(item => regitedPoints.Contains(item));
+                    if (RegistedMapPoint.Any()) //有點位被註冊
                     {
-                        var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
+                        //var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
+                        var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt == RegistedMapPoint.First());
                         if (index_of_registed_pt != -1)
                         {
                             var waitPoint = optimiedPath.stations.LastOrDefault(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && optimiedPath.stations.IndexOf(pt) < index_of_registed_pt); //可以走的點就是已經被註冊的點之前的其他點
@@ -181,6 +184,11 @@ namespace VMSystem.AGV.TaskDispatch
 
                 };
 
+                if (TrajectoryToExecute.Length == 0)
+                {
+
+                    LOG.Critical($"From {fromTag} To {toTag}, Get Trajectory Length = 0, Order Data {order.ToJson()}");
+                }
                 double stopAngle = order.Action == ACTION_TYPE.None ? CalculationStopAngle(TrajectoryToExecute) : DestineStopAngle;
                 TrajectoryToExecute.Last().Theta = stopAngle;
 
@@ -200,33 +208,12 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
-        private Dictionary<int, List<MapPoint>> GetNearTargetMapPointOfPath(List<MapPoint> List_path, double Distance = 100)
+        private Dictionary<int, List<MapPoint>> GetNearTargetMapPointOfPathByPointDistance(List<MapPoint> List_path, double Distance = 1)
         {
-            Dictionary<int, List<MapPoint>> Dict_OutputData = new Dictionary<int, List<MapPoint>>();
+            Dictionary<int, List<MapPoint>> Dict_OutputData = new Dictionary<int, List<MapPoint>>(); 
             foreach (var item in List_path)
             {
-                List<int> List_TargetPointIndex = item.Target.Where(targetpoint => targetpoint.Value * 100 < Distance).Select(point => point.Key).ToList();
-                if (List_TargetPointIndex.Count > 0)
-                {
-                    var List_NearPoint = List_TargetPointIndex.Select(eachpoint => StaMap.GetPointByIndex(eachpoint)).ToList();
-                    Dict_OutputData.Add(item.TagNumber, List_NearPoint);
-                }
-                else
-                {
-                    Dict_OutputData.Add(item.TagNumber, new List<MapPoint>());
-                }
-
-            }
-            return Dict_OutputData;
-        }
-
-        private Dictionary<int,List<MapPoint>> GetNearTargetMapPointOfPathByPointDistance(List<MapPoint> List_path, double Distance = 100)
-        {
-            Dictionary<int, List<MapPoint>> Dict_OutputData = new Dictionary<int, List<MapPoint>>();
-            Distance = Distance / 100;
-            foreach (var item in List_path)
-            {
-                var Dict_NearPoint = StaMap.Dict_AllPointDistance[item.TagNumber].Where(eachpoint=>eachpoint.Value<Distance);
+                var Dict_NearPoint = StaMap.Dict_AllPointDistance[item.TagNumber].Where(eachpoint => eachpoint.Value < Distance);
                 if (Dict_NearPoint.Count() > 0)
                 {
                     var List_NearPoint = Dict_NearPoint.Select(eachpoint => StaMap.GetPointByTagNumber(eachpoint.Key)).ToList();

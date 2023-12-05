@@ -16,6 +16,8 @@ using AGVSystemCommonNet6;
 using VMSystem.AGV.TaskDispatch;
 using System.Collections.Concurrent;
 using AGVSystemCommonNet6.AGVDispatch;
+using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.Diagnostics;
 
 namespace VMSystem.TrafficControl
 {
@@ -246,9 +248,12 @@ namespace VMSystem.TrafficControl
                 {
                     LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
                     var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
+
+                    var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, 1);
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
-                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} ");
+                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} and NearPoint {string.Join(",",tagsNearPoint)}");
+                    tagsListPlan.AddRange(tagsNearPoint);
                     bool tafTaskFinish = await AwaitTAFTaskFinish();
                     if (tafTaskFinish)
                     {
@@ -394,7 +399,21 @@ namespace VMSystem.TrafficControl
             _avoidTagList.Add(startTag);
             _avoidTagList.AddRange(avoidTagList);
             var startPT = StaMap.Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == startTag);
-            var ptAvaliable = StaMap.Map.Points.Values.Where(pt => pt.StationType == STATION_TYPE.Normal && !pt.IsVirtualPoint && pt.Enable).ToList().FindAll(pt => !_avoidTagList.Contains(pt.TagNumber));
+            var AvoidTagNearPointsDistance = StaMap.Dict_AllPointDistance.Where(ptData => _avoidTagList.Contains(ptData.Key));
+            List<int> List_NearPoint = new List<int>();
+            foreach (var item in AvoidTagNearPointsDistance)
+            {
+                foreach (var TagDistance in item.Value)
+                {
+                    if (TagDistance.Value>1)
+                        continue;
+                    List_NearPoint.Add(TagDistance.Key);
+                }
+            }
+            List_NearPoint = List_NearPoint.Distinct().ToList();
+
+            var ptAvaliable = StaMap.Map.Points.Values.Where(pt => pt.StationType == STATION_TYPE.Normal && !pt.IsVirtualPoint && pt.Enable).ToList().FindAll(pt => !_avoidTagList.Contains(pt.TagNumber)&&!List_NearPoint.Contains(pt.TagNumber));
+
             //計算出所有路徑
             PathFinder pf = new PathFinder();
             List<clsPathInfo> pfResultCollection = new List<clsPathInfo>();
