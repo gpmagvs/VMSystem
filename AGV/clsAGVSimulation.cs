@@ -155,9 +155,13 @@ namespace VMSystem.AGV
                         ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
                         BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
-                    double finalTheta = ExecutingTrajecory.Last().Theta;
-                    SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
-                    runningSTatus.Coordination.Theta = finalTheta;
+
+                    if (action == ACTION_TYPE.None)
+                    {
+                        double finalTheta = ExecutingTrajecory.Last().Theta;
+                        SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
+                        runningSTatus.Coordination.Theta = finalTheta;
+                    }
 
                     StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
 
