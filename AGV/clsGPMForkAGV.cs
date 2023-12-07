@@ -166,14 +166,15 @@ namespace VMSystem.AGV
                     previousMapPoint = value;
                     return;
                 }
-                if (value.IsEquipment)
-                {
-                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
-                    previousMapPoint = value;
-                    return;
-                }
+                
                 if (previousMapPoint.TagNumber != value.TagNumber)
                 {
+                    if (value.IsEquipment)
+                    {
+                        StaMap.RegistPoint(Name, value, out string _Registerrmsg);
+                        previousMapPoint = value;
+                        return;
+                    }
                     if (previousMapPoint != null)
                     {
                         List<MapPoint> unRegistList = new List<MapPoint>() { previousMapPoint };
@@ -302,6 +303,7 @@ namespace VMSystem.AGV
         }
         public bool IsTrafficTaskFinish { get; set; } = false;
         public clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
+        public bool IsSolvingTrafficInterLock { get; set; } = false;
 
         public async Task<bool> PingServer()
         {

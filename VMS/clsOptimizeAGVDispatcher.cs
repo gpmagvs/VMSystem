@@ -83,7 +83,7 @@ namespace VMSystem.VMS
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out refStation);
             }
 
-            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
+            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE&&agv.IsSolvingTrafficInterLock ==false).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
             var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => !List_ExceptAGV.Contains(item.Name));
             if (AGVListRemoveTaskAGV.Count() == 0)
             {

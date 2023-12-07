@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.AspNetCore.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -134,19 +135,26 @@ namespace VMSystem.AGV.TaskDispatch
                         //    string Error = "";
                         //    StaMap.RegistPoint(ExecuteOrderAGVName, Dict_NearPoint[item.TagNumber], out Error);
                         //}
-                        agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
-                        if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+                        //agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
+                        //if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
+                        //{
+                        //    foreach (var agv_too_near in agv_too_near_from_path)
+                        //    {
+                        //        var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
+                        //        foreach (var point in too_near_points)
+                        //        {
+                        //            StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
+                        //        }
+                        //    }
+                        //}
+                        var StartIndex = optimiedPath.stations.IndexOf(TargetAGVItem.currentMapPoint);
+                        List<MapPoint> List_TryToRegist = new List<MapPoint>();
+                        for (int i = StartIndex; i < optimiedPath.stations.Count; i++)
                         {
-                            foreach (var agv_too_near in agv_too_near_from_path)
-                            {
-                                var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
-                                foreach (var point in too_near_points)
-                                {
-                                    StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
-                                }
-                            }
+                            List_TryToRegist.Add(optimiedPath.stations[i]);
                         }
-                        StaMap.RegistPoint(ExecuteOrderAGVName, optimiedPath.stations, out string Error);
+                        LOG.INFO($"TaskRegist {ExecuteOrderAGVName}, {string.Join(",", List_TryToRegist.Select(point => point.TagNumber))}");
+                        StaMap.RegistPoint(ExecuteOrderAGVName, List_TryToRegist, out string Error);
                     }
                     else//無路可走
                     {

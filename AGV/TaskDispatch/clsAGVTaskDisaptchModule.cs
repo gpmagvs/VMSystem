@@ -85,7 +85,10 @@ namespace VMSystem.AGV
                         }
                     }
                 }
+                if (true)
+                {
 
+                }
                 if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
                 {
                     if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)

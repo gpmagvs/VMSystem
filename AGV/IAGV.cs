@@ -55,6 +55,7 @@ namespace VMSystem.AGV
 
         clsAGVSimulation AgvSimulation { get; set; }
         clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
+        bool IsSolvingTrafficInterLock { get; set; }
     }
 
 }

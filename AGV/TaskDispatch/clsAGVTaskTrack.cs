@@ -446,7 +446,8 @@ namespace VMSystem.AGV.TaskDispatch
                         {
                             try
                             {
-                                waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(orderStatus.AGVLocation, true));
+                                var LastPoint = StaMap.GetPointByTagNumber(AGV.states.Last_Visited_Node);
+                                waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(SubTaskTracking.SubPathPlan.Last(), true));
                                 waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                                 waitingInfo.SetStatusNoWaiting(AGV);
                                 DownloadTaskToAGV(true);

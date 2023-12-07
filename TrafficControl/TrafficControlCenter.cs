@@ -114,7 +114,10 @@ namespace VMSystem.TrafficControl
                         {
                             waitingInfo.WaitingPoint = StaMap.GetPointByTagNumber(NearAGVPointTag) ;
                             waitingForAGVName = waitingNearAGVName;
+                            LOG.INFO($"[waitingNearPoint] {waitingInfo.WaitingPoint.TagNumber} ,{waitingNearAGVName}");
                         }
+                        LOG.INFO($"[waitingPoint] {waitingInfo.WaitingPoint.TagNumber} ,{waitingNearAGVName}");
+
                         IAGV agv_ = VMSManager.GetAGVByName(waitingForAGVName);
                         var waingInfoOfAgvRegistPt = AGVWaitingQueue.FirstOrDefault(wait_info => wait_info.Agv == agv_ & wait_info.WaitingPoint == waitingInfo.Agv.currentMapPoint);
                         if (waingInfoOfAgvRegistPt != null)
@@ -240,6 +243,7 @@ namespace VMSystem.TrafficControl
             if (confirmed)
             {
                 AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
+                AgvToGo.IsSolvingTrafficInterLock = true;
                 string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask(false);
                 await Task.Delay(500);
 
@@ -264,6 +268,7 @@ namespace VMSystem.TrafficControl
                         await Task.Delay(1);
                     }
                     SetCanceledTaskWait(canceledTaskName);
+                    AgvToGo.IsSolvingTrafficInterLock = false;
                     LOG.INFO($"{AgvToGo.Name} cancel Task-{canceledTaskName},and AGV will release {AgvToGo.currentMapPoint.TagNumber}");
                 }
                 else
@@ -363,6 +368,7 @@ namespace VMSystem.TrafficControl
         internal async Task<bool> RaiseAGVGoAwayRequest()
         {
             var pathes_of_waiting_agv = _Agv_Waiting.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan;
+            var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(pathes_of_waiting_agv.Select(item => item.TagNumber).ToList(), 1);
             var pathTags = pathes_of_waiting_agv.Select(pt => pt.TagNumber).ToList();
             MapPoint destinePt = pathes_of_waiting_agv.Last();
             LOG.WARN($"{_Agv_Waiting.Name} raise Fucking Stupid AGV Go Away(AGV Should Leave Tag{string.Join(",", pathTags)}) Rquest");
@@ -370,6 +376,7 @@ namespace VMSystem.TrafficControl
             List<int> tagListAvoid = new List<int>();
             tagListAvoid.AddRange(VMSManager.AllAGV.Where(_agv => _agv.Name != _Agv_Waiting.Name).Select(_agv => _agv.states.Last_Visited_Node));
             tagListAvoid.AddRange(pathTags);
+            tagListAvoid.AddRange(PathesNearPointOfWaitingAGV);
 
             var ptToParking = FindTagToParking(_Agv_GoAway.states.Last_Visited_Node, tagListAvoid, _Agv_GoAway.options.VehicleLength / 100.0);
             if (ptToParking == -1)
