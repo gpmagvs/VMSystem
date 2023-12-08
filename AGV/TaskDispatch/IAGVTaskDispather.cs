@@ -17,6 +17,8 @@ namespace VMSystem.AGV.TaskDispatch
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         AGV_ORDERABLE_STATUS OrderExecuteState { get; set; }
         public clsAGVTaskTrack TaskStatusTracker { get; set; }
+
+        public clsAGVTaskTrack LastNormalTaskPauseByAvoid { get;set; }
         string ExecutingTaskName { get; set; }
 
         Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; }

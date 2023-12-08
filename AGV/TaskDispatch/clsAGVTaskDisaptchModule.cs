@@ -275,6 +275,8 @@ namespace VMSystem.AGV
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         public string ExecutingTaskName { get; set; } = "";
 
+        public clsAGVTaskTrack LastNormalTaskPauseByAvoid { get; set; } = new clsAGVTaskTrack();
+
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
 
@@ -283,7 +285,12 @@ namespace VMSystem.AGV
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
                 IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
-                lastTransferProcess = TaskStatusTracker.transferProcess;
+                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
+            }
+            if (LastNormalTaskPauseByAvoid != null &&LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
+            {
+                IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
+                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
 
             TaskStatusTracker?.Dispose();

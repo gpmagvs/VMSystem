@@ -243,8 +243,9 @@ namespace VMSystem.TrafficControl
             bool confirmed = await RaiseAGVGoAwayRequest();
             if (confirmed)
             {
-                AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
                 AgvToGo.IsSolvingTrafficInterLock = true;
+                AgvToGo.taskDispatchModule.TaskStatusTracker.waitingInfo.SetStatusNoWaiting(AgvToGo);
+                AgvToGo.taskDispatchModule.LastNormalTaskPauseByAvoid = AgvToGo.taskDispatchModule.TaskStatusTracker;
                 string canceledTaskName = await AgvToGo.taskDispatchModule.CancelTask(false);
                 await Task.Delay(500);
 
