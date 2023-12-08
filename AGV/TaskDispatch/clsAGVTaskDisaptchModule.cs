@@ -73,6 +73,10 @@ namespace VMSystem.AGV
                                 return;
                             }
                             LastNonNoOrderTime = DateTime.Now;
+                            if (agv.IsSolvingTrafficInterLock)
+                            {
+                                return;
+                            }
                             LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
                             TaskDBHelper.Add(new clsTaskDto
                             {
@@ -103,6 +107,10 @@ namespace VMSystem.AGV
                             return;
                         }
                         LastNonNoOrderTime = DateTime.Now;
+                        if (agv.IsSolvingTrafficInterLock)
+                        {
+                            return;
+                        }
                         LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
                         TaskDBHelper.Add(new clsTaskDto
                         {
@@ -269,7 +277,6 @@ namespace VMSystem.AGV
 
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            TaskStatusTracker?.Dispose();
 
             bool IsResumeTransferTask = false;
             TRANSFER_PROCESS lastTransferProcess = default;
@@ -279,6 +286,7 @@ namespace VMSystem.AGV
                 lastTransferProcess = TaskStatusTracker.transferProcess;
             }
 
+            TaskStatusTracker?.Dispose();
 
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };

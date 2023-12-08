@@ -141,6 +141,7 @@ namespace VMSystem.TrafficControl
                 }
                 else if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.NO_WAIT)
                 {
+                    waitingInfo.AllowMoveResumeResetEvent.Set();
                     LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
                     AGVWaitingQueue.Remove(waitingInfo);
                 }
