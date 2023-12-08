@@ -12,6 +12,9 @@ using System.Net.Sockets;
 using System.Text;
 using AGVSystemCommonNet6.Log;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
+using VMSystem.Tools;
+using System.Drawing;
+using System.Diagnostics;
 
 namespace VMSystem.AGV
 {
@@ -136,7 +139,8 @@ namespace VMSystem.AGV
                 try
                 {
                     await dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
-                    BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+
+                    await BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
 
                     if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
                     {
@@ -153,7 +157,7 @@ namespace VMSystem.AGV
                             runningSTatus.Cargo_Status = 1;
                         }
                         ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
-                        BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                        await BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
                     }
 
                     if (action == ACTION_TYPE.None)
@@ -211,11 +215,17 @@ namespace VMSystem.AGV
 
             }
         }
-        private void BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
+        private async Task BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
         {
             double rotateSpeed = 10;
             double moveSpeed = 10;
             int idx = 0;
+            //轉向第一個點
+            if (action == ACTION_TYPE.None)
+            {
+                TurnToNextPoint(Trajectory, rotateSpeed, moveSpeed);
+            }
+            Trajectory = Trajectory.Skip(1).ToArray();
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
@@ -227,6 +237,10 @@ namespace VMSystem.AGV
                 }
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
+                bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
+
+
+
                 if (cancelToken.IsCancellationRequested)
                 {
                     throw new TaskCanceledException();
@@ -235,43 +249,31 @@ namespace VMSystem.AGV
                 double currentX = runningSTatus.Coordination.X;
                 double currentY = runningSTatus.Coordination.Y;
                 double currentAngle = runningSTatus.Coordination.Theta;
-                int stationTag = station.Point_ID;
 
-                if (currentTag == stationTag)
+                int stationTag = station.Point_ID;
+                var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
+
+                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio);
+                runningSTatus.Coordination.X = station.X;
+                runningSTatus.Coordination.Y = station.Y;
+                runningSTatus.Last_Visited_Node = stationTag;
+                var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+                agv.currentMapPoint = pt;
+
+                if (action == ACTION_TYPE.None && isNeedStopAndRotaionWhenReachNextPoint)
                 {
-                    idx += 1;
-                    continue;
-                }
-                if (action == ACTION_TYPE.None)
-                {
-                    double deltaX = station.X - currentX;
-                    double deltaY = station.Y - currentY;
-                    double targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
-                    double angleDiff = targetAngle - currentAngle;
-                    angleDiff = angleDiff % 360;
-                    if (angleDiff < -180)
+                    double targetAngle = 0;
+                    if (idx + 1 == Trajectory.Length)
+                        targetAngle = Trajectory.Last().Theta;
+                    else
                     {
-                        angleDiff += 360;
+                        double deltaX = Trajectory[idx].X - Trajectory[idx + 1].X;
+                        double deltaY = Trajectory[idx].Y - Trajectory[idx + 1].Y;
+                        targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI + 180;
                     }
-                    else if (angleDiff > 180)
-                    {
-                        angleDiff -= 360;
-                    }
-                    double rotateTime = Math.Abs(angleDiff) / rotateSpeed; // 计算旋转时间 在 rotateTime 时间内将 AGV 旋转到目标角度
-                    double moveTime = Math.Sqrt(deltaX * deltaX + deltaY * deltaY) / moveSpeed;
                     SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
                     runningSTatus.Coordination.Theta = targetAngle;
                 }
-                MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeed);
-                //Thread.Sleep(1000);
-                runningSTatus.Coordination.X = station.X;
-                runningSTatus.Coordination.Y = station.Y;
-                var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
-                agv.currentMapPoint = pt;
-                string err_msg = "";
-
-                runningSTatus.Last_Visited_Node = stationTag;
-
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
                 //stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
@@ -288,21 +290,90 @@ namespace VMSystem.AGV
             }
         }
 
-        private void MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY, double speed = 1)
+        private void TurnToNextPoint(clsMapPoint[] Trajectory, double rotateSpeed, double moveSpeed)
         {
-            double O_Distance_X = TargetX - CurrentX;
-            double O_Distance_Y = TargetY - CurrentY;
-            double O_Distance_All = Math.Pow(Math.Pow(O_Distance_X, 2) + Math.Pow(O_Distance_Y, 2), 0.5); //用來計算總共幾秒
-            double TotalSpendTime = Math.Ceiling(O_Distance_All / speed);
-            double MoveSpeed_X = O_Distance_X / TotalSpendTime;
-            double MoveSpeed_Y = O_Distance_Y / TotalSpendTime;
-
-            for (int i = 0; i < TotalSpendTime; i++)
+            double targetAngle = 0;
+            double currentAngle = runningSTatus.Coordination.Theta;
+            if (Trajectory.Length == 1)
             {
-                runningSTatus.Coordination.X = CurrentX + i * MoveSpeed_X;
-                runningSTatus.Coordination.Y = CurrentY + i * MoveSpeed_Y;
-                Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
+                targetAngle = Trajectory.First().Theta;
             }
+            else
+            {
+                int currentTag = runningSTatus.Last_Visited_Node;
+                double currentX = runningSTatus.Coordination.X;
+                double currentY = runningSTatus.Coordination.Y;
+                var NextPt = Trajectory[1];
+                double deltaX = NextPt.X - currentX;
+                double deltaY = NextPt.Y - currentY;
+                targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
+               
+            }
+            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
+            runningSTatus.Coordination.Theta = targetAngle;
+        }
+
+        private bool DeterminNextPtIsNeedRotationOrNot(clsMapPoint[] Trajectory, int currentTag, out double theta)
+        {
+            theta = 0;
+            var currentTagPt = Trajectory.FirstOrDefault(pt => pt.Point_ID == currentTag);
+            if (currentTagPt == null) //起點
+            {
+                if (Trajectory.Length == 1)
+                    return true;
+
+                var _nextPointCoord = new clsCoordination(Trajectory[0].X, Trajectory[0].Y, 0);
+                var _forwardangle = NavigationTools.CalculationForwardAngle(runningSTatus.Coordination, _nextPointCoord);
+                var _forwardangle2 = NavigationTools.CalculationForwardAngle(_nextPointCoord, new clsCoordination(Trajectory[1].X, Trajectory[1].Y, 0));
+                theta = Math.Abs(_forwardangle2 - _forwardangle);
+                return theta > 3;
+            }
+            var currentPtIndex = Trajectory.ToList().IndexOf(currentTagPt);
+            var nexPtIndex = currentPtIndex + 1;
+            if (nexPtIndex == Trajectory.Length) //已到終點
+            {
+                return true;
+            }
+            var nextPoint = Trajectory[nexPtIndex];
+            var nextPointCoord = new clsCoordination(nextPoint.X, nextPoint.Y, 0);
+            var forwardangle = NavigationTools.CalculationForwardAngle(runningSTatus.Coordination, nextPointCoord);
+
+            var nextNextPtIndex = currentPtIndex + 2;
+
+            try
+            {
+                var nextNextPoint = Trajectory[nextNextPtIndex];
+                var forwardangle2 = NavigationTools.CalculationForwardAngle(nextPointCoord, new clsCoordination(nextNextPoint.X, nextNextPoint.Y, 0));
+                theta = Math.Abs(forwardangle2 - forwardangle);
+                return theta > 3;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+
+        }
+
+        private async Task MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY, double speed = 2)
+        {
+            double error_total_x = TargetX - runningSTatus.Coordination.X;
+            double error_total_Y = TargetY - runningSTatus.Coordination.Y;
+            double O_Distance_All = Math.Sqrt(Math.Pow(error_total_x, 2) + Math.Pow(error_total_Y, 2)); //用來計算總共幾秒
+            double TotalSpendTime = O_Distance_All / speed;
+
+            double MoveSpeed_X = error_total_x / TotalSpendTime;//m
+            double MoveSpeed_Y = error_total_Y / TotalSpendTime;
+            Stopwatch timer = Stopwatch.StartNew();
+            while (timer.ElapsedMilliseconds < TotalSpendTime * 1000)
+            {
+                runningSTatus.Coordination.X += MoveSpeed_X * 0.01;
+                runningSTatus.Coordination.Y += MoveSpeed_Y * 0.01;
+                if (moveCancelTokenSource.IsCancellationRequested)
+                    return;
+                await Task.Delay(10);
+            }
+            runningSTatus.Coordination.X = TargetX;
+            runningSTatus.Coordination.Y = TargetY;
         }
 
         private void SimulationThetaChange(double currentAngle, double targetAngle)
@@ -318,7 +389,7 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Start Angle: {currentAngle} degree");
             //Console.WriteLine($"Target Angle: {targetAngle} degree");
             //Console.WriteLine($"Shortest Rotation Angle: {shortestRotationAngle} degree");
-            double deltaTheta = 10;
+            double deltaTheta = 2;
             if (clockwise)//-角度
             {
                 //Console.WriteLine("Rotate Clockwise");
@@ -329,7 +400,7 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
+                    Thread.Sleep((int)(200 / parameters.SpeedUpRate));
                 }
 
             }
@@ -343,9 +414,10 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(1000 / parameters.SpeedUpRate));
+                    Thread.Sleep((int)(200 / parameters.SpeedUpRate));
                 }
             }
+            runningSTatus.Coordination.Theta = targetAngle;
         }
 
         private void BatterSimulation()

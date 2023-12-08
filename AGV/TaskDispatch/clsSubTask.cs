@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.MAP;
 using Microsoft.AspNetCore.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using VMSystem.Tools;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -51,9 +52,10 @@ namespace VMSystem.AGV.TaskDispatch
 
                 optimiedPath = optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
                 EntirePathPlan = optimiedPath.stations;
-                var otherAGVList = VMSManager.AllAGV.FindAll(agv => agv.Name != ExecuteOrderAGVName);
+                var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
-                var Dict_NearPoint = GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1);
+
+                var Dict_NearPoint = this.Action == ACTION_TYPE.None  ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1) : new Dictionary<int, List<MapPoint>>();
                 TargetAGVItem.taskDispatchModule.Dict_PathNearPoint = Dict_NearPoint;
 
                 try
@@ -126,28 +128,8 @@ namespace VMSystem.AGV.TaskDispatch
 
                         LastStopPoint = optimiedPath.stations.Last();
                         var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
-                        //foreach (var item in RegistPath.stations)
-                        //{
-                        //    if (!Dict_NearPoint.ContainsKey(item.TagNumber))
-                        //    {
-                        //        continue;
-                        //    }
-                        //    string Error = "";
-                        //    StaMap.RegistPoint(ExecuteOrderAGVName, Dict_NearPoint[item.TagNumber], out Error);
-                        //}
-                        //agv_too_near_from_path = otherAGVList.Where(_agv => RegistPath.stations.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength)).ToList();
-                        //if (agv_too_near_from_path.Any()) //找出路徑上所有干涉點位
-                        //{
-                        //    foreach (var agv_too_near in agv_too_near_from_path)
-                        //    {
-                        //        var too_near_points = RegistPath.stations.FindAll(pt => pt.CalculateDistance(agv_too_near.currentMapPoint) * 100.0 <= agv_too_near.options.VehicleLength);
-                        //        foreach (var point in too_near_points)
-                        //        {
-                        //            StaMap.RegistPoint(agv_too_near.Name, point, out string errMsg);
-                        //        }
-                        //    }
-                        //}
-                        var StartIndex = optimiedPath.stations.IndexOf(TargetAGVItem.currentMapPoint);
+
+                        var StartIndex = optimiedPath.stations.IndexOf(optimiedPath.stations.First(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber));
                         List<MapPoint> List_TryToRegist = new List<MapPoint>();
                         for (int i = StartIndex; i < optimiedPath.stations.Count; i++)
                         {
@@ -197,7 +179,8 @@ namespace VMSystem.AGV.TaskDispatch
 
                     LOG.Critical($"From {fromTag} To {toTag}, Get Trajectory Length = 0, Order Data {order.ToJson()}");
                 }
-                double stopAngle = order.Action == ACTION_TYPE.None ? CalculationStopAngle(TrajectoryToExecute) : DestineStopAngle;
+                double stopAngle = order.Action == ACTION_TYPE.None ? CalculationStopAngle(TrajectoryToExecute, isSegment) : DestineStopAngle;
+
                 TrajectoryToExecute.Last().Theta = stopAngle;
 
                 if (Action == ACTION_TYPE.None)
@@ -218,7 +201,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         private Dictionary<int, List<MapPoint>> GetNearTargetMapPointOfPathByPointDistance(List<MapPoint> List_path, double Distance = 1)
         {
-            Dictionary<int, List<MapPoint>> Dict_OutputData = new Dictionary<int, List<MapPoint>>(); 
+            Dictionary<int, List<MapPoint>> Dict_OutputData = new Dictionary<int, List<MapPoint>>();
             foreach (var item in List_path)
             {
                 var Dict_NearPoint = StaMap.Dict_AllPointDistance[item.TagNumber].Where(eachpoint => eachpoint.Value < Distance);
@@ -236,26 +219,33 @@ namespace VMSystem.AGV.TaskDispatch
             return Dict_OutputData;
         }
 
-        private double CalculationStopAngle(clsMapPoint[] trajectoryToExecute)
+        private double CalculationStopAngle(clsMapPoint[] trajectoryToExecute, bool _IsSeqmentTrajectory)
         {
-            var finalPt = trajectoryToExecute.Last();
-            var countDown2PtIndex = trajectoryToExecute.ToList().IndexOf(finalPt) - 1;
-            if (countDown2PtIndex < 0)
-                return DestineStopAngle;
+            clsMapPoint finalPt = trajectoryToExecute.Last();
+            System.Drawing.PointF finalPtPointF = new System.Drawing.PointF((float)finalPt.X, (float)finalPt.Y);
+            System.Drawing.PointF finalCountDown2PtPointF = new System.Drawing.PointF();
 
-            var countDown2Pt = trajectoryToExecute[countDown2PtIndex];
-
-            double deltaX = finalPt.X - countDown2Pt.X;
-            double deltaY = finalPt.Y - countDown2Pt.Y;
-            // 使用 Atan2 來計算弧度，然後轉換為度
-            double angleInRadians = Math.Atan2(deltaY, deltaX);
-            double angleInDegrees = angleInRadians * (180 / Math.PI);
-            // 將角度調整到 -180 至 180 度的範圍
-            if (angleInDegrees > 180)
+            if (_IsSeqmentTrajectory)
             {
-                angleInDegrees -= 360;
+                if (EntirePathPlan.Count == 1)
+                    return trajectoryToExecute.Last().Theta;
+                var indexOfLastTwoPt = EntirePathPlan.FindIndex(pt => pt.TagNumber == trajectoryToExecute.Last().Point_ID) + 1;
+                finalCountDown2PtPointF.X = (float)EntirePathPlan[indexOfLastTwoPt].X;
+                finalCountDown2PtPointF.Y = (float)EntirePathPlan[indexOfLastTwoPt].Y;
+                return NavigationTools.CalculationForwardAngle(finalPtPointF, finalCountDown2PtPointF);
             }
-            return angleInDegrees;
+            else
+            {
+
+                var countDown2PtIndex = trajectoryToExecute.ToList().IndexOf(finalPt) - 1;
+                if (countDown2PtIndex < 0)
+                    return DestineStopAngle;
+                clsMapPoint countDown2Pt = trajectoryToExecute[countDown2PtIndex];
+                finalCountDown2PtPointF.X = (float)countDown2Pt.X;
+                finalCountDown2PtPointF.Y = (float)countDown2Pt.Y;
+                return NavigationTools.CalculationForwardAngle(finalCountDown2PtPointF, finalPtPointF);
+
+            }
 
         }
 

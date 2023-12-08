@@ -218,7 +218,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             else if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK)
             {
-              // RegistRemainPathTags();
+                // RegistRemainPathTags();
             }
             SubTaskTracking = _task;
 
@@ -490,30 +490,6 @@ namespace VMSystem.AGV.TaskDispatch
             return TASK_FEEDBACK_STATUS_CODE.OK;
         }
 
-        private async Task<bool> WaitingRegistReleaseAndGo()
-        {
-            return await Task.Factory.StartNew(() =>
-              {
-                  while (StaMap.IsMapPointRegisted(waitingInfo.WaitingPoint, AGV.Name))
-                  {
-                      Thread.Sleep(1000);
-                      if (taskCancel.IsCancellationRequested)
-                      {
-                          LOG.INFO($"任務已取消結束等待");
-                          return false;
-                      }
-                  }
-                  if (taskCancel.IsCancellationRequested)
-                  {
-                      LOG.INFO($"任務已取消結束等待");
-                      return false;
-                  }
-                  LOG.INFO($"{waitingInfo.WaitingPoint.Name}已解除註冊,任務下發");
-                  waitingInfo.SetStatusNoWaiting(AGV);
-                  DownloadTaskToAGV(true);
-                  return true;
-              });
-        }
 
         public enum ORDER_STATUS
         {
@@ -702,8 +678,6 @@ namespace VMSystem.AGV.TaskDispatch
                 _task = isMovingSeqmentTask ? SubTaskTracking : SubTasks.Dequeue();
                 task = _task;
 
-
-
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;
 
@@ -736,6 +710,10 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 if (!isMovingSeqmentTask)
                     SubTaskTracking = _task;
+
+                if (_task.Action == ACTION_TYPE.Discharge || _task.Action == ACTION_TYPE.Unpark)
+                    WaitWorkStationSecondaryPointRelease(_task);
+
                 return _DispatchTaskToAGV(_task);
             }
             catch (IlleagalTaskDispatchException ex)
@@ -760,6 +738,7 @@ namespace VMSystem.AGV.TaskDispatch
                 if (IsAGVAlreadyAtFinalPointOfTrajectory)
                     return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
 
+
                 if (AGV.options.Simulation)
                 {
                     TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
@@ -780,6 +759,36 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
+        private void WaitWorkStationSecondaryPointRelease(clsSubTask task)
+        {
+
+            var secondartPt = task.EntirePathPlan.Last();
+            if (StaMap.GetPointRegisterName(secondartPt.TagNumber, out string agv))
+            {
+                if (agv != AGV.Name)
+                {
+                    StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
+                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, secondartPt);
+                    waitingInfo.AllowMoveResumeResetEvent.WaitOne();
+                    waitingInfo.SetStatusNoWaiting(AGV);
+                }
+            }
+
+            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => agv.currentMapPoint.CalculateDistance(secondartPt));
+            var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
+            if (tooNearAgvDistanc.Any())
+            {
+                StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
+                foreach (var kp in tooNearAgvDistanc)
+                {
+
+                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
+                    waitingInfo.AllowMoveResumeResetEvent.WaitOne();
+                    waitingInfo.SetStatusNoWaiting(AGV);
+                }
+            }
+
+        }
 
         private void CompleteOrder()
         {

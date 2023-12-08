@@ -22,7 +22,7 @@ namespace VMSystem.AGV
             /// <summary>
             /// 走行速度(m/s)
             /// </summary>
-            public double MoveSpeed { get; set; } = 1;
+            public double MoveSpeedRatio { get; set; } = 2;
             public double RotationSpeed { get; set; }
 
             public double ForkLifterSpeed { get; set; }
