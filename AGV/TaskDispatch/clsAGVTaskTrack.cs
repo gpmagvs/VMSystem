@@ -51,7 +51,7 @@ namespace VMSystem.AGV.TaskDispatch
                 try
                 {
 
-                    if (TaskOrder == null | SubTaskTracking == null)
+                    if (TaskOrder == null || SubTaskTracking == null || TaskOrder.State != TASK_RUN_STATUS.NAVIGATING)
                         return new List<int>();
 
                     var currentindex = SubTaskTracking.DownloadData.ExecutingTrajecory.ToList().FindIndex(pt => pt.Point_ID == AGV.currentMapPoint.TagNumber);
@@ -123,7 +123,7 @@ namespace VMSystem.AGV.TaskDispatch
                 while (true)
                 {
                     Thread.Sleep(1);
-                    if (TaskOrder == null)
+                    if (TaskOrder == null || TaskOrder.State != TASK_RUN_STATUS.NAVIGATING)
                         continue;
 
                     TaskRunningStatus = await TaskDBHelper.GetTaskStateByID(OrderTaskName);
