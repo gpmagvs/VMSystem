@@ -128,8 +128,8 @@ namespace VMSystem.AGV.TaskDispatch
 
                         LastStopPoint = optimiedPath.stations.Last();
                         var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
-
-                        var StartIndex = optimiedPath.stations.IndexOf(optimiedPath.stations.First(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber));
+                        var StartIndex = optimiedPath.stations.IndexOf(optimiedPath.stations.FirstOrDefault(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber));
+                        StartIndex = StartIndex == -1 ? 0 : StartIndex;
                         List<MapPoint> List_TryToRegist = new List<MapPoint>();
                         for (int i = StartIndex; i < optimiedPath.stations.Count; i++)
                         {
@@ -148,6 +148,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 catch (Exception ex)
                 {
+                    LOG.ERROR(ex);
                     throw ex;
                 }
 
