@@ -237,7 +237,7 @@ namespace VMSystem
         {
             var registPoints = RegistDictionary.Where(kp => kp.Value.RegisterAGVName != navigating_agv_name).Select(kp => StaMap.GetPointByTagNumber(kp.Key));
             IEnumerable<MapPoint> commonItems = registPoints.Intersect(path_to_nav, new MapPointComparer());
-            return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToList();
+            return commonItems.OrderBy(pt => path_to_nav.IndexOf(pt)).ToArray().ToList();
         }
 
         internal static string GetStationNameByTag(int tag)
@@ -295,13 +295,13 @@ namespace VMSystem
             return agvName != null;
         }
 
-        internal static bool GetNearPointRegisterName(int tagNumber,string TargetAGV, out string AGVName, out int NearPointTag)
+        internal static bool GetNearPointRegisterName(int tagNumber, string TargetAGV, out string AGVName, out int NearPointTag)
         {
-            AGVName = string.Empty; 
+            AGVName = string.Empty;
             NearPointTag = -1;
             var TargetPoint = GetPointByTagNumber(tagNumber);
             //var List_NearPointTag = TargetPoint.Target.Where(item => (item.Value * 100) < 100).Select(item => item.Key);
-            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < 1).Select(item => item.Key);
+            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < 1.45).Select(item => item.Key);
             foreach (var item in List_NearPointTag)
             {
                 var MapPointData = GetPointByTagNumber(item);
@@ -339,20 +339,20 @@ namespace VMSystem
             return Dict_OutputData;
         }
 
-        internal static List<int> GetNearPointListByPointAndDistance(int TagNumber,double DistanceLimit)
+        internal static List<int> GetNearPointListByPointAndDistance(int TagNumber, double DistanceLimit)
         {
             if (!Dict_AllPointDistance.ContainsKey(TagNumber))
                 return new List<int>();
 
-            return Dict_AllPointDistance[TagNumber].Where(item => item.Value < DistanceLimit).Select(item=>item.Key).ToList();
+            return Dict_AllPointDistance[TagNumber].Where(item => item.Value < DistanceLimit).Select(item => item.Key).ToList();
         }
 
-        internal static List<int> GetNearPointListByPathAndDistance(List<int> List_PathTags,double DistanceLimit)
+        internal static List<int> GetNearPointListByPathAndDistance(List<int> List_PathTags, double DistanceLimit)
         {
             List<int> OutputData = new List<int>();
             foreach (var item in List_PathTags)
             {
-                OutputData.AddRange(GetNearPointListByPointAndDistance(item,DistanceLimit));
+                OutputData.AddRange(GetNearPointListByPointAndDistance(item, DistanceLimit));
             }
             OutputData = OutputData.Distinct().ToList();
             return OutputData;

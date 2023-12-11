@@ -106,14 +106,14 @@ namespace VMSystem.AGV
             if (previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
             {
                 var lastPoint = previousTaskData.Trajectory.Last();
-                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length;
+                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length + 1;
                 if (remainTragjectLen <= 0)
                 {
 
                     return;
                 }
                 ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length, ExecutingTrajecory, 0, remainTragjectLen);
+                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length-1, ExecutingTrajecory, 0, remainTragjectLen);
             }
             else
             {

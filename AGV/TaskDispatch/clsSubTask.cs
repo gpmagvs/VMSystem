@@ -55,15 +55,17 @@ namespace VMSystem.AGV.TaskDispatch
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
-                var Dict_NearPoint = this.Action == ACTION_TYPE.None  ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1) : new Dictionary<int, List<MapPoint>>();
+                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1) : new Dictionary<int, List<MapPoint>>();
                 TargetAGVItem.taskDispatchModule.Dict_PathNearPoint = Dict_NearPoint;
 
                 try
                 {
-                    List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(optimiedPath.stations, Dict_NearPoint, ExecuteOrderAGVName);
-                    //若路徑上有點位被註冊=>移動至被註冊點之前一點
                     List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
-                    regitedPoints.AddRange(PathPointWithRegistNearPoint);
+                    if(Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, optimiedPath.stations, out var interferenceMapPoints))
+                    {
+                        regitedPoints.AddRange(interferenceMapPoints.Select(di => di.Key).ToList());
+                        regitedPoints= regitedPoints.Distinct().ToList();
+                    }
 
                     int NowPositionIndex = LastStopPoint == null ? 0 : optimiedPath.stations.IndexOf(LastStopPoint);
                     var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
