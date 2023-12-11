@@ -225,7 +225,10 @@ namespace VMSystem.AGV
             {
                 TurnToNextPoint(Trajectory, rotateSpeed, moveSpeed);
             }
-            Trajectory = Trajectory.Skip(1).ToArray();
+            if (Trajectory[0].Point_ID == runningSTatus.Last_Visited_Node)
+            {
+                Trajectory = Trajectory.Skip(1).ToArray();
+            }
             // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {

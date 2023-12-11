@@ -73,6 +73,10 @@ namespace VMSystem.AGV
                                 return;
                             }
                             LastNonNoOrderTime = DateTime.Now;
+                            if (agv.IsSolvingTrafficInterLock)
+                            {
+                                return;
+                            }
                             LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
                             TaskDBHelper.Add(new clsTaskDto
                             {
@@ -103,6 +107,10 @@ namespace VMSystem.AGV
                             return;
                         }
                         LastNonNoOrderTime = DateTime.Now;
+                        if (agv.IsSolvingTrafficInterLock)
+                        {
+                            return;
+                        }
                         LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
                         TaskDBHelper.Add(new clsTaskDto
                         {
@@ -267,18 +275,25 @@ namespace VMSystem.AGV
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         public string ExecutingTaskName { get; set; } = "";
 
+        public clsAGVTaskTrack LastNormalTaskPauseByAvoid { get; set; } = new clsAGVTaskTrack();
+
         private async Task ExecuteTaskAsync(clsTaskDto executingTask)
         {
-            TaskStatusTracker?.Dispose();
 
             bool IsResumeTransferTask = false;
             TRANSFER_PROCESS lastTransferProcess = default;
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
                 IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
-                lastTransferProcess = TaskStatusTracker.transferProcess;
+                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
+            }
+            if (LastNormalTaskPauseByAvoid != null &&LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
+            {
+                IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
+                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
 
+            TaskStatusTracker?.Dispose();
 
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };

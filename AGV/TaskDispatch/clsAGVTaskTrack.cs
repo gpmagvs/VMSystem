@@ -448,10 +448,13 @@ namespace VMSystem.AGV.TaskDispatch
                             try
                             {
                                 var LastPoint = StaMap.GetPointByTagNumber(AGV.states.Last_Visited_Node);
-                                waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(SubTaskTracking.SubPathPlan.Last(), true));
+                                waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, SubTaskTracking.GetNextPointToGo(SubTaskTracking.SubPathPlan.Last(), false));
                                 waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                                 waitingInfo.SetStatusNoWaiting(AGV);
-                                DownloadTaskToAGV(true);
+                                if (!AGV.IsSolvingTrafficInterLock)
+                                {
+                                    DownloadTaskToAGV(true);
+                                }
                             }
                             catch (Exception ex)
                             {
