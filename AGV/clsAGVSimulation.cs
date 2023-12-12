@@ -162,9 +162,12 @@ namespace VMSystem.AGV
 
                     if (action == ACTION_TYPE.None)
                     {
-                        double finalTheta = ExecutingTrajecory.Last().Theta;
-                        SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
-                        runningSTatus.Coordination.Theta = finalTheta;
+                        if (ExecutingTrajecory.Last().Point_ID == data.Destination)
+                        {
+                            double finalTheta = ExecutingTrajecory.Last().Theta;
+                            SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
+                            runningSTatus.Coordination.Theta = finalTheta;
+                        }
                     }
 
                     StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
@@ -274,8 +277,11 @@ namespace VMSystem.AGV
                         double deltaY = Trajectory[idx].Y - Trajectory[idx + 1].Y;
                         targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI + 180;
                     }
-                    SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
-                    runningSTatus.Coordination.Theta = targetAngle;
+                    if (Trajectory.Last() != station)
+                    {
+                        SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
+                        runningSTatus.Coordination.Theta = targetAngle;
+                    }
                 }
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
                 //stateDto.PointIndex = idx;

@@ -51,17 +51,26 @@ namespace VMSystem.AGV.TaskDispatch
                 }); //考慮AGV組黨後計算出的路徑
 
                 optimiedPath = optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
-                EntirePathPlan = optimiedPath.stations;
+                if (EntirePathPlan.Count !=0&& EntirePathPlan.First()== Source&&EntirePathPlan.Last() == Destination)
+                {//如果已經下過前半段的走行任務，後半段的任務要直接沿用原本的路徑
+                    optimiedPath.stations = EntirePathPlan;
+                }
+                else
+                {
+                    EntirePathPlan = optimiedPath.stations;
+                }
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
-                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, 1) : new Dictionary<int, List<MapPoint>>();
+                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, TargetAGVItem.options.VehicleLength/100.0) : new Dictionary<int, List<MapPoint>>();
                 TargetAGVItem.taskDispatchModule.Dict_PathNearPoint = Dict_NearPoint;
 
                 try
                 {
+                    List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(optimiedPath.stations, Dict_NearPoint, ExecuteOrderAGVName);
                     List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
-                    if(Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, optimiedPath.stations, out var interferenceMapPoints))
+                    regitedPoints.AddRange(PathPointWithRegistNearPoint); 
+                    if (Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, optimiedPath.stations, out var interferenceMapPoints))
                     {
                         regitedPoints.AddRange(interferenceMapPoints.Select(di => di.Key).ToList());
                         regitedPoints= regitedPoints.Distinct().ToList();

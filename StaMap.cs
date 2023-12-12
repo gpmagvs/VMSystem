@@ -300,8 +300,9 @@ namespace VMSystem
             AGVName = string.Empty;
             NearPointTag = -1;
             var TargetPoint = GetPointByTagNumber(tagNumber);
+            var AGVItem = VMSManager.AllAGV.First(item => item.Name == TargetAGV);
             //var List_NearPointTag = TargetPoint.Target.Where(item => (item.Value * 100) < 100).Select(item => item.Key);
-            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < 1.45).Select(item => item.Key);
+            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < AGVItem.options.VehicleLength/100).Select(item => item.Key);
             foreach (var item in List_NearPointTag)
             {
                 var MapPointData = GetPointByTagNumber(item);
