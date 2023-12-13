@@ -168,6 +168,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                 Int32.TryParse(order.From_Station, out var fromTag);
                 Int32.TryParse(order.To_Station, out var toTag);
+                var DestineData = StaMap.GetPointByTagNumber(toTag);
                 DownloadData = new clsTaskDownloadData
                 {
                     Action_Type = Action,
@@ -182,8 +183,8 @@ namespace VMSystem.AGV.TaskDispatch
                         ActionName = order.Action,
                         SourceName = StaMap.GetStationNameByTag(fromTag),
                         DestineName = StaMap.GetStationNameByTag(toTag),
-                    }
-
+                    },
+                    Height = order.Height
                 };
 
                 if (TrajectoryToExecute.Length == 0)
