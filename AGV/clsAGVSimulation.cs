@@ -103,17 +103,23 @@ namespace VMSystem.AGV
         {
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
 
-            if (previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
+            if ( previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
             {
-                var lastPoint = previousTaskData.Trajectory.Last();
-                var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length + 1;
-                if (remainTragjectLen <= 0)
+                if (previousTaskData.Trajectory.Length != 0)
                 {
-
-                    return;
+                    var lastPoint = previousTaskData.Trajectory.Last();
+                    var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length + 1;
+                    if (remainTragjectLen <= 0)
+                    {
+                        return;
+                    }
+                    ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
+                    Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length - 1, ExecutingTrajecory, 0, remainTragjectLen);
                 }
-                ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-                Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length-1, ExecutingTrajecory, 0, remainTragjectLen);
+                else
+                {
+                    ExecutingTrajecory = data.ExecutingTrajecory;
+                }
             }
             else
             {
@@ -142,11 +148,11 @@ namespace VMSystem.AGV
 
                     await BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
 
-                    if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload)
+                    if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload | action == ACTION_TYPE.LoadAndPark)
                     {
                         //模擬LDULD
                         Thread.Sleep(400);
-                        if (action == ACTION_TYPE.Load)
+                        if (action == ACTION_TYPE.Load||action == ACTION_TYPE.LoadAndPark)
                         {
                             runningSTatus.CSTID = new string[0];
                             runningSTatus.Cargo_Status = 0;
@@ -157,7 +163,10 @@ namespace VMSystem.AGV
                             runningSTatus.Cargo_Status = 1;
                         }
                         ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
-                        await BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                        if (action != ACTION_TYPE.LoadAndPark)
+                        {
+                            await BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                        }
                     }
 
                     if (action == ACTION_TYPE.None)

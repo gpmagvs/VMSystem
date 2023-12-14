@@ -59,39 +59,35 @@ namespace VMSystem.AGV
                 {
                     previous_OrderExecuteState = value;
                     LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
-                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
-                    {
-                        if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
-                        {
-                            if (agv.states.Cargo_Status != 0)
-                            {
-                                AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
-                                return;
-                            }
-                            if (LastNonNoOrderTime.AddSeconds(10)>DateTime.Now)
-                            {
-                                return;
-                            }
-                            LastNonNoOrderTime = DateTime.Now;
-                            if (agv.IsSolvingTrafficInterLock)
-                            {
-                                return;
-                            }
-                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
-                            TaskDBHelper.Add(new clsTaskDto
-                            {
-                                Action = ACTION_TYPE.Charge,
-                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
-                                DispatcherName = "VMS",
-                                DesignatedAGVName = agv.Name,
-                                RecieveTime = DateTime.Now,
-                            });
-                        }
-                    }
-                }
-                if (true)
-                {
-
+                    //if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
+                    //{
+                    //    if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
+                    //    {
+                    //        if (agv.states.Cargo_Status != 0)
+                    //        {
+                    //            AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
+                    //            return;
+                    //        }
+                    //        if (LastNonNoOrderTime.AddSeconds(10)>DateTime.Now)
+                    //        {
+                    //            return;
+                    //        }
+                    //        LastNonNoOrderTime = DateTime.Now;
+                    //        if (agv.IsSolvingTrafficInterLock)
+                    //        {
+                    //            return;
+                    //        }
+                    //        LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
+                    //        TaskDBHelper.Add(new clsTaskDto
+                    //        {
+                    //            Action = ACTION_TYPE.Charge,
+                    //            TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                    //            DispatcherName = "VMS",
+                    //            DesignatedAGVName = agv.Name,
+                    //            RecieveTime = DateTime.Now,
+                    //        });
+                    //    }
+                    //}
                 }
                 if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
                 {
@@ -120,6 +116,10 @@ namespace VMSystem.AGV
                             DesignatedAGVName = agv.Name,
                             RecieveTime = DateTime.Now,
                         });
+                    }
+                    else
+                    {
+                        LastNonNoOrderTime = DateTime.Now;
                     }
                 }
                 else

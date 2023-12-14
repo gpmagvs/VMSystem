@@ -50,7 +50,7 @@ namespace VMSystem.AGV.TaskDispatch
                     ConstrainTags = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName).Select(agv => agv.currentMapPoint.TagNumber).ToList()
                 }); //考慮AGV組黨後計算出的路徑
 
-                optimiedPath = optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
+                optimiedPath =optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
                 if (EntirePathPlan.Count !=0&& EntirePathPlan.First()== Source&&EntirePathPlan.Last() == Destination)
                 {//如果已經下過前半段的走行任務，後半段的任務要直接沿用原本的路徑
                     optimiedPath.stations = EntirePathPlan;

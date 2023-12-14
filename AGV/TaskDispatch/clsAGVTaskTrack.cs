@@ -344,6 +344,10 @@ namespace VMSystem.AGV.TaskDispatch
                         DestineStopAngle = workstation_point.Direction,
                         CarrierID = taskOrder.Carrier_ID
                     };
+                    if (workstation_point.StationType == STATION_TYPE.STK || workstation_point.StationType == STATION_TYPE.Charge_STK)
+                    {
+                        subTask_load.Action = ACTION_TYPE.LoadAndPark;
+                    }
                     task_links.Enqueue(subTask_load);
                 }
 
@@ -593,7 +597,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             else
             {
-                isOrderCompleted = previousCompleteAction == ACTION_TYPE.Load;
+                isOrderCompleted = previousCompleteAction == ACTION_TYPE.Load | previousCompleteAction == ACTION_TYPE.LoadAndPark;
             }
             return new clsOrderStatus
             {
