@@ -112,7 +112,7 @@ namespace VMSystem.TrafficControl
                     {
                         if (!isRegisted)
                         {
-                            waitingInfo.WaitingPoint = StaMap.GetPointByTagNumber(NearAGVPointTag) ;
+                            waitingInfo.WaitingPoint = StaMap.GetPointByTagNumber(NearAGVPointTag);
                             waitingForAGVName = waitingNearAGVName;
                             LOG.INFO($"[waitingNearPoint] {waitingInfo.WaitingPoint.TagNumber} ,{waitingNearAGVName}");
                         }
@@ -142,14 +142,15 @@ namespace VMSystem.TrafficControl
                 else if (waitingInfo.Status == clsWaitingInfo.WAIT_STATUS.NO_WAIT)
                 {
                     LOG.INFO($"AGV-{waitingInfo.Agv.Name} not waiting");
-                    AGVWaitingQueue.Remove(waitingInfo);
+                    if (AGVWaitingQueue.Contains(waitingInfo))
+                        AGVWaitingQueue.Remove(waitingInfo);
                 }
             }
             catch (Exception ex)
             {
                 throw ex;
             }
-            
+
         }
 
 
@@ -256,7 +257,7 @@ namespace VMSystem.TrafficControl
                     var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, 1);
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
-                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} and NearPoint {string.Join(",",tagsNearPoint)}");
+                    LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} and NearPoint {string.Join(",", tagsNearPoint)}");
                     tagsListPlan.AddRange(tagsNearPoint);
                     bool tafTaskFinish = await AwaitTAFTaskFinish();
                     if (tafTaskFinish)
@@ -412,14 +413,14 @@ namespace VMSystem.TrafficControl
             {
                 foreach (var TagDistance in item.Value)
                 {
-                    if (TagDistance.Value>1)
+                    if (TagDistance.Value > 1)
                         continue;
                     List_NearPoint.Add(TagDistance.Key);
                 }
             }
             List_NearPoint = List_NearPoint.Distinct().ToList();
 
-            var ptAvaliable = StaMap.Map.Points.Values.Where(pt => pt.StationType == STATION_TYPE.Normal && !pt.IsVirtualPoint && pt.Enable).ToList().FindAll(pt => !_avoidTagList.Contains(pt.TagNumber)&&!List_NearPoint.Contains(pt.TagNumber));
+            var ptAvaliable = StaMap.Map.Points.Values.Where(pt => pt.StationType == STATION_TYPE.Normal && !pt.IsVirtualPoint && pt.Enable).ToList().FindAll(pt => !_avoidTagList.Contains(pt.TagNumber) && !List_NearPoint.Contains(pt.TagNumber));
 
             //計算出所有路徑
             PathFinder pf = new PathFinder();

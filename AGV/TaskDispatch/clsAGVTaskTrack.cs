@@ -774,14 +774,13 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
 
-            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => agv.currentMapPoint.CalculateDistance(secondartPt));
+            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(secondartPt));
             var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
             if (tooNearAgvDistanc.Any())
             {
                 StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
                 foreach (var kp in tooNearAgvDistanc)
                 {
-
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
