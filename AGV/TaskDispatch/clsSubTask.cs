@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.AspNetCore.Diagnostics;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using VMSystem.Tools;
@@ -62,7 +63,14 @@ namespace VMSystem.AGV.TaskDispatch
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
-                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, TargetAGVItem.options.VehicleLength/100.0) : new Dictionary<int, List<MapPoint>>();
+                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
+                if (this.Action == ACTION_TYPE.Unpark)
+                {
+                    if (Dict_NearPoint.ContainsKey(Source.TagNumber))
+                    {
+                        Dict_NearPoint.Remove(Source.TagNumber);
+                    }
+                }
                 TargetAGVItem.taskDispatchModule.Dict_PathNearPoint = Dict_NearPoint;
 
                 try

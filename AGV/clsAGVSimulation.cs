@@ -198,6 +198,7 @@ namespace VMSystem.AGV
                     waitReplanflag = false;
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                     stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    LOG.Critical(ex);
                     dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
                 }
             });
@@ -268,7 +269,7 @@ namespace VMSystem.AGV
                 int stationTag = station.Point_ID;
                 var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
 
-                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio);
+                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio* parameters.SpeedUpRate);
                 runningSTatus.Coordination.X = station.X;
                 runningSTatus.Coordination.Y = station.Y;
                 runningSTatus.Last_Visited_Node = stationTag;
