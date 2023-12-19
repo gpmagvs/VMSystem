@@ -212,7 +212,7 @@ namespace VMSystem.AGV
                 ClientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 try
                 {
-                    string Action = ActionType == ACTION_TYPE.Load ? "Load" : "Unload";
+                    string Action = (ActionType == ACTION_TYPE.Load|| ActionType == ACTION_TYPE.LoadAndPark) ? "Load" : "Unload";
                     ClientSocket.Connect("127.0.0.1", 100);
                     ClientSocket.Send(Encoding.ASCII.GetBytes($"{Action},{EQName}"));
                 }
@@ -419,7 +419,7 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(200 / parameters.SpeedUpRate));
+                    Thread.Sleep((int)(20*parameters.RotationSpeed / parameters.SpeedUpRate));
                 }
 
             }
@@ -433,7 +433,7 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(200 / parameters.SpeedUpRate));
+                    Thread.Sleep((int)(20 * parameters.RotationSpeed / parameters.SpeedUpRate));
                 }
             }
             runningSTatus.Coordination.Theta = targetAngle;
@@ -453,7 +453,7 @@ namespace VMSystem.AGV
                         }
                         else
                         {
-                            batteryLevelSim[1] += parameters.BatteryChargeSpeed; //充電模擬
+                            batteryLevelSim[1] += 100* parameters.BatteryChargeSpeed*parameters.SpeedUpRate/3600; //充電模擬
                         }
 
                     }
@@ -462,11 +462,11 @@ namespace VMSystem.AGV
                         //模擬電量衰減
                         if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                         {
-                            batteryLevelSim[1] -= parameters.BatteryUsed_Run/2;
+                            batteryLevelSim[1] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600 / 2;
                         }
                         else
                         {
-                            batteryLevelSim[1] -= parameters.BatteryUsed_Run;//跑貨耗電比較快
+                            batteryLevelSim[1] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600;//跑貨耗電比較快
                         }
                         if (batteryLevelSim[1] <= 0)
                             batteryLevelSim[1] = 1;

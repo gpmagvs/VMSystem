@@ -102,7 +102,7 @@ namespace VMSystem.AGV.TaskDispatch
                     _TaskRunningStatus = value;
                     if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL | _TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
                     {
-                        CancelOrder();
+                      //  CancelOrder();
                     }
                 }
             }

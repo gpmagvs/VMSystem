@@ -60,10 +60,16 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     EntirePathPlan = optimiedPath.stations;
                 }
+                //AGV接下來要走的路，交管的部分就只需要考慮接下來要走的路
+                var NowIndex = optimiedPath.stations.IndexOf(TargetAGVItem.currentMapPoint);
+                var FollowingPathArray = new MapPoint[optimiedPath.stations.Count - NowIndex];
+                Array.Copy(optimiedPath.stations.ToArray(), NowIndex, FollowingPathArray, 0, FollowingPathArray.Length);
+                var FollowingPath = FollowingPathArray.ToList();
+
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
-                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(optimiedPath.stations, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
+                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(FollowingPath, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
                 if (this.Action == ACTION_TYPE.Unpark)
                 {
                     if (Dict_NearPoint.ContainsKey(Source.TagNumber))
@@ -75,24 +81,24 @@ namespace VMSystem.AGV.TaskDispatch
 
                 try
                 {
-                    List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(optimiedPath.stations, Dict_NearPoint, ExecuteOrderAGVName);
-                    List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(optimiedPath.stations, ExecuteOrderAGVName);
+                    List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(FollowingPath, Dict_NearPoint, ExecuteOrderAGVName);
+                    List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(FollowingPath, ExecuteOrderAGVName);
                     regitedPoints.AddRange(PathPointWithRegistNearPoint); 
-                    if (Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, optimiedPath.stations, out var interferenceMapPoints))
+                    if (Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, FollowingPath, out var interferenceMapPoints))
                     {
                         regitedPoints.AddRange(interferenceMapPoints.Select(di => di.Key).ToList());
                         regitedPoints= regitedPoints.Distinct().ToList();
                     }
 
-                    int NowPositionIndex = LastStopPoint == null ? 0 : optimiedPath.stations.IndexOf(LastStopPoint);
-                    var FollowingStations = new MapPoint[optimiedPath.stations.Count - NowPositionIndex];
+                    int NowPositionIndex = LastStopPoint == null ? 0 : FollowingPath.IndexOf(LastStopPoint);
+                    var FollowingStations = new MapPoint[FollowingPath.Count - NowPositionIndex];
                     if (NowPositionIndex == -1)
                     {
-                        FollowingStations = optimiedPath.stations.ToArray();
+                        FollowingStations = FollowingPath.ToArray();
                     }
                     else
                     {
-                        Array.Copy(optimiedPath.stations.ToArray(), NowPositionIndex, FollowingStations, 0, optimiedPath.stations.Count - NowPositionIndex);
+                        Array.Copy(FollowingPath.ToArray(), NowPositionIndex, FollowingStations, 0, FollowingPath.Count - NowPositionIndex);
                     }
                     if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                     {
@@ -111,7 +117,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                     regitedPoints.AddRange(otherAGVList.Select(agv => agv.currentMapPoint));
                     regitedPoints = regitedPoints.Where(pt => pt != null).Distinct().ToList();
-                    var RegistedMapPoint = optimiedPath.stations.Where(item => regitedPoints.Contains(item));
+                    var RegistedMapPoint = FollowingPath.Where(item => regitedPoints.Contains(item));
                     if (RegistedMapPoint.Any()) //有點位被註冊
                     {
                         //var index_of_registed_pt = optimiedPath.stations.FindIndex(pt => pt.TagNumber == regitedPoints.First().TagNumber);
@@ -124,15 +130,16 @@ namespace VMSystem.AGV.TaskDispatch
                             MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
                             optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
                             optimiedPath.stations = seqmentPath.ToList();
+                            FollowingPath = optimiedPath.stations;
                             isSegment = true;
 
                         }
                     }
 
 
-                    if (optimiedPath.stations.Count != 0)
+                    if (FollowingPath.Count != 0)
                     {
-                        SubPathPlan = optimiedPath.stations;
+                        SubPathPlan = FollowingPath;
                         if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                         {
                             Task.Factory.StartNew(async () =>
@@ -145,17 +152,16 @@ namespace VMSystem.AGV.TaskDispatch
                         }
 
 
-                        LastStopPoint = optimiedPath.stations.Last();
-                        var RegistPath = pathFinder.FindShortestPath(StaMap.Map, TargetAGVItem.currentMapPoint, LastStopPoint);
-                        var StartIndex = optimiedPath.stations.IndexOf(optimiedPath.stations.FirstOrDefault(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber));
+                        LastStopPoint = FollowingPath.Last();
+                        var StartIndex = FollowingPath.IndexOf(FollowingPath.FirstOrDefault(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber));
                         StartIndex = StartIndex == -1 ? 0 : StartIndex;
                         List<MapPoint> List_TryToRegist = new List<MapPoint>();
-                        for (int i = StartIndex; i < optimiedPath.stations.Count; i++)
+                        for (int i = StartIndex; i < FollowingPath.Count; i++)
                         {
-                            List_TryToRegist.Add(optimiedPath.stations[i]);
+                            List_TryToRegist.Add(FollowingPath[i]);
                         }
-                        LOG.INFO($"TaskRegist {ExecuteOrderAGVName}, {string.Join(",", List_TryToRegist.Select(point => point.TagNumber))}");
-                        StaMap.RegistPoint(ExecuteOrderAGVName, List_TryToRegist, out string Error);
+                        LOG.INFO($"TaskRegist {ExecuteOrderAGVName}, {string.Join(",", FollowingPath.Select(point => point.TagNumber))}");
+                        StaMap.RegistPoint(ExecuteOrderAGVName, FollowingPath, out string Error);
                     }
                     else//無路可走
                     {
