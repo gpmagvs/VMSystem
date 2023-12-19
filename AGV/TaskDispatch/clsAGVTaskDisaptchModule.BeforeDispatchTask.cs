@@ -60,7 +60,7 @@ namespace VMSystem.AGV
             if (action == ACTION_TYPE.Park)
                 workstations = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
-                workstations = StaMap.GetChargeableStations();
+                workstations = StaMap.GetChargeableStations(this.agv);
 
 
             var othersAGV = VMSManager.AllAGV.FindAll(agv => agv != this.agv);

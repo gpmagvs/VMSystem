@@ -28,6 +28,9 @@ namespace VMSystem.AGV
             public double ForkLifterSpeed { get; set; }
 
             public double SpeedUpRate { get; set; } = 4;
+
+            public double BatteryChargeSpeed { get; set; } = 3;
+            public double BatteryUsed_Run { get; set; } = 1;
         }
     }
 }

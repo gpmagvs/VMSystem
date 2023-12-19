@@ -453,7 +453,7 @@ namespace VMSystem.AGV
                         }
                         else
                         {
-                            batteryLevelSim[1] += 5; //充電模擬
+                            batteryLevelSim[1] += parameters.BatteryChargeSpeed; //充電模擬
                         }
 
                     }
@@ -462,11 +462,11 @@ namespace VMSystem.AGV
                         //模擬電量衰減
                         if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                         {
-                            batteryLevelSim[1] -= 0.005;
+                            batteryLevelSim[1] -= parameters.BatteryUsed_Run/2;
                         }
                         else
                         {
-                            batteryLevelSim[1] -= 0.01;//跑貨耗電比較快
+                            batteryLevelSim[1] -= parameters.BatteryUsed_Run;//跑貨耗電比較快
                         }
                         if (batteryLevelSim[1] <= 0)
                             batteryLevelSim[1] = 1;

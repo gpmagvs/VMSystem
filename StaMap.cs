@@ -14,6 +14,8 @@ using VMSystem.VMS;
 using AGVSystemCommonNet6.Log;
 using System.Diagnostics.Eventing.Reader;
 using System.Runtime.InteropServices;
+using System.Runtime;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace VMSystem
 {
@@ -39,13 +41,22 @@ namespace VMSystem
             var chargeableStations = Map.Points.Values.ToList().FindAll(sta => sta.IsParking);
             return chargeableStations;
         }
-        internal static List<MapPoint> GetChargeableStations()
+        internal static List<MapPoint> GetChargeableStations(IAGV TargetAGV = null)
         {
-
             if (Map == null)
                 Download();
 
             var chargeableStations = Map.Points.Values.Where(sta => sta.Enable && sta.IsChargeAble()).ToList();
+            if (TargetAGV == null)
+            {
+                return chargeableStations;
+            }
+            var AGVuseableChargePoint = StaMap.GetPointByTagNumber(TargetAGV.options.List_ChargeStation);
+            if (AGVuseableChargePoint.Count == 0)
+            {
+                return chargeableStations;
+            }
+            chargeableStations = chargeableStations.Intersect(AGVuseableChargePoint).ToList();
             return chargeableStations;
         }
 
@@ -82,6 +93,16 @@ namespace VMSystem
                 };
             }
             return point;
+        }
+
+        internal static List<MapPoint> GetPointByTagNumber(List<int> List_TagNumber)
+        {
+            if (List_TagNumber == null )
+            {
+                List_TagNumber = new List<int>();
+            }
+            var ReturnData = List_TagNumber.Select(item => GetPointByTagNumber(item)).ToList();
+            return ReturnData;
         }
 
         internal static MapPoint GetPointByName(string name)
