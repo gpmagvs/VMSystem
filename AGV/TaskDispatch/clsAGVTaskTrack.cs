@@ -792,7 +792,7 @@ namespace VMSystem.AGV.TaskDispatch
             if (tooNearAgvDistanc.Any())
             {
                 StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
-                foreach (IAGV interferenceAGV in interferenceAGVList)
+                foreach (var kp in tooNearAgvDistanc)
                 {
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
