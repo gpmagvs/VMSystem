@@ -786,12 +786,15 @@ namespace VMSystem.AGV.TaskDispatch
                     StaMap.RegistPoint(AGV.Name, secondartPt, out msg);//重新註冊二次定位點
                 }
             }
-            if(NavigationTools.TryFindInterferenceAGVOfPoint(this.AGV,secondartPt,out var interferenceAGVList))
+
+            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(secondartPt));
+            var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
+            if (tooNearAgvDistanc.Any())
             {
                 StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
                 foreach (IAGV interferenceAGV in interferenceAGVList)
                 {
-                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, interferenceAGV.currentMapPoint);
+                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
                 }
