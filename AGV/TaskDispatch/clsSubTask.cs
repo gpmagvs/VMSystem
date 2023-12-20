@@ -130,7 +130,13 @@ namespace VMSystem.AGV.TaskDispatch
                             MapPoint[] seqmentPath = new MapPoint[index_of_wait_point + 1];
                             optimiedPath.stations.CopyTo(0, seqmentPath, 0, seqmentPath.Length);
                             optimiedPath.stations = seqmentPath.ToList();
-                            FollowingPath = optimiedPath.stations;
+
+                            var FollowPath_RegistIndex = FollowingPath.FindIndex(pt => pt == RegistedMapPoint.First());
+                            var WaitPoint_FollowPath = FollowingPath.LastOrDefault(pt => !pt.IsVirtualPoint && pt.TagNumber != regitedPoints.First().TagNumber && FollowingPath.IndexOf(pt) < FollowPath_RegistIndex); //可以走的點就是已經被註冊的點之前的其他點
+                            var IndexOfPoint_FollowPath = FollowingPath.IndexOf(WaitPoint_FollowPath);
+                            var FollowingPathArray_Segment = new MapPoint[IndexOfPoint_FollowPath + 1];
+                            FollowingPath.CopyTo(0, FollowingPathArray_Segment, 0, FollowingPathArray_Segment.Length);
+                            FollowingPath = FollowingPathArray_Segment.ToList();
                             isSegment = true;
 
                         }
@@ -139,7 +145,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                     if (FollowingPath.Count != 0)
                     {
-                        SubPathPlan = FollowingPath;
+                        SubPathPlan = optimiedPath.stations;
                         if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
                         {
                             Task.Factory.StartNew(async () =>
@@ -176,7 +182,6 @@ namespace VMSystem.AGV.TaskDispatch
                     LOG.ERROR(ex);
                     throw ex;
                 }
-
 
                 var TrajectoryToExecute = PathFinder.GetTrajectory(StaMap.Map.Name, optimiedPath.stations).ToArray();
 
