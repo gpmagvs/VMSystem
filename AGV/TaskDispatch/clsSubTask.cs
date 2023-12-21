@@ -51,8 +51,8 @@ namespace VMSystem.AGV.TaskDispatch
                     ConstrainTags = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName).Select(agv => agv.currentMapPoint.TagNumber).ToList()
                 }); //考慮AGV組黨後計算出的路徑
 
-                optimiedPath =optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
-                if (EntirePathPlan.Count !=0&& EntirePathPlan.First()== Source&&EntirePathPlan.Last() == Destination)
+                optimiedPath = optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
+                if (EntirePathPlan.Count != 0 && EntirePathPlan.First() == Source && EntirePathPlan.Last() == Destination)
                 {//如果已經下過前半段的走行任務，後半段的任務要直接沿用原本的路徑
                     optimiedPath.stations = EntirePathPlan;
                 }
@@ -61,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch
                     EntirePathPlan = optimiedPath.stations;
                 }
                 //AGV接下來要走的路，交管的部分就只需要考慮接下來要走的路
-                var NowIndex = optimiedPath.stations.IndexOf(TargetAGVItem.currentMapPoint);
+                var NowIndex = optimiedPath.stations.FindIndex(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber);
                 var FollowingPathArray = new MapPoint[optimiedPath.stations.Count - NowIndex];
                 Array.Copy(optimiedPath.stations.ToArray(), NowIndex, FollowingPathArray, 0, FollowingPathArray.Length);
                 var FollowingPath = FollowingPathArray.ToList();
@@ -83,11 +83,11 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(FollowingPath, Dict_NearPoint, ExecuteOrderAGVName);
                     List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(FollowingPath, ExecuteOrderAGVName);
-                    regitedPoints.AddRange(PathPointWithRegistNearPoint); 
+                    regitedPoints.AddRange(PathPointWithRegistNearPoint);
                     if (Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, FollowingPath, out var interferenceMapPoints))
                     {
                         regitedPoints.AddRange(interferenceMapPoints.Select(di => di.Key).ToList());
-                        regitedPoints= regitedPoints.Distinct().ToList();
+                        regitedPoints = regitedPoints.Distinct().ToList();
                     }
 
                     int NowPositionIndex = LastStopPoint == null ? 0 : FollowingPath.IndexOf(LastStopPoint);
