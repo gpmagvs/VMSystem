@@ -98,24 +98,51 @@ namespace VMSystem.AGV
                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
                             return;
                         }
+                        if (agv.states.Electric_Volume[1] < 50 && agv.states.Electric_Volume[0] != 0)
+                        {
+                            if (!taskList.Any(item => item.Action == ACTION_TYPE.Charge))
+                            {
+                                LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Battery Is Low : {agv.states.Electric_Volume[0]}.");
+                                TaskDBHelper.Add(new clsTaskDto
+                                {
+                                    Action = ACTION_TYPE.Charge,
+                                    TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                                    DispatcherName = "VMS_LowBattery",
+                                    DesignatedAGVName = agv.Name,
+                                    RecieveTime = DateTime.Now,
+                                });
+                                using (var database = new AGVSDatabase())
+                                {
+                                    taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                                }
+                            }
+                        }
                         if (LastNonNoOrderTime.AddSeconds(10) > DateTime.Now)
                         {
                             return;
                         }
-                        LastNonNoOrderTime = DateTime.Now;
                         if (agv.IsSolvingTrafficInterLock)
                         {
                             return;
                         }
-                        LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
-                        TaskDBHelper.Add(new clsTaskDto
+                        LastNonNoOrderTime = DateTime.Now;
+                        if (!taskList.Any(item => item.Action == ACTION_TYPE.Charge))
                         {
-                            Action = ACTION_TYPE.Charge,
-                            TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
-                            DispatcherName = "VMS",
-                            DesignatedAGVName = agv.Name,
-                            RecieveTime = DateTime.Now,
-                        });
+                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
+                            TaskDBHelper.Add(new clsTaskDto
+                            {
+                                Action = ACTION_TYPE.Charge,
+                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                                DispatcherName = "VMS_Idle",
+                                DesignatedAGVName = agv.Name,
+                                RecieveTime = DateTime.Now,
+                            });
+                            using (var database = new AGVSDatabase())
+                            {
+                                taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                            }
+                        }
+
                     }
                     else
                     {
@@ -124,6 +151,7 @@ namespace VMSystem.AGV
                 }
                 else
                 {
+                   
                     LastNonNoOrderTime = DateTime.Now;
                 }
             }
@@ -287,7 +315,7 @@ namespace VMSystem.AGV
                 IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
-            if (LastNormalTaskPauseByAvoid != null &&LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
+            if (LastNormalTaskPauseByAvoid != null && LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
             {
                 IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;

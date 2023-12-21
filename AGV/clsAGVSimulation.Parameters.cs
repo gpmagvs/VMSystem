@@ -29,8 +29,8 @@ namespace VMSystem.AGV
 
             public double SpeedUpRate { get; set; } = 4;
 
-            public double BatteryChargeSpeed { get; set; } = 3;
-            public double BatteryUsed_Run { get; set; } = 1;
+            public double BatteryChargeSpeed { get; set; } = 9;
+            public double BatteryUsed_Run { get; set; } = 3;
         }
     }
 }
