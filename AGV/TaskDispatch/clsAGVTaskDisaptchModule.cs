@@ -126,7 +126,12 @@ namespace VMSystem.AGV
                             return;
                         }
                         LastNonNoOrderTime = DateTime.Now;
-                        if (!taskList.Any(item => item.Action == ACTION_TYPE.Charge))
+                        List<clsTaskDto> List_FreeTask = new List<clsTaskDto>(); 
+                        using (var database = new AGVSDatabase())
+                        {
+                            List_FreeTask = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                        }
+                        if (!List_FreeTask.Any() && !taskList.Any(item => item.Action == ACTION_TYPE.Charge))
                         {
                             LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
                             TaskDBHelper.Add(new clsTaskDto

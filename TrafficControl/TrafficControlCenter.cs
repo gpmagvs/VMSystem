@@ -373,7 +373,7 @@ namespace VMSystem.TrafficControl
             var pathes_of_waiting_agv = _Agv_Waiting.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan;
             var WaitingAGVCurrentIndex = pathes_of_waiting_agv.IndexOf(_Agv_Waiting.currentMapPoint);
             var FollowingPathesOfWaitingAGV = new MapPoint[pathes_of_waiting_agv.Count - WaitingAGVCurrentIndex];
-            pathes_of_waiting_agv.CopyTo(WaitingAGVCurrentIndex, FollowingPathesOfWaitingAGV, WaitingAGVCurrentIndex, FollowingPathesOfWaitingAGV.Length);
+            pathes_of_waiting_agv.CopyTo(WaitingAGVCurrentIndex, FollowingPathesOfWaitingAGV, 0, FollowingPathesOfWaitingAGV.Length);
             var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(FollowingPathesOfWaitingAGV.Select(item => item.TagNumber).ToList(), _Agv_Waiting.options.VehicleLength/100);
             var pathTags = FollowingPathesOfWaitingAGV.Select(pt => pt.TagNumber).ToList();
             MapPoint destinePt = pathes_of_waiting_agv.Last();
