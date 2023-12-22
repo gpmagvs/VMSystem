@@ -98,7 +98,7 @@ namespace VMSystem.AGV
                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
                             return;
                         }
-                        if (LastNonNoOrderTime.AddSeconds(10) > DateTime.Now)
+                        if (LastNonNoOrderTime.AddSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask) > DateTime.Now)
                         {
                             return;
                         }
@@ -287,7 +287,7 @@ namespace VMSystem.AGV
                 IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
-            if (LastNormalTaskPauseByAvoid != null &&LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
+            if (LastNormalTaskPauseByAvoid != null && LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
             {
                 IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
