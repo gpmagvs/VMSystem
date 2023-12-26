@@ -783,7 +783,7 @@ namespace VMSystem.AGV.TaskDispatch
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, secondartPt);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
-                    StaMap.RegistPoint(AGV.Name, secondartPt, out msg);//重新註冊二次定位點
+                   // StaMap.RegistPoint(AGV.Name, secondartPt, out msg);//重新註冊二次定位點
                 }
             }
 
@@ -798,7 +798,7 @@ namespace VMSystem.AGV.TaskDispatch
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
                 }
-                StaMap.RegistPoint(AGV.Name, secondartPt, out msg); //重新註冊二次定位點
+               // StaMap.RegistPoint(AGV.Name, secondartPt, out msg); //重新註冊二次定位點
             }
         }
 
