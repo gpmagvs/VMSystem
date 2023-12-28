@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE;
+using System.Diagnostics;
 
 namespace VMSystem.Controllers
 {

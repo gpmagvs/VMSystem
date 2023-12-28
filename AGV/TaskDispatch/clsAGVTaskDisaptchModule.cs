@@ -129,7 +129,41 @@ namespace VMSystem.AGV
             }
         }
 
-        public virtual List<clsTaskDto> taskList { get; set; } = new List<clsTaskDto>();
+        public List<clsTaskDto> _taskList = new List<clsTaskDto>();
+        public virtual List<clsTaskDto> taskList
+        {
+            get => _taskList;
+            set
+            {
+                _taskList = value;
+                if (value.Count != 0)
+                {
+                    try
+                    {
+                        var chargeTaskNow = value.FirstOrDefault(tk => tk.TaskName == ExecutingTaskName && tk.Action == ACTION_TYPE.Charge);
+                        if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN)
+                        {
+
+                            if (chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
+                            {
+                                if (value.FindAll(tk => tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
+                                {
+                                    CancelTask(false);
+
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                    }
+                }
+                if (ExecutingTaskName != null)
+                {
+
+                }
+            }
+        }
 
         public MapPoint[] CurrentTrajectory
         {
@@ -182,17 +216,13 @@ namespace VMSystem.AGV
                 if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.FINISH && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.NOT_START_YET)
                     return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
             }
-
-            using (var database = new AGVSDatabase())
-            {
-                taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-            }
-            if (taskList.Count == 0)
+            if (taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).Count() == 0)
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
             if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
+
         protected virtual void TaskAssignWorker()
         {
 
@@ -206,26 +236,9 @@ namespace VMSystem.AGV
                         OrderExecuteState = GetAGVReceiveOrderStatus();
                         if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
-                            var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
+                            var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
                             var _ExecutingTask = taskOrderedByPriority.First();
 
-                            if (_ExecutingTask.Action == ACTION_TYPE.Charge)
-                            {
-                                Thread.Sleep(200);
-                                using (var database = new AGVSDatabase())
-                                {
-                                    taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                                    if (taskList.Any(task => task.Action == ACTION_TYPE.Carry))
-                                    {
-                                        var chare_task = database.tables.Tasks.First(tk => tk.TaskName == _ExecutingTask.TaskName);
-                                        chare_task.FailureReason = "Transfer Task Is Raised";
-                                        chare_task.FinishTime = DateTime.Now;
-                                        chare_task.State = TASK_RUN_STATUS.CANCEL;
-                                        TaskStatusTracker.RaiseTaskDtoChange(this, chare_task);
-                                        continue;
-                                    }
-                                }
-                            }
                             if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
                             {
                                 await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);

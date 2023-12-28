@@ -110,7 +110,7 @@ namespace VMSystem.VMS
 
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
-
+            TaskAssignToAGVWorker();
         }
 
         private static void TcpServerInit()
@@ -208,6 +208,24 @@ namespace VMSystem.VMS
                         await Task.Delay(1000);
                     }
 
+                }
+            });
+        }
+
+        private static void TaskAssignToAGVWorker()
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                var database = new AGVSDatabase();
+                while (true)
+                {
+                    await Task.Delay(100);
+
+                    foreach (var _agv in VMSManager.AllAGV)
+                    {
+                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
+                        _agv.taskDispatchModule.taskList = tasks.ToList();
+                    }
                 }
             });
         }
