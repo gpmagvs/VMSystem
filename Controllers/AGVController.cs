@@ -31,10 +31,6 @@ namespace VMSystem.Controllers
             }
             else
             {
-                if (status.AGV_Reset_Flag != agv.states.AGV_Reset_Flag)
-                {
-
-                }
                 agv.states = status;
                 return Ok(new
                 {
