@@ -102,7 +102,7 @@ namespace VMSystem.AGV.TaskDispatch
                     _TaskRunningStatus = value;
                     if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL | _TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
                     {
-                      //  CancelOrder();
+                        //  CancelOrder();
                     }
                 }
             }
@@ -711,13 +711,6 @@ namespace VMSystem.AGV.TaskDispatch
                 //        return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION };
                 //    }
                 //}
-                var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
-                lock (RegistLockObject)
-                {
-                    _task.GenOptimizePathOfTask(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
-                }
-                if (!isMovingSeqmentTask)
-                    SubTaskTracking = _task;
 
                 if (_task.Action == ACTION_TYPE.Discharge || _task.Action == ACTION_TYPE.Unpark)
                 {
@@ -725,6 +718,15 @@ namespace VMSystem.AGV.TaskDispatch
                     if (TaskOrder == null || TaskOrder.State != TASK_RUN_STATUS.NAVIGATING)
                         return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_CANCEL };
                 }
+
+                var taskSeq = isMovingSeqmentTask ? _task.DownloadData.Task_Sequence + 1 : taskSequence;
+
+                lock (RegistLockObject)
+                {
+                    _task.GenOptimizePathOfTask(TaskOrder, taskSeq, out bool isSegmentTaskCreated, out clsMapPoint lastPt, isMovingSeqmentTask, AGV.states.Last_Visited_Node, AGV.states.Coordination.Theta);
+                }
+                if (!isMovingSeqmentTask)
+                    SubTaskTracking = _task;
 
                 return _DispatchTaskToAGV(_task);
             }
@@ -774,31 +776,30 @@ namespace VMSystem.AGV.TaskDispatch
         private void WaitWorkStationSecondaryPointRelease(clsSubTask task)
         {
 
-            var secondartPt = task.EntirePathPlan.Last();
-            if (StaMap.GetPointRegisterName(secondartPt.TagNumber, out string agv))
+            if (StaMap.GetPointRegisterName(task.Destination.TagNumber, out string agv))
             {
                 if (agv != AGV.Name)
                 {
-                    StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
-                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, secondartPt);
+                    StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber, out var msg);
+                    waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, task.Destination);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
-                   // StaMap.RegistPoint(AGV.Name, secondartPt, out msg);//重新註冊二次定位點
+                    StaMap.RegistPoint(AGV.Name, task.Destination, out msg);//重新註冊二次定位點
                 }
             }
 
-            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(secondartPt));
+            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(task.Destination));
             var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
             if (tooNearAgvDistanc.Any())
             {
-                StaMap.UnRegistPoint(AGV.Name, secondartPt.TagNumber, out var msg);
+                StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber, out var msg);
                 foreach (var kp in tooNearAgvDistanc)
                 {
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
                 }
-               // StaMap.RegistPoint(AGV.Name, secondartPt, out msg); //重新註冊二次定位點
+                StaMap.RegistPoint(AGV.Name,    task.Destination, out msg); //重新註冊二次定位點
             }
         }
 

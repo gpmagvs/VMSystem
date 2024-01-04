@@ -166,9 +166,10 @@ namespace VMSystem.AGV
                     previousMapPoint = value;
                     return;
                 }
-                
+
                 if (previousMapPoint.TagNumber != value.TagNumber)
                 {
+                    LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})");
                     if (value.IsEquipment)
                     {
                         StaMap.RegistPoint(Name, value, out string _Registerrmsg);
@@ -177,35 +178,17 @@ namespace VMSystem.AGV
                     }
                     if (previousMapPoint != null)
                     {
-                        List<MapPoint> unRegistList = new List<MapPoint>() { previousMapPoint };
-                        var extraNeedUnregistedPoints = previousMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                                                        .Where(pt => pt != null)
-                                                        .Where(pt => pt.RegistInfo != null)
-                                                        .Where(pt => pt.RegistInfo.RegisterAGVName == Name);
-                        if (taskDispatchModule.CurrentTrajectory.Count() != 0)
-                        {
-                            extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
-                            unRegistList.AddRange(extraNeedUnregistedPoints);
-                        }
-                        // if (taskDispatchModule.Dict_PathNearPoint.ContainsKey(previousMapPoint.TagNumber))
+                        //List<MapPoint> unRegistList = new List<MapPoint>() { previousMapPoint };
+                        //var extraNeedUnregistedPoints = previousMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
+                        //                                .Where(pt => pt != null)
+                        //                                .Where(pt => pt.RegistInfo != null)
+                        //                                .Where(pt => pt.RegistInfo.RegisterAGVName == Name);
+                        //if (taskDispatchModule.CurrentTrajectory.Count() != 0)
                         //{
-                        //    var PossibleUnRegistPoint = taskDispatchModule.Dict_PathNearPoint[previousMapPoint.TagNumber];
-                        //    unRegistList.AddRange(PossibleUnRegistPoint);
+                        //    extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
+                        //    unRegistList.AddRange(extraNeedUnregistedPoints);
                         //}
-                        //unRegistList = unRegistList.Distinct().ToList();
-                        
-                        //int NowPointIndex = Array.IndexOf(taskDispatchModule.CurrentTrajectory, value);
-                        //var FollowingTrajectory = taskDispatchModule.CurrentTrajectory.SubArray(NowPointIndex, taskDispatchModule.CurrentTrajectory.Length - NowPointIndex);
-                        //var Dict_FollowingNearPoint = taskDispatchModule.Dict_PathNearPoint.Where(item => FollowingTrajectory.Contains(StaMap.GetPointByIndex(item.Key))).ToDictionary(item=>item.Key,item=>item.Value);
-                        //foreach (var item in unRegistList.ToArray())
-                        //{
-                        //    if (Dict_FollowingNearPoint.Any(NearpointList=>NearpointList.Value.Contains(item)))
-                        //    {
-                        //        unRegistList.Remove(item);
-                        //    }
-                        //}
-
-                        StaMap.UnRegistPoints(Name, unRegistList);
+                        StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
                         //registedPointList.Where(pt=> !pathTags.Contains(pt.TagNumber)).
                     }
 
