@@ -186,48 +186,52 @@ namespace VMSystem
             return UnRegistPoint("System", mapPoint, out error_message, true);
         }
 
-
+        
         internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
-            var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
-            if (IsBySystem)
+            lock (RegistDictionary)
             {
-                RegistDictionary.Remove(TagNumber, out var _);
-                mapPoint.RegistInfo = new clsPointRegistInfo();
-                LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
-                return true;
-            }
-            if (RegistDictionary.ContainsKey(TagNumber))
-            {
-                string registerName = RegistDictionary[TagNumber].RegisterAGVName;
-                bool allow_remove = registerName == Name;
-                if (allow_remove)
+                var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
+                if (IsBySystem)
                 {
+                    RegistDictionary.Remove(TagNumber, out var _);
                     mapPoint.RegistInfo = new clsPointRegistInfo();
-                    lock (RegistDictionary)
+                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                    return true;
+                }
+                if (RegistDictionary.ContainsKey(TagNumber))
+                {
+                    string registerName = RegistDictionary[TagNumber].RegisterAGVName;
+                    bool allow_remove = registerName == Name;
+                    if (allow_remove)
                     {
-                        RegistDictionary.Remove(TagNumber, out var _);
-                        OnTagUnregisted?.Invoke("", TagNumber);
-                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                        mapPoint.RegistInfo = new clsPointRegistInfo();
+                        lock (RegistDictionary)
+                        {
+                            RegistDictionary.Remove(TagNumber, out var _);
+                            OnTagUnregisted?.Invoke("", TagNumber);
+                            LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
 
-                        LOG.TRACE($"{RegistDictionary.ToJson()}");
+                            LOG.TRACE($"{RegistDictionary.ToJson()}");
+                        }
                     }
+                    else
+                    {
+                        error_message = $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
+                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
+                    }
+
+                    return allow_remove;
                 }
                 else
                 {
-                    error_message = $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
-                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
+                    OnTagUnregisted?.Invoke("", TagNumber);
+                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                    return true;
                 }
-
-                return allow_remove;
             }
-            else
-            {
-                OnTagUnregisted?.Invoke("", TagNumber);
-                LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
-                return true;
-            }
+            
         }
 
         internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
