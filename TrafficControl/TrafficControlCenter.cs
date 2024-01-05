@@ -256,7 +256,7 @@ namespace VMSystem.TrafficControl
                     LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
                     var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
 
-                    var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, 1);
+                    var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, AgvToGo.options.VehicleLength/100);
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
                     LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} and NearPoint {string.Join(",", tagsNearPoint)}");
@@ -371,8 +371,11 @@ namespace VMSystem.TrafficControl
         internal async Task<bool> RaiseAGVGoAwayRequest()
         {
             var pathes_of_waiting_agv = _Agv_Waiting.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan;
-            var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(pathes_of_waiting_agv.Select(item => item.TagNumber).ToList(), 1);
-            var pathTags = pathes_of_waiting_agv.Select(pt => pt.TagNumber).ToList();
+            var WaitingAGVCurrentIndex = pathes_of_waiting_agv.IndexOf(_Agv_Waiting.currentMapPoint);
+            var FollowingPathesOfWaitingAGV = new MapPoint[pathes_of_waiting_agv.Count - WaitingAGVCurrentIndex];
+            pathes_of_waiting_agv.CopyTo(WaitingAGVCurrentIndex, FollowingPathesOfWaitingAGV, 0, FollowingPathesOfWaitingAGV.Length);
+            var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(FollowingPathesOfWaitingAGV.Select(item => item.TagNumber).ToList(), _Agv_Waiting.options.VehicleLength/100);
+            var pathTags = FollowingPathesOfWaitingAGV.Select(pt => pt.TagNumber).ToList();
             MapPoint destinePt = pathes_of_waiting_agv.Last();
             LOG.WARN($"{_Agv_Waiting.Name} raise Fucking Stupid AGV Go Away(AGV Should Leave Tag{string.Join(",", pathTags)}) Rquest");
             TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper();
@@ -415,7 +418,7 @@ namespace VMSystem.TrafficControl
             {
                 foreach (var TagDistance in item.Value)
                 {
-                    if (TagDistance.Value > 1)
+                    if (TagDistance.Value > _Agv_GoAway.options.VehicleLength/100)
                         continue;
                     List_NearPoint.Add(TagDistance.Key);
                 }
@@ -438,6 +441,7 @@ namespace VMSystem.TrafficControl
             if (pfResultCollection == null)
                 return -1;
             var otherAgvTags = VMSManager.GetAGVListExpectSpeficAGV(_Agv_GoAway).Select(agv => agv.currentMapPoint.TagNumber).ToList();
+            otherAgvTags.AddRange(StaMap.Dict_AllPointDistance[_Agv_Waiting.currentMapPoint.TagNumber].Where(item => item.Value < _Agv_Waiting.options.VehicleLength / 100).Select(item => item.Key).ToList());
             if (pfResultCollection.Count > 0)
             {
                 //過濾出不會與[要求趕車之AGV]路徑衝突的路徑

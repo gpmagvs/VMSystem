@@ -102,20 +102,33 @@ namespace VMSystem.AGV
                         {
                             return;
                         }
-                        LastNonNoOrderTime = DateTime.Now;
                         if (agv.IsSolvingTrafficInterLock)
                         {
                             return;
                         }
-                        LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
-                        TaskDBHelper.Add(new clsTaskDto
+                        LastNonNoOrderTime = DateTime.Now;
+                        List<clsTaskDto> List_FreeTask = new List<clsTaskDto>(); 
+                        using (var database = new AGVSDatabase())
                         {
-                            Action = ACTION_TYPE.Charge,
-                            TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
-                            DispatcherName = "VMS",
-                            DesignatedAGVName = agv.Name,
-                            RecieveTime = DateTime.Now,
-                        });
+                            List_FreeTask = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                        }
+                        if (!List_FreeTask.Any() && !taskList.Any(item => item.Action == ACTION_TYPE.Charge))
+                        {
+                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
+                            TaskDBHelper.Add(new clsTaskDto
+                            {
+                                Action = ACTION_TYPE.Charge,
+                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                                DispatcherName = "VMS_Idle",
+                                DesignatedAGVName = agv.Name,
+                                RecieveTime = DateTime.Now,
+                            });
+                            using (var database = new AGVSDatabase())
+                            {
+                                taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                            }
+                        }
+
                     }
                     else
                     {
@@ -124,6 +137,7 @@ namespace VMSystem.AGV
                 }
                 else
                 {
+                   
                     LastNonNoOrderTime = DateTime.Now;
                 }
             }

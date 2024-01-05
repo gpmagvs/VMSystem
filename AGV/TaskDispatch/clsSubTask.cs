@@ -69,7 +69,7 @@ namespace VMSystem.AGV.TaskDispatch
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
-                var Dict_NearPoint = this.Action == ACTION_TYPE.None ? GetNearTargetMapPointOfPathByPointDistance(FollowingPath, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
+                var Dict_NearPoint = (this.Action == ACTION_TYPE.None||this.Action == ACTION_TYPE.Unpark) ? GetNearTargetMapPointOfPathByPointDistance(FollowingPath, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
                 if (this.Action == ACTION_TYPE.Unpark)
                 {
                     if (Dict_NearPoint.ContainsKey(Source.TagNumber))
