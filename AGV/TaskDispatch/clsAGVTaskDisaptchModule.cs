@@ -80,31 +80,39 @@ namespace VMSystem.AGV
                     previous_OrderExecuteState = value;
                     LOG.Critical($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
 
-                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
+                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
                     {
-
-                        //Delay一下再決定要不要充電
-                        if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge && !agv.IsSolvingTrafficInterLock)
-                            Task.Run(async () =>
-                            {
-                                await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
-                                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-                                {
-                                    var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
-
-                                    WaitingToChargable(_charge_forbid_alarm);
-                                    return;
-                                }
-                                if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
-                                {
-                                    CreateChargeTask();
-                                    await Task.Delay(200);
-                                }
-                            });
-
+                        TryToCharge();
                     }
                 }
             }
+        }
+
+        private void TryToCharge()
+        {
+            if (agv.currentMapPoint.IsCharge)
+                return;
+
+            Task.Run(async () =>
+            {
+                //Delay一下再確認可不可充電
+                await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+
+                if (SystemModes.RunMode != RUN_MODE.RUN)
+                    return;
+
+                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+                {
+                    var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+                    WaitingToChargable(_charge_forbid_alarm);
+                    return;
+                }
+                if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+                {
+                    CreateChargeTask();
+                    await Task.Delay(200);
+                }
+            });
         }
 
         private async void WaitingToChargable(clsAlarmDto _charge_forbid_alarm)
