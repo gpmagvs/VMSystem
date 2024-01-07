@@ -107,7 +107,7 @@ namespace VMSystem.AGV
                             return;
                         }
                         LastNonNoOrderTime = DateTime.Now;
-                        List<clsTaskDto> List_FreeTask = new List<clsTaskDto>(); 
+                        List<clsTaskDto> List_FreeTask = new List<clsTaskDto>();
                         using (var database = new AGVSDatabase())
                         {
                             List_FreeTask = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
@@ -137,7 +137,7 @@ namespace VMSystem.AGV
                 }
                 else
                 {
-                   
+
                     LastNonNoOrderTime = DateTime.Now;
                 }
             }
@@ -240,11 +240,11 @@ namespace VMSystem.AGV
         protected virtual void TaskAssignWorker()
         {
 
-            Task.Factory.StartNew(async () =>
+            Task.Run(async () =>
             {
                 while (true)
                 {
-                    await Task.Delay(200);
+                    Thread.Sleep(200);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();

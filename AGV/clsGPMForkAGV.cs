@@ -314,11 +314,11 @@ namespace VMSystem.AGV
 
         private void PingCheck()
         {
-            Task.Factory.StartNew(async () =>
+            Task.Run(async () =>
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
+                    Thread.Sleep(1000);
                     pingSuccess = await PingServer();
                 }
             });

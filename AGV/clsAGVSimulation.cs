@@ -24,7 +24,7 @@ namespace VMSystem.AGV
     public partial class clsAGVSimulation
     {
         private IAGV agv => dispatcherModule.agv;
-        private double[] batteryLevelSim = new double[] { 100.0, 100.0 };
+        private double[] batteryLevelSim = new double[] { 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
         private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
         private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
@@ -455,13 +455,13 @@ namespace VMSystem.AGV
                 {
                     if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
                     {
-                        if (batteryLevelSim[1] >= 100)
+                        if (batteryLevelSim[0] >= 100)
                         {
-                            batteryLevelSim[1] = 100;
+                            batteryLevelSim[0] = 100;
                         }
                         else
                         {
-                            batteryLevelSim[1] += 100* parameters.BatteryChargeSpeed*parameters.SpeedUpRate/3600; //充電模擬
+                            batteryLevelSim[0] += 100* parameters.BatteryChargeSpeed*parameters.SpeedUpRate/3600; //充電模擬
                         }
 
                     }
@@ -470,14 +470,14 @@ namespace VMSystem.AGV
                         //模擬電量衰減
                         if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                         {
-                            batteryLevelSim[1] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600 / 2;
+                            batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600 / 2;
                         }
                         else
                         {
-                            batteryLevelSim[1] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600;//跑貨耗電比較快
+                            batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600;//跑貨耗電比較快
                         }
-                        if (batteryLevelSim[1] <= 0)
-                            batteryLevelSim[1] = 1;
+                        if (batteryLevelSim[0] <= 0)
+                            batteryLevelSim[0] = 1;
                     }
                     runningSTatus.Electric_Volume = batteryLevelSim;
                     _ = Task.Factory.StartNew(async () =>

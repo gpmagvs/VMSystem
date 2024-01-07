@@ -153,7 +153,7 @@ namespace VMSystem.VMS
                 AGVSDatabase databse = new AGVSDatabase();
                 while (true)
                 {
-                    await Task.Delay(100);
+                   Thread.Sleep(100);
                     try
                     {
                         clsAGVStateDto CreateDTO(IAGV agv)
@@ -219,7 +219,7 @@ namespace VMSystem.VMS
                 var database = new AGVSDatabase();
                 while (true)
                 {
-                    await Task.Delay(100);
+                    Thread.Sleep(100);
 
                     foreach (var _agv in VMSManager.AllAGV)
                     {
@@ -232,12 +232,12 @@ namespace VMSystem.VMS
 
         private static void TaskDatabaseChangeWorker()
         {
-            Task.Factory.StartNew(async () =>
+            Task.Run(async () =>
             {
                 var database = new AGVSDatabase();
                 while (true)
                 {
-                    await Task.Delay(1);
+                    Thread.Sleep(10);
                     try
                     {
                         if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
