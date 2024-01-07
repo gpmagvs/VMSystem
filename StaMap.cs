@@ -268,7 +268,7 @@ namespace VMSystem
         internal static string GetStationNameByTag(int tag)
         {
             var point = Map.Points.Values.FirstOrDefault(pt => pt.TagNumber == tag);
-            return point == null ? tag + "" : point.Name;
+            return point == null ? tag + "" : point.Graph.Display;
         }
 
         internal static List<MapPoint> GetAllRegistedPointsByName(string name)
