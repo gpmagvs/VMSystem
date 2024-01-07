@@ -50,6 +50,26 @@ namespace VMSystem.AGV
         private DateTime LastNonNoOrderTime;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.NO_ORDER;
+        private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
+        private bool IsChargeTaskNotExcutableCauseCargoExist
+        {
+            get => _IsChargeTaskNotExcutableCauseCargoExist;
+            set
+            {
+                if (_IsChargeTaskNotExcutableCauseCargoExist != value)
+                {
+                    if (value)
+                    {
+
+                    }
+                    else
+                    {
+
+                    }
+                    _IsChargeTaskNotExcutableCauseCargoExist = value;
+                }
+            }
+        }
         public AGV_ORDERABLE_STATUS OrderExecuteState
         {
             get => previous_OrderExecuteState;
@@ -58,89 +78,48 @@ namespace VMSystem.AGV
                 if (previous_OrderExecuteState != value)
                 {
                     previous_OrderExecuteState = value;
-                    LOG.TRACE($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
-                    //if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
-                    //{
-                    //    if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
-                    //    {
-                    //        if (agv.states.Cargo_Status != 0)
-                    //        {
-                    //            AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
-                    //            return;
-                    //        }
-                    //        if (LastNonNoOrderTime.AddSeconds(10)>DateTime.Now)
-                    //        {
-                    //            return;
-                    //        }
-                    //        LastNonNoOrderTime = DateTime.Now;
-                    //        if (agv.IsSolvingTrafficInterLock)
-                    //        {
-                    //            return;
-                    //        }
-                    //        LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
-                    //        TaskDBHelper.Add(new clsTaskDto
-                    //        {
-                    //            Action = ACTION_TYPE.Charge,
-                    //            TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
-                    //            DispatcherName = "VMS",
-                    //            DesignatedAGVName = agv.Name,
-                    //            RecieveTime = DateTime.Now,
-                    //        });
-                    //    }
-                    //}
-                }
-                if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
-                {
-                    if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge)
+                    LOG.Critical($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
+
+                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER)
                     {
-                        if (agv.states.Cargo_Status != 0)
-                        {
-                            AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
-                            return;
-                        }
-                        if (LastNonNoOrderTime.AddSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask) > DateTime.Now)
-                        {
-                            return;
-                        }
-                        if (agv.IsSolvingTrafficInterLock)
-                        {
-                            return;
-                        }
-                        LastNonNoOrderTime = DateTime.Now;
-                        List<clsTaskDto> List_FreeTask = new List<clsTaskDto>();
-                        using (var database = new AGVSDatabase())
-                        {
-                            List_FreeTask = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                        }
-                        if (!List_FreeTask.Any() && !taskList.Any(item => item.Action == ACTION_TYPE.Charge))
-                        {
-                            LOG.TRACE($"{agv.Name} Order Execute State is {value} and RUN Mode={SystemModes.RunMode},AGV Not act Charge Station, Raise Charge Task To AGV.");
-                            TaskDBHelper.Add(new clsTaskDto
+
+                        //Delay一下再決定要不要充電
+                        if (SystemModes.RunMode == RUN_MODE.RUN && !agv.currentMapPoint.IsCharge && !agv.IsSolvingTrafficInterLock)
+                            Task.Run(async () =>
                             {
-                                Action = ACTION_TYPE.Charge,
-                                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
-                                DispatcherName = "VMS_Idle",
-                                DesignatedAGVName = agv.Name,
-                                RecieveTime = DateTime.Now,
+                                await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+                                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+                                {
+                                    var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+
+                                    WaitingToChargable(_charge_forbid_alarm);
+                                    return;
+                                }
+                                if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+                                {
+                                    CreateChargeTask();
+                                    await Task.Delay(200);
+                                }
                             });
-                            using (var database = new AGVSDatabase())
-                            {
-                                taskList = database.tables.Tasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT | f.State == TASK_RUN_STATUS.NAVIGATING) && f.DesignatedAGVName == agv.Name).OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                            }
-                        }
 
                     }
-                    else
-                    {
-                        LastNonNoOrderTime = DateTime.Now;
-                    }
-                }
-                else
-                {
-
-                    LastNonNoOrderTime = DateTime.Now;
                 }
             }
+        }
+
+        private async void WaitingToChargable(clsAlarmDto _charge_forbid_alarm)
+        {
+            while (OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
+            {
+                await Task.Delay(1000);
+                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+                    continue;
+
+                CreateChargeTask();
+                AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm);
+                break;
+            }
+            LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         }
 
         public List<clsTaskDto> _taskList = new List<clsTaskDto>();
@@ -155,16 +134,12 @@ namespace VMSystem.AGV
                     try
                     {
                         var chargeTaskNow = value.FirstOrDefault(tk => tk.TaskName == ExecutingTaskName && tk.Action == ACTION_TYPE.Charge);
-                        if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN)
+                        if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN && chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
                         {
-
-                            if (chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
+                            if (value.FindAll(tk => tk.Action != ACTION_TYPE.Charge && tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
                             {
-                                if (value.FindAll(tk => tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
-                                {
-                                    CancelTask(false);
+                                CancelTask(false);
 
-                                }
                             }
                         }
                     }
@@ -230,7 +205,7 @@ namespace VMSystem.AGV
                 if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.FINISH && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.NOT_START_YET)
                     return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
             }
-            if (taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).Count() == 0)
+            if (taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING).Count() == 0)
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
             if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
@@ -242,6 +217,7 @@ namespace VMSystem.AGV
 
             Task.Run(async () =>
             {
+                Task _delay_charge_task = null;
                 while (true)
                 {
                     Thread.Sleep(200);
@@ -250,6 +226,7 @@ namespace VMSystem.AGV
                         OrderExecuteState = GetAGVReceiveOrderStatus();
                         if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
+                            _delay_charge_task = null;
                             var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
                             var _ExecutingTask = taskOrderedByPriority.First();
 
@@ -263,6 +240,7 @@ namespace VMSystem.AGV
                             TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
                             await ExecuteTaskAsync(_ExecutingTask);
                         }
+
                         else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)
                         {
                             using (var database = new AGVSDatabase())
@@ -299,6 +277,19 @@ namespace VMSystem.AGV
                 }
             });
         }
+
+        private async void CreateChargeTask()
+        {
+            _ = await TaskDBHelper.Add(new clsTaskDto
+            {
+                Action = ACTION_TYPE.Charge,
+                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                DispatcherName = "VMS_Idle",
+                DesignatedAGVName = agv.Name,
+                RecieveTime = DateTime.Now,
+            });
+        }
+
         public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         public string ExecutingTaskName { get; set; } = "";
 

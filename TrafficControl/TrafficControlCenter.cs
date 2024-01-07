@@ -38,7 +38,8 @@ namespace VMSystem.TrafficControl
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
         private static async void HandleRunModeOn()
         {
-            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => agv.currentMapPoint != null).Where(agv => !agv.currentMapPoint.IsCharge &&
+            var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => agv.currentMapPoint != null)
+                                                         .Where(agv => !agv.currentMapPoint.IsCharge &&
                                                                         agv.main_state == MAIN_STATUS.IDLE &&
                                                                         agv.states.Cargo_Status == 0 &&
                                                                         agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER)
@@ -50,6 +51,7 @@ namespace VMSystem.TrafficControl
                     await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, level: ALARM_LEVEL.WARNING, Equipment_Name: agv.Name, location: agv.currentMapPoint.Name);
                     return;
                 }
+                agv.taskDispatchModule.OrderExecuteState = clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTABLE;
                 //using (TaskDatabaseHelper TaskDBHelper = new TaskDatabaseHelper())
                 //{
                 //    TaskDBHelper.Add(new clsTaskDto
@@ -256,7 +258,7 @@ namespace VMSystem.TrafficControl
                     LOG.INFO($"{AgvToGo.Name} Start Traffic Task-{tafTasOrder.TaskName}");
                     var tagsListPlan = AgvToGo.taskDispatchModule.TaskStatusTracker.SubTaskTracking.EntirePathPlan.Select(p => p.TagNumber).ToList();
 
-                    var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, AgvToGo.options.VehicleLength/100);
+                    var tagsNearPoint = StaMap.GetNearPointListByPathAndDistance(tagsListPlan, AgvToGo.options.VehicleLength / 100);
                     await Task.Delay(1000);
                     tagsListPlan.Insert(0, AgvWait.currentMapPoint.TagNumber);
                     LOG.INFO($"Wait {AgvWait.Name} leave Path {string.Join("->", tagsListPlan)} and NearPoint {string.Join(",", tagsNearPoint)}");
@@ -374,7 +376,7 @@ namespace VMSystem.TrafficControl
             var WaitingAGVCurrentIndex = pathes_of_waiting_agv.IndexOf(_Agv_Waiting.currentMapPoint);
             var FollowingPathesOfWaitingAGV = new MapPoint[pathes_of_waiting_agv.Count - WaitingAGVCurrentIndex];
             pathes_of_waiting_agv.CopyTo(WaitingAGVCurrentIndex, FollowingPathesOfWaitingAGV, 0, FollowingPathesOfWaitingAGV.Length);
-            var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(FollowingPathesOfWaitingAGV.Select(item => item.TagNumber).ToList(), _Agv_Waiting.options.VehicleLength/100);
+            var PathesNearPointOfWaitingAGV = StaMap.GetNearPointListByPathAndDistance(FollowingPathesOfWaitingAGV.Select(item => item.TagNumber).ToList(), _Agv_Waiting.options.VehicleLength / 100);
             var pathTags = FollowingPathesOfWaitingAGV.Select(pt => pt.TagNumber).ToList();
             MapPoint destinePt = pathes_of_waiting_agv.Last();
             LOG.WARN($"{_Agv_Waiting.Name} raise Fucking Stupid AGV Go Away(AGV Should Leave Tag{string.Join(",", pathTags)}) Rquest");
@@ -418,7 +420,7 @@ namespace VMSystem.TrafficControl
             {
                 foreach (var TagDistance in item.Value)
                 {
-                    if (TagDistance.Value > _Agv_GoAway.options.VehicleLength/100)
+                    if (TagDistance.Value > _Agv_GoAway.options.VehicleLength / 100)
                         continue;
                     List_NearPoint.Add(TagDistance.Key);
                 }
