@@ -188,7 +188,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 TaskOrder.StartTime = DateTime.Now;
                 if (TaskOrder.Action != ACTION_TYPE.Carry)
-                    TaskOrder.From_Station = AGV.currentMapPoint.Name;
+                    TaskOrder.From_Station = AGV.currentMapPoint.TagNumber + "";
                 RaiseTaskDtoChange(this, TaskOrder);
 
             }
@@ -799,7 +799,7 @@ namespace VMSystem.AGV.TaskDispatch
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
                 }
-                StaMap.RegistPoint(AGV.Name,    task.Destination, out msg); //重新註冊二次定位點
+                StaMap.RegistPoint(AGV.Name, task.Destination, out msg); //重新註冊二次定位點
             }
         }
 
