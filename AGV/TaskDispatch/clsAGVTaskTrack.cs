@@ -689,29 +689,6 @@ namespace VMSystem.AGV.TaskDispatch
                 if (_task.Action == ACTION_TYPE.None && !isMovingSeqmentTask)
                     _task.Source = AGV.currentMapPoint;
 
-                //var agv_too_near_from_path = VMSManager.GetAGVListExpectSpeficAGV(AGV.Name).Where(_agv => _task.EntirePathPlan.Any(pt => pt.CalculateDistance(_agv.states.Coordination.X, _agv.states.Coordination.Y) * 100.0 <= _agv.options.VehicleLength));
-                //var desineRegistInfo = _task.Destination.RegistInfo == null ? new clsPointRegistInfo() : _task.Destination.RegistInfo;
-
-                //if (StaMap.IsMapPointRegisted(_task.Destination, AGV.Name) | agv_too_near_from_path.Any())
-                //{
-                //    if (_task.Action == ACTION_TYPE.Unpark | _task.Action == ACTION_TYPE.Discharge)
-                //    {
-                //        var nextPt = task.Destination;
-                //        waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.states.Last_Visited_Node, nextPt);
-                //        waitingInfo.AllowMoveResumeResetEvent.WaitOne();
-                //        waitingInfo.SetStatusNoWaiting(AGV);
-                //    }
-                //    else if (_task.Action != ACTION_TYPE.None)
-                //    {
-                //        if (VMSManager.AllAGV.Any(agv => agv.currentMapPoint.TagNumber == _task.Destination.TagNumber))
-                //            AlarmManagerCenter.AddAlarmAsync(ALARMS.Destine_EQ_Has_AGV);
-                //        else
-                //            AlarmManagerCenter.AddAlarmAsync(ALARMS.Destine_EQ_Has_Registed);
-
-                //        return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION };
-                //    }
-                //}
-
                 if (_task.Action == ACTION_TYPE.Discharge || _task.Action == ACTION_TYPE.Unpark)
                 {
                     WaitWorkStationSecondaryPointRelease(_task);
@@ -748,9 +725,9 @@ namespace VMSystem.AGV.TaskDispatch
 
             TaskDownloadRequestResponse _DispatchTaskToAGV(clsSubTask _task)
             {
-                bool IsAGVAlreadyAtFinalPointOfTrajectory = _task.EntirePathPlan.Last().TagNumber == AGV.currentMapPoint.TagNumber && Math.Abs(CalculateThetaError(_task.EntirePathPlan.Last().Direction)) < 5;
-                if (IsAGVAlreadyAtFinalPointOfTrajectory)
-                    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
+                //bool IsAGVAlreadyAtFinalPointOfTrajectory = _task.EntirePathPlan.Last().TagNumber == AGV.currentMapPoint.TagNumber && Math.Abs(CalculateThetaError(_task.EntirePathPlan.Last().Direction)) < 5;
+                //if (IsAGVAlreadyAtFinalPointOfTrajectory)
+                //    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
 
 
                 if (AGV.options.Simulation)

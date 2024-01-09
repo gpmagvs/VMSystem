@@ -188,6 +188,7 @@ namespace VMSystem.AGV.TaskDispatch
                 Int32.TryParse(order.From_Station, out var fromTag);
                 Int32.TryParse(order.To_Station, out var toTag);
                 var DestineData = StaMap.GetPointByTagNumber(toTag);
+                var _agv_transfer_state = TargetAGVItem.taskDispatchModule.TaskStatusTracker.transferProcess;
                 DownloadData = new clsTaskDownloadData
                 {
                     Action_Type = Action,
@@ -199,7 +200,9 @@ namespace VMSystem.AGV.TaskDispatch
                     CST = new clsCST[1] { new clsCST { CST_ID = CarrierID } },
                     OrderInfo = new clsTaskDownloadData.clsOrderInfo
                     {
-                        ActionName = order.Action,
+                        ActionName = order.Action != ACTION_TYPE.Carry ? order.Action :
+                                      _agv_transfer_state == TRANSFER_PROCESS.NOT_START_YET || _agv_transfer_state == TRANSFER_PROCESS.GO_TO_SOURCE_EQ ? ACTION_TYPE.Unload : ACTION_TYPE.Load,
+                        IsTransferTask = order.Action == ACTION_TYPE.Carry,
                         SourceName = StaMap.GetStationNameByTag(fromTag),
                         DestineName = StaMap.GetStationNameByTag(toTag),
                         SourceTag = fromTag,
