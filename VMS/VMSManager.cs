@@ -223,7 +223,7 @@ namespace VMSystem.VMS
 
                     foreach (var _agv in VMSManager.AllAGV)
                     {
-                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
+                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();                    
                         _agv.taskDispatchModule.taskList = tasks.ToList();
                     }
                 }
