@@ -115,10 +115,12 @@ namespace VMSystem.AGV
             {
                 Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
 
-                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE &&!agv.IsSolvingTrafficInterLock&& !agv.currentMapPoint.IsCharge)
+                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE && !agv.IsSolvingTrafficInterLock && !agv.currentMapPoint.IsCharge)
                 {
                     if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
                     {
+                        if (_charge_forbid_alarm != null)
+                            AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                         _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
                         _charge_forbid_alarm.Wait();
                     }
@@ -401,34 +403,19 @@ namespace VMSystem.AGV
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
             var task_status = feedbackData.TaskStatus;
-            if (task_status == TASK_RUN_STATUS.ACTION_FINISH | task_status == TASK_RUN_STATUS.FAILURE | task_status == TASK_RUN_STATUS.CANCEL | task_status == TASK_RUN_STATUS.NO_MISSION)
+            if (task_status == TASK_RUN_STATUS.ACTION_FINISH || task_status == TASK_RUN_STATUS.FAILURE || task_status == TASK_RUN_STATUS.CANCEL || task_status == TASK_RUN_STATUS.NO_MISSION)
             {
                 ExecutingTaskName = "";
                 agv.IsTrafficTaskExecuting = false;
             }
-            using (var db = new AGVSDatabase())
+            var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
+            if (task_tracking == null)
             {
-                var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).AsNoTracking().FirstOrDefault();
-                if (task_tracking == null)
-                {
-                    LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
-                    return 0;
-                }
-                else
-                {
-                    if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                    {
-                        task_tracking.State = TASK_RUN_STATUS.FAILURE;
-                        TaskStatusTracker.RaiseTaskDtoChange(null, task_tracking);
-                    }
-                    if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
-                        return 0;
-                }
-                var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
-
-                return (int)response;
+                LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
+                return 0;
             }
-
+            var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
+            return (int)response;
         }
 
         /// <summary>

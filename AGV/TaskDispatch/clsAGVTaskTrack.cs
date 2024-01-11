@@ -85,7 +85,7 @@ namespace VMSystem.AGV.TaskDispatch
                 if (_transferProcess != value)
                 {
                     _transferProcess = value;
-                    LOG.TRACE($"{AGV.Name} Transfer Process changed to {value}!");
+                    LOG.TRACE($"{AGV.Name} Transfer Process changed to {value}!", color: ConsoleColor.Yellow);
                 }
             }
         }
@@ -125,7 +125,7 @@ namespace VMSystem.AGV.TaskDispatch
             Task.Run(async () =>
             {
                 MAIN_STATUS agv_status = MAIN_STATUS.Unknown;
-                while (true)
+                while (!disposedValue)
                 {
                     Thread.Sleep(1);
                     if (TaskOrder == null || TaskOrder.State != TASK_RUN_STATUS.NAVIGATING)
@@ -151,6 +151,13 @@ namespace VMSystem.AGV.TaskDispatch
                 return;
             this.IsResumeTransferTask = IsResumeTransferTask;
             this.transferProcess = lastTransferProcess;
+
+            if (TaskOrder.Action == ACTION_TYPE.Carry && TaskOrder.From_Station == AGV.states.Last_Visited_Node + "")
+            {
+                this.IsResumeTransferTask = true;
+                this.transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+            }
+
             await Task.Run(() =>
             {
                 try
@@ -214,18 +221,21 @@ namespace VMSystem.AGV.TaskDispatch
             }
             TASK_DOWNLOAD_RETURN_CODES agv_task_return_code = default;
 
-            agv_task_return_code = CalculationOptimizedPathAndSendTaskToAGV(out var _task, isMovingSeqmentTask).ReturnCode;
+            agv_task_return_code = CalculationOptimizedPath(out var _task, isMovingSeqmentTask).ReturnCode;
+            SubTaskTracking = _task;
+            UpdateTransferProcess(TaskOrder.Action, SubTaskTracking.Action);
+
+            agv_task_return_code = _DispatchTaskToAGV(_task, out ALARMS alarm).ReturnCode;
+
             if (agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK && agv_task_return_code != TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
-                AbortOrder(agv_task_return_code);
+                AbortOrder(agv_task_return_code, alarm);
                 return;
             }
             else if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK)
             {
                 // RegistRemainPathTags();
             }
-            SubTaskTracking = _task;
-
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE)
             {
                 LOG.INFO($"AGV Already locate in end of trajectory!");
@@ -237,6 +247,41 @@ namespace VMSystem.AGV.TaskDispatch
                 });
             }
 
+        }
+
+        private void UpdateTransferProcess(ACTION_TYPE order_action, ACTION_TYPE sub_action)
+        {
+            if (order_action != ACTION_TYPE.Carry)
+            {
+                if (sub_action == ACTION_TYPE.None)
+                {
+                    if (order_action == ACTION_TYPE.Charge)
+                        transferProcess = TRANSFER_PROCESS.GO_TO_CHARGE_STATION;
+                    else if (order_action == ACTION_TYPE.Load || order_action == ACTION_TYPE.Unload)
+                        transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                    else
+                        transferProcess = TRANSFER_PROCESS.MOVING;
+                }
+                else if (sub_action == ACTION_TYPE.Load)
+                    transferProcess = TRANSFER_PROCESS.WORKING_AT_DESTINE_EQ;
+
+                else if (sub_action == ACTION_TYPE.Unload)
+                    transferProcess = TRANSFER_PROCESS.WORKING_AT_SOURCE_EQ;
+
+                else if (sub_action == ACTION_TYPE.Charge)
+                    transferProcess = TRANSFER_PROCESS.PARK_IN_CHARGE_STATION;
+                else if (sub_action == ACTION_TYPE.Discharge || sub_action == ACTION_TYPE.Unpark)
+                    transferProcess = TRANSFER_PROCESS.LEAVE_WORKSTATION;
+            }
+            else
+            {
+                if (previousCompleteAction == ACTION_TYPE.Unknown | previousCompleteAction == ACTION_TYPE.Discharge | previousCompleteAction == ACTION_TYPE.Unpark)
+                    transferProcess = TRANSFER_PROCESS.GO_TO_SOURCE_EQ;
+                else if (previousCompleteAction == ACTION_TYPE.Load)
+                    transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                else
+                    transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+            }
         }
 
         private void RegistRemainPathTags()
@@ -405,16 +450,14 @@ namespace VMSystem.AGV.TaskDispatch
             if (AGV.main_state == MAIN_STATUS.DOWN)
             {
                 taskCancel.Cancel();
-                _ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
-
+                //_ = PostTaskCancelRequestToAGVAsync(RESET_MODE.ABORT);
                 //嘗試抓取車載回報的異常碼
-
                 string agv_alarm = "";
                 if (AGV.states.Alarm_Code.Any())
                 {
                     agv_alarm = string.Join(",", AGV.states.Alarm_Code.Select(alarm => alarm.FullDescription));
                 }
-
+                LOG.ERROR($"{AGV.Name}-State DOWN When Task Action Finish Reported-ALARM:{agv_alarm}");
                 AbortOrder(TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN, ALARMS.AGV_STATUS_DOWN, agv_alarm);
                 return TASK_FEEDBACK_STATUS_CODE.OK;
             }
@@ -423,12 +466,8 @@ namespace VMSystem.AGV.TaskDispatch
                 case TASK_RUN_STATUS.NO_MISSION:
                     break;
                 case TASK_RUN_STATUS.NAVIGATING:
-                    if (previousCompleteAction == ACTION_TYPE.Unknown | previousCompleteAction == ACTION_TYPE.Discharge | previousCompleteAction == ACTION_TYPE.Unpark)
-                        transferProcess = TRANSFER_PROCESS.GO_TO_SOURCE_EQ;
-                    else if (previousCompleteAction == ACTION_TYPE.Load)
-                        transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
-                    else
-                        transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+
+
                     break;
 
                 case TASK_RUN_STATUS.REACH_POINT_OF_TRAJECTORY:
@@ -680,7 +719,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         private static object RegistLockObject = new object();
 
-        public TaskDownloadRequestResponse CalculationOptimizedPathAndSendTaskToAGV(out clsSubTask task, bool isMovingSeqmentTask = false)
+        public TaskDownloadRequestResponse CalculationOptimizedPath(out clsSubTask task, bool isMovingSeqmentTask = false)
         {
             clsSubTask _task = null;
             task = null;
@@ -708,7 +747,7 @@ namespace VMSystem.AGV.TaskDispatch
                 if (!isMovingSeqmentTask)
                     SubTaskTracking = _task;
 
-                return _DispatchTaskToAGV(_task);
+                return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK };
             }
             catch (IlleagalTaskDispatchException ex)
             {
@@ -726,29 +765,39 @@ namespace VMSystem.AGV.TaskDispatch
                 };
             }
 
-            TaskDownloadRequestResponse _DispatchTaskToAGV(clsSubTask _task)
+        }
+        TaskDownloadRequestResponse _DispatchTaskToAGV(clsSubTask _task, out ALARMS alarm)
+        {
+            alarm = ALARMS.NONE;
+            if (AGV.options.Simulation)
             {
-                //bool IsAGVAlreadyAtFinalPointOfTrajectory = _task.EntirePathPlan.Last().TagNumber == AGV.currentMapPoint.TagNumber && Math.Abs(CalculateThetaError(_task.EntirePathPlan.Last().Direction)) < 5;
-                //if (IsAGVAlreadyAtFinalPointOfTrajectory)
-                //    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK_AGV_ALREADY_THERE };
-
-
-                if (AGV.options.Simulation)
-                {
-                    TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
-                    return taskStateResponse;
-                }
-                else
+                TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
+                return taskStateResponse;
+            }
+            else
+            {
+                try
                 {
                     AGV.CheckAGVStatesBeforeDispatchTask(_task.Action, _task.Destination);
+                }
+                catch (IlleagalTaskDispatchException ex)
+                {
+                    alarm = ex.Alarm_Code;
+                    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL };
+                }
+                try
+                {
                     TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
                     if (AGV.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
                         taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
                     else
-                    {
                         taskStateResponse = AGV.TcpClientHandler.SendTaskMessage(_task.DownloadData);
-                    }
                     return taskStateResponse;
+                }
+                catch (Exception)
+                {
+                    alarm = ALARMS.Download_Task_To_AGV_Fail;
+                    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL };
                 }
             }
         }
@@ -959,6 +1008,7 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     // TODO: 處置受控狀態 (受控物件)
                 }
+                AGVHttp?.Dispose();
                 EndReocrdTrajectory();
                 disposedValue = true;
             }
