@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using System.Diagnostics;
 using VMSystem.AGV;
 using static AGVSystemCommonNet6.AGVDispatch.clsAGVSTcpServer;
 using static AGVSystemCommonNet6.clsEnums;
@@ -9,7 +10,12 @@ namespace VMSystem.VMS
     public partial class VMSManager
     {
         public static clsAGVSTcpServer TcpServer = new clsAGVSTcpServer();
-
+        public struct Tests
+        {
+            public static bool AGVRunningStatusReportT1TimeoutSimulationFlag = false;
+            public static bool AGVTaskFeedfackReportT1TimeoutSimulationFlag = false;
+            public static bool AGVOnlineModeQueryT1TimeoutSimulationFlag = false;
+        }
         private static void TcpServer_OnClientConnected(object? sender, clsAGVSTcpClientHandler clientState)
         {
             clientState.OnClientOnlineModeQuery += ClientState_OnTCPClientOnlineModeQuery;
@@ -37,6 +43,9 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
+                if (Tests.AGVRunningStatusReportT1TimeoutSimulationFlag)
+                    return;
+
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
@@ -50,6 +59,9 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
+                if (Tests.AGVOnlineModeQueryT1TimeoutSimulationFlag)
+                    return;
+
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {
@@ -91,6 +103,9 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(() =>
             {
+                if (Tests.AGVTaskFeedfackReportT1TimeoutSimulationFlag)
+                    return;
+
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
                 if (TryGetAGV(e.EQName, AGV_MODEL.FORK_AGV, out IAGV agv))
                 {

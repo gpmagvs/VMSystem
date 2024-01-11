@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Text;
+using VMSystem.VMS;
 
 namespace VMSystem.Controllers
 {
@@ -37,5 +38,22 @@ namespace VMSystem.Controllers
             return Ok(new { confirm = confirm, message });
         }
 
+        [HttpGet("T1Timeout_Simulation_OnlineModeQuery")]
+        public async Task Simulation(bool enable)
+        {
+            VMSManager.Tests.AGVOnlineModeQueryT1TimeoutSimulationFlag = enable;
+        }
+
+        [HttpGet("T1Timeout_Simulation_RunningStatusReport")]
+        public async Task T1Timeout_Simulation_RunningStatusReport(bool enable)
+        {
+            VMSManager.Tests.AGVRunningStatusReportT1TimeoutSimulationFlag = enable;
+        }
+
+        [HttpGet("T1Timeout_Simulation_TaskFeedback")]
+        public async Task T1Timeout_Simulation_TaskFeedback(bool enable)
+        {
+            VMSManager.Tests.AGVTaskFeedfackReportT1TimeoutSimulationFlag = enable;
+        }
     }
 }
