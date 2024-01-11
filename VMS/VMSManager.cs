@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.ViewModels;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using VMSystem.AGV;

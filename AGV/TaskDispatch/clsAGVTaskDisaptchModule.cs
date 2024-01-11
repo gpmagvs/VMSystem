@@ -80,55 +80,104 @@ namespace VMSystem.AGV
                     previous_OrderExecuteState = value;
                     LOG.Critical($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
 
-                    if (value == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
+                    //if (value == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
+                    //{
+                    //    if (agv.currentMapPoint.IsCharge)
+                    //        return;
+                    //    Task.Factory.StartNew(async () =>
+                    //    {
+                    //        //Delay一下再確認可不可充電
+                    //        await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+
+                    //        if (SystemModes.RunMode != RUN_MODE.RUN)
+                    //            return;
+
+                    //        if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+                    //        {
+                    //            var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+                    //            WaitingToChargable(_charge_forbid_alarm);
+                    //            return;
+                    //        }
+                    //        if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+                    //        {
+                    //            CreateChargeTask();
+                    //            await Task.Delay(200);
+                    //        }
+                    //    }, TaskCreationOptions.LongRunning);
+                    //}
+                }
+            }
+        }
+        private void CheckAutoCharge()
+        {
+            Task<clsAlarmDto> _charge_forbid_alarm = null;
+            while (true)
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+
+                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE &&!agv.IsSolvingTrafficInterLock&& !agv.currentMapPoint.IsCharge)
+                {
+                    if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
                     {
-                        TryToCharge();
+                        _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+                        _charge_forbid_alarm.Wait();
+                    }
+                    else
+                    {
+                        CreateChargeTask();
+                        if (_charge_forbid_alarm != null)
+                        {
+                            AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
+                            _charge_forbid_alarm = null;
+                        }
+                        LOG.INFO($"AGV ({agv.Name}) Cargo Status is Chargable Process end.");
                     }
                 }
             }
         }
+        // 原本自動充電相關function 如之後沒問題可刪
+        //private void TryToCharge()
+        //{
+        //    if (agv.currentMapPoint.IsCharge)
+        //        return;
 
-        private void TryToCharge()
-        {
-            if (agv.currentMapPoint.IsCharge)
-                return;
+        //    Task.Run(async () =>
+        //    {
+        //        //Delay一下再確認可不可充電
+        //        await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
 
-            Task.Run(async () =>
-            {
-                //Delay一下再確認可不可充電
-                await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+        //        if (SystemModes.RunMode != RUN_MODE.RUN)
+        //            return;
 
-                if (SystemModes.RunMode != RUN_MODE.RUN)
-                    return;
+        //        if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+        //        {
+        //            var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+        //            WaitingToChargable(_charge_forbid_alarm);
+        //            return;
+        //        }
+        //        if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+        //        {
+        //            CreateChargeTask();
+        //            await Task.Delay(200);
+        //        }
+        //    });
+        //    Task.Factory.StartNew(() => { }, TaskCreationOptions.LongRunning);
+        //}
 
-                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-                {
-                    var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
-                    WaitingToChargable(_charge_forbid_alarm);
-                    return;
-                }
-                if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
-                {
-                    CreateChargeTask();
-                    await Task.Delay(200);
-                }
-            });
-        }
+        //private async void WaitingToChargable(clsAlarmDto _charge_forbid_alarm)
+        //{
+        //    while (OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
+        //    {
+        //        await Task.Delay(1000);
+        //        if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
+        //            continue;
 
-        private async void WaitingToChargable(clsAlarmDto _charge_forbid_alarm)
-        {
-            while (OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
-            {
-                await Task.Delay(1000);
-                if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-                    continue;
-
-                CreateChargeTask();
-                AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm);
-                break;
-            }
-            LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
-        }
+        //        CreateChargeTask();
+        //        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm);
+        //        break;
+        //    }
+        //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
+        //}
 
         public List<clsTaskDto> _taskList = new List<clsTaskDto>();
         public virtual List<clsTaskDto> taskList
@@ -222,10 +271,8 @@ namespace VMSystem.AGV
 
         protected virtual void TaskAssignWorker()
         {
-
             Task.Run(async () =>
             {
-                Task _delay_charge_task = null;
                 while (true)
                 {
                     Thread.Sleep(200);
@@ -234,7 +281,6 @@ namespace VMSystem.AGV
                         OrderExecuteState = GetAGVReceiveOrderStatus();
                         if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
-                            _delay_charge_task = null;
                             var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
                             var _ExecutingTask = taskOrderedByPriority.First();
 
@@ -284,6 +330,7 @@ namespace VMSystem.AGV
 
                 }
             });
+            Task.Run(() => CheckAutoCharge());
         }
 
         private async void CreateChargeTask()
