@@ -319,8 +319,14 @@ namespace VMSystem.AGV
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
 
+            try
+            {
+                TaskStatusTracker.OnTaskOrderStatusQuery -= TaskTrackerQueryOrderStatusCallback;
+            }
+            catch (Exception)
+            {
+            }
             TaskStatusTracker?.Dispose();
-
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
             else
@@ -332,10 +338,18 @@ namespace VMSystem.AGV
             }
 
             ExecutingTaskName = executingTask.TaskName;
+            TaskStatusTracker.OnTaskOrderStatusQuery += TaskTrackerQueryOrderStatusCallback;
             await TaskStatusTracker.Start(agv, executingTask, IsResumeTransferTask, lastTransferProcess);
         }
 
-
+        private TASK_RUN_STATUS TaskTrackerQueryOrderStatusCallback(string taskName)
+        {
+            var _taskEntity = taskList.FirstOrDefault(task => task.TaskName == taskName);
+            if (_taskEntity != null)
+                return _taskEntity.State;
+            else
+                return TASK_RUN_STATUS.FAILURE;
+        }
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
@@ -347,7 +361,7 @@ namespace VMSystem.AGV
             }
             using (var db = new AGVSDatabase())
             {
-                var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
+                var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).AsNoTracking().FirstOrDefault();
                 if (task_tracking == null)
                 {
                     LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
@@ -355,6 +369,11 @@ namespace VMSystem.AGV
                 }
                 else
                 {
+                    if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                    {
+                        task_tracking.State = TASK_RUN_STATUS.FAILURE;
+                        TaskStatusTracker.RaiseTaskDtoChange(null, task_tracking);
+                    }
                     if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
                         return 0;
                 }

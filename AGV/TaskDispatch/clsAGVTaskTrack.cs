@@ -45,6 +45,10 @@ namespace VMSystem.AGV.TaskDispatch
         public clsPathInfo TrafficInfo { get; set; } = new clsPathInfo();
         public ACTION_TYPE[] TrackingActions => SubTasks.Select(subtask => subtask.Action).ToArray();
         private int taskSequence = 0;
+
+        public delegate TASK_RUN_STATUS QueryTaskOrderStateDelegate(string taskName);
+        public QueryTaskOrderStateDelegate OnTaskOrderStatusQuery;
+
         public List<int> RemainTags
         {
             get
@@ -102,7 +106,7 @@ namespace VMSystem.AGV.TaskDispatch
                     _TaskRunningStatus = value;
                     if (_TaskRunningStatus == TASK_RUN_STATUS.CANCEL | _TaskRunningStatus == TASK_RUN_STATUS.FAILURE)
                     {
-                        //  CancelOrder();
+                        CancelOrder();
                     }
                 }
             }
@@ -126,8 +130,7 @@ namespace VMSystem.AGV.TaskDispatch
                     Thread.Sleep(1);
                     if (TaskOrder == null || TaskOrder.State != TASK_RUN_STATUS.NAVIGATING)
                         continue;
-
-                    TaskRunningStatus = await TaskDBHelper.GetTaskStateByID(OrderTaskName);
+                    TaskRunningStatus = OnTaskOrderStatusQuery(OrderTaskName);
 
                 }
             });
@@ -782,6 +785,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         private void CompleteOrder()
         {
+            LOG.ERROR($"Task_{OrderTaskName} Order COMPLETE");
             EndReocrdTrajectory();
             UnRegistPointsRegisted();
             ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.ACTION_FINISH);
@@ -792,6 +796,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         internal void AbortOrder(TASK_DOWNLOAD_RETURN_CODES agv_task_return_code, ALARMS alarm_code = ALARMS.NONE, string message = "")
         {
+            LOG.ERROR($"Task_{OrderTaskName} Order ABORT");
             LOG.Critical(agv_task_return_code.ToString());
             UnRegistPointsRegisted();
             taskCancel.Cancel();
@@ -848,6 +853,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         internal async Task<string> CancelOrder(bool unRegistPoints = true)
         {
+            LOG.ERROR($"Task_{OrderTaskName} Order CANCEL");
             EndReocrdTrajectory();
             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
             taskCancel.Cancel();
