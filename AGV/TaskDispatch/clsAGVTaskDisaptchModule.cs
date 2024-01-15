@@ -402,20 +402,21 @@ namespace VMSystem.AGV
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
-            var task_status = feedbackData.TaskStatus;
-            if (task_status == TASK_RUN_STATUS.ACTION_FINISH || task_status == TASK_RUN_STATUS.FAILURE || task_status == TASK_RUN_STATUS.CANCEL || task_status == TASK_RUN_STATUS.NO_MISSION)
-            {
-                ExecutingTaskName = "";
-                agv.IsTrafficTaskExecuting = false;
-            }
             var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
             if (task_tracking == null)
             {
                 LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
                 return 0;
             }
-            var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
-            return (int)response;
+
+            var task_status = feedbackData.TaskStatus;
+            if (task_status == TASK_RUN_STATUS.ACTION_FINISH || task_status == TASK_RUN_STATUS.FAILURE || task_status == TASK_RUN_STATUS.CANCEL || task_status == TASK_RUN_STATUS.NO_MISSION)
+            {
+                ExecutingTaskName = "";
+                agv.IsTrafficTaskExecuting = false;
+            }
+            _ = Task.Run(() => TaskStatusTracker.HandleAGVFeedback(feedbackData));
+            return 0;
         }
 
         /// <summary>
