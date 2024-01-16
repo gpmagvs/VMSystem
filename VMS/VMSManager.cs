@@ -117,12 +117,10 @@ namespace VMSystem.VMS
         private static void TcpServerInit()
         {
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-
-            Task.Factory.StartNew(async () =>
+            Thread thread = new Thread(async () =>
             {
                 try
                 {
-
                     if (await TcpServer.Connect())
                     {
                         LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
@@ -137,6 +135,7 @@ namespace VMSystem.VMS
                     LOG.ERROR(ex);
                 }
             });
+            thread.Start();
         }
 
         private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
@@ -154,7 +153,7 @@ namespace VMSystem.VMS
                 AGVSDatabase databse = new AGVSDatabase();
                 while (true)
                 {
-                   Thread.Sleep(100);
+                    Thread.Sleep(100);
                     try
                     {
                         clsAGVStateDto CreateDTO(IAGV agv)
@@ -224,7 +223,7 @@ namespace VMSystem.VMS
 
                     foreach (var _agv in VMSManager.AllAGV)
                     {
-                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();                    
+                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         _agv.taskDispatchModule.taskList = tasks.ToList();
                     }
                 }
