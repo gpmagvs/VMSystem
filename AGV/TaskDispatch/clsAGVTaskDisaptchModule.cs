@@ -115,10 +115,12 @@ namespace VMSystem.AGV
             {
                 Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
 
-                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE &&!agv.IsSolvingTrafficInterLock&& !agv.currentMapPoint.IsCharge)
+                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE && !agv.IsSolvingTrafficInterLock && !agv.currentMapPoint.IsCharge)
                 {
                     if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
                     {
+                        if (_charge_forbid_alarm != null)
+                            AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                         _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
                         _charge_forbid_alarm.Wait();
                     }
@@ -366,8 +368,14 @@ namespace VMSystem.AGV
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
 
+            try
+            {
+                TaskStatusTracker.OnTaskOrderStatusQuery -= TaskTrackerQueryOrderStatusCallback;
+            }
+            catch (Exception)
+            {
+            }
             TaskStatusTracker?.Dispose();
-
             if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
             else
@@ -379,37 +387,36 @@ namespace VMSystem.AGV
             }
 
             ExecutingTaskName = executingTask.TaskName;
+            TaskStatusTracker.OnTaskOrderStatusQuery += TaskTrackerQueryOrderStatusCallback;
             await TaskStatusTracker.Start(agv, executingTask, IsResumeTransferTask, lastTransferProcess);
         }
 
-
+        private TASK_RUN_STATUS TaskTrackerQueryOrderStatusCallback(string taskName)
+        {
+            var _taskEntity = taskList.FirstOrDefault(task => task.TaskName == taskName);
+            if (_taskEntity != null)
+                return _taskEntity.State;
+            else
+                return TASK_RUN_STATUS.FAILURE;
+        }
 
         public async Task<int> TaskFeedback(FeedbackData feedbackData)
         {
+            var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
+            if (task_tracking == null)
+            {
+                LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
+                return 0;
+            }
+
             var task_status = feedbackData.TaskStatus;
-            if (task_status == TASK_RUN_STATUS.ACTION_FINISH | task_status == TASK_RUN_STATUS.FAILURE | task_status == TASK_RUN_STATUS.CANCEL | task_status == TASK_RUN_STATUS.NO_MISSION)
+            if (task_status == TASK_RUN_STATUS.ACTION_FINISH || task_status == TASK_RUN_STATUS.FAILURE || task_status == TASK_RUN_STATUS.CANCEL || task_status == TASK_RUN_STATUS.NO_MISSION)
             {
                 ExecutingTaskName = "";
                 agv.IsTrafficTaskExecuting = false;
             }
-            using (var db = new AGVSDatabase())
-            {
-                var task_tracking = db.tables.Tasks.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
-                if (task_tracking == null)
-                {
-                    LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
-                    return 0;
-                }
-                else
-                {
-                    if (task_tracking.State != TASK_RUN_STATUS.NAVIGATING)
-                        return 0;
-                }
-                var response = await TaskStatusTracker.HandleAGVFeedback(feedbackData);
-
-                return (int)response;
-            }
-
+            _ = Task.Run(() => TaskStatusTracker.HandleAGVFeedback(feedbackData));
+            return 0;
         }
 
         /// <summary>
