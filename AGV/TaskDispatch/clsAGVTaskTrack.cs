@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
@@ -226,11 +227,17 @@ namespace VMSystem.AGV.TaskDispatch
 
             if (_return_code == TASK_DOWNLOAD_RETURN_CODES.OK)
             {
-                SubTaskTracking = _task;
-                UpdateTransferProcess(TaskOrder.Action, SubTaskTracking.Action);
 
                 if (_task.Action == ACTION_TYPE.Load || _task.Action == ACTION_TYPE.Unload)
-                    await PostLDULDActionStartToAGVS(_task.Destination.TagNumber, _task.Action);
+                    await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(_task.Destination.TagNumber, _task.Action);
+
+                if (IsStartMoveToDestineStationAfterUnload(_task))
+                {
+                    await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(AGV.Name, TaskOrder.From_Station_Tag, TaskOrder.To_Station_Tag);
+                }
+
+                SubTaskTracking = _task;
+                UpdateTransferProcess(TaskOrder.Action, SubTaskTracking.Action);
 
                 _return_code = _DispatchTaskToAGV(_task, out ALARMS alarm).ReturnCode;
                 if (_return_code != TASK_DOWNLOAD_RETURN_CODES.OK)
@@ -248,47 +255,12 @@ namespace VMSystem.AGV.TaskDispatch
                 LOG.Critical($"CalculationOptimizedPath => {_return_code}");
             }
 
-        }
-
-
-        private async Task PostLDULDActionFinishToAGVS(int tagNumber, ACTION_TYPE action)
-        {
-            using (var AGVSAPIHttp = new HttpHelper("http://localhost:5216"))
+            bool IsStartMoveToDestineStationAfterUnload(clsSubTask _task)
             {
-                string response = "";
-                try
-                {
-                    var route = $"/api/Task/LoadUnloadTaskFinish?tag={tagNumber}&action={action}";
-                    LOG.WARN($"Post LDULD Action Finish to AGVS > route :{route}");
-                    response = await AGVSAPIHttp.GetStringAsync(route);
-                }
-                catch (Exception ex)
-                {
-                    LOG.ERROR($"LoadUnload Task Finish Feedback to AGVS error = {ex.Message}");
-                }
-                LOG.INFO($"LoadUnload Task Finish Feedback to AGVS, AGVS Response = {response}");
+                return TaskOrder.Action == ACTION_TYPE.Carry && _task.Action == ACTION_TYPE.None && previousCompleteAction == ACTION_TYPE.Unload;
             }
         }
 
-
-        private async Task PostLDULDActionStartToAGVS(int tagNumber, ACTION_TYPE action)
-        {
-            using (var AGVSAPIHttp = new HttpHelper($"http://localhost:5216"))
-            {
-                string response = "";
-                try
-                {
-                    var route = $"/api/Task/LoadUnloadTaskStart?tag={tagNumber}&action={action}";
-                    LOG.WARN($"Post LDULD Action Start to AGVS > route :{route}");
-                    response = await AGVSAPIHttp.GetStringAsync(route);
-                }
-                catch (Exception ex)
-                {
-                    LOG.ERROR($"LoadUnload Task Finish Feedback to AGVS error = {ex.Message}");
-                }
-                LOG.INFO($"LoadUnload Task Start Feedback to AGVS, AGVS Response = {response}");
-            }
-        }
 
         private void UpdateTransferProcess(ACTION_TYPE order_action, ACTION_TYPE sub_action)
         {
@@ -900,7 +872,7 @@ namespace VMSystem.AGV.TaskDispatch
             var lastEQTag = SubTaskTracking.Destination.TagNumber;
             _ = Task.Factory.StartNew(async () =>
             {
-                await PostLDULDActionFinishToAGVS(lastEQTag, lastAction);
+                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(lastEQTag, lastAction);
             });
         }
 
