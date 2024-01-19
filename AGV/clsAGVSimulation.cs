@@ -261,7 +261,6 @@ namespace VMSystem.AGV
             {
                 Trajectory = Trajectory.Skip(1).ToArray();
             }
-            // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
                 if (moveCancelTokenSource.IsCancellationRequested)
@@ -273,8 +272,6 @@ namespace VMSystem.AGV
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
                 bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
-
-
 
                 if (cancelToken.IsCancellationRequested)
                 {
@@ -313,7 +310,6 @@ namespace VMSystem.AGV
                     }
                 }
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
-                //stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                 int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
 
@@ -412,6 +408,7 @@ namespace VMSystem.AGV
             }
             runningSTatus.Coordination.X = TargetX;
             runningSTatus.Coordination.Y = TargetY;
+            runningSTatus.Odometry += O_Distance_All;
         }
 
         private void SimulationThetaChange(double currentAngle, double targetAngle)
