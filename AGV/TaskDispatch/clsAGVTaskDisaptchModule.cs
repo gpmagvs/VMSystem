@@ -48,6 +48,7 @@ namespace VMSystem.AGV
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
         private DateTime LastNonNoOrderTime;
+        private bool _IsChargeTaskCreating;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.NO_ORDER;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
@@ -108,32 +109,49 @@ namespace VMSystem.AGV
                 }
             }
         }
+
+        /// <summary>
+        /// 自動派AGV去充電
+        /// 條件 : 運轉模式
+        /// </summary>
         private async void CheckAutoCharge()
         {
             Task<clsAlarmDto> _charge_forbid_alarm = null;
             while (true)
             {
-                Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+                Thread.Sleep(10);
 
-                if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN && agv.main_state == clsEnums.MAIN_STATUS.IDLE && !agv.IsSolvingTrafficInterLock && !agv.currentMapPoint.IsCharge)
+                if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
+                    continue;
+
+                if (previous_OrderExecuteState != AGV_ORDERABLE_STATUS.NO_ORDER)
+                    continue;
+
+                if (agv.IsSolvingTrafficInterLock)
+                    continue;
+
+                if (agv.main_state == clsEnums.MAIN_STATUS.Charging)
+                    continue;
+
+                Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+                if (agv.IsAGVCargoStatusCanNotGoToCharge()&& !agv.currentMapPoint.IsCharge)
                 {
-                    if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-                    {
-                        if (_charge_forbid_alarm != null)
-                            AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
-                        _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
-                        _charge_forbid_alarm.Wait();
-                    }
-                    else
-                    {
-                        CreateChargeTask();
-                        if (_charge_forbid_alarm != null)
-                        {
-                            AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
-                            _charge_forbid_alarm = null;
-                        }
-                        LOG.INFO($"AGV ({agv.Name}) Cargo Status is Chargable Process end.");
-                    }
+                    if (_charge_forbid_alarm != null)
+                        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
+                    _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
+                    _charge_forbid_alarm.Wait();
+                    continue;
+                }
+
+                bool any_charge_task_run_or_ready_to_run = taskList.Any(task => task.Action == ACTION_TYPE.Charge && (task.State == TASK_RUN_STATUS.WAIT || task.State == TASK_RUN_STATUS.NAVIGATING));
+                if (any_charge_task_run_or_ready_to_run)
+                    continue;
+
+                if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow() || agv.IsAGVIdlingAtNormalPoint())
+                {
+                    if (_charge_forbid_alarm != null)
+                        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
+                    CreateChargeTask();
                 }
             }
         }
@@ -478,7 +496,6 @@ namespace VMSystem.AGV
 
         public async Task<string> CancelTask(bool unRegistPoints = true)
         {
-            agv.AgvSimulation.CancelTask();
             return await TaskStatusTracker.CancelOrder(unRegistPoints);
         }
 

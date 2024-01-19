@@ -691,5 +691,18 @@ namespace VMSystem.AGV
             }
         }
 
+        public bool IsAGVIdlingAtChargeStationButBatteryLevelLow()
+        {
+            return currentMapPoint.IsCharge && states.Electric_Volume.Any(level => level < 70) && main_state == clsEnums.MAIN_STATUS.IDLE;
+        }
+        public bool IsAGVIdlingAtNormalPoint()
+        {
+            return main_state == MAIN_STATUS.IDLE && currentMapPoint.StationType == STATION_TYPE.Normal;
+        }
+
+        public bool IsAGVCargoStatusCanNotGoToCharge()
+        {
+            return states.Cargo_Status == 1 || states.CSTID.Any(id => id != "");
+        }
     }
 }

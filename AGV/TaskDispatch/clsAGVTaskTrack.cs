@@ -98,6 +98,7 @@ namespace VMSystem.AGV.TaskDispatch
 
         public clsAGVSimulation AgvSimulation = null;
 
+        public DateTime NextDestineETA { get; private set; } = DateTime.MaxValue;
         public TASK_RUN_STATUS TaskRunningStatus
         {
             get => _TaskRunningStatus;
@@ -449,7 +450,17 @@ namespace VMSystem.AGV.TaskDispatch
 
             return task_links;
         }
-
+        public class clsOdometryRecord
+        {
+            public DateTime time { get; private set; } = DateTime.MaxValue;
+            public double odometry { get; private set; } = 0;
+            public void Update(DateTime time, double odometry)
+            {
+                this.time = time;
+                this.odometry = odometry;
+            }
+        }
+        private clsOdometryRecord _previousOdomeryRecord = new clsOdometryRecord();
         /// <summary>
         /// 處理AGV任務回報
         /// </summary>
@@ -477,16 +488,19 @@ namespace VMSystem.AGV.TaskDispatch
             switch (task_status)
             {
                 case TASK_RUN_STATUS.NO_MISSION:
-
-
-
                     break;
                 case TASK_RUN_STATUS.NAVIGATING:
-                    break;
+                    NextDestineETA = EstimatedArrivalTime(AGV.states.Odometry);
+                    StoreOdomerty(AGV.states.Odometry);
 
+                    LOG.INFO($"{AGV.Name} 預估抵達 {SubTaskTracking.Destination.Graph.Display}(Tag-{SubTaskTracking.Destination.TagNumber}) 時間={NextDestineETA}");
+                    break;
                 case TASK_RUN_STATUS.REACH_POINT_OF_TRAJECTORY:
                     break;
                 case TASK_RUN_STATUS.ACTION_START:
+
+                    NextDestineETA = EstimatedArrivalTime(AGV.states.Odometry);
+                    StoreOdomerty(AGV.states.Odometry);
 
                     LOG.INFO($"{AGV.Name} Feedback Task Action Start[{SubTaskTracking.Action}]");
                     if (SubTaskTracking.Action == ACTION_TYPE.Unload)
@@ -557,6 +571,47 @@ namespace VMSystem.AGV.TaskDispatch
             return TASK_FEEDBACK_STATUS_CODE.OK;
         }
 
+        private void StoreOdomerty(double odometry)
+        {
+            _previousOdomeryRecord.Update(DateTime.Now, odometry);
+        }
+
+        /// <summary>
+        /// 預估到達目的地的時間
+        /// </summary>
+        /// <param name="currentOdometry"></param>
+        private DateTime EstimatedArrivalTime(double currentOdometry)
+        {
+            try
+            {
+                DateTime _time = DateTime.Now;
+                double _period = (_time - _previousOdomeryRecord.time).TotalSeconds;
+                double _distance_changed = currentOdometry - _previousOdomeryRecord.odometry;
+                if (_period < 0)
+                {
+                    return DateTime.Now;
+                }
+                else
+                {
+                    LOG.INFO($"{AGV.Name} 移動-{_distance_changed} km,花費 /{_period}秒");
+                    double speed = _distance_changed / _period;
+                    List<MapPoint> _remain_path_points = RemainTags.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList();
+                    var _remain_path_points_extended = _remain_path_points.ToList();
+                    _remain_path_points_extended.Add(_remain_path_points.Last());
+
+                    double _remain_distance = 0.001 * _remain_path_points.Select(pt => pt.CalculateDistance(_remain_path_points_extended[_remain_path_points.IndexOf(pt) + 1])).Sum();
+                    double time_sec_estimate = _remain_distance / speed; //v=s/t==> t = s/v
+                    DateTime arrivalTimeEstimated = DateTime.Now.AddSeconds(time_sec_estimate);
+                    return arrivalTimeEstimated;
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR($"預估抵達目的地時間計算的過程中發生錯誤:{ex.Message}", ex);
+                return DateTime.Now;
+            }
+
+        }
 
         public enum ORDER_STATUS
         {
@@ -712,7 +767,7 @@ namespace VMSystem.AGV.TaskDispatch
         {
             try
             {
-                AgvSimulation.CancelTask();
+                AgvSimulation?.CancelTask();
                 if (SubTaskTracking == null)
                     return new SimpleRequestResponse { ReturnCode = RETURN_CODE.OK };
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
@@ -858,7 +913,7 @@ namespace VMSystem.AGV.TaskDispatch
             ChangeTaskStatus(OrderTaskName, TASK_RUN_STATUS.ACTION_FINISH);
             taskCancel.Cancel();
             waitingInfo.AllowMoveResumeResetEvent.Set();
-            AgvSimulation.CancelTask();
+            AgvSimulation?.CancelTask();
         }
 
         private async void TryNotifyToAGVSLDULDActionFinish()
@@ -884,7 +939,7 @@ namespace VMSystem.AGV.TaskDispatch
             UnRegistPointsRegisted();
             taskCancel.Cancel();
             waitingInfo.AllowMoveResumeResetEvent.Set();
-            AgvSimulation.CancelTask();
+            AgvSimulation?.CancelTask();
 
             if (agv_task_return_code == TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN && SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN && TaskOrder.Action == ACTION_TYPE.Carry)
             {

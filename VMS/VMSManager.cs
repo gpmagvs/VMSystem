@@ -177,7 +177,8 @@ namespace VMSystem.VMS
                                 TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
                                 CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType,
                                 TransferProcess = agv.taskDispatchModule.TaskStatusTracker.transferProcess,
-                                IsCharging = agv.states.IsCharging
+                                TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
+                                IsCharging = agv.states.IsCharging,
                             };
                             return dto;
                         };
