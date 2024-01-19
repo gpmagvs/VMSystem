@@ -63,7 +63,15 @@ namespace VMSystem.AGV.TaskDispatch
                 //AGV接下來要走的路，交管的部分就只需要考慮接下來要走的路
                 var NowIndex = optimiedPath.stations.FindIndex(pt => pt.TagNumber == TargetAGVItem.currentMapPoint.TagNumber);
                 var FollowingPathArray = new MapPoint[optimiedPath.stations.Count - NowIndex];
-                Array.Copy(optimiedPath.stations.ToArray(), NowIndex, FollowingPathArray, 0, FollowingPathArray.Length);
+                try
+                {
+
+                    Array.Copy(optimiedPath.stations.ToArray(), NowIndex, FollowingPathArray, 0, FollowingPathArray.Length);
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
                 var FollowingPath = FollowingPathArray.ToList();
 
                 var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);

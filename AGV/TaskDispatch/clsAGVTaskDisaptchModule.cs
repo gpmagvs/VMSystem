@@ -108,7 +108,7 @@ namespace VMSystem.AGV
                 }
             }
         }
-        private void CheckAutoCharge()
+        private async void CheckAutoCharge()
         {
             Task<clsAlarmDto> _charge_forbid_alarm = null;
             while (true)
@@ -232,12 +232,10 @@ namespace VMSystem.AGV
 
         public clsAGVTaskDisaptchModule()
         {
-            TaskAssignWorker();
         }
         public clsAGVTaskDisaptchModule(IAGV agv)
         {
             this.agv = agv;
-            TaskAssignWorker();
 
             if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
@@ -251,6 +249,10 @@ namespace VMSystem.AGV
         }
 
 
+        public async Task Run()
+        {
+            TaskAssignWorker();
+        }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
             if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
@@ -271,13 +273,13 @@ namespace VMSystem.AGV
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
 
-        protected virtual void TaskAssignWorker()
+        protected virtual async Task TaskAssignWorker()
         {
-            Task.Run(async () =>
+            Thread OrderMonitorThread = new Thread(async () =>
             {
                 while (true)
                 {
-                    Thread.Sleep(200);
+                    Thread.Sleep(100);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
@@ -329,10 +331,15 @@ namespace VMSystem.AGV
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
                     }
-
                 }
             });
-            Task.Run(() => CheckAutoCharge());
+            OrderMonitorThread.Start();
+
+            Thread AutoChargeThread = new Thread(() =>
+            {
+                CheckAutoCharge();
+            });
+            AutoChargeThread.Start();
         }
 
         private async void CreateChargeTask()
@@ -474,7 +481,6 @@ namespace VMSystem.AGV
             agv.AgvSimulation.CancelTask();
             return await TaskStatusTracker.CancelOrder(unRegistPoints);
         }
-
 
     }
 }

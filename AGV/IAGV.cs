@@ -15,6 +15,7 @@ namespace VMSystem.AGV
 {
     public interface IAGV
     {
+        Task Run();
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
         AGV_MODEL model { get; set; }
@@ -56,6 +57,7 @@ namespace VMSystem.AGV
         clsAGVSimulation AgvSimulation { get; set; }
         clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
         bool IsSolvingTrafficInterLock { get; set; }
+
     }
 
 }

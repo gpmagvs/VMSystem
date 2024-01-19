@@ -102,6 +102,7 @@ namespace VMSystem.VMS
                     var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
+                VMSTeam.StartAGVs();
                 VMSList.Add(item.Key, VMSTeam);
             }
 
@@ -109,6 +110,7 @@ namespace VMSystem.VMS
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             TcpServerInit();
 
+            OptimizeAGVDisaptchModule.Run();
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
@@ -147,13 +149,11 @@ namespace VMSystem.VMS
         internal static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored = new Dictionary<string, clsAGVStateDto>();
         private static void AGVStatesStoreWorker()
         {
-
             Task.Run(async () =>
             {
                 AGVSDatabase databse = new AGVSDatabase();
                 while (true)
                 {
-                    Thread.Sleep(100);
                     try
                     {
                         clsAGVStateDto CreateDTO(IAGV agv)
@@ -205,9 +205,9 @@ namespace VMSystem.VMS
                     catch (Exception ex)
                     {
                         LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤", ex);
-                        await Task.Delay(1000);
                     }
 
+                    Thread.Sleep(100);
                 }
             });
         }
@@ -223,6 +223,9 @@ namespace VMSystem.VMS
 
                     foreach (var _agv in VMSManager.AllAGV)
                     {
+                        if (_agv.taskDispatchModule == null)
+                            continue;
+
                         var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         _agv.taskDispatchModule.taskList = tasks.ToList();
                     }
