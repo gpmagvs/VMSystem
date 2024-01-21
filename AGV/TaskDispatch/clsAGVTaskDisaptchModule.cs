@@ -134,7 +134,7 @@ namespace VMSystem.AGV
                     continue;
 
                 Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
-                if (agv.IsAGVCargoStatusCanNotGoToCharge()&& !agv.currentMapPoint.IsCharge)
+                if (agv.IsAGVCargoStatusCanNotGoToCharge() && !agv.currentMapPoint.IsCharge)
                 {
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
@@ -151,6 +151,7 @@ namespace VMSystem.AGV
                 {
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
+                    _charge_forbid_alarm = null;
                     CreateChargeTask();
                 }
             }
