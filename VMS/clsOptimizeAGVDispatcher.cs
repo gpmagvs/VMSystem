@@ -21,15 +21,22 @@ namespace VMSystem.VMS
                 return TaskDBHelper.GetALLInCompletedTask().FindAll(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == "");
             }
         }
-        protected override void TaskAssignWorker()
+
+
+        public void Run()
         {
-            Task.Run(async () =>
+            TaskAssignWorker();
+        }
+
+        protected override async Task TaskAssignWorker()
+        {
+            Thread AssignThred = new Thread(async () =>
             {
                 while (true)
                 {
                     try
                     {
-                        await Task.Delay(1000);
+                        Thread.Sleep(400);
                         List<string> List_TaskAGV = new List<string>();
                         using (var database = new AGVSDatabase())
                         {
@@ -60,11 +67,11 @@ namespace VMSystem.VMS
                         LOG.ERROR(ex);
                         continue;
                     }
-
                 }
-            });
-        }
 
+            });
+            AssignThred.Start();
+        }
         /// <summary>
         /// 尋找最佳的AGV
         /// 策略: 如果是取放貨、 找離目的地最近的車
@@ -76,7 +83,7 @@ namespace VMSystem.VMS
         {
             MapPoint refStation = null;
             //取 放貨
-            if (taskDto.Action == ACTION_TYPE.Load | taskDto.Action == ACTION_TYPE.LoadAndPark | taskDto.Action == ACTION_TYPE.Unload)
+            if (taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.LoadAndPark || taskDto.Action == ACTION_TYPE.Unload)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out refStation);
             }
@@ -85,8 +92,8 @@ namespace VMSystem.VMS
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out refStation);
             }
 
-            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE&&agv.IsSolvingTrafficInterLock ==false).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
-            var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item =>item.states.Electric_Volume[0]>50 ).Where(item => !List_ExceptAGV.Contains(item.Name));
+            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE && agv.IsSolvingTrafficInterLock == false).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
+            var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => item.states.Electric_Volume[0] > 50).Where(item => !List_ExceptAGV.Contains(item.Name));
             AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(item => item.states.AGV_Status != clsEnums.MAIN_STATUS.Charging || (item.states.AGV_Status == clsEnums.MAIN_STATUS.Charging && item.states.Electric_Volume[0] > 80));
             
 

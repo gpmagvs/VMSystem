@@ -102,6 +102,7 @@ namespace VMSystem.VMS
                     var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
+                VMSTeam.StartAGVs();
                 VMSList.Add(item.Key, VMSTeam);
             }
 
@@ -109,6 +110,7 @@ namespace VMSystem.VMS
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             TcpServerInit();
 
+            OptimizeAGVDisaptchModule.Run();
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
@@ -117,12 +119,10 @@ namespace VMSystem.VMS
         private static void TcpServerInit()
         {
             TcpServer.OnClientConnected += TcpServer_OnClientConnected;
-
-            Task.Factory.StartNew(async () =>
+            Thread thread = new Thread(async () =>
             {
                 try
                 {
-
                     if (await TcpServer.Connect())
                     {
                         LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
@@ -137,6 +137,7 @@ namespace VMSystem.VMS
                     LOG.ERROR(ex);
                 }
             });
+            thread.Start();
         }
 
         private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
@@ -148,13 +149,11 @@ namespace VMSystem.VMS
         internal static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored = new Dictionary<string, clsAGVStateDto>();
         private static void AGVStatesStoreWorker()
         {
-
             Task.Run(async () =>
             {
                 AGVSDatabase databse = new AGVSDatabase();
                 while (true)
                 {
-                   Thread.Sleep(100);
                     try
                     {
                         clsAGVStateDto CreateDTO(IAGV agv)
@@ -178,7 +177,8 @@ namespace VMSystem.VMS
                                 TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
                                 CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType,
                                 TransferProcess = agv.taskDispatchModule.TaskStatusTracker.transferProcess,
-                                IsCharging = agv.states.IsCharging
+                                TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
+                                IsCharging = agv.states.IsCharging,
                             };
                             return dto;
                         };
@@ -206,9 +206,9 @@ namespace VMSystem.VMS
                     catch (Exception ex)
                     {
                         LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤", ex);
-                        await Task.Delay(1000);
                     }
 
+                    Thread.Sleep(100);
                 }
             });
         }
@@ -224,7 +224,10 @@ namespace VMSystem.VMS
 
                     foreach (var _agv in VMSManager.AllAGV)
                     {
-                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();                    
+                        if (_agv.taskDispatchModule == null)
+                            continue;
+
+                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         _agv.taskDispatchModule.taskList = tasks.ToList();
                     }
                 }

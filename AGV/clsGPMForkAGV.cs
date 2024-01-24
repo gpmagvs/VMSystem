@@ -29,14 +29,6 @@ namespace VMSystem.AGV
             StopRegionHelper = new StopRegionHelper(name);
             this.options = options;
             Name = name;
-            RestoreStatesFromDatabase();
-            AutoParkWorker();
-            AliveCheck();
-            PingCheck();
-            AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
-            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
-            LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
-            AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
         }
 
 
@@ -68,7 +60,7 @@ namespace VMSystem.AGV
 
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
         public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
-        public IAGVTaskDispather taskDispatchModule { get; set; }
+        public IAGVTaskDispather taskDispatchModule { get; set; } = new clsAGVTaskDisaptchModule();
         public clsAGVOptions options { get; set; }
 
         /// <summary>
@@ -288,6 +280,23 @@ namespace VMSystem.AGV
         public clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
         public bool IsSolvingTrafficInterLock { get; set; } = false;
 
+        public async Task Run()
+        {
+            RestoreStatesFromDatabase();
+            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+            AutoParkWorker();
+            AliveCheck();
+            PingCheck();
+            AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
+            LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
+            if (options.Simulation)
+            {
+                AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
+                AgvSimulation.StartSimulation();
+            }
+
+            taskDispatchModule.Run();
+        }
         public async Task<bool> PingServer()
         {
             Ping pingSender = new Ping();
@@ -682,5 +691,18 @@ namespace VMSystem.AGV
             }
         }
 
+        public bool IsAGVIdlingAtChargeStationButBatteryLevelLow()
+        {
+            return currentMapPoint.IsCharge && states.Electric_Volume.Any(level => level < 70) && main_state == clsEnums.MAIN_STATUS.IDLE;
+        }
+        public bool IsAGVIdlingAtNormalPoint()
+        {
+            return main_state == MAIN_STATUS.IDLE && currentMapPoint.StationType == STATION_TYPE.Normal;
+        }
+
+        public bool IsAGVCargoStatusCanNotGoToCharge()
+        {
+            return states.Cargo_Status == 1 || states.CSTID.Any(id => id != "");
+        }
     }
 }

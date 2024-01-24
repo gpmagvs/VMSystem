@@ -9,6 +9,7 @@ namespace VMSystem.AGV.TaskDispatch
 {
     public interface IAGVTaskDispather
     {
+        Task Run();
         List<clsTaskDto> taskList { get; set; }
         MapPoint[] CurrentTrajectory { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);

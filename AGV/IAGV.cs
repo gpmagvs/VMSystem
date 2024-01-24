@@ -15,6 +15,7 @@ namespace VMSystem.AGV
 {
     public interface IAGV
     {
+        Task Run();
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
         AGV_MODEL model { get; set; }
@@ -56,6 +57,16 @@ namespace VMSystem.AGV
         clsAGVSimulation AgvSimulation { get; set; }
         clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
         bool IsSolvingTrafficInterLock { get; set; }
+
+        /// <summary>
+        /// AGV是否在充電站內閒置且電量低於閥值
+        /// </summary>
+        /// <returns></returns>
+        bool IsAGVIdlingAtChargeStationButBatteryLevelLow();
+
+        bool IsAGVIdlingAtNormalPoint();
+
+        bool IsAGVCargoStatusCanNotGoToCharge();
     }
 
 }

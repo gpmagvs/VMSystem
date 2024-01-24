@@ -32,8 +32,14 @@ namespace VMSystem.AGV
         public clsAGVSimulation(clsAGVTaskDisaptchModule dispatcherModule)
         {
             this.dispatcherModule = dispatcherModule;
-            if (agv.options.Simulation)
+
+        }
+
+        internal void StartSimulation()
+        {
+            Thread thread = new Thread(async () =>
             {
+                Console.WriteLine($"{agv.Name}-Start AGV Simulation");
                 //從資料庫取得狀態數據
                 AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
 
@@ -50,19 +56,17 @@ namespace VMSystem.AGV
                 runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                 BatterSimulation();
                 ReportRunningStatusSimulation();
-            }
+            });
+            thread.Start();
         }
 
-        private void ReportRunningStatusSimulation()
+        private async Task ReportRunningStatusSimulation()
         {
-            Task.Factory.StartNew(async () =>
+            while (true)
             {
-                while (true)
-                {
-                    await Task.Delay(1);
-                    agv.states = runningSTatus;
-                }
-            });
+                await Task.Delay(10);
+                agv.states = runningSTatus;
+            }
         }
 
         public async Task<TaskDownloadRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
@@ -103,7 +107,7 @@ namespace VMSystem.AGV
         {
             clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
 
-            if ( previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
+            if (previousTaskData != null & waitReplanflag & data.Action_Type == ACTION_TYPE.None)
             {
                 if (previousTaskData.Task_Name == data.Task_Name)
                 {
@@ -117,7 +121,7 @@ namespace VMSystem.AGV
                         }
                         ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
                         Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length - 1, ExecutingTrajecory, 0, remainTragjectLen);
-                       
+
                     }
                     else
                     {
@@ -138,10 +142,13 @@ namespace VMSystem.AGV
             previousTaskData = data;
             ACTION_TYPE action = data.Action_Type;
 
+            bool isCargoTransferAction = action == ACTION_TYPE.Load || action == ACTION_TYPE.Unload;
+            bool isNormalMoveAction = action == ACTION_TYPE.None;
+
             move_task = Task.Run(async () =>
             {
                 moveCancelTokenSource = new CancellationTokenSource();
-                var stateDto = new FeedbackData
+                var taskFeedbackData = new FeedbackData
                 {
                     PointIndex = 0,
                     TaskName = data.Task_Name,
@@ -152,39 +159,20 @@ namespace VMSystem.AGV
                 };
                 try
                 {
-                    await dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+                    await dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
 
-                    await BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+                    await BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, taskFeedbackData, moveCancelTokenSource.Token);
 
-                    if (action == ACTION_TYPE.Load | action == ACTION_TYPE.Unload | action == ACTION_TYPE.LoadAndPark)
+                    CargoStateSimulate(action, data.CST);
+
+                    if (isCargoTransferAction)
+                        await BackToHome(data, ExecutingTrajecory, action, taskFeedbackData);//開回去設備門口
+
+                    if (isNormalMoveAction && ExecutingTrajecory.Last().Point_ID == data.Destination)
                     {
-                        //模擬LDULD
-                        Thread.Sleep(400);
-                        if (action == ACTION_TYPE.Load||action == ACTION_TYPE.LoadAndPark)
-                        {
-                            runningSTatus.CSTID = new string[0];
-                            runningSTatus.Cargo_Status = 0;
-                        }
-                        else
-                        {
-                            runningSTatus.CSTID = data.CST.Select(cst => cst.CST_ID).ToArray();
-                            runningSTatus.Cargo_Status = 1;
-                        }
-                        ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
-                        if (action != ACTION_TYPE.LoadAndPark)
-                        {
-                            await BarcodeMoveSimulation(action, ExecutingTrajecory.Reverse().ToArray(), data.Trajectory, stateDto, moveCancelTokenSource.Token);
-                        }
-                    }
-
-                    if (action == ACTION_TYPE.None)
-                    {
-                        if (ExecutingTrajecory.Last().Point_ID == data.Destination)
-                        {
-                            double finalTheta = ExecutingTrajecory.Last().Theta;
-                            SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
-                            runningSTatus.Coordination.Theta = finalTheta;
-                        }
+                        double finalTheta = ExecutingTrajecory.Last().Theta;
+                        SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
+                        runningSTatus.Coordination.Theta = finalTheta;
                     }
 
                     StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
@@ -196,8 +184,9 @@ namespace VMSystem.AGV
                     else
                         runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
 
-                    stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
-                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+                    taskFeedbackData.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    Thread.Sleep(500);
+                    dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
 
                 }
                 catch (Exception ex)
@@ -205,11 +194,33 @@ namespace VMSystem.AGV
                     move_task = null;
                     waitReplanflag = false;
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                    stateDto.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    taskFeedbackData.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
                     LOG.Critical(ex);
-                    dispatcherModule.TaskFeedback(stateDto); //回報任務狀態
+                    dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
                 }
             });
+        }
+
+        private async Task BackToHome(clsTaskDownloadData data, clsMapPoint[] ExecutingTrajecory, ACTION_TYPE action, FeedbackData stateDto)
+        {
+            ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
+            //返回Home
+            var _backHomeTrajetory = ExecutingTrajecory.Reverse().ToArray();
+            await BarcodeMoveSimulation(action, _backHomeTrajetory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+        }
+
+        private void CargoStateSimulate(ACTION_TYPE action, clsCST[] CstDataDownloaded)
+        {
+            if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
+            {
+                runningSTatus.CSTID = new string[0];
+                runningSTatus.Cargo_Status = 0;
+            }
+            else if (action == ACTION_TYPE.Unload)
+            {
+                runningSTatus.CSTID = CstDataDownloaded.Select(cst => cst.CST_ID).ToArray();
+                runningSTatus.Cargo_Status = 1;
+            }
         }
 
         private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
@@ -220,7 +231,7 @@ namespace VMSystem.AGV
                 ClientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 try
                 {
-                    string Action = (ActionType == ACTION_TYPE.Load|| ActionType == ACTION_TYPE.LoadAndPark) ? "Load" : "Unload";
+                    string Action = (ActionType == ACTION_TYPE.Load || ActionType == ACTION_TYPE.LoadAndPark) ? "Load" : "Unload";
                     ClientSocket.Connect("127.0.0.1", 100);
                     ClientSocket.Send(Encoding.ASCII.GetBytes($"{Action},{EQName}"));
                 }
@@ -250,7 +261,6 @@ namespace VMSystem.AGV
             {
                 Trajectory = Trajectory.Skip(1).ToArray();
             }
-            // 移动 AGV
             foreach (clsMapPoint station in Trajectory)
             {
                 if (moveCancelTokenSource.IsCancellationRequested)
@@ -262,8 +272,6 @@ namespace VMSystem.AGV
                 MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
                 bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
-
-
 
                 if (cancelToken.IsCancellationRequested)
                 {
@@ -277,7 +285,7 @@ namespace VMSystem.AGV
                 int stationTag = station.Point_ID;
                 var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
 
-                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio* parameters.SpeedUpRate);
+                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio * parameters.SpeedUpRate);
                 runningSTatus.Coordination.X = station.X;
                 runningSTatus.Coordination.Y = station.Y;
                 runningSTatus.Last_Visited_Node = stationTag;
@@ -302,7 +310,6 @@ namespace VMSystem.AGV
                     }
                 }
                 stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
-                //stateDto.PointIndex = idx;
                 stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                 int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
 
@@ -334,7 +341,7 @@ namespace VMSystem.AGV
                 double deltaX = NextPt.X - currentX;
                 double deltaY = NextPt.Y - currentY;
                 targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
-               
+
             }
             SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
             runningSTatus.Coordination.Theta = targetAngle;
@@ -401,6 +408,7 @@ namespace VMSystem.AGV
             }
             runningSTatus.Coordination.X = TargetX;
             runningSTatus.Coordination.Y = TargetY;
+            runningSTatus.Odometry += O_Distance_All;
         }
 
         private void SimulationThetaChange(double currentAngle, double targetAngle)
@@ -427,7 +435,7 @@ namespace VMSystem.AGV
                         return;
                     runningSTatus.Coordination.Theta -= deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(20*parameters.RotationSpeed / parameters.SpeedUpRate));
+                    Thread.Sleep((int)(20 * parameters.RotationSpeed / parameters.SpeedUpRate));
                 }
 
             }
@@ -447,46 +455,43 @@ namespace VMSystem.AGV
             runningSTatus.Coordination.Theta = targetAngle;
         }
 
-        private void BatterSimulation()
+        private async Task BatterSimulation()
         {
-            Task.Factory.StartNew(async () =>
+            while (true)
             {
-                while (true)
+                if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
                 {
-                    if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
+                    if (batteryLevelSim[0] >= 100)
                     {
-                        if (batteryLevelSim[0] >= 100)
-                        {
-                            batteryLevelSim[0] = 100;
-                        }
-                        else
-                        {
-                            batteryLevelSim[0] += 100* parameters.BatteryChargeSpeed*parameters.SpeedUpRate/3600; //充電模擬
-                        }
-
+                        batteryLevelSim[0] = 100;
                     }
                     else
                     {
-                        //模擬電量衰減
-                        if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
-                        {
-                            batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600 / 2;
-                        }
-                        else
-                        {
-                            batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600;//跑貨耗電比較快
-                        }
-                        if (batteryLevelSim[0] <= 0)
-                            batteryLevelSim[0] = 1;
+                        batteryLevelSim[0] += 100 * parameters.BatteryChargeSpeed * parameters.SpeedUpRate / 3600; //充電模擬
                     }
-                    runningSTatus.Electric_Volume = batteryLevelSim;
-                    _ = Task.Factory.StartNew(async () =>
-                    {
-                        await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);
-                    });
-                    await Task.Delay(1000);
+
                 }
-            });
+                else
+                {
+                    //模擬電量衰減
+                    if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
+                    {
+                        batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600 / 2;
+                    }
+                    else
+                    {
+                        batteryLevelSim[0] -= 100 * parameters.BatteryUsed_Run * parameters.SpeedUpRate / 3600;//跑貨耗電比較快
+                    }
+                    if (batteryLevelSim[0] <= 0)
+                        batteryLevelSim[0] = 1;
+                }
+                runningSTatus.Electric_Volume = batteryLevelSim;
+                _ = Task.Factory.StartNew(async () =>
+                {
+                    await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);
+                });
+                await Task.Delay(1000);
+            }
         }
 
         internal void CancelTask()
