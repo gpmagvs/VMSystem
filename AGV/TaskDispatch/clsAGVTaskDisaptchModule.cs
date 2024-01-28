@@ -27,6 +27,8 @@ using AGVSystemCommonNet6.AGVDispatch.RunMode;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.ObjectiveC;
 using AGVSystemCommonNet6.AGVDispatch;
+using System.Drawing;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 
 namespace VMSystem.AGV
 {
@@ -79,7 +81,7 @@ namespace VMSystem.AGV
                 if (previous_OrderExecuteState != value)
                 {
                     previous_OrderExecuteState = value;
-                    LOG.Critical($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode})");
+                    LOG.INFO($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode}", color: ConsoleColor.Green);
 
                     //if (value == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
                     //{
@@ -306,12 +308,17 @@ namespace VMSystem.AGV
                         {
                             var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
                             var _ExecutingTask = taskOrderedByPriority.First();
+                            ALARMS alarm_code = ALARMS.NONE;
 
-                            if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out ALARMS alarm_code))
+                            if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out alarm_code))
                             {
+                                _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
+                                _ExecutingTask.FinishTime = DateTime.Now;
+                                TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
                                 await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);
                                 continue;
                             }
+
                             agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                             _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
                             TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
@@ -366,7 +373,7 @@ namespace VMSystem.AGV
             _ = await TaskDBHelper.Add(new clsTaskDto
             {
                 Action = ACTION_TYPE.Charge,
-                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssffff")}",
                 DispatcherName = "VMS_Idle",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,

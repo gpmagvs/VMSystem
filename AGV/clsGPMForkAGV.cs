@@ -144,24 +144,15 @@ namespace VMSystem.AGV
                 }
             }
         }
-        public MapPoint previousMapPoint { get; private set; } = null;
+        public MapPoint previousMapPoint { get; private set; } = new MapPoint("", -1);
         public MapPoint currentMapPoint
         {
             get => previousMapPoint;
             set
             {
-
-                if (previousMapPoint == null)
-                {
-
-                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
-                    previousMapPoint = value;
-                    return;
-                }
-
                 if (previousMapPoint.TagNumber != value.TagNumber)
                 {
-                    LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})");
+                    LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})", color: ConsoleColor.Green);
                     if (value.IsEquipment)
                     {
                         StaMap.RegistPoint(Name, value, out string _Registerrmsg);
@@ -169,22 +160,9 @@ namespace VMSystem.AGV
                         return;
                     }
                     if (previousMapPoint != null)
-                    {
-                        //List<MapPoint> unRegistList = new List<MapPoint>() { previousMapPoint };
-                        //var extraNeedUnregistedPoints = previousMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                        //                                .Where(pt => pt != null)
-                        //                                .Where(pt => pt.RegistInfo != null)
-                        //                                .Where(pt => pt.RegistInfo.RegisterAGVName == Name);
-                        //if (taskDispatchModule.CurrentTrajectory.Count() != 0)
-                        //{
-                        //    extraNeedUnregistedPoints = extraNeedUnregistedPoints.Where(pt => !taskDispatchModule.CurrentTrajectory.Contains(pt)).ToList();
-                        //    unRegistList.AddRange(extraNeedUnregistedPoints);
-                        //}
                         StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
-                        //registedPointList.Where(pt=> !pathTags.Contains(pt.TagNumber)).
-                    }
-
                     StaMap.RegistPoint(Name, value, out string Registerrmsg);
+
                     previousMapPoint = value;
                 }
             }

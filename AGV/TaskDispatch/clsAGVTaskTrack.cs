@@ -470,7 +470,8 @@ namespace VMSystem.AGV.TaskDispatch
 
             var task_simplex = feedbackData.TaskSimplex;
             var task_status = feedbackData.TaskStatus;
-            LOG.INFO($"{AGV.Name} Feedback Task Status:{task_simplex} -{feedbackData.TaskStatus}-pt:{feedbackData.PointIndex}");
+            var agv_current_tag = AGV.currentMapPoint.TagNumber;
+            LOG.INFO($"{AGV.Name} Feedback Task Status:{feedbackData.ToJson()}|at tag-{agv_current_tag}", color: ConsoleColor.Green);
             if (AGV.main_state == MAIN_STATUS.DOWN)
             {
                 taskCancel.Cancel();
