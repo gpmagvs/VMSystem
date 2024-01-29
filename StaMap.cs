@@ -29,7 +29,7 @@ namespace VMSystem
 
         public static void Download()
         {
-            Map = MapManager.LoadMapFromFile();
+            Map = MapManager.LoadMapFromFile(false, false);
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
@@ -97,7 +97,7 @@ namespace VMSystem
 
         internal static List<MapPoint> GetPointByTagNumber(List<int> List_TagNumber)
         {
-            if (List_TagNumber == null )
+            if (List_TagNumber == null)
             {
                 List_TagNumber = new List<int>();
             }
@@ -186,7 +186,7 @@ namespace VMSystem
             return UnRegistPoint("System", mapPoint, out error_message, true);
         }
 
-        
+
         internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
@@ -231,7 +231,7 @@ namespace VMSystem
                     return true;
                 }
             }
-            
+
         }
 
         internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
@@ -327,7 +327,7 @@ namespace VMSystem
             var TargetPoint = GetPointByTagNumber(tagNumber);
             var AGVItem = VMSManager.AllAGV.First(item => item.Name == TargetAGV);
             //var List_NearPointTag = TargetPoint.Target.Where(item => (item.Value * 100) < 100).Select(item => item.Key);
-            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < AGVItem.options.VehicleLength/100).Select(item => item.Key);
+            var List_NearPointTag = Dict_AllPointDistance[tagNumber].Where(item => item.Value < AGVItem.options.VehicleLength / 100).Select(item => item.Key);
             foreach (var item in List_NearPointTag)
             {
                 var MapPointData = GetPointByTagNumber(item);

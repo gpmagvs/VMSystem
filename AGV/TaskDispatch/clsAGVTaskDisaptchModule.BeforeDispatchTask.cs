@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using VMSystem.VMS;
 
@@ -23,23 +24,17 @@ namespace VMSystem.AGV
             if (!IsTaskContentCorrectCheck(_ExecutingTask, out int tag, out alarm_code))
                 return false;
 
-            if (tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park | _ExecutingTask.Action == ACTION_TYPE.Charge))
+            bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge);
+            if (!_isAutoSearch)
+                return true;
+            LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
+
+            if (!SearchDestineStation(_ExecutingTask.Action, out MapPoint workstation, out alarm_code))
             {
-                LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
-                if (!SearchDestineStation(_ExecutingTask.Action, out MapPoint workstation, out alarm_code))
-                {
-                    using (var db = new AGVSDatabase())
-                    {
-                        var tk = db.tables.Tasks.Where(tk => tk.TaskName == _ExecutingTask.TaskName).FirstOrDefault();
-                        tk.State = TASK_RUN_STATUS.FAILURE;
-                        tk.FinishTime = DateTime.Now;
-                        TaskStatusTracker.RaiseTaskDtoChange(this, tk);
-                    }
-                    return false;
-                }
-                LOG.INFO($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
-                _ExecutingTask.To_Station = workstation.TagNumber.ToString();
+                return false;
             }
+            LOG.INFO($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
+            _ExecutingTask.To_Station = workstation.TagNumber.ToString();
             return true;
         }
 
@@ -66,23 +61,19 @@ namespace VMSystem.AGV
             var othersAGV = VMSManager.AllAGV.FindAll(agv => agv != this.agv);
             var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
 
-            while (true)
-            {
-                Thread.Sleep(1);
-                using (var database = new AGVSDatabase())
-                {
-                    var chargeTasks = database.tables.Tasks.Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING | tk.State == TASK_RUN_STATUS.WAIT));
-                    if (chargeTasks.Count() == 0)
-                        break;
-                    if (chargeTasks.All(tk => tk.To_Station == "-1") && chargeTasks.All(tk => tk.DesignatedAGVName != this.agv.Name))
-                        continue;
-                    workstations = workstations.FindAll(station => !chargeTasks.Select(tk => tk.To_Station).Contains(station.TagNumber + ""));
-                    break;
-                }
-            }
+            List<clsTaskDto> charge_task_assign_to_others_agv = othersAGV.SelectMany(agv => agv.taskDispatchModule.taskList)
+                                                                         .Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING || tk.State == TASK_RUN_STATUS.WAIT)).ToList();
 
+            var charge_station_tag_assign_to_others_agv = charge_task_assign_to_others_agv.Select(tk => tk.To_Station_Tag).ToList();
+            var charge_stations_tag_occupied = othersAGV.Where(agv => agv.currentMapPoint.IsCharge).Select(agv => agv.currentMapPoint.TagNumber).ToList();
 
-            workstations = workstations.FindAll(point => !othersAGVLocTags.Contains(point.TagNumber));
+            var all_using_charge_station_tags = new List<int>();
+            all_using_charge_station_tags.AddRange(charge_station_tag_assign_to_others_agv);
+            all_using_charge_station_tags.AddRange(charge_stations_tag_occupied);
+            all_using_charge_station_tags= all_using_charge_station_tags.Distinct().ToList();
+
+            workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));
+
             if (workstations.Count == 0)
             {
                 alarm_code = alarm_code_if_occur;
