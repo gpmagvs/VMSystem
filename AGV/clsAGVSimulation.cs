@@ -39,6 +39,7 @@ namespace VMSystem.AGV
         {
             Thread thread = new Thread(async () =>
             {
+                Thread.Sleep(1000);
                 Console.WriteLine($"{agv.Name}-Start AGV Simulation");
                 //從資料庫取得狀態數據
                 AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);

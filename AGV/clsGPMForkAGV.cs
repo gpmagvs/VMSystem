@@ -25,8 +25,6 @@ namespace VMSystem.AGV
 
         public clsGPMForkAGV(string name, clsAGVOptions options)
         {
-            availabilityHelper = new AvailabilityHelper(name);
-            StopRegionHelper = new StopRegionHelper(name);
             this.options = options;
             Name = name;
         }
@@ -260,18 +258,27 @@ namespace VMSystem.AGV
 
         public async Task Run()
         {
+            availabilityHelper = new AvailabilityHelper(Name);
+            StopRegionHelper = new StopRegionHelper(Name);
             RestoreStatesFromDatabase();
             taskDispatchModule = new clsAGVTaskDisaptchModule(this);
-            AutoParkWorker();
-            AliveCheck();
-            PingCheck();
+            _ = Task.Run(async () =>
+            {
+                Thread.Sleep(100);
+                AutoParkWorker();
+                AliveCheck();
+                PingCheck();
+
+                if (options.Simulation)
+                {
+                    AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
+                    AgvSimulation.StartSimulation();
+                }
+
+            });
+
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
-            if (options.Simulation)
-            {
-                AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
-                AgvSimulation.StartSimulation();
-            }
 
             taskDispatchModule.Run();
         }

@@ -76,6 +76,8 @@ namespace VMSystem.VMS
 
         internal static async void Initialize(ConfigurationManager configuration)
         {
+            TcpServerInit();
+
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
             var _configs = VMSSerivces.ReadVMSVehicleGroupSetting(Vehicle_Json_file);
             if (_configs != null)
@@ -102,14 +104,14 @@ namespace VMSystem.VMS
                     var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
+                Thread.Sleep(100);
                 VMSTeam.StartAGVs();
                 VMSList.Add(item.Key, VMSTeam);
             }
 
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
-            TcpServerInit();
-
+         
             OptimizeAGVDisaptchModule.Run();
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
