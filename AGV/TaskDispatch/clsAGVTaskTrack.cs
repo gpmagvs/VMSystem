@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6;
+﻿//#define CancelTaskTest
+using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
@@ -16,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Newtonsoft.Json;
 using RosSharp.RosBridgeClient;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -777,7 +779,15 @@ namespace VMSystem.AGV.TaskDispatch
                     Task_Name = OrderTaskName,
                     TimeStamp = DateTime.Now,
                 };
-                SimpleRequestResponse taskStateResponse = await AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
+                SimpleRequestResponse taskStateResponse;
+                if (AGV.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
+                {
+                    taskStateResponse = await AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
+                }
+                else
+                {
+                    taskStateResponse = AGV.TcpClientHandler.SendTaskCancelMessage(reset_cmd);
+                }
                 LOG.WARN($"取消{AGV.Name}任務-[{SubTaskTracking.DownloadData.Task_Simplex}]-[{mode}]-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
                 return taskStateResponse;
             }
@@ -861,10 +871,20 @@ namespace VMSystem.AGV.TaskDispatch
                 try
                 {
                     TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
+
                     if (AGV.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
                         taskStateResponse = AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _task.DownloadData).Result;
                     else
                         taskStateResponse = AGV.TcpClientHandler.SendTaskMessage(_task.DownloadData);
+
+#if CancelTaskTest
+                    Task.Factory.StartNew(async () =>
+                    {
+                        await Task.Delay(100);
+                        this.CancelOrder();
+                    });
+#endif
+
                     return taskStateResponse;
                 }
                 catch (Exception)

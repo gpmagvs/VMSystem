@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.RunMode;
+using AGVSystemCommonNet6.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
@@ -11,7 +12,6 @@ namespace VMSystem.Controllers
     [ApiController]
     public class SystemController : ControllerBase
     {
-
         [HttpGet("/ws/VMSAliveCheck")]
         public async Task AliveCheck()
         {
