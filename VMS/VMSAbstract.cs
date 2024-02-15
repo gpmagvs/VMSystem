@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.DATABASE.Helpers;
+using Microsoft.Extensions.Options;
 using VMSystem.AGV;
 using static AGVSystemCommonNet6.clsEnums;
 
@@ -33,6 +34,7 @@ namespace VMSystem.VMS
             AGVList.Values.ToList().ForEach((agv) =>
             {
                 agv.Run();
+             
             });
         }
     }

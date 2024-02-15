@@ -13,8 +13,9 @@ using Microsoft.Data.Sqlite;
 using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.Controllers;
-
+Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
+LOG.ShowClassName = false;
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
 PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
@@ -71,14 +72,19 @@ app.MapControllers();
 
 
 
-StaMap.Download();
-VMSManager.Initialize(builder.Configuration);
-TrafficControlCenter.Initialize();
-
 try
 {
     TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
     dbheper.SetRunningTaskWait();
+
+    _ = Task.Run( () =>
+    {
+        Thread.Sleep(1000);
+        StaMap.Download();
+        WebsocketClientMiddleware.StartViewDataCollect();
+        VMSManager.Initialize(builder.Configuration);
+        TrafficControlCenter.Initialize();
+    });
 }
 catch (Exception ex)
 {
@@ -86,7 +92,5 @@ catch (Exception ex)
     Thread.Sleep(3000);
     Environment.Exit(1);
 }
-
-WebsocketClientMiddleware.StartViewDataCollect();
 
 app.Run();
