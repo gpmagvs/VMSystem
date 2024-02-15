@@ -91,8 +91,13 @@ namespace VMSystem.VMS
                 VMS_GROUP vms_type = item.Key;
                 if (vms_type == VMS_GROUP.GPM_FORK)
                 {
-                    var gpm_for_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
-                    VMSTeam = new GPMForkAgvVMS(gpm_for_agvList);
+                    var gpm_fork_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
+                    VMSTeam = new GPMForkAgvVMS(gpm_fork_agvList);
+                }
+                else if (vms_type == VMS_GROUP.GPM_SUBMARINE_SHIELD)
+                {
+                    var gpm_submarine_shieldList = item.Value.AGV_List.Select(kp => new clsGPMSubmarine_Shield(kp.Key, kp.Value)).ToList();
+                    VMSTeam = new GPMSubmarine_ShieldVMS(gpm_submarine_shieldList);
                 }
                 else if (vms_type == VMS_GROUP.YUNTECH_FORK)
                 {
@@ -104,6 +109,7 @@ namespace VMSystem.VMS
                     var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
+                
                 Thread.Sleep(100);
                 VMSTeam.StartAGVs();
                 VMSList.Add(item.Key, VMSTeam);
