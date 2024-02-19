@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.MAP;
 using System.Drawing;
 using VMSystem.AGV;
+using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
 namespace VMSystem.Tools
@@ -55,7 +56,7 @@ namespace VMSystem.Tools
         internal static bool TryFindInterferenceAGVOfPoint(IAGV naving_agv, MapPoint point, out List<IAGV> interferenceAGVList)
         {
             interferenceAGVList = new List<IAGV>();
-            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(naving_agv.Name).Where(agv => agv.currentMapPoint.StationType == STATION_TYPE.Normal).ToDictionary(agv => agv, agv => agv.currentMapPoint.CalculateDistance(point));
+            var agv_distance_from_secondaryPt = VMSManager.AllAGV.FilterOutAGVFromCollection(naving_agv.Name).Where(agv => agv.currentMapPoint.StationType == STATION_TYPE.Normal).ToDictionary(agv => agv, agv => agv.currentMapPoint.CalculateDistance(point));
             var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= naving_agv.options.VehicleLength / 100.0);
             interferenceAGVList = tooNearAgvDistanc.Select(kp => kp.Key).ToList();
             return interferenceAGVList.Count > 0;

@@ -31,6 +31,10 @@ namespace VMSystem.AGV
 
             public double BatteryChargeSpeed { get; set; } = 9;
             public double BatteryUsed_Run { get; set; } = 0.1;
+
+            public double WorkingTime { get; set; } = 4;//秒
+
+            internal double WorkingTimeAwait => WorkingTime / SpeedUpRate;
         }
     }
 }

@@ -104,9 +104,9 @@ namespace VMSystem.Controllers
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = agv.NavigatingTagPath,
+                        nav_path = agv.main_state != MAIN_STATUS.RUN ? new List<int>() : agv.taskDispatchModule.OrderHandler.GetNavPathTags(),
                         theta = agv.states.Coordination.Theta,
-                        waiting_info = agv.taskDispatchModule.TaskStatusTracker.waitingInfo,
+                        waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
                         {
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,

@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
 namespace VMSystem.AGV
@@ -58,7 +59,7 @@ namespace VMSystem.AGV
                 workstations = StaMap.GetChargeableStations(this.agv);
 
 
-            var othersAGV = VMSManager.AllAGV.FindAll(agv => agv != this.agv);
+            var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.agv);
             var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
 
             List<clsTaskDto> charge_task_assign_to_others_agv = othersAGV.SelectMany(agv => agv.taskDispatchModule.taskList)

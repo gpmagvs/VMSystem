@@ -18,10 +18,20 @@ using System.Collections.Concurrent;
 using AGVSystemCommonNet6.AGVDispatch;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Diagnostics;
+using VMSystem.AGV.TaskDispatch.Tasks;
+using static VMSystem.AGV.TaskDispatch.Tasks.clsMoveTaskEvent;
+using System.Data;
+using System.Diagnostics;
+using VMSystem.TrafficControl.Solvers;
+using static VMSystem.AGV.clsAGVTaskDisaptchModule;
+using System.Collections.Generic;
+using System.Linq;
+using VMSystem.TrafficControl.Exceptions;
+using System.Runtime.CompilerServices;
 
 namespace VMSystem.TrafficControl
 {
-    public class TrafficControlCenter
+    public partial class TrafficControlCenter
     {
         public static ConcurrentQueue<clsTrafficInterLockSolver> InterLockTrafficSituations { get; set; } = new ConcurrentQueue<clsTrafficInterLockSolver>();
         public static List<clsWaitingInfo> AGVWaitingQueue = new List<clsWaitingInfo>();
@@ -30,6 +40,9 @@ namespace VMSystem.TrafficControl
             SystemModes.OnRunModeON += HandleRunModeOn;
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
             clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
+            TaskBase.BeforeMoveToNextGoalTaskDispatch += ProcessTaskRequest;
+            //TaskBase.BeforeMoveToNextGoalTaskDispatch += HandleAgvGoToNextGoalTaskSend;
+            TaskBase.BeforeLeaveFromWorkStation += HandleAgvLeaveFromWorkstationTaskSend;
             StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
             Task.Run(() => TrafficInterLockSolveWorker());
@@ -98,6 +111,67 @@ namespace VMSystem.TrafficControl
                 }
             }
         }
+
+        private static clsLeaveFromWorkStationConfirmEventArg HandleAgvLeaveFromWorkstationTaskSend(clsLeaveFromWorkStationConfirmEventArg args)
+        {
+            var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
+            if (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference))
+            {
+                args.WaitSignal.Reset();
+                args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
+                Task.Run(() =>
+                {
+                    clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
+                    while (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference))
+                    {
+                        string _waitingMessage = isTagRegisted ? $"{args.GoalTag} 被其他車輛註冊-等待通行" : isTagBlocked ? $"{args.GoalTag}有AGV無法通行" : "與其他車輛干涉";
+                        TrafficWaittingInfo.SetStatusWaitingConflictPointRelease(new List<int> { args.GoalTag }, $"等待站點進入位置可通行({_waitingMessage})");
+                        Thread.Sleep(1);
+                    }
+                    TrafficWaittingInfo.SetStatusNoWaiting();
+                    args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                    args.WaitSignal.Set();
+
+                });
+            }
+            else
+            {
+                args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                args.WaitSignal.Set();
+            }
+            return args;
+
+            #region region method
+
+            bool IsPathInterference(int goal, IEnumerable<IAGV> _otherAGVList)
+            {
+                MapPoint[] path = new MapPoint[2] { args.Agv.currentMapPoint, StaMap.GetPointByTagNumber(goal) };
+                return Tools.CalculatePathInterference(path, args.Agv, _otherAGVList);
+            }
+            bool IsDestineBlocked()
+            {
+                return otherAGVList.Any(agv => agv.states.Last_Visited_Node == args.GoalTag);
+            }
+            bool IsDestineRegisted(int goal, string AgvName)
+            {
+                if (!StaMap.RegistDictionary.TryGetValue(goal, out var result))
+                    return false;
+
+                return result.RegisterAGVName != AgvName;
+            }
+
+            bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference)
+            {
+                isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
+                isInterference = IsPathInterference(_goalTag, _otherAGVList);
+                isTagBlocked = IsDestineBlocked();
+                return isTagRegisted || isInterference || isTagBlocked;
+            }
+            #endregion
+        }
+
+        public static List<TrafficControlCommander> TrafficEventCommanders = new List<TrafficControlCommander>();
+
         private static void ClsWaitingInfo_OnAGVWaitingStatusChanged(clsWaitingInfo waitingInfo)
         {
             try
@@ -172,7 +246,7 @@ namespace VMSystem.TrafficControl
                             AGVStatus = agv.main_state,
                             IsOnline = agv.online_state == ONLINE_STATE.ONLINE,
                             TaskRecieveTime = agv.main_state != MAIN_STATUS.RUN ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? DateTime.MaxValue : agv.taskDispatchModule.TaskStatusTracker.TaskOrder.RecieveTime,
-                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.taskDispatchModule.TaskStatusTracker.TaskOrder == null ? new List<MapPoint>() : agv.taskDispatchModule.CurrentTrajectory.ToList(),
+                            PlanningNavTrajectory = agv.main_state != MAIN_STATUS.RUN ? new List<MapPoint>() : agv.PlanningNavigationMapPoints.ToList(),
                         }
                     );
                     DynamicTrafficState.RegistedPoints = StaMap.RegistDictionary;
@@ -442,7 +516,7 @@ namespace VMSystem.TrafficControl
             pfResultCollection = pfResultCollection.Where(pf => pf.waitPoints.Count == 0).OrderBy(pf => pf.total_travel_distance).ToList();
             if (pfResultCollection == null)
                 return -1;
-            var otherAgvTags = VMSManager.GetAGVListExpectSpeficAGV(_Agv_GoAway).Select(agv => agv.currentMapPoint.TagNumber).ToList();
+            var otherAgvTags = VMSManager.AllAGV.FilterOutAGVFromCollection(_Agv_GoAway).Select(agv => agv.currentMapPoint.TagNumber).ToList();
             otherAgvTags.AddRange(StaMap.Dict_AllPointDistance[_Agv_Waiting.currentMapPoint.TagNumber].Where(item => item.Value < _Agv_Waiting.options.VehicleLength / 100).Select(item => item.Key).ToList());
             if (pfResultCollection.Count > 0)
             {

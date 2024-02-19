@@ -23,6 +23,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Timers;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Tools;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -80,8 +81,8 @@ namespace VMSystem.AGV.TaskDispatch
         private int finishSubTaskNum = 0;
         private ACTION_TYPE previousCompleteAction = ACTION_TYPE.Unknown;
         private ACTION_TYPE carryTaskCompleteAction = ACTION_TYPE.Unknown;
-        public TRANSFER_PROCESS _transferProcess = TRANSFER_PROCESS.NOT_START_YET;
-        public TRANSFER_PROCESS transferProcess
+        public VehicleMovementStage _transferProcess = VehicleMovementStage.Not_Start_Yet;
+        public VehicleMovementStage transferProcess
         {
             get => _transferProcess;
             set
@@ -149,7 +150,7 @@ namespace VMSystem.AGV.TaskDispatch
         public bool IsResumeTransferTask { get; private set; } = false;
         public bool WaitingForResume { get; private set; }
 
-        public async Task Start(IAGV AGV, clsTaskDto TaskOrder, bool IsResumeTransferTask = false, TRANSFER_PROCESS lastTransferProcess = default)
+        public async Task Start(IAGV AGV, clsTaskDto TaskOrder, bool IsResumeTransferTask = false, VehicleMovementStage lastTransferProcess = default)
         {
             AgvSimulation = AGV.AgvSimulation;
             if (TaskOrder == null)
@@ -160,7 +161,7 @@ namespace VMSystem.AGV.TaskDispatch
             if (TaskOrder.Action == ACTION_TYPE.Carry && TaskOrder.From_Station == AGV.states.Last_Visited_Node + "")
             {
                 this.IsResumeTransferTask = true;
-                this.transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                this.transferProcess = VehicleMovementStage.Traveling_To_Destine;
             }
 
             await Task.Run(() =>
@@ -272,31 +273,31 @@ namespace VMSystem.AGV.TaskDispatch
                 if (sub_action == ACTION_TYPE.None)
                 {
                     if (order_action == ACTION_TYPE.Charge)
-                        transferProcess = TRANSFER_PROCESS.GO_TO_CHARGE_STATION;
+                        transferProcess = VehicleMovementStage.Traveling;
                     else if (order_action == ACTION_TYPE.Load || order_action == ACTION_TYPE.Unload)
-                        transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                        transferProcess = VehicleMovementStage.Traveling_To_Destine;
                     else
-                        transferProcess = TRANSFER_PROCESS.MOVING;
+                        transferProcess = VehicleMovementStage.Traveling;
                 }
                 else if (sub_action == ACTION_TYPE.Load)
-                    transferProcess = TRANSFER_PROCESS.WORKING_AT_DESTINE_EQ;
+                    transferProcess = VehicleMovementStage.WorkingAtDestination;
 
                 else if (sub_action == ACTION_TYPE.Unload)
-                    transferProcess = TRANSFER_PROCESS.WORKING_AT_SOURCE_EQ;
+                    transferProcess = VehicleMovementStage.WorkingAtSource;
 
                 else if (sub_action == ACTION_TYPE.Charge)
-                    transferProcess = TRANSFER_PROCESS.PARK_IN_CHARGE_STATION;
+                    transferProcess = VehicleMovementStage.WorkingAtChargeStation;
                 else if (sub_action == ACTION_TYPE.Discharge || sub_action == ACTION_TYPE.Unpark)
-                    transferProcess = TRANSFER_PROCESS.LEAVE_WORKSTATION;
+                    transferProcess = VehicleMovementStage.LeaveFrom_WorkStation;
             }
             else
             {
                 if (previousCompleteAction == ACTION_TYPE.Unknown | previousCompleteAction == ACTION_TYPE.Discharge | previousCompleteAction == ACTION_TYPE.Unpark)
-                    transferProcess = TRANSFER_PROCESS.GO_TO_SOURCE_EQ;
+                    transferProcess = VehicleMovementStage.Traveling_To_Source;
                 else if (previousCompleteAction == ACTION_TYPE.Load)
-                    transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                    transferProcess = VehicleMovementStage.Traveling_To_Destine;
                 else
-                    transferProcess = TRANSFER_PROCESS.GO_TO_DESTINE_EQ;
+                    transferProcess = VehicleMovementStage.Traveling_To_Destine;
             }
         }
 
@@ -425,7 +426,7 @@ namespace VMSystem.AGV.TaskDispatch
                 {
                     taskLinkList.Remove(removeout);
                 }
-                if (transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ)
+                if (transferProcess == VehicleMovementStage.Traveling_To_Source)
                 {
                     previousCompleteAction = ACTION_TYPE.None;
                 }
@@ -507,9 +508,9 @@ namespace VMSystem.AGV.TaskDispatch
 
                     LOG.INFO($"{AGV.Name} Feedback Task Action Start[{SubTaskTracking.Action}]");
                     if (SubTaskTracking.Action == ACTION_TYPE.Unload)
-                        transferProcess = TRANSFER_PROCESS.WORKING_AT_SOURCE_EQ;
+                        transferProcess = VehicleMovementStage.WorkingAtSource;
                     else if (SubTaskTracking.Action == ACTION_TYPE.Load)
-                        transferProcess = TRANSFER_PROCESS.WORKING_AT_DESTINE_EQ;
+                        transferProcess = VehicleMovementStage.WorkingAtDestination;
                     break;
                 case TASK_RUN_STATUS.ACTION_FINISH:
                     TryNotifyToAGVSLDULDActionFinish();
@@ -517,7 +518,7 @@ namespace VMSystem.AGV.TaskDispatch
                     if (orderStatus.Status == ORDER_STATUS.COMPLETED | orderStatus.Status == ORDER_STATUS.NO_ORDER)
                     {
                         CompletedSubTasks.Push(SubTaskTracking);
-                        transferProcess = TRANSFER_PROCESS.FINISH;
+                        transferProcess = VehicleMovementStage.Completed;
                         CompleteOrder();
                         return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
@@ -550,7 +551,7 @@ namespace VMSystem.AGV.TaskDispatch
                             await PostTaskCancelRequestToAGVAsync(RESET_MODE.CYCLE_STOP);
                         });
                         CompletedSubTasks.Push(SubTaskTracking);
-                        transferProcess = TRANSFER_PROCESS.FINISH;
+                        transferProcess = VehicleMovementStage.Completed;
                         AbortOrder(TASK_DOWNLOAD_RETURN_CODES.AGV_STATUS_DOWN, orderStatus.AlarmCode);
                         return TASK_FEEDBACK_STATUS_CODE.OK;
                     }
@@ -910,7 +911,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
 
-            var agv_distance_from_secondaryPt = VMSManager.GetAGVListExpectSpeficAGV(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(task.Destination));
+            var agv_distance_from_secondaryPt = VMSManager.AllAGV.FilterOutAGVFromCollection(this.AGV.Name).ToDictionary(agv => agv, agv => new MapPoint() { X = agv.states.Coordination.X, Y = agv.states.Coordination.Y }.CalculateDistance(task.Destination));
             var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
             if (tooNearAgvDistanc.Any())
             {
@@ -1026,7 +1027,7 @@ namespace VMSystem.AGV.TaskDispatch
         private void UnRegistPointsRegisted()
         {
             //解除除了當前位置知所有註冊點
-            var IsAllPointsUnRegisted = StaMap.UnRegistPointByName(AGV.Name, new int[] { AGV.states.Last_Visited_Node }, out int[] failTags);
+            var IsAllPointsUnRegisted = StaMap.UnRegistPointsOfAGVRegisted(AGV);
             //Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == AGV.Name);
             if (IsAllPointsUnRegisted)
             {
@@ -1034,7 +1035,7 @@ namespace VMSystem.AGV.TaskDispatch
             }
             else
             {
-                LOG.WARN($"{AGV.Name}-交通解除註冊點{string.Join("、", failTags)}失敗");
+                LOG.WARN($"{AGV.Name}-交通解除註冊點失敗");
             }
 
         }

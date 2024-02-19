@@ -125,13 +125,17 @@ namespace VMSystem
             int index = Map.Points.FirstOrDefault(k => k.Value.TagNumber == mapPoint.TagNumber).Key;
             return index;
         }
+        internal static bool RegistPoint(string Name, IEnumerable<int> Tags, out string error_message)
+        {
+            return RegistPoint(Name, Tags.Select(tag => GetPointByTagNumber(tag)), out error_message);
+        }
         internal static bool RegistPoint(string Name, IEnumerable<MapPoint> mapPoints, out string error_message)
         {
             error_message = string.Empty;
             foreach (var item in mapPoints)
             {
-                if (!RegistPoint(Name, item, out error_message))
-                    return false;
+                RegistPoint(Name, item, out error_message);
+
             }
             return true;
         }
@@ -148,7 +152,7 @@ namespace VMSystem
                 mapPoint.RegistInfo = new clsPointRegistInfo("System");
                 RegistDictionary.Remove(TagNumber, out clsPointRegistInfo _info);
                 RegistDictionary.Add(TagNumber, mapPoint.RegistInfo);
-                LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
                 return true;
             }
             if (RegistDictionary.ContainsKey(TagNumber))
@@ -157,13 +161,13 @@ namespace VMSystem
                 bool _success = registerName == Name;
                 if (_success)
                 {
-                    LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
 
                 }
                 else
                 {
                     error_message = $"Tag {TagNumber} is registed by [{registerName}]";
-                    LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
+                    //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
 
                 }
                 return _success;
@@ -176,7 +180,7 @@ namespace VMSystem
                     LOG.TRACE($"{Name} Regist Tag {TagNumber}");
                 else
                 {
-                    LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
+                    //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
                 }
                 return registSuccess;
             }
@@ -211,9 +215,9 @@ namespace VMSystem
                         {
                             RegistDictionary.Remove(TagNumber, out var _);
                             OnTagUnregisted?.Invoke("", TagNumber);
-                            LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                            //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
 
-                            LOG.TRACE($"{RegistDictionary.ToJson()}");
+                           // LOG.TRACE($"{RegistDictionary.ToJson()}");
                         }
                     }
                     else
@@ -227,7 +231,7 @@ namespace VMSystem
                 else
                 {
                     OnTagUnregisted?.Invoke("", TagNumber);
-                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                    //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
                     return true;
                 }
             }
@@ -294,21 +298,18 @@ namespace VMSystem
                 return false;
         }
 
-        internal static bool UnRegistPointByName(string name, int[] exception_tags, out int[] failure_tag)
+        internal static bool UnRegistPointsOfAGVRegisted(IAGV agv)
         {
-            failure_tag = null;
-            List<int> failTags = new List<int>();
-            foreach (var item in RegistDictionary.Where(kp => kp.Value.RegisterAGVName == name & !exception_tags.Contains(kp.Key)))
+            try
             {
-                int tag = item.Key;
-                bool unSuccess = UnRegistPoint(name, tag, out string msg, name == "System");
-                if (!unSuccess)
-                {
-                    failTags.Add(tag);
-                }
+                var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
+                UnRegistPoints(agv.Name, registed_tag_except_current_tag.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList());
+                return true;
             }
-            failure_tag = failTags.ToArray();
-            return failure_tag.Length == 0;
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
 
         internal static bool GetPointRegisterName(int tagNumber, out string agvName)

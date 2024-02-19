@@ -37,11 +37,7 @@ namespace VMSystem.AGV
         bool AGVOnlineFromAGVS(out string message);
         bool AGVOfflineFromAGVS(out string message);
 
-        /// <summary>
-        /// 
-        /// </summary>
-        List<int> NavigatingTagPath { get; }
-
+        MapPoint[] PlanningNavigationMapPoints { get; }
         Task<object> GetAGVStateFromDB();
 
         int CalculatePathCost(Map map, object toTag);
@@ -67,6 +63,8 @@ namespace VMSystem.AGV
         bool IsAGVIdlingAtNormalPoint();
 
         bool IsAGVCargoStatusCanNotGoToCharge();
+
+
     }
 
 }

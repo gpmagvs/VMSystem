@@ -48,7 +48,7 @@ namespace VMSystem.AGV.TaskDispatch
 
                 var optimiedPath = pathFinder.FindShortestPath(StaMap.Map, Source, Destination, new PathFinderOption
                 {
-                    ConstrainTags = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName).Select(agv => agv.currentMapPoint.TagNumber).ToList()
+                    ConstrainTags = VMSManager.AllAGV.FilterOutAGVFromCollection(ExecuteOrderAGVName).Select(agv => agv.currentMapPoint.TagNumber).ToList()
                 }); //考慮AGV組黨後計算出的路徑
 
                 optimiedPath = optimiedPath == null ? PathNoConsiderAGV : optimiedPath;
@@ -74,7 +74,7 @@ namespace VMSystem.AGV.TaskDispatch
                 }
                 var FollowingPath = FollowingPathArray.ToList();
 
-                var otherAGVList = VMSManager.GetAGVListExpectSpeficAGV(ExecuteOrderAGVName);
+                var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(ExecuteOrderAGVName);
                 List<IAGV> agv_too_near_from_path = new List<IAGV>();
 
                 var Dict_NearPoint = (this.Action == ACTION_TYPE.None || this.Action == ACTION_TYPE.Unpark) ? GetNearTargetMapPointOfPathByPointDistance(FollowingPath, TargetAGVItem.options.VehicleLength / 100.0) : new Dictionary<int, List<MapPoint>>();
@@ -209,7 +209,7 @@ namespace VMSystem.AGV.TaskDispatch
                     OrderInfo = new clsTaskDownloadData.clsOrderInfo
                     {
                         ActionName = order.Action != ACTION_TYPE.Carry ? order.Action :
-                                      _agv_transfer_state == TRANSFER_PROCESS.NOT_START_YET || _agv_transfer_state == TRANSFER_PROCESS.GO_TO_SOURCE_EQ ? ACTION_TYPE.Unload : ACTION_TYPE.Load,
+                                      _agv_transfer_state == VehicleMovementStage.Not_Start_Yet || _agv_transfer_state == VehicleMovementStage.Traveling_To_Source ? ACTION_TYPE.Unload : ACTION_TYPE.Load,
                         IsTransferTask = order.Action == ACTION_TYPE.Carry,
                         SourceName = StaMap.GetStationNameByTag(fromTag),
                         DestineName = StaMap.GetStationNameByTag(toTag),

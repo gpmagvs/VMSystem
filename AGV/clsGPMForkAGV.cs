@@ -21,8 +21,11 @@ namespace VMSystem.AGV
 {
     public class clsGPMForkAGV : IAGV
     {
-        public clsAGVSimulation AgvSimulation { get; set; }
+        public clsAGVSimulation AgvSimulation { get; set; }=new clsAGVSimulation();
+        public clsGPMForkAGV()
+        {
 
+        }
         public clsGPMForkAGV(string name, clsAGVOptions options)
         {
             this.options = options;
@@ -148,21 +151,31 @@ namespace VMSystem.AGV
             get => previousMapPoint;
             set
             {
-                if (previousMapPoint.TagNumber != value.TagNumber)
+                try
                 {
-                    LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})", color: ConsoleColor.Green);
-                    if (value.IsEquipment)
+                    if (previousMapPoint.TagNumber != value.TagNumber)
                     {
-                        StaMap.RegistPoint(Name, value, out string _Registerrmsg);
-                        previousMapPoint = value;
-                        return;
-                    }
-                    if (previousMapPoint != null)
-                        StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
-                    StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})", color: ConsoleColor.Green);
+                        if (value.IsEquipment)
+                        {
+                            StaMap.RegistPoint(Name, value, out string _Registerrmsg);
+                            previousMapPoint = value;
+                            return;
+                        }
+                        if (previousMapPoint != null)
+                            StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
 
-                    previousMapPoint = value;
+                        //if (taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                        StaMap.RegistPoint(Name, value, out string Registerrmsg);
+
+                        previousMapPoint = value;
+                    }
                 }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+                
             }
         }
 
@@ -229,16 +242,7 @@ namespace VMSystem.AGV
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        public List<int> NavigatingTagPath
-        {
-            get
-            {
-                return taskDispatchModule.TaskStatusTracker.RemainTags;
-            }
-        }
+
 
         public HttpHelper AGVHttp { get; set; }
 
@@ -255,6 +259,27 @@ namespace VMSystem.AGV
         public bool IsTrafficTaskFinish { get; set; } = false;
         public clsAGVSTcpServer.clsAGVSTcpClientHandler? TcpClientHandler { get; set; }
         public bool IsSolvingTrafficInterLock { get; set; } = false;
+
+        public MapPoint[] PlanningNavigationMapPoints
+        {
+            get
+            {
+                clsMapPoint[] _taskTrajectory = taskDispatchModule.OrderHandler.RunningTask.TaskDonwloadToAGV.Trajectory;
+                if (_taskTrajectory.Count() == 0)
+                    return new MapPoint[0];
+                else
+                {
+
+                    var tags = _taskTrajectory.Select(pt => pt.Point_ID).ToList();
+                    //var _agv_current_tag = currentMapPoint.TagNumber;
+                    //var _agv_loc_index = tags.IndexOf(_agv_current_tag);
+                    //var _remainTags = tags.Where(tag => tags.IndexOf(tag) >= _agv_loc_index).ToList();
+                    //var mapPoints = StaMap.Map.Points.Values;
+                    MapPoint[] _remain_points = tags.Select(tag => StaMap.GetPointByTagNumber(tag)).ToArray();
+                    return _remain_points;
+                }
+            }
+        }
 
         public async Task Run()
         {

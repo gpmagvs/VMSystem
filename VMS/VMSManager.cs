@@ -40,7 +40,7 @@ namespace VMSystem.VMS
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
 
-        internal static List<IAGV> AllAGV
+        public static List<IAGV> AllAGV
         {
             get
             {
@@ -53,16 +53,8 @@ namespace VMSystem.VMS
 
                 }
 
-                return outputs.FindAll(agv => agv.options.Enabled);
+                return outputs.FindAll(agv => agv.options != null && agv.options.Enabled);
             }
-        }
-        internal static List<IAGV> GetAGVListExpectSpeficAGV(IAGV agv)
-        {
-            return GetAGVListExpectSpeficAGV(agv.Name);
-        }
-        internal static List<IAGV> GetAGVListExpectSpeficAGV(string agv_name)
-        {
-            return AllAGV.FindAll(agv => agv.Name != agv_name);
         }
         internal static List<IAGV> RunningAGVList
         {
@@ -111,7 +103,7 @@ namespace VMSystem.VMS
 
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
-         
+
             OptimizeAGVDisaptchModule.Run();
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
@@ -174,13 +166,16 @@ namespace VMSystem.VMS
                                 Connected = agv.connected,
                                 Group = agv.VMSGroup,
                                 Model = agv.model,
-                                TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.TaskStatusTracker.OrderTaskName : "",
-                                TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
-                                TaskRunAction = agv.taskDispatchModule.TaskStatusTracker.TaskAction,
-                                CurrentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType,
-                                TransferProcess = agv.taskDispatchModule.TaskStatusTracker.transferProcess,
+                                TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.OrderHandler.OrderData.TaskName : "",
+                                //TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                                TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
+                                CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
+                                TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
                                 TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
                                 IsCharging = agv.states.IsCharging,
+                                IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
+                                VehicleWidth = agv.options.VehicleWidth,
+                                VehicleLength = agv.options.VehicleLength
                             };
                             return dto;
                         };

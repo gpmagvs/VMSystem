@@ -29,6 +29,10 @@ using System.Runtime.InteropServices.ObjectiveC;
 using AGVSystemCommonNet6.AGVDispatch;
 using System.Drawing;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
+using static VMSystem.AGV.TaskDispatch.IAGVTaskDispather;
+using VMSystem.TrafficControl.Solvers;
+using VMSystem.AGV.TaskDispatch.Tasks;
 
 namespace VMSystem.AGV
 {
@@ -284,7 +288,7 @@ namespace VMSystem.AGV
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
-                if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.FINISH && this.TaskStatusTracker.transferProcess != TRANSFER_PROCESS.NOT_START_YET)
+                if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
                     return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
             }
             if (taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING).Count() == 0)
@@ -293,7 +297,7 @@ namespace VMSystem.AGV
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
-
+        public OrderHandlerBase OrderHandler { get; set; } = new MoveToOrderHandler();
         protected virtual async Task TaskAssignWorker()
         {
             Thread OrderMonitorThread = new Thread(async () =>
@@ -322,7 +326,14 @@ namespace VMSystem.AGV
                             agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                             _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
                             TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
-                            await ExecuteTaskAsync(_ExecutingTask);
+
+                            //await ExecuteTaskAsync(_ExecutingTask);
+
+                            OrderHandlerFactory factory = new OrderHandlerFactory();
+
+                            OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
+                            OrderHandler = factory.CreateHandler(_ExecutingTask);
+                            OrderHandler.StartOrder(agv);
                         }
 
                         else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)
@@ -373,7 +384,7 @@ namespace VMSystem.AGV
             _ = await TaskDBHelper.Add(new clsTaskDto
             {
                 Action = ACTION_TYPE.Charge,
-                TaskName = $"Charge_{DateTime.Now.ToString("yyyyMMdd_HHmmssffff")}",
+                TaskName = $"Charge-{agv.Name}_{DateTime.Now.ToString("yyMMdd_HHmmssff")}",
                 DispatcherName = "VMS_Idle",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,
@@ -389,15 +400,15 @@ namespace VMSystem.AGV
         {
 
             bool IsResumeTransferTask = false;
-            TRANSFER_PROCESS lastTransferProcess = default;
+            VehicleMovementStage lastTransferProcess = default;
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
-                IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.TaskStatusTracker.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
+                IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == VehicleMovementStage.Traveling_To_Destine || this.TaskStatusTracker.transferProcess == VehicleMovementStage.Traveling_To_Source);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
             if (LastNormalTaskPauseByAvoid != null && LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
             {
-                IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_DESTINE_EQ | this.LastNormalTaskPauseByAvoid.transferProcess == TRANSFER_PROCESS.GO_TO_SOURCE_EQ);
+                IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == VehicleMovementStage.Traveling_To_Destine || this.LastNormalTaskPauseByAvoid.transferProcess == VehicleMovementStage.Traveling_To_Source);
                 lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
             }
 
@@ -448,7 +459,8 @@ namespace VMSystem.AGV
                 ExecutingTaskName = "";
                 agv.IsTrafficTaskExecuting = false;
             }
-            _ = Task.Run(() => TaskStatusTracker.HandleAGVFeedback(feedbackData));
+            //_ = Task.Run(() => TaskStatusTracker.HandleAGVFeedback(feedbackData));
+            _ = Task.Run(() => OrderHandler.HandleAGVFeedback(feedbackData));
             return 0;
         }
 
@@ -504,8 +516,102 @@ namespace VMSystem.AGV
 
         public async Task<string> CancelTask(bool unRegistPoints = true)
         {
-            return await TaskStatusTracker.CancelOrder(unRegistPoints);
+            this.OrderHandler.CancelOrder();
+            return "";
+            //return await TaskStatusTracker.CancelOrder(unRegistPoints);
+        }
+        private List<IAGV> WaitingForYieldedAGVList = new List<IAGV>();
+        public WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY AGVWaitingYouNotify(IAGV waiting_for_move_agv)
+        {
+            if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
+            {
+
+                if (WaitingForYieldedAGVList.Contains(waiting_for_move_agv))
+                    return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_WAIT;
+
+                bool isMoving = this.OrderHandler.RunningTask.ActionType == ACTION_TYPE.None;
+                if (!isMoving)
+                    return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_WAIT;
+
+
+                //若這部AGV目前的軌跡終點將不會阻擋
+                var _waiting_agv_order_handler = waiting_for_move_agv.taskDispatchModule.OrderHandler;
+                ACTION_TYPE order_action_of_waiting_agv = _waiting_agv_order_handler.OrderAction;
+                ACTION_TYPE order_action_of_be_request_agv = this.OrderHandler.OrderAction;
+                var remainTags_of_yield_AGV = this.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList;
+                remainTags_of_yield_AGV = remainTags_of_yield_AGV.Skip(remainTags_of_yield_AGV.IndexOf(this.agv.states.Last_Visited_Node)).ToList();
+                int destineOfCurrentpath = remainTags_of_yield_AGV.Count == 0 ? this.agv.states.Last_Visited_Node : remainTags_of_yield_AGV.Last();
+
+                if (order_action_of_be_request_agv == ACTION_TYPE.Charge)
+                {
+                    int chargeStationTag = this.OrderHandler.OrderData.To_Station_Tag;
+                    int secondaryTagOfChargeStation = StaMap.GetPointByIndex(StaMap.GetPointByTagNumber(chargeStationTag).Target.Keys.First()).TagNumber;
+                    if (secondaryTagOfChargeStation == this.agv.states.Last_Visited_Node)
+                        return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_WAIT;
+                }
+
+                bool notBlockedlater = !_waiting_agv_order_handler.RunningTask.MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList.Contains(destineOfCurrentpath);
+                bool waitingAGVBlockedYieldAGV = remainTags_of_yield_AGV.Contains(waiting_for_move_agv.states.Last_Visited_Node);
+
+                if (notBlockedlater && !waitingAGVBlockedYieldAGV)
+                    return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_WAIT;
+
+
+                if (order_action_of_waiting_agv == ACTION_TYPE.Charge)
+                    return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_YIELD_ME;
+
+                OrderHandler.StartTrafficControl();
+                //先實作退讓
+                WaitingForYieldedAGVList.Add(waiting_for_move_agv);
+                this.OrderHandler.RunningTask.WaitingForAGV = WaitingForYieldedAGVList;
+
+                StartYieldAGVAction(waiting_for_move_agv);
+
+            }
+            return WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY.PLEASE_WAIT;
         }
 
+        /// <summary>
+        /// 開始進行讓路
+        /// </summary>
+        /// <param name="waiting_for_move_agv"></param>
+        private void StartYieldAGVAction(IAGV waiting_for_move_agv)
+        {
+            Task.Run(async () =>
+            {
+                TrafficEventCommanderFactory factory = new TrafficEventCommanderFactory();
+                var commander = factory.CreateYieldWayEventWhenAGVMovingCommander(waiting_for_move_agv, this.agv);
+                var _solveReuslt = await commander.StartSolve();
+                OrderHandler.FinishTrafficControl();
+                if (_solveReuslt.Status != clsSolverResult.SOLVER_RESULT.SUCCESS)
+                {
+                    return;
+                }
+                WaitAGVPass(waiting_for_move_agv);
+                LOG.TRACE($"Continue Task-{this.OrderHandler.OrderData.TaskName} {this.agv.main_state}");
+                this.OrderHandler.RunningTask.DistpatchToAGV();
+                void WaitAGVPass(IAGV waiting_for_move_agv)
+                {
+                    this.OrderHandler.RunningTask.CreateTaskToAGV();
+                    var nextTrajTags = (this.OrderHandler.RunningTask as MoveTask).TaskSequenceList.Last().GetTagList();
+                    var remainTags = nextTrajTags.Skip(nextTrajTags.ToList().IndexOf(this.agv.states.Last_Visited_Node) + 1).ToList();
+                    var _waiting_tags = remainTags.ToList();
+                    while (remainTags.Contains(waiting_for_move_agv.states.Last_Visited_Node))
+                    {
+                        _waiting_tags.Remove(waiting_for_move_agv.states.Last_Visited_Node);
+                        this.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(_waiting_tags);
+                        LOG.TRACE($"Finish Traffic Control..waiting {string.Join(",", _waiting_tags)} release  >>> {waiting_for_move_agv.Name}(Current Tag={waiting_for_move_agv.states.Last_Visited_Node}) and order will continue...{this.agv.main_state}");
+                        Thread.Sleep(1000);
+                    }
+                    this.OrderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
+                }
+            });
+        }
+
+        public void AGVNotWaitingYouNotify(IAGV agv)
+        {
+            WaitingForYieldedAGVList.Remove(agv);
+            this.OrderHandler.RunningTask.WaitingForAGV = WaitingForYieldedAGVList;
+        }
     }
 }
