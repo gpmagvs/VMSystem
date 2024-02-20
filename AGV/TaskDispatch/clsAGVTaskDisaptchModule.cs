@@ -262,7 +262,7 @@ namespace VMSystem.AGV
         {
             this.agv = agv;
 
-            if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
+            if (agv.model ==  clsEnums.AGV_TYPE.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
             else
             {
@@ -420,11 +420,11 @@ namespace VMSystem.AGV
             {
             }
             TaskStatusTracker?.Dispose();
-            if (agv.model != clsEnums.AGV_MODEL.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
+            if (agv.model != clsEnums.AGV_TYPE.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
             else
             {
-                if (agv.model == clsEnums.AGV_MODEL.INSPECTION_AGV)
+                if (agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                     TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
                 else
                     TaskStatusTracker = new clsAGVTaskTrack(this) { AGV = agv };

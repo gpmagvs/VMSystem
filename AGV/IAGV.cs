@@ -19,7 +19,7 @@ namespace VMSystem.AGV
         Task Run();
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
-        AGV_MODEL model { get; set; }
+        AGV_TYPE model { get; set; }
         string Name { get; set; }
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }

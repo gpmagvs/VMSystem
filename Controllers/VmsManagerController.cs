@@ -52,7 +52,7 @@ namespace VMSystem.Controllers
 
 
         [HttpGet("OnlineRequet")]
-        public async Task<IActionResult> OnlineRequet(string agv_name, AGV_MODEL model = AGV_MODEL.FORK_AGV)
+        public async Task<IActionResult> OnlineRequet(string agv_name, clsEnums.AGV_TYPE model = clsEnums.AGV_TYPE.FORK)
         {
             Console.WriteLine($"要求 {agv_name}上線 ");
             bool online_success = false;
@@ -86,7 +86,7 @@ namespace VMSystem.Controllers
         }
 
         [HttpGet("OfflineRequet")]
-        public async Task<IActionResult> OfflineRequet(string agv_name, AGV_MODEL model = AGV_MODEL.FORK_AGV)
+        public async Task<IActionResult> OfflineRequet(string agv_name, clsEnums.AGV_TYPE model = clsEnums.AGV_TYPE.FORK)
         {
             Console.WriteLine($"AGV-{agv_name}要求下線");
             string msg = string.Empty;

@@ -19,7 +19,7 @@ namespace VMSystem.Controllers
     public class AGVController : ControllerBase
     {   //api/VmsManager/AGVStatus?AGVName=agvname
         [HttpPost("AGVStatus")]
-        public async Task<IActionResult> AGVStatus(string AGVName, AGV_MODEL Model, clsRunningStatus status)
+        public async Task<IActionResult> AGVStatus(string AGVName,  AGV_TYPE Model, clsRunningStatus status)
         {
             if (!VMSManager.TryGetAGV(AGVName, Model, out IAGV agv))
             {
@@ -41,7 +41,7 @@ namespace VMSystem.Controllers
         }
 
         [HttpPost("TaskFeedback")]
-        public async Task<IActionResult> TaskFeedback(string AGVName, AGV_MODEL Model, [FromBody] FeedbackData feedbackData)
+        public async Task<IActionResult> TaskFeedback(string AGVName, AGV_TYPE Model, [FromBody] FeedbackData feedbackData)
         {
             try
             {
@@ -65,7 +65,7 @@ namespace VMSystem.Controllers
         }
 
         [HttpPost("ReportMeasure")]
-        public async Task<IActionResult> ReportMeasure(string AGVName, AGV_MODEL Model, [FromBody] clsMeasureResult measureResult)
+        public async Task<IActionResult> ReportMeasure(string AGVName, AGV_TYPE Model, [FromBody] clsMeasureResult measureResult)
         {
             if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
             {
@@ -103,7 +103,7 @@ namespace VMSystem.Controllers
             ALARMS aramCode = ALARMS.NONE;
             if (VMSManager.TryGetAGV(AGVName, 0, out var agv))
             {
-                if (agv.model == AGV_MODEL.INSPECTION_AGV)
+                if (agv.model == AGV_TYPE.INSPECTION_AGV)
                 {
                     tag = agv.states.Last_Visited_Node;
                 }
@@ -160,7 +160,7 @@ namespace VMSystem.Controllers
 
         //api/VmsManager/OnlineMode
         [HttpGet("OnlineMode")]
-        public async Task<IActionResult> OnlineStatusQuery(string AGVName, AGV_MODEL Model = AGV_MODEL.UNKNOWN)
+        public async Task<IActionResult> OnlineStatusQuery(string AGVName, AGV_TYPE Model = AGV_TYPE.Any)
         {
             if (VMSManager.TryGetAGV(AGVName, Model, out var agv))
             {
@@ -190,7 +190,7 @@ namespace VMSystem.Controllers
 
         //api/VmsManager/OnlineMode
         [HttpGet("CarrierVirtualID")]
-        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_MODEL Model = AGV_MODEL.UNKNOWN)
+        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_TYPE Model =  AGV_TYPE.Any)
         {
             LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
             if (VMSManager.TryGetAGV(AGVName, Model, out var agv))

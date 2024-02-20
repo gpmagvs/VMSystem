@@ -38,7 +38,7 @@ namespace VMSystem.AGV
 
         public bool simulationMode => options.Simulation;
         public string Name { get; set; }
-        public virtual clsEnums.AGV_MODEL model { get; set; } = clsEnums.AGV_MODEL.FORK_AGV;
+        public virtual AGV_TYPE model { get; set; } = AGV_TYPE.FORK;
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
 
