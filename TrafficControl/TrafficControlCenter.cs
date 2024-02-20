@@ -28,6 +28,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VMSystem.TrafficControl.Exceptions;
 using System.Runtime.CompilerServices;
+using AGVSystemCommonNet6.MAP.Geometry;
 
 namespace VMSystem.TrafficControl
 {
@@ -115,23 +116,46 @@ namespace VMSystem.TrafficControl
         private static clsLeaveFromWorkStationConfirmEventArg HandleAgvLeaveFromWorkstationTaskSend(clsLeaveFromWorkStationConfirmEventArg args)
         {
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
-            if (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference))
+            if (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation))
             {
                 args.WaitSignal.Reset();
                 args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
                 Task.Run(() =>
                 {
                     clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
-                    while (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference))
+                    while (IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation))
                     {
-                        string _waitingMessage = isTagRegisted ? $"{args.GoalTag} 被其他車輛註冊-等待通行" : isTagBlocked ? $"{args.GoalTag}有AGV無法通行" : "與其他車輛干涉";
-                        TrafficWaittingInfo.SetStatusWaitingConflictPointRelease(new List<int> { args.GoalTag }, $"等待站點進入位置可通行({_waitingMessage})");
+                        string _waitingMessage = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
+                        TrafficWaittingInfo.SetStatusWaitingConflictPointRelease(new List<int> { args.GoalTag }, _waitingMessage);
                         Thread.Sleep(1);
                     }
                     TrafficWaittingInfo.SetStatusNoWaiting();
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
                     args.WaitSignal.Set();
 
+                    string CreateWaitingInfoDisplayMessage(clsLeaveFromWorkStationConfirmEventArg args, bool isTagRegisted, bool isTagBlocked, bool isInterfercenWhenRotation)
+                    {
+                        // 定义基础消息
+                        string baseMessage = "等待通行";
+
+                        // 根据条件选择具体的提示信息
+                        if (isInterfercenWhenRotation)
+                        {
+                            return $"{baseMessage}-抵達終點後旋轉可能會與其他車輛干涉";
+                        }
+                        else if (isTagRegisted)
+                        {
+                            return $"{baseMessage}-{args.GoalTag} 被其他車輛註冊";
+                        }
+                        else if (isTagBlocked)
+                        {
+                            return $"{baseMessage}-{args.GoalTag}有AGV無法通行";
+                        }
+                        else
+                        {
+                            return $"{baseMessage}-與其他車輛干涉";
+                        }
+                    }
                 });
             }
             else
@@ -148,6 +172,7 @@ namespace VMSystem.TrafficControl
                 MapPoint[] path = new MapPoint[2] { args.Agv.currentMapPoint, StaMap.GetPointByTagNumber(goal) };
                 return Tools.CalculatePathInterference(path, args.Agv, _otherAGVList);
             }
+
             bool IsDestineBlocked()
             {
                 return otherAGVList.Any(agv => agv.states.Last_Visited_Node == args.GoalTag);
@@ -160,12 +185,17 @@ namespace VMSystem.TrafficControl
                 return result.RegisterAGVName != AgvName;
             }
 
-            bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference)
+            bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation)
             {
+
+                var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
+                MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
+                _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
                 isInterference = IsPathInterference(_goalTag, _otherAGVList);
+                isInterfercenWhenRotation = _otherAGVList.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(_agvCircleAreaWhenReachGoal));
                 isTagBlocked = IsDestineBlocked();
-                return isTagRegisted || isInterference || isTagBlocked;
+                return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
             }
             #endregion
         }

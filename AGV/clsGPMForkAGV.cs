@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
@@ -21,7 +22,7 @@ namespace VMSystem.AGV
 {
     public class clsGPMForkAGV : IAGV
     {
-        public clsAGVSimulation AgvSimulation { get; set; }=new clsAGVSimulation();
+        public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
         public clsGPMForkAGV()
         {
 
@@ -175,7 +176,7 @@ namespace VMSystem.AGV
                 {
                     throw ex;
                 }
-                
+
             }
         }
 
@@ -278,6 +279,21 @@ namespace VMSystem.AGV
                     MapPoint[] _remain_points = tags.Select(tag => StaMap.GetPointByTagNumber(tag)).ToArray();
                     return _remain_points;
                 }
+            }
+        }
+        public MapCircleArea AGVRotaionGeometry
+        {
+            get
+            {
+                return new MapCircleArea((float)(options.VehicleLength / 100f), (float)(options.VehicleWidth / 100f), new System.Drawing.PointF((float)states.Coordination.X, (float)states.Coordination.Y));
+            }
+        }
+
+        public MapRectangle AGVGeometery
+        {
+            get
+            {
+                return TrafficControl.Tools.CreateAGVRectangle(this);
             }
         }
 

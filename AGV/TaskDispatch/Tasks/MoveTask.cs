@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
+using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using System.Diagnostics.Tracing;
 using System.Net;
 using VMSystem.Tools;
@@ -55,17 +56,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 _destine_point = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             }
-
-            PathFinder _pathinfder = new PathFinder();
-            clsPathInfo path_found_result = _pathinfder.FindShortestPath(StaMap.Map, AGVCurrentMapPoint, _destine_point,
-                new PathFinderOption
-                {
-                    ConstrainTags = GetRegistedTagsByOtherAGV()
-                });
-
-            if (path_found_result == null)
-                path_found_result = _pathinfder.FindShortestPath(StaMap.Map, AGVCurrentMapPoint, _destine_point);
-
+            clsPathInfo path_found_result = PathFind(_destine_point, new List<int>());
             this.TaskSequenceList = GenSequenceTaskByTrafficCheckPoints(path_found_result.stations);
             this.TaskDonwloadToAGV.Trajectory = path_found_result.stations.Select(pt => TaskBase.MapPointToTaskPoint(pt)).ToArray();
             this.TaskDonwloadToAGV.Destination = _destine_point.TagNumber;
@@ -74,6 +65,41 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             LOG.TRACE($"{this.TaskDonwloadToAGV.Task_Name}_ Path Sequences:\r\n" + string.Join("r\n", this.TaskSequenceList.Select(seq => string.Join("->", seq.GetTagList()))));
         }
 
+        private clsPathInfo PathFind(MapPoint _destine_point, List<int> constrainTags)
+        {
+            PathFinder _pathinfder = new PathFinder();
+            PathFinderOption pathFinderOption = new PathFinderOption()
+            {
+                ConstrainTags = constrainTags,
+            };
+            clsPathInfo path_found_result = _pathinfder.FindShortestPath(StaMap.Map, AGVCurrentMapPoint, _destine_point, pathFinderOption); //最優路徑
+
+            if (path_found_result == null && constrainTags.Count > 0)
+            {
+                return _pathinfder.FindShortestPath(StaMap.Map, AGVCurrentMapPoint, _destine_point); //最優路徑
+            }
+
+            var constrainOfPath = GetConstrainTags(ref path_found_result);
+            if (constrainOfPath.Count == 0)
+                return path_found_result;
+            constrainTags.AddRange(constrainOfPath);
+            constrainTags = constrainTags.Distinct().ToList();
+            return PathFind(_destine_point, constrainTags); //遞迴方式
+        }
+
+        private List<int> GetConstrainTags(ref clsPathInfo optimized_path_info)
+        {
+            List<int> tags = new List<int>();
+            var registedPoints = StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList();
+
+            var _pointsRegisted = optimized_path_info.tags.Intersect(registedPoints);
+            bool isAnyPointRegisted = _pointsRegisted.Count() != 0;
+
+            if (isAnyPointRegisted)
+                tags.AddRange(registedPoints);
+
+            return tags.Distinct().ToList();
+        }
         public override void CancelTask()
         {
             if (MoveTaskEvent != null)
@@ -115,6 +141,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         TaskDonwloadToAGV = _taskDownloadData;
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, _taskSequenceList, _OptimizedTrajectoryTags, stations, OrderData.IsTrafficControlTask);
 
+                        if(TryGetOtherBetterPath(MoveTaskEvent ,out clsPathInfo newPathInfo))
+                        {
+
+                        }
+
                         await WaitNextPathRegistedOrConflicPointsCleared();
 
                         if (MoveTaskEvent.TrafficResponse.ConfirmResult == GOTO_NEXT_GOAL_CONFIRM_RESULT.CANCEL)
@@ -153,6 +184,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             await _ExecuteSequenceTasks(this.TaskSequenceList);
 
+        }
+
+        private bool TryGetOtherBetterPath(clsMoveTaskEvent currentMoveEvent, out clsPathInfo newPathInfo)
+        {
+            var nextGoal = currentMoveEvent.AGVRequestState.NextSequenceTaskTrajectory.Last();
+            newPathInfo = PathFind(nextGoal, new List<int>());
+            bool hasNewPath = newPathInfo.tags.SequenceEqual(currentMoveEvent.AGVRequestState.NextSequenceTaskRemainTagList);
+            return hasNewPath;
         }
 
         public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
@@ -216,10 +255,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
         }
-        private List<int> GetRegistedTagsByOtherAGV()
-        {
-            return StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList();
-        }
+
 
         /// <summary>
         /// 等待註冊點解註冊或等待干涉點位無干涉
@@ -234,7 +270,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             UpdateBlockedAGVList(registedTags, out blockedTagAGVList);
             IEnumerable<IAGV> conflicAgvList = new List<IAGV>();
             bool IsInterference = false;
-            while (MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList.Any(tag => IsTagRegistedByOthers(tag)) || (IsInterference = _isIntererce(out conflicAgvList)) == true)
+            while (MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList.Any(tag => IsTagRegistedByOthers(tag)) || (IsInterference = _IsPathIntererce(out conflicAgvList)) == true)
             {
                 if (MoveTaskEvent.TrafficResponse.ConfirmResult == GOTO_NEXT_GOAL_CONFIRM_RESULT.CANCEL)
                 {
@@ -282,7 +318,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 agvList = registedTags.Select(tag => StaMap.RegistDictionary[tag].RegisterAGVName).Select(name => VMSManager.GetAGVByName(name)).Distinct().ToList();
             }
 
-            bool _isIntererce(out IEnumerable<IAGV> conflicAgvList)
+            bool _IsPathIntererce(out IEnumerable<IAGV> conflicAgvList)
             {
                 int currentTagIndex = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.GetTagList().ToList().IndexOf(this.Agv.states.Last_Visited_Node);
                 var remainTrajectory = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Skip(currentTagIndex);

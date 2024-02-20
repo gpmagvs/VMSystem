@@ -10,6 +10,7 @@ using VMSystem.AGV.TaskDispatch;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.MAP.Geometry;
 
 namespace VMSystem.AGV
 {
@@ -64,6 +65,8 @@ namespace VMSystem.AGV
 
         bool IsAGVCargoStatusCanNotGoToCharge();
 
+        MapRectangle AGVGeometery { get; }
+        MapCircleArea AGVRotaionGeometry { get; }
 
     }
 
