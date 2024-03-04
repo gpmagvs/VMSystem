@@ -49,7 +49,7 @@ namespace VMSystem.VMS
                             continue;
 
                         //將任務依照優先度排序
-                        var taskOrderedByPriority = taskList.OrderByDescending(task => task.Priority);
+                        var taskOrderedByPriority = taskList.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority);
                         var _taskDto = taskOrderedByPriority.First();
                         if (_taskDto.DesignatedAGVName != "")
                             continue;
