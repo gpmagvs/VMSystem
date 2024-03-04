@@ -593,7 +593,7 @@ namespace VMSystem.AGV
                 void WaitAGVPass(IAGV waiting_for_move_agv)
                 {
                     this.OrderHandler.RunningTask.CreateTaskToAGV();
-                    var nextTrajTags = (this.OrderHandler.RunningTask as MoveTask).TaskSequenceList.Last().GetTagList();
+                    var nextTrajTags = (this.OrderHandler.RunningTask as MoveTask).TaskSequenceList.Last().GetTagCollection();
                     var remainTags = nextTrajTags.Skip(nextTrajTags.ToList().IndexOf(this.agv.states.Last_Visited_Node) + 1).ToList();
                     var _waiting_tags = remainTags.ToList();
                     while (remainTags.Contains(waiting_for_move_agv.states.Last_Visited_Node))

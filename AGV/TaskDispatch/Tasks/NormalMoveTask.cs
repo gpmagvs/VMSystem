@@ -2,7 +2,7 @@
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class NormalMoveTask : MoveTask
+    public class NormalMoveTask : MoveTaskDynamicPathPlan
     {
         public NormalMoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {

@@ -530,6 +530,7 @@ namespace VMSystem.AGV
 
         internal void CancelTask()
         {
+            SemaphoreSlim = new SemaphoreSlim(1, 1);
             waitReplanflag = false;
             moveCancelTokenSource?.Cancel();
             TaskCancelTokenSource?.Cancel();

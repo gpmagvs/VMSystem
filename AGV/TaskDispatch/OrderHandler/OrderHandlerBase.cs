@@ -1,6 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using static AGVSystemCommonNet6.clsEnums;
@@ -16,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public Queue<TaskBase> SequenceTaskQueue { get; set; } = new Queue<TaskBase>();
         public Stack<TaskBase> CompleteTaskStack { get; set; } = new Stack<TaskBase>();
         public clsTaskDto OrderData { get; internal set; } = new clsTaskDto();
-        public TaskBase RunningTask { get; private set; } = new MoveToDestineTask(null, null);
+        public TaskBase RunningTask { get; private set; } = new MoveToDestineTask();
         private ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         public bool TaskCancelledFlag { get; private set; } = false;
@@ -40,14 +42,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     _CurrnetTaskFinishResetEvent.Reset();
                     var task = SequenceTaskQueue.Dequeue();
+
                     task.TaskName = OrderData.TaskName;
                     task.TaskSequence = CompleteTaskStack.Count + 1;
                     RunningTask = task;
-
+                    task.OnTaskDownloadToAGVButAGVRejected += (_alarm) =>
+                    {
+                        AbortOrder(_alarm);
+                    };
                     task.DistpatchToAGV();
                     LOG.INFO($"Task-{task.ActionType} 開始");
                     _CurrnetTaskFinishResetEvent.WaitOne();
-
                     LOG.INFO($"Task-{task.ActionType} 結束");
 
                     if (TaskCancelledFlag)
@@ -84,6 +89,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 HandleAGVActionFinishFeedback();
             }
+            else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
+            {
+                RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
+            }
         }
 
         protected virtual void HandleAGVActionFinishFeedback()
@@ -107,7 +116,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)
                 AbortOrder(Agv.states.Alarm_Code);
         }
-       
+
+        internal async void AbortOrder(ALARMS agvsAlarm)
+        {
+            AGVSystemCommonNet6.Alarm.clsAlarmDto _alarmDto = await AlarmManagerCenter.AddAlarmAsync(agvsAlarm);
+            TaskAbortedFlag = true;
+            TaskAbortReason = _alarmDto.Description;
+            _CurrnetTaskFinishResetEvent.Set();
+        }
         internal async void AbortOrder(AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] alarm_Code)
         {
             TaskAbortedFlag = true;

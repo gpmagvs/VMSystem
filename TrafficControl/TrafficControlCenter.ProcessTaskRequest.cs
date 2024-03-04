@@ -78,7 +78,7 @@ namespace VMSystem.TrafficControl
         {
             blockedTagList = new List<int>();
             var agv_current_tag = requestMoveEvent.AGVRequestState.Agv.states.Last_Visited_Node;
-            var nextPathWholeTags = requestMoveEvent.AGVRequestState.NextSequenceTaskTrajectory.GetTagList();
+            var nextPathWholeTags = requestMoveEvent.AGVRequestState.NextSequenceTaskTrajectory.GetTagCollection();
             var nextMoveTags = nextPathWholeTags.Skip(nextPathWholeTags.ToList().IndexOf(agv_current_tag) + 1);
 
             blockedTagList = nextMoveTags.Where(tag => registedPoints.Keys.Contains(tag)).ToList();

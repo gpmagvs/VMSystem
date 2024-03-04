@@ -3,7 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class MoveToSourceTask : MoveTask
+    public class MoveToSourceTask : MoveTaskDynamicPathPlan
     {
         public MoveToSourceTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {

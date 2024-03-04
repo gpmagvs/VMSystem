@@ -26,6 +26,20 @@ namespace VMSystem.Controllers
             return Ok();
         }
 
+
+        [HttpPost("SetTag")]
+        public async Task<IActionResult> SetTag(string AGVName,int tag)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.runningSTatus.Last_Visited_Node = tag;
+            var _mapPoint=StaMap.GetPointByTagNumber(tag);
+            agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
+            agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+            return Ok();
+        }
+
         [HttpPost("MoveUp")]
         public async Task<IActionResult> MoveUp(string AGVName)
         {

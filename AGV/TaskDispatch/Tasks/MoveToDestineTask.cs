@@ -2,8 +2,12 @@
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class MoveToDestineTask : MoveTask
+    public class MoveToDestineTask : MoveTaskDynamicPathPlan
     {
+        public MoveToDestineTask() : base()
+        {
+        }
+
         public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }

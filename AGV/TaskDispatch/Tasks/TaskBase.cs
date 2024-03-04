@@ -46,8 +46,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public string TaskSimple => TaskName + $"-{TaskSequence}";
 
         public Action<clsTaskDownloadData> OnTaskDownloadToAGV;
+
+        public Action<ALARMS> OnTaskDownloadToAGVButAGVRejected;
         public clsMoveTaskEvent MoveTaskEvent { get; protected set; } = new clsMoveTaskEvent();
 
+        public List<int> PassedTags { get; set; } = new List<int>();
         public clsWaitingInfo TrafficWaitingState { set; get; } = new clsWaitingInfo();
         public virtual bool IsAGVReachDestine
         {
@@ -139,6 +142,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected TaskDownloadRequestResponse _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV, out ALARMS alarm)
         {
+            LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             alarm = ALARMS.NONE;
             if (Agv.options.Simulation)
             {
@@ -177,6 +181,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public virtual async void CancelTask()
         {
             await SendCancelRequestToAGV();
+            TrafficWaitingState.SetStatusNoWaiting();
         }
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
@@ -184,7 +189,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             try
             {
-                Agv.AgvSimulation?.CancelTask();
+                if (Agv.options.Simulation)
+                {
+                    Agv.AgvSimulation?.CancelTask();
+                    return new SimpleRequestResponse
+                    {
+                        ReturnCode = RETURN_CODE.OK
+                    };
+                }
 
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
                 {
@@ -254,6 +266,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
 
         }
+        public clsMoveTaskEvent(IAGV agv, IEnumerable<int> tagsOfTrajectory, List<MapPoint> nextSequenceTaskTrajectoryTagList, bool isTrafficeControlTask)
+        {
+            this.AGVRequestState.Agv = agv;
+            this.AGVRequestState.OptimizedToDestineTrajectoryTagList = tagsOfTrajectory.ToList();
+            this.AGVRequestState.NextSequenceTaskTrajectory = nextSequenceTaskTrajectoryTagList.ToList();
+            this.AGVRequestState.IsTrafficeControlTask = isTrafficeControlTask;
+            this.TrafficResponse.TrafficWaitingState = new clsWaitingInfo(agv);
+        }
         public clsMoveTaskEvent(IAGV agv, List<List<MapPoint>> _taskSequenceList, IEnumerable<int> tagsOfTrajectory, List<MapPoint> nextSequenceTaskTrajectoryTagList, bool isTrafficeControlTask)
         {
             this.AGVRequestState.Agv = agv;
@@ -288,8 +308,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     if (NextSequenceTaskTrajectory.Count == 0)
                         return new List<int>();
-                    int agv_location_pt_index = NextSequenceTaskTrajectory.GetTagList().ToList().IndexOf(Agv.states.Last_Visited_Node);
-                    return NextSequenceTaskTrajectory.Skip(agv_location_pt_index + 1).GetTagList().ToList();
+                    int agv_location_pt_index = NextSequenceTaskTrajectory.GetTagCollection().ToList().IndexOf(Agv.states.Last_Visited_Node);
+                    return NextSequenceTaskTrajectory.Skip(agv_location_pt_index + 1).GetTagCollection().ToList();
                 }
             }
             public bool IsTrafficeControlTask { get; internal set; }
