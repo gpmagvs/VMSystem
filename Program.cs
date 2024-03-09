@@ -15,7 +15,6 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.Controllers;
 Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
-LOG.ShowClassName = false;
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
 PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
@@ -81,7 +80,7 @@ try
     {
         Thread.Sleep(1000);
         StaMap.Download();
-        WebsocketClientMiddleware.StartViewDataCollect();
+        WebsocketClientMiddleware.middleware.Initialize();
         VMSManager.Initialize(builder.Configuration);
         TrafficControlCenter.Initialize();
     });

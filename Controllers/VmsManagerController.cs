@@ -26,7 +26,7 @@ namespace VMSystem.Controllers
         [HttpGet("/ws/VMSStatus")]
         public async Task GetVMSStatus()
         {
-            await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.VMSStatus);
+            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
         }
 
         [HttpGet("AGVStatus")]

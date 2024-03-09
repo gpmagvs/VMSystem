@@ -15,8 +15,7 @@ namespace VMSystem.Controllers
         [HttpGet("/ws/VMSAliveCheck")]
         public async Task AliveCheck()
         {
-            await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.VMSAliveCheck);
-
+            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
         }
 
         [HttpGet("VMSAliveCheck")]

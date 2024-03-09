@@ -21,8 +21,7 @@ namespace VMSystem.Controllers
         [HttpGet("/ws/AGVNaviPathsInfo")]
         public async Task NaviPaths()
         {
-            await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.AGVNaviPathsInfo);
-
+            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
         }
 
     }

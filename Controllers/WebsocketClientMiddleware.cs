@@ -9,78 +9,32 @@ using AGVSystemCommonNet6.HttpTools;
 
 namespace VMSystem.Controllers
 {
-    public class WebsocketClientMiddleware
+    public class WebsocketClientMiddleware:WebsocketServerMiddleware
     {
-        public enum WS_DATA_TYPE
-        {
-            DynamicTrafficData,
-            AGVNaviPathsInfo,
-            VMSAliveCheck,
-            VMSStatus
-        }
 
-        public static async Task ClientRequest(HttpContext _HttpContext, WS_DATA_TYPE client_req)
+        public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware();
+        public override List<string> channelMaps { get; set; }=new List<string>()
         {
-            if (_HttpContext.WebSockets.IsWebSocketRequest)
+             "/ws/DynamicTrafficData",
+             "/ws/AGVNaviPathsInfo",
+             "/ws/VMSAliveCheck",
+             "/ws/VMSStatus",
+
+        };
+        protected override async Task CollectViewModelData()
+        {
+            try
             {
-                WebSocket webSocket = await _HttpContext.WebSockets.AcceptWebSocketAsync();
-                clsWebsocktClientHandler clientHander = new clsWebsocktClientHandler(webSocket, client_req.ToString());
-                clientHander.OnDataFetching += (path) => { return GetData(path); };
-                await clientHander.StartBrocast();
+
+                CurrentViewModelDataOfAllChannel[channelMaps[0]] = ViewModelFactory.GetDynamicTrafficDataVM();
+                CurrentViewModelDataOfAllChannel[channelMaps[1]] = ViewModelFactory.GetAGVNaviPathsInfoVM();
+                CurrentViewModelDataOfAllChannel[channelMaps[2]] = ViewModelFactory.GetVMSAliveCheckVM();
+                CurrentViewModelDataOfAllChannel[channelMaps[3]] = ViewModelFactory.GetVMSStatusData();
             }
-            else
+            catch (Exception ex)
             {
-                _HttpContext.Response.StatusCode = 400;
             }
         }
-
-        private static object DynamicTrafficData;
-        private static object AGVNaviPathsInfo;
-        private static object VMSAliveCheck;
-        private static object VMSStatus;
-
-        internal static async Task StartViewDataCollect()
-        {
-            await Task.Run(() =>
-            {
-                while (true)
-                {
-                    Thread.Sleep(10);
-                    DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM();
-                    AGVNaviPathsInfo = ViewModelFactory.GetAGVNaviPathsInfoVM();
-                    VMSAliveCheck = ViewModelFactory.GetVMSAliveCheckVM();
-                    VMSStatus = ViewModelFactory.GetVMSStatusData();
-                }
-            });
-        }
-
-        private static object GetData(string client_req)
-        {
-            object viewmodel = "";
-            switch (client_req)
-            {
-                case "DynamicTrafficData":
-                    viewmodel = DynamicTrafficData;
-                    break;
-                case "AGVNaviPathsInfo":
-                    viewmodel = AGVNaviPathsInfo;
-                    break;
-                case "VMSAliveCheck":
-                    viewmodel = VMSAliveCheck;
-                    break;
-                case "VMSStatus":
-                    viewmodel = VMSStatus;
-                    break;
-                default:
-                    break;
-            }
-            return viewmodel;
-        }
-        private static object GetData(WS_DATA_TYPE client_req)
-        {
-            return GetData(client_req.ToString());
-        }
-
         private static class ViewModelFactory
         {
             public static object GetDynamicTrafficDataVM()

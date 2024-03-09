@@ -101,7 +101,7 @@ namespace VMSystem.VMS
                     var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
                     VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
                 }
-                
+
                 Thread.Sleep(100);
                 VMSTeam.StartAGVs();
                 VMSList.Add(item.Key, VMSTeam);
@@ -147,73 +147,70 @@ namespace VMSystem.VMS
         }
 
         internal static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored = new Dictionary<string, clsAGVStateDto>();
-        private static void AGVStatesStoreWorker()
+        private static async Task AGVStatesStoreWorker()
         {
-            Task.Run(async () =>
+            AGVSDatabase databse = new AGVSDatabase();
+            while (true)
             {
-                AGVSDatabase databse = new AGVSDatabase();
-                while (true)
+                try
                 {
-                    try
+                    clsAGVStateDto CreateDTO(IAGV agv)
                     {
-                        clsAGVStateDto CreateDTO(IAGV agv)
+                        var dto = new clsAGVStateDto
                         {
-                            var dto = new clsAGVStateDto
-                            {
-                                AGV_Name = agv.Name,
-                                Enabled = agv.options.Enabled,
-                                BatteryLevel_1 = agv.states.Electric_Volume.Length >= 1 ? agv.states.Electric_Volume[0] : -1,
-                                BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
-                                OnlineStatus = agv.online_state,
-                                MainStatus = agv.states.AGV_Status,
-                                CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
-                                CurrentLocation = agv.states.Last_Visited_Node.ToString(),
-                                Theta = agv.states.Coordination.Theta,
-                                Connected = agv.connected,
-                                Group = agv.VMSGroup,
-                                Model = agv.model,
-                                TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.OrderHandler.OrderData.TaskName : "",
-                                //TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
-                                TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
-                                CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
-                                TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
-                                TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
-                                IsCharging = agv.states.IsCharging,
-                                IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
-                                VehicleWidth = agv.options.VehicleWidth,
-                                VehicleLength = agv.options.VehicleLength
-                            };
-                            return dto;
+                            AGV_Name = agv.Name,
+                            Enabled = agv.options.Enabled,
+                            BatteryLevel_1 = agv.states.Electric_Volume.Length >= 1 ? agv.states.Electric_Volume[0] : -1,
+                            BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
+                            OnlineStatus = agv.online_state,
+                            MainStatus = agv.states.AGV_Status,
+                            CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
+                            CurrentLocation = agv.states.Last_Visited_Node.ToString(),
+                            Theta = agv.states.Coordination.Theta,
+                            Connected = agv.connected,
+                            Group = agv.VMSGroup,
+                            Model = agv.model,
+                            TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.OrderHandler.OrderData.TaskName : "",
+                            //TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                            TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
+                            CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
+                            TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
+                            TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
+                            IsCharging = agv.states.IsCharging,
+                            IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
+                            VehicleWidth = agv.options.VehicleWidth,
+                            VehicleLength = agv.options.VehicleLength
                         };
-                        foreach (var agv in AllAGV)
-                        {
-                            var entity = CreateDTO(agv);
-                            if (!AGVStatueDtoStored.ContainsKey(entity.AGV_Name))
-                                AGVStatueDtoStored.Add(entity.AGV_Name, entity);
-                            if (AGVStatueDtoStored[entity.AGV_Name].HasChanged(entity))
-                            {
-                                var dbentity = databse.tables.AgvStates.FirstOrDefault(ent => ent.AGV_Name == entity.AGV_Name);
-                                if (dbentity != null)
-                                    dbentity.Update(entity);
-                                else
-                                    databse.tables.Add(entity);
-                                databse.tables.SaveChanges();
-                            }
-                            else
-                            {
-                            }
-                            AGVStatueDtoStored[entity.AGV_Name] = entity;
-                        }
-
-                    }
-                    catch (Exception ex)
+                        return dto;
+                    };
+                    foreach (var agv in AllAGV)
                     {
-                        LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤", ex);
+                        var entity = CreateDTO(agv);
+                        if (!AGVStatueDtoStored.ContainsKey(entity.AGV_Name))
+                            AGVStatueDtoStored.Add(entity.AGV_Name, entity);
+                        if (AGVStatueDtoStored[entity.AGV_Name].HasChanged(entity))
+                        {
+                            var dbentity = databse.tables.AgvStates.FirstOrDefault(ent => ent.AGV_Name == entity.AGV_Name);
+                            if (dbentity != null)
+                                dbentity.Update(entity);
+                            else
+                                databse.tables.Add(entity);
+                            databse.tables.SaveChanges();
+                        }
+                        else
+                        {
+                        }
+                        AGVStatueDtoStored[entity.AGV_Name] = entity;
                     }
 
-                    Thread.Sleep(100);
                 }
-            });
+                catch (Exception ex)
+                {
+                    LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤", ex);
+                }
+
+                await Task.Delay(50);
+            }
         }
 
         private static void TaskAssignToAGVWorker()
@@ -237,36 +234,34 @@ namespace VMSystem.VMS
             });
         }
 
-        private static void TaskDatabaseChangeWorker()
+        private static async Task TaskDatabaseChangeWorker()
         {
-            Task.Run(async () =>
+            await Task.Delay(100);
+            var database = new AGVSDatabase();
+            while (true)
             {
-                var database = new AGVSDatabase();
-                while (true)
+                await Task.Delay(100);
+                try
                 {
-                    Thread.Sleep(10);
-                    try
+                    if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
                     {
-                        if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
+                        if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
+                            continue;
+                        var entity = database.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
+                        if (entity != null)
                         {
-                            if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
-                                continue;
-                            var entity = database.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
-                            if (entity != null)
-                            {
-                                entity.Update(dto);
-                                int save_cnt = await database.SaveChanges();
-                                LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", false);
-                            }
+                            entity.Update(dto);
+                            int save_cnt = await database.SaveChanges();
+                            LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", false);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
-                    }
-
                 }
-            });
+                catch (Exception ex)
+                {
+                    await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
+                }
+
+            }
         }
 
         public static void Initialize()

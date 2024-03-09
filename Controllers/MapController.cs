@@ -39,7 +39,7 @@ namespace VMSystem.Controllers
         [HttpGet("/ws/DynamicTrafficData")]
         public async Task GetDynamicTrafficData()
         {
-            await WebsocketClientMiddleware.ClientRequest(HttpContext, WebsocketClientMiddleware.WS_DATA_TYPE.DynamicTrafficData);
+            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
         }
     }
 }
