@@ -43,6 +43,7 @@ namespace VMSystem.AGV
                 {
                     Console.WriteLine($"[Emu]-Previous Task Interupted.");
                 }
+                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                 SemaphoreSlim.Release();
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
