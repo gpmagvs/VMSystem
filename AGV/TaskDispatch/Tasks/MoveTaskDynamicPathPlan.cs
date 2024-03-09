@@ -61,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 int _sequenceIndex = 0;
                 string task_simplex = this.TaskDonwloadToAGV.Task_Simplex;
                 List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
-                int pointNum = 3;
+                int pointNum = 4;
                 int pathStartTagToCal = Agv.states.Last_Visited_Node;
                 int _lastFinalEndTag = -1;
                 List<MapPoint> _lastNextPath = new List<MapPoint>();
@@ -76,7 +76,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                     bool _findPath = false;
                     clsPathInfo optimzePath = null;
-                    while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, false)) == null)
+                    while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
                     {
                         _findPath = true;
                         pathStartTagToCal = Agv.states.Last_Visited_Node;

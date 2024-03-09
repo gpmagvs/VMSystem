@@ -29,17 +29,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public string TaskAbortReason { get; private set; } = "";
         public IAGV Agv { get; private set; }
 
-        public virtual void StartOrder(IAGV Agv)
+        public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
             _SetOrderAsRunningState();
-
-            while (SequenceTaskQueue.Count > 0)
+            try
             {
-                Thread.Sleep(200);
-
-                try
+                while (SequenceTaskQueue.Count > 0)
                 {
+                    await Task.Delay(200);
                     _CurrnetTaskFinishResetEvent.Reset();
                     var task = SequenceTaskQueue.Dequeue();
 
@@ -50,7 +48,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         AbortOrder(_alarm);
                     };
-                    task.DistpatchToAGV();
+                    var dispatch_result = await task.DistpatchToAGV();
+
+                    if (!dispatch_result.confirmed)
+                    {
+                        AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
+                        throw new Exception(dispatch_result.alarm_code.ToString());
+                    }
+
                     LOG.INFO($"Task-{task.ActionType} 開始");
                     _CurrnetTaskFinishResetEvent.WaitOne();
                     LOG.INFO($"Task-{task.ActionType} 結束");
@@ -70,15 +75,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     CompleteTaskStack.Push(task);
 
+
                 }
-                catch (Exception ex)
-                {
-                    LOG.Critical(ex.Message, ex);
-                    _SetOrderAsFaiiureState(ex.Message);
-                    return;
-                }
+                _SetOrderAsFinishState();
             }
-            _SetOrderAsFinishState();
+            catch (Exception ex)
+            {
+                LOG.Critical(ex.Message, ex);
+                _SetOrderAsFaiiureState(ex.Message);
+                return;
+            }
+
         }
 
         internal void HandleAGVFeedback(FeedbackData feedbackData)

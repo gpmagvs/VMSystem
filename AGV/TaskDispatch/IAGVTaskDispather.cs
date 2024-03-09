@@ -122,7 +122,6 @@ namespace VMSystem.AGV.TaskDispatch
         internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags,string customMessage)
         {
             this.IsWaiting = true;
-            this.ParkingTag = Agv.currentMapPoint.TagNumber;
             this.WaitingPoint = new MapPoint("", -1);
             Descrption = customMessage;
             StartWaitingTime = DateTime.Now;

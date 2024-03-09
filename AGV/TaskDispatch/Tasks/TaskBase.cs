@@ -71,11 +71,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        internal virtual async void DistpatchToAGV()
+        internal virtual async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
-            CreateTaskToAGV();
-            await SendTaskToAGV();
-            //Console.WriteLine($"{TaskName}-[{ActionType}]-{TaskSimple} Distpatch to AGV");
+            try
+            {
+                CreateTaskToAGV();
+                await SendTaskToAGV();
+                return (true, ALARMS.NONE);
+            }
+            catch (NoPathForNavigatorException ex)
+            {
+                return (false, ex.Alarm_Code);
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex.ToString(),ex);
+                return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
+            }
         }
 
         public virtual void CreateTaskToAGV()
@@ -92,7 +104,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public virtual async Task SendTaskToAGV()
         {
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
-            SendTaskToAGV(TaskDonwloadToAGV);
+            await SendTaskToAGV(TaskDonwloadToAGV);
         }
         public virtual async Task SendTaskToAGV(clsTaskDownloadData taskData)
         {

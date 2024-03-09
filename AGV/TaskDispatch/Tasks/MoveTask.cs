@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
@@ -81,6 +82,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _destine_point = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             }
             clsPathInfo path_found_result = PathFind(_destine_point, new List<int>(), _justOptimizedPath: true); //僅會返回最優路徑
+            if (path_found_result == null)
+            {
+                throw new NoPathForNavigatorException();
+            }
+
             this.TaskSequenceList = GenSequenceTaskByTrafficCheckPoints(path_found_result.stations);
             this.TaskDonwloadToAGV.Trajectory = path_found_result.stations.Select(pt => TaskBase.MapPointToTaskPoint(pt)).ToArray();
             this.DestineTag = this.TaskDonwloadToAGV.Destination = _destine_point.TagNumber;
