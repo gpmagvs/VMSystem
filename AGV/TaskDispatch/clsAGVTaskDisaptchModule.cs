@@ -262,7 +262,7 @@ namespace VMSystem.AGV
         {
             this.agv = agv;
 
-            if (agv.model ==  clsEnums.AGV_TYPE.INSPECTION_AGV)
+            if (agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
             else
             {
@@ -331,9 +331,10 @@ namespace VMSystem.AGV
 
                             OrderHandlerFactory factory = new OrderHandlerFactory();
 
-                            OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
                             OrderHandler = factory.CreateHandler(_ExecutingTask);
                             OrderHandler.StartOrder(agv);
+                            OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
+                            await Task.Delay(1000);
                         }
 
                         else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)

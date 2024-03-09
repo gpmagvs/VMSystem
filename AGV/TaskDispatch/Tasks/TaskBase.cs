@@ -49,7 +49,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public Action<ALARMS> OnTaskDownloadToAGVButAGVRejected;
         public clsMoveTaskEvent MoveTaskEvent { get; protected set; } = new clsMoveTaskEvent();
-
+        public bool IsTaskCanceled { get; private set; } = false;
         public List<int> PassedTags { get; set; } = new List<int>();
         public clsWaitingInfo TrafficWaitingState { set; get; } = new clsWaitingInfo();
         public virtual bool IsAGVReachDestine
@@ -77,6 +77,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 CreateTaskToAGV();
                 await SendTaskToAGV();
+                if (IsTaskCanceled)
+                    return (false, ALARMS.Task_Canceled);
                 return (true, ALARMS.NONE);
             }
             catch (NoPathForNavigatorException ex)
@@ -85,7 +87,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.ToString(),ex);
+                LOG.ERROR(ex.ToString(), ex);
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
             }
         }
@@ -194,6 +196,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             await SendCancelRequestToAGV();
             TrafficWaitingState.SetStatusNoWaiting();
+            IsTaskCanceled = true;
         }
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
@@ -251,7 +254,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public enum LEAVE_WORKSTATION_ACTION
         {
             OK,
-            WAIT
+            WAIT,
+            CANCEL
         }
         public IAGV? Agv;
         public int GoalTag;

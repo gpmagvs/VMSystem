@@ -52,6 +52,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     if (!dispatch_result.confirmed)
                     {
+                        if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
+                        {
+                            _SetOrderAsCancelState("");
+                            return;
+                        }
+
                         AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
                         throw new Exception(dispatch_result.alarm_code.ToString());
                     }
