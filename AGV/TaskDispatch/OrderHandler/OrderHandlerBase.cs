@@ -93,22 +93,27 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
         }
-
-        internal void HandleAGVFeedback(FeedbackData feedbackData)
+        private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
+        internal async void HandleAGVFeedbackAsync(FeedbackData feedbackData)
         {
-            LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
+            await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
+            _ = Task.Run(async () =>
+            {
+                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
 
-            if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
-            {
-                HandleAGVActionFinishFeedback();
-            }
-            else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
-            {
-                RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
-            }
+                if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
+                {
+                    await HandleAGVActionFinishFeedback();
+                }
+                else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
+                {
+                    RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
+                }
+                _HandleTaskStateFeedbackSemaphoreSlim.Release();
+            });
         }
 
-        protected virtual void HandleAGVActionFinishFeedback()
+        protected virtual async Task HandleAGVActionFinishFeedback()
         {
             MAIN_STATUS GetAgvMainState()
             {
@@ -120,10 +125,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             while (GetAgvMainState() == MAIN_STATUS.RUN)
             {
-                Thread.Sleep(1);
+                await Task.Delay(10);
             }
-            MAIN_STATUS _state_when_action_finish = GetAgvMainState();
 
+            MAIN_STATUS _state_when_action_finish = GetAgvMainState();
             if (RunningTask.IsAGVReachDestine && (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging))
                 _CurrnetTaskFinishResetEvent.Set();
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)

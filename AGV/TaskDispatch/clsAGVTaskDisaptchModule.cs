@@ -461,7 +461,7 @@ namespace VMSystem.AGV
                 agv.IsTrafficTaskExecuting = false;
             }
             //_ = Task.Run(() => TaskStatusTracker.HandleAGVFeedback(feedbackData));
-            _ = Task.Run(() => OrderHandler.HandleAGVFeedback(feedbackData));
+            OrderHandler.HandleAGVFeedbackAsync(feedbackData);
             return 0;
         }
 
