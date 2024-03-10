@@ -14,15 +14,6 @@ namespace VMSystem.Controllers
     public class NavigationController : ControllerBase
     {
 
-        /// <summary>
-        /// 收集所有AGV當前的導航路徑
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("/ws/AGVNaviPathsInfo")]
-        public async Task NaviPaths()
-        {
-            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
-        }
 
     }
 }

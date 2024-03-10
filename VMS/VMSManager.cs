@@ -179,7 +179,7 @@ namespace VMSystem.VMS
                             IsCharging = agv.states.IsCharging,
                             IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
                             VehicleWidth = agv.options.VehicleWidth,
-                            VehicleLength = agv.options.VehicleLength
+                            VehicleLength = agv.options.VehicleLength,
                         };
                         return dto;
                     };

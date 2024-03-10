@@ -23,12 +23,6 @@ namespace VMSystem.Controllers
     public class VmsManagerController : ControllerBase
     {
 
-        [HttpGet("/ws/VMSStatus")]
-        public async Task GetVMSStatus()
-        {
-            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
-        }
-
         [HttpGet("AGVStatus")]
         public async Task<IActionResult> GetAGVStatus()
         {

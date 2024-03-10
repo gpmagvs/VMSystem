@@ -15,6 +15,7 @@ namespace VMSystem.Controllers
         public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware();
         public override List<string> channelMaps { get; set; }=new List<string>()
         {
+             "/ws",
              "/ws/DynamicTrafficData",
              "/ws/AGVNaviPathsInfo",
              "/ws/VMSAliveCheck",
@@ -25,11 +26,13 @@ namespace VMSystem.Controllers
         {
             try
             {
-
-                CurrentViewModelDataOfAllChannel[channelMaps[0]] = ViewModelFactory.GetDynamicTrafficDataVM();
-                CurrentViewModelDataOfAllChannel[channelMaps[1]] = ViewModelFactory.GetAGVNaviPathsInfoVM();
-                CurrentViewModelDataOfAllChannel[channelMaps[2]] = ViewModelFactory.GetVMSAliveCheckVM();
-                CurrentViewModelDataOfAllChannel[channelMaps[3]] = ViewModelFactory.GetVMSStatusData();
+                CurrentViewModelDataOfAllChannel[channelMaps[0]] = new
+                {
+                    DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
+                    AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
+                    VMSAliveCheckVM= ViewModelFactory.GetVMSAliveCheckVM(),
+                    VMSStatusData= ViewModelFactory.GetVMSStatusData(),
+                };
             }
             catch (Exception ex)
             {
