@@ -54,8 +54,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             return StaMap.GetPointByTagNumber(Agv.states.Last_Visited_Node);
         }
+
+
         public override async Task SendTaskToAGV()
         {
+
+            var token = _TaskCancelTokenSource.Token;
             await Task.Run(async () =>
             {
                 try
@@ -69,6 +73,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
                     while (!IsAGVReachGoal(DestineTag) || _sequenceIndex == 0)
                     {
+                        if (token.IsCancellationRequested)
+                            token.ThrowIfCancellationRequested();
                         if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         {
                             TrafficWaitingState.SetStatusNoWaiting();
@@ -78,6 +84,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         clsPathInfo optimzePath = null;
                         while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
                         {
+                            if (token.IsCancellationRequested)
+                                token.ThrowIfCancellationRequested();
                             _findPath = true;
                             pathStartTagToCal = Agv.states.Last_Visited_Node;
                             TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), "Waiting...");
@@ -114,6 +122,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList))
                         {
                             _waitingInterference = true;
+
+                            if (token.IsCancellationRequested)
+                                token.ThrowIfCancellationRequested();
                             if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                             {
                                 TrafficWaitingState.SetStatusNoWaiting();
@@ -171,6 +182,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         while (!IsAGVReachGoal(nextPoint.TagNumber))
                         {
                             await Task.Delay(10).ConfigureAwait(false);
+
+                            if (token.IsCancellationRequested)
+                                token.ThrowIfCancellationRequested();
+                            if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                            {
+                                TrafficWaitingState.SetStatusNoWaiting();
+                                return;
+                            }
                         }
                         pathStartTagToCal = nextPoint.TagNumber;
                         _sequenceIndex += 1;
@@ -222,12 +241,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                     }
                 }
+                catch (OperationCanceledException ex)
+                {
+                    LOG.WARN($"任務-{OrderData.ActionName}(ID:{OrderData.TaskName} )已取消");
+
+                }
                 catch (Exception ex)
                 {
                     throw ex;
                 }
 
-            });
+            }, token);
         }
         public override List<List<MapPoint>> GenSequenceTaskByTrafficCheckPoints(List<MapPoint> stations)
         {

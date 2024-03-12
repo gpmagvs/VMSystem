@@ -75,6 +75,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
                 await SendTaskToAGV();
                 if (IsTaskCanceled)
@@ -191,9 +192,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
         }
+        protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
 
         public virtual async void CancelTask()
         {
+            _TaskCancelTokenSource.Cancel();
             await SendCancelRequestToAGV();
             TrafficWaitingState.SetStatusNoWaiting();
             IsTaskCanceled = true;
