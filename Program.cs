@@ -17,6 +17,7 @@ Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
+WebsocketClientMiddleware.middleware.Initialize();
 PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,15 +76,10 @@ try
 {
     TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
     dbheper.SetRunningTaskWait();
+    StaMap.Download();
+    VMSManager.Initialize(builder.Configuration);
+    TrafficControlCenter.Initialize();
 
-    _ = Task.Run( () =>
-    {
-        Thread.Sleep(1000);
-        StaMap.Download();
-        WebsocketClientMiddleware.middleware.Initialize();
-        VMSManager.Initialize(builder.Configuration);
-        TrafficControlCenter.Initialize();
-    });
 }
 catch (Exception ex)
 {
