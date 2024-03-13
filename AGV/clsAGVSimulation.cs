@@ -459,12 +459,12 @@ namespace VMSystem.AGV
             void Rotation(bool clockWise, double thetaToRotate)
             {
 
-                double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 10.0;
+                double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 100.0;
                 double rotatedAngele = 0;
                 Stopwatch _timer = Stopwatch.StartNew();
                 while (rotatedAngele <= thetaToRotate)
                 {
-                    Thread.Sleep(100);
+                    Thread.Sleep(10);
                     if (token.IsCancellationRequested)
                         token.ThrowIfCancellationRequested();
                     if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
