@@ -27,6 +27,9 @@ namespace VMSystem.AGV
         private double[] batteryLevelSim = new double[] { 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
         private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
+        private CancellationTokenSource TaskCancelTokenSource = new CancellationTokenSource();
+        private BarcodeMoveArguments _currentBarcodeMoveArgs = new BarcodeMoveArguments();
+        private SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(1, 1);
         private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
         public clsRunningStatus runningSTatus = new clsRunningStatus();
         public clsAGVSimulation() { }
@@ -71,24 +74,7 @@ namespace VMSystem.AGV
             }
         }
 
-        public async Task<TaskDownloadRequestResponse> ActionRequestHandler(clsTaskDownloadData data)
-        {
-            try
-            {
-                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
-                moveCancelTokenSource?.Cancel();
-                await Task.Delay(00);
-                MoveTask(data);
-            }
-            catch (Exception ex)
-            {
-                LOG.ERROR(ex.Message, ex);
-            }
-            return new TaskDownloadRequestResponse
-            {
-                ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK
-            };
-        }
+       
         clsTaskDownloadData previousTaskData;
         CancellationTokenSource moveCancelTokenSource;
         Task move_task;
@@ -105,56 +91,150 @@ namespace VMSystem.AGV
                 }
             }
         }
-        private void MoveTask(clsTaskDownloadData data)
+
+        public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
+        {
+            TaskCancelTokenSource.Cancel();
+            TaskCancelTokenSource = new CancellationTokenSource();
+            var token = TaskCancelTokenSource.Token;
+            _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
+            SemaphoreSlim.Wait();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
+                    _currentBarcodeMoveArgs.Feedback.TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START;
+
+                    await BarcodeMove(_currentBarcodeMoveArgs, token);
+
+                    if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
+                        await _BackToHome(_currentBarcodeMoveArgs, token);
+                    }
+
+                    bool _isChargeAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Charge;
+                    runningSTatus.IsCharging = _isChargeAction;
+                    runningSTatus.AGV_Status = _isChargeAction ? clsEnums.MAIN_STATUS.Charging : clsEnums.MAIN_STATUS.IDLE;
+
+                    _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Emu]-Previous Task Interupted.");
+                }
+                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+                SemaphoreSlim.Release();
+
+                async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
+                {
+                    _CargoStateSimulate(_args.action, _args.CSTID);
+                    _args.orderTrajectory = _args.orderTrajectory.Reverse();
+                    _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
+                    dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
+                    _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
+                    await BarcodeMove(_args, _token);
+                }
+
+                void _CargoStateSimulate(ACTION_TYPE action, string cstID)
+                {
+                    if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
+                    {
+                        runningSTatus.CSTID = new string[0];
+                        runningSTatus.Cargo_Status = 0;
+                    }
+                    else if (action == ACTION_TYPE.Unload)
+                    {
+                        runningSTatus.CSTID = new string[] { cstID };
+                        runningSTatus.Cargo_Status = 1;
+                    }
+                }
+            }, token);
+
+            return new TaskDownloadRequestResponse() { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK };
+        }
+
+        private async Task BarcodeMove(BarcodeMoveArguments moveArgs, CancellationToken token)
         {
             try
             {
-                if (moveCancelTokenSource != null)
-                    this.moveCancelTokenSource?.Cancel();
 
-                moveCancelTokenSource = new CancellationTokenSource();
+                int currentTag = runningSTatus.Last_Visited_Node;
+                int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
+                moveArgs.nextMoveTrajectory = moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
-                clsMapPoint[] ExecutingTrajecory = new clsMapPoint[0];
-                LOG.WARN($"[Simulator] Received Task-{data.Task_Simplex}[{data.Task_Sequence}]");
-                if (previousTaskData != null && waitReplanflag && data.Action_Type == ACTION_TYPE.None)
+                clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.ToArray();
+                ACTION_TYPE action = moveArgs.action;
+
+                var taskFeedbackData = moveArgs.Feedback;
+                int idx = 0;
+                //轉向第一個點
+                if (moveArgs.action == ACTION_TYPE.None)
                 {
-                    if (previousTaskData.Task_Name == data.Task_Name)
-                    {
-                        if (previousTaskData.Trajectory.Length != 0)
-                        {
-                            var lastPoint = previousTaskData.Trajectory.Last();
-                            var remainTragjectLen = data.Trajectory.Length - previousTaskData.Trajectory.Length + 1;
-                            if (remainTragjectLen <= 0)
-                            {
-                                return;
-                            }
-                            ExecutingTrajecory = new clsMapPoint[remainTragjectLen];
-                            Array.Copy(data.Trajectory, previousTaskData.Trajectory.Length - 1, ExecutingTrajecory, 0, remainTragjectLen);
+                    TurnToNextPoint(Trajectory);
+                }
+                if (Trajectory[0].Point_ID == runningSTatus.Last_Visited_Node)
+                {
+                    Trajectory = Trajectory.Skip(1).ToArray();
+                }
+                foreach (clsMapPoint station in Trajectory)
+                {
+                    MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
-                        }
+                    bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
+
+                    if (token.IsCancellationRequested)
+                    {
+                        token.ThrowIfCancellationRequested();
+                    }
+                    currentTag = runningSTatus.Last_Visited_Node;
+                    double currentX = runningSTatus.Coordination.X;
+                    double currentY = runningSTatus.Coordination.Y;
+                    double currentAngle = runningSTatus.Coordination.Theta;
+
+                    int stationTag = station.Point_ID;
+                    var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
+                    var _speed = action == ACTION_TYPE.None ? parameters.MoveSpeedRatio : parameters.TapMoveSpeedRatio;
+                    await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: _speed * parameters.SpeedUpRate, token);
+                    runningSTatus.Coordination.X = station.X;
+                    runningSTatus.Coordination.Y = station.Y;
+                    runningSTatus.Last_Visited_Node = stationTag;
+                    var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+
+                    if (action == ACTION_TYPE.None && isNeedStopAndRotaionWhenReachNextPoint)
+                    {
+                        double targetAngle = 0;
+                        if (idx + 1 == Trajectory.Length)
+                            targetAngle = Trajectory.Last().Theta;
                         else
                         {
-                            ExecutingTrajecory = data.ExecutingTrajecory;
+                            double deltaX = Trajectory[idx].X - Trajectory[idx + 1].X;
+                            double deltaY = Trajectory[idx].Y - Trajectory[idx + 1].Y;
+                            targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI + 180;
+                        }
+                        if (Trajectory.Last() != station)
+                        {
+                            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle, token);
+                            runningSTatus.Coordination.Theta = targetAngle;
                         }
                     }
-                    else
-                    {
-                        ExecutingTrajecory = data.ExecutingTrajecory;
-                    }
+                    taskFeedbackData.PointIndex = moveArgs.orderTrajectory.GetTagList().ToList().IndexOf(stationTag);
+                    taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
+
+                    int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+
+                    idx += 1;
                 }
-                else
+
+                if (token.IsCancellationRequested)
                 {
-                    ExecutingTrajecory = data.ExecutingTrajecory;
+                    return;
                 }
-                waitReplanflag = data.ExecutingTrajecory.Last().Point_ID.ToString() != data.Destination.ToString();
 
-                previousTaskData = data;
-                ACTION_TYPE action = data.Action_Type;
-
-                bool isCargoTransferAction = action == ACTION_TYPE.Load || action == ACTION_TYPE.Unload;
-                bool isNormalMoveAction = action == ACTION_TYPE.None;
-
-                move_task = RunnTask(data, ExecutingTrajecory, action, isCargoTransferAction, isNormalMoveAction);
+                if (action == ACTION_TYPE.None && Trajectory.Length > 0)
+                    SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
 
             }
             catch (Exception ex)
@@ -163,93 +243,45 @@ namespace VMSystem.AGV
             }
         }
 
-        private Task RunnTask(clsTaskDownloadData data, clsMapPoint[] ExecutingTrajecory, ACTION_TYPE action, bool isCargoTransferAction, bool isNormalMoveAction)
+        private BarcodeMoveArguments CreateBarcodeMoveArgsFromAGVSOrder(clsTaskDownloadData orderData)
         {
-            try
+            return new BarcodeMoveArguments
             {
-
-                var _Task = Task.Run(async () =>
+                TaskName = orderData.Task_Name,
+                TaskSimplex = orderData.Task_Simplex,
+                TaskSequence = orderData.Task_Sequence,
+                action = orderData.Action_Type,
+                CSTID = orderData.CST.Count() == 0 ? "" : orderData.CST.First().CST_ID,
+                goal = orderData.Destination,
+                nextMoveTrajectory = orderData.ExecutingTrajecory,
+                orderTrajectory = orderData.ExecutingTrajecory,
+                Feedback = new FeedbackData
                 {
-                    var taskFeedbackData = new FeedbackData
-                    {
-                        PointIndex = 0,
-                        TaskName = data.Task_Name,
-                        TaskSequence = data.Task_Sequence,
-                        TaskSimplex = data.Task_Simplex,
-                        TimeStamp = DateTime.Now.ToString(),
-                        TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START
-                    };
-                    try
-                    {
-                        await dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
-
-                        await BarcodeMoveSimulation(action, ExecutingTrajecory, data.Trajectory, taskFeedbackData, moveCancelTokenSource.Token);
-
-                        CargoStateSimulate(action, data.CST);
-
-                        if (isCargoTransferAction)
-                            await BackToHome(data, ExecutingTrajecory, action, taskFeedbackData);//開回去設備門口
-
-                        if (isNormalMoveAction && ExecutingTrajecory.Last().Point_ID == data.Destination)
-                        {
-                            double finalTheta = ExecutingTrajecory.Last().Theta;
-                            SimulationThetaChange(runningSTatus.Coordination.Theta, finalTheta);
-                            runningSTatus.Coordination.Theta = finalTheta;
-                        }
-
-                        StaMap.TryGetPointByTagNumber(runningSTatus.Last_Visited_Node, out var point);
-
-                        runningSTatus.IsCharging = point.IsChargeAble();
-
-                        if (runningSTatus.IsCharging)
-                            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.Charging;
-                        else
-                            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-
-                        taskFeedbackData.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
-                        Thread.Sleep(100);
-                        dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
-
-                    }
-                    catch (Exception ex)
-                    {
-                        move_task = null;
-                        waitReplanflag = false;
-                        runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                        taskFeedbackData.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
-                        LOG.Critical(ex);
-                        dispatcherModule.TaskFeedback(taskFeedbackData); //回報任務狀態
-                    }
-                }, moveCancelTokenSource.Token);
-                return _Task;
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+                    PointIndex = 0,
+                    TaskName = orderData.Task_Name,
+                    TaskSequence = orderData.Task_Sequence,
+                    TaskSimplex = orderData.Task_Simplex,
+                    TimeStamp = DateTime.Now.ToString(),
+                }
+            };
         }
 
-        private async Task BackToHome(clsTaskDownloadData data, clsMapPoint[] ExecutingTrajecory, ACTION_TYPE action, FeedbackData stateDto)
+        private class BarcodeMoveArguments
         {
-            ReportTaskStateToEQSimulator(action, ExecutingTrajecory.Last().Point_ID.ToString());
-            //返回Home
-            var _backHomeTrajetory = ExecutingTrajecory.Reverse().ToArray();
-            await BarcodeMoveSimulation(action, _backHomeTrajetory, data.Trajectory, stateDto, moveCancelTokenSource.Token);
+            public string TaskName;
+            public string TaskSimplex;
+            public int TaskSequence;
+            public string CSTID;
+            public ACTION_TYPE action = ACTION_TYPE.None;
+            public IEnumerable<clsMapPoint> nextMoveTrajectory = new List<clsMapPoint>();
+            public IEnumerable<clsMapPoint> orderTrajectory = new List<clsMapPoint>();
+            public int goal = 0;
+            public bool isTrajectoryEndIsGoal => nextMoveTrajectory.Count() == 0 ? true : nextMoveTrajectory.Last().Point_ID == goal;
+
+            public FeedbackData Feedback = new FeedbackData();
+
         }
 
-        private void CargoStateSimulate(ACTION_TYPE action, clsCST[] CstDataDownloaded)
-        {
-            if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
-            {
-                runningSTatus.CSTID = new string[0];
-                runningSTatus.Cargo_Status = 0;
-            }
-            else if (action == ACTION_TYPE.Unload)
-            {
-                runningSTatus.CSTID = CstDataDownloaded.Select(cst => cst.CST_ID).ToArray();
-                runningSTatus.Cargo_Status = 1;
-            }
-        }
 
         private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
         {
@@ -275,83 +307,9 @@ namespace VMSystem.AGV
 
             }
         }
-        private async Task BarcodeMoveSimulation(ACTION_TYPE action, clsMapPoint[] Trajectory, clsMapPoint[] OriginTrajectory, FeedbackData stateDto, CancellationToken cancelToken)
-        {
-            double rotateSpeed = 10;
-            double moveSpeed = 10;
-            int idx = 0;
-            //轉向第一個點
-            if (action == ACTION_TYPE.None)
-            {
-                TurnToNextPoint(Trajectory, rotateSpeed, moveSpeed);
-            }
-            if (Trajectory[0].Point_ID == runningSTatus.Last_Visited_Node)
-            {
-                Trajectory = Trajectory.Skip(1).ToArray();
-            }
-            foreach (clsMapPoint station in Trajectory)
-            {
-                if (moveCancelTokenSource.IsCancellationRequested)
-                {
-                    waitReplanflag = false;
-                    runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                    break;
-                }
-                MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
+      
 
-                bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
-
-                if (cancelToken.IsCancellationRequested)
-                {
-                    throw new TaskCanceledException();
-                }
-                int currentTag = runningSTatus.Last_Visited_Node;
-                double currentX = runningSTatus.Coordination.X;
-                double currentY = runningSTatus.Coordination.Y;
-                double currentAngle = runningSTatus.Coordination.Theta;
-
-                int stationTag = station.Point_ID;
-                var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
-
-                await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: parameters.MoveSpeedRatio * parameters.SpeedUpRate);
-                runningSTatus.Coordination.X = station.X;
-                runningSTatus.Coordination.Y = station.Y;
-                runningSTatus.Last_Visited_Node = stationTag;
-                var pt = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
-
-                if (action == ACTION_TYPE.None && isNeedStopAndRotaionWhenReachNextPoint)
-                {
-                    double targetAngle = 0;
-                    if (idx + 1 == Trajectory.Length)
-                        targetAngle = Trajectory.Last().Theta;
-                    else
-                    {
-                        double deltaX = Trajectory[idx].X - Trajectory[idx + 1].X;
-                        double deltaY = Trajectory[idx].Y - Trajectory[idx + 1].Y;
-                        targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI + 180;
-                    }
-                    if (Trajectory.Last() != station)
-                    {
-                        SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
-                        runningSTatus.Coordination.Theta = targetAngle;
-                    }
-                }
-                stateDto.PointIndex = OriginTrajectory.ToList().IndexOf(station);
-                stateDto.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
-                int feedBackCode = dispatcherModule.TaskFeedback(stateDto).Result; //回報任務狀態
-
-                if (feedBackCode != 0)
-                {
-                    if (feedBackCode == 1) //停等訊號
-                    {
-
-                    }
-                }
-                idx += 1;
-            }
-        }
-
-        private void TurnToNextPoint(clsMapPoint[] Trajectory, double rotateSpeed, double moveSpeed)
+        private void TurnToNextPoint(clsMapPoint[] Trajectory)
         {
             double targetAngle = 0;
             double currentAngle = runningSTatus.Coordination.Theta;
@@ -427,14 +385,14 @@ namespace VMSystem.AGV
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.ElapsedMilliseconds < TotalSpendTime * 1000)
             {
-                runningSTatus.Coordination.X += MoveSpeed_X * 0.01;
-                runningSTatus.Coordination.Y += MoveSpeed_Y * 0.01;
+                runningSTatus.Coordination.X += MoveSpeed_X * 0.1;
+                runningSTatus.Coordination.Y += MoveSpeed_Y * 0.1;
                 if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
                     return;
                 if (token.IsCancellationRequested)
                     token.ThrowIfCancellationRequested();
 
-                await Task.Delay(10);
+                await Task.Delay(100);
             }
             runningSTatus.Coordination.X = TargetX;
             runningSTatus.Coordination.Y = TargetY;
@@ -459,12 +417,14 @@ namespace VMSystem.AGV
             void Rotation(bool clockWise, double thetaToRotate)
             {
 
-                double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 100.0;
+                double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 10.0;
+                double _time_spend = thetaToRotate / parameters.RotationSpeed / parameters.SpeedUpRate;//時間
+
                 double rotatedAngele = 0;
                 Stopwatch _timer = Stopwatch.StartNew();
-                while (rotatedAngele <= thetaToRotate)
+                while (_timer.ElapsedMilliseconds <= _time_spend * 1000)
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(100);
                     if (token.IsCancellationRequested)
                         token.ThrowIfCancellationRequested();
                     if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
@@ -474,10 +434,13 @@ namespace VMSystem.AGV
                     else
                         runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
+                    Console.WriteLine($"{rotatedAngele}/{thetaToRotate}");
                 }
                 _timer.Stop();
 
-                var speed = thetaToRotate / _timer.ElapsedMilliseconds * 1000;
+                var speed_after_speed_up = thetaToRotate / _timer.ElapsedMilliseconds * 1000;
+                var speed = thetaToRotate / _timer.ElapsedMilliseconds / parameters.SpeedUpRate * 1000;
+                Console.WriteLine($"Rotation Speed(加速後) = {speed_after_speed_up} 度/秒(預設={parameters.RotationSpeed})");
                 Console.WriteLine($"Rotation Speed = {speed} 度/秒(預設={parameters.RotationSpeed})");
             }
             runningSTatus.Coordination.Theta = targetAngle;

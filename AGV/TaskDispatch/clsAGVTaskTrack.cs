@@ -855,7 +855,7 @@ namespace VMSystem.AGV.TaskDispatch
             alarm = ALARMS.NONE;
             if (AGV.options.Simulation)
             {
-                TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ActionRequestHandler(_task.DownloadData).Result;
+                TaskDownloadRequestResponse taskStateResponse = AgvSimulation.ExecuteTask(_task.DownloadData).Result;
                 return taskStateResponse;
             }
             else

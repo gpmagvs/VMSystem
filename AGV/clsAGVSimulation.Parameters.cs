@@ -23,6 +23,11 @@ namespace VMSystem.AGV
             /// 真實走行速度(m/s)
             /// </summary>
             public double MoveSpeedRatio { get; set; } = 1;
+
+            /// <summary>
+            /// 色帶速度
+            /// </summary>
+            public double TapMoveSpeedRatio { get; set; } = 0.3;
             /// <summary>
             /// 真實旋轉速度(度/秒)
             /// </summary>
@@ -30,7 +35,7 @@ namespace VMSystem.AGV
 
             public double ForkLifterSpeed { get; set; }
 
-            public double SpeedUpRate { get; set; } = 4;
+            public double SpeedUpRate { get; set; } = 1;
 
             public double BatteryChargeSpeed { get; set; } = 9;
             public double BatteryUsed_Run { get; set; } = 0.1;
