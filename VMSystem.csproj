@@ -9,6 +9,7 @@
     <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
     <ApplicationIcon>favicon2.ico</ApplicationIcon>
     <UserSecretsId>5aaaca2e-7b5d-4629-ac34-12d155a519a9</UserSecretsId>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

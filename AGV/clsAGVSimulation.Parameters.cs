@@ -20,14 +20,17 @@ namespace VMSystem.AGV
         public class clsAGVSimulationParameters
         {
             /// <summary>
-            /// 走行速度(m/s)
+            /// 真實走行速度(m/s)
             /// </summary>
             public double MoveSpeedRatio { get; set; } = 1;
-            public double RotationSpeed { get; set; } = 1;
+            /// <summary>
+            /// 真實旋轉速度(度/秒)
+            /// </summary>
+            public double RotationSpeed { get; set; } = 15;
 
             public double ForkLifterSpeed { get; set; }
 
-            public double SpeedUpRate { get; set; } = 2;
+            public double SpeedUpRate { get; set; } = 4;
 
             public double BatteryChargeSpeed { get; set; } = 9;
             public double BatteryUsed_Run { get; set; } = 0.1;

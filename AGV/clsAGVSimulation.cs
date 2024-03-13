@@ -454,37 +454,31 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Start Angle: {currentAngle} degree");
             //Console.WriteLine($"Target Angle: {targetAngle} degree");
             //Console.WriteLine($"Shortest Rotation Angle: {shortestRotationAngle} degree");
-            double deltaTheta = 2;
-            if (clockwise)//-角度
-            {
-                //Console.WriteLine("Rotate Clockwise");
-                double rotatedAngele = 0;
-                while (rotatedAngele <= shortestRotationAngle)
-                {
-                    if (token.IsCancellationRequested)
-                        token.ThrowIfCancellationRequested();
-                    if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
-                        return;
-                    runningSTatus.Coordination.Theta -= deltaTheta;
-                    rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(20 * parameters.RotationSpeed / parameters.SpeedUpRate));
-                }
+            Rotation(clockwise, shortestRotationAngle);
 
-            }
-            else
+            void Rotation(bool clockWise, double thetaToRotate)
             {
-                //Console.WriteLine("Rotate Counterclockwise");
+
+                double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 10.0;
                 double rotatedAngele = 0;
-                while (rotatedAngele <= shortestRotationAngle)
+                Stopwatch _timer = Stopwatch.StartNew();
+                while (rotatedAngele <= thetaToRotate)
                 {
+                    Thread.Sleep(100);
                     if (token.IsCancellationRequested)
                         token.ThrowIfCancellationRequested();
                     if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
                         return;
-                    runningSTatus.Coordination.Theta += deltaTheta;
+                    if (clockWise)
+                        runningSTatus.Coordination.Theta -= deltaTheta;
+                    else
+                        runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Thread.Sleep((int)(20 * parameters.RotationSpeed / parameters.SpeedUpRate));
                 }
+                _timer.Stop();
+
+                var speed = thetaToRotate / _timer.ElapsedMilliseconds * 1000;
+                Console.WriteLine($"Rotation Speed = {speed} 度/秒(預設={parameters.RotationSpeed})");
             }
             runningSTatus.Coordination.Theta = targetAngle;
         }

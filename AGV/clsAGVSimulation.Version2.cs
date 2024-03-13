@@ -154,7 +154,7 @@ namespace VMSystem.AGV
                 }
 
                 if (action == ACTION_TYPE.None && Trajectory.Length > 0)
-                    SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
+                     SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
 
             }
             catch (Exception ex)
