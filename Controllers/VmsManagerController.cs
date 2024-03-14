@@ -15,6 +15,7 @@ using System;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.Controllers
 {
@@ -104,6 +105,12 @@ namespace VMSystem.Controllers
             }
         }
 
+        [HttpPost("AGVLocating")]
+        public async Task<IActionResult> AGVLocating([FromBody] clsLocalizationVM localizationVM, string agv_name)
+        {
+            var result = await VMSManager.TryLocatingAGVAsync(agv_name, localizationVM);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
 
     }
 }

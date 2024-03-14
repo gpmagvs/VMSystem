@@ -16,6 +16,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             { ACTION_TYPE.Unload ,  new UnloadOrderHandler() },
             { ACTION_TYPE.Carry,  new TransferOrderHandler() },
             { ACTION_TYPE.Park,  new ParkOrderHandler() },
+            { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler() },
         };
 
         public OrderHandlerFactory() { }
@@ -35,7 +36,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 throw new NotFoundAGVException($"{orderData.DesignatedAGVName} not exist at system");
 
             var _queue = new Queue<TaskBase>();
-            MapPoint _agv_current_map_point = _agv.currentMapPoint; 
+            MapPoint _agv_current_map_point = _agv.currentMapPoint;
             if (IsAGVAtWorkStation(_agv))
             {
                 _queue.Enqueue(new DischargeTask(_agv, orderData));
@@ -63,6 +64,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new ChargeTask(_agv, orderData));
+                return _queue;
+            }
+            if (orderData.Action == ACTION_TYPE.ExchangeBattery)
+            {
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Park)

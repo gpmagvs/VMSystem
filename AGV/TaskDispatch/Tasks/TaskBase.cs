@@ -95,6 +95,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual void CreateTaskToAGV()
         {
+
             TaskDonwloadToAGV.Task_Name = this.TaskName;
             TaskDonwloadToAGV.Task_Sequence = this.TaskSequence;
             TaskDonwloadToAGV.Task_Simplex = this.TaskSimple;

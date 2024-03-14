@@ -17,6 +17,7 @@ using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.AGV
 {
@@ -302,7 +303,7 @@ namespace VMSystem.AGV
             availabilityHelper = new AvailabilityHelper(Name);
             StopRegionHelper = new StopRegionHelper(Name);
             RestoreStatesFromDatabase();
-            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+            CreateTaskDispatchModuleInstance();
             _ = Task.Run(async () =>
             {
                 Thread.Sleep(100);
@@ -323,6 +324,12 @@ namespace VMSystem.AGV
 
             taskDispatchModule.Run();
         }
+
+        protected virtual void CreateTaskDispatchModuleInstance()
+        {
+            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+        }
+
         public async Task<bool> PingServer()
         {
             Ping pingSender = new Ping();
@@ -729,6 +736,11 @@ namespace VMSystem.AGV
         public bool IsAGVCargoStatusCanNotGoToCharge()
         {
             return states.Cargo_Status == 1 || states.CSTID.Any(id => id != "");
+        }
+
+        public virtual Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM)
+        {
+            throw new NotImplementedException();
         }
     }
 }

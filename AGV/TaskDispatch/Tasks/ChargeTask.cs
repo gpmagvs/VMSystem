@@ -18,7 +18,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             base.CreateTaskToAGV();
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
-            base.CreateTaskToAGV();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
             this.TaskDonwloadToAGV.Homing_Trajectory = new clsMapPoint[2]
             {
@@ -27,6 +26,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             };
 
         }
+
+        public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    public class ExchangeBatteryTask : ChargeTask
+    {
+        
+        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+
+        public override ACTION_TYPE ActionType => ACTION_TYPE.ExchangeBattery;
+
+        public override VehicleMovementStage Stage => VehicleMovementStage.WorkingAtChargeStation;
 
         public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
         {

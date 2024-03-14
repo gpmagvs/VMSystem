@@ -35,14 +35,22 @@ namespace VMSystem.AGV
 
             public double ForkLifterSpeed { get; set; }
 
-            public double SpeedUpRate { get; set; } = 1;
-
+            /// <summary>
+            /// 模擬加速倍率
+            /// </summary>
+            public double SpeedUpRate { get; set; } = 4;
+            /// <summary>
+            /// 充電速度
+            /// </summary>
             public double BatteryChargeSpeed { get; set; } = 9;
             public double BatteryUsed_Run { get; set; } = 0.1;
 
-            public double WorkingTime { get; set; } = 4;//秒
+            /// <summary>
+            /// 設備作業時間(AGV進入停在設備內後，等待設備作業完成的花費時間)
+            /// </summary>
+            public double EQWorkingTime { get; set; } = 4;//秒
 
-            internal double WorkingTimeAwait => WorkingTime / SpeedUpRate;
+            internal double WorkingTimeAwait => EQWorkingTime / SpeedUpRate;
         }
     }
 }

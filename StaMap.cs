@@ -68,6 +68,7 @@ namespace VMSystem
             var avoidStations = Map.Points.Values.ToList().FindAll(sta => sta.IsAvoid);
             return avoidStations;
         }
+
         internal static string GetBayNameByMesLocation(string location)
         {
             var Bay = Map.Bays.FirstOrDefault(bay => bay.Value.Points.Contains(location));
@@ -217,7 +218,7 @@ namespace VMSystem
                             OnTagUnregisted?.Invoke("", TagNumber);
                             //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
 
-                           // LOG.TRACE($"{RegistDictionary.ToJson()}");
+                            // LOG.TRACE($"{RegistDictionary.ToJson()}");
                         }
                     }
                     else
@@ -308,7 +309,8 @@ namespace VMSystem
             }
             catch (Exception ex)
             {
-                throw ex;
+                LOG.Critical(ex);
+                return false;
             }
         }
 

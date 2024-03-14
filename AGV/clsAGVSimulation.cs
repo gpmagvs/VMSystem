@@ -94,6 +94,7 @@ namespace VMSystem.AGV
 
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {
+            Console.WriteLine(data.RosTaskCommandGoal.ToJson());
             TaskCancelTokenSource.Cancel();
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;

@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using VMSystem.AGV;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.VMS
 {
@@ -519,5 +520,12 @@ namespace VMSystem.VMS
                 return null;
         }
 
+        internal static async Task<(bool confirm, string message)> TryLocatingAGVAsync(string agv_name,clsLocalizationVM localizationVM )
+        {
+
+            IAGV agv = GetAGVByName(agv_name);
+            
+            return await agv.Locating(localizationVM);
+        }
     }
 }

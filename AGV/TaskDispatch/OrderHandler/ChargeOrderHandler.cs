@@ -8,6 +8,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
     }
 
+    public class ExchangeBatteryOrderHandler : OrderHandlerBase
+    {
+        public override ACTION_TYPE OrderAction => ACTION_TYPE.ExchangeBattery;
+    }
+
     public class ParkOrderHandler : ChargeOrderHandler
     {
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Park;
