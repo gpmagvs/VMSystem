@@ -108,7 +108,7 @@ namespace VMSystem
 
         internal static MapPoint GetPointByName(string name)
         {
-            var point = Map.Points.FirstOrDefault(pt => pt.Value.Name == name);
+            var point = Map.Points.FirstOrDefault(pt => pt.Value.Graph.Display == name);
             if (point.Value != null)
                 return point.Value;
             return null;

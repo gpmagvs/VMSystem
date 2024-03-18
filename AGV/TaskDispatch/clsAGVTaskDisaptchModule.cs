@@ -120,7 +120,7 @@ namespace VMSystem.AGV
         /// 自動派AGV去充電
         /// 條件 : 運轉模式
         /// </summary>
-        private async void CheckAutoCharge()
+        protected virtual async void CheckAutoCharge()
         {
             Task<clsAlarmDto> _charge_forbid_alarm = null;
             while (true)

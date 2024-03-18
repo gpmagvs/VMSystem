@@ -36,5 +36,10 @@ namespace VMSystem.AGV
             }
 
         }
+
+        protected override void CheckAutoCharge()
+        {
+            return;
+        }
     }
 }

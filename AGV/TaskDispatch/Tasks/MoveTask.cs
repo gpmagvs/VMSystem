@@ -63,7 +63,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    return StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+
+                    if (OrderData.Action == ACTION_TYPE.Measure)
+                    {
+                        string bayName = this.OrderData.To_Station;
+
+                        if (StaMap.Map.Bays.TryGetValue(bayName, out Bay bay))
+                        {
+                            //移動到Bay的進入點
+                            var InPointOfBay = StaMap.GetPointByTagNumber(int.Parse(bay.InPoint));
+                            return InPointOfBay;
+                        }
+                        else
+                            return null;
+                    }
+                    else
+                        return StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
                 }
                 else
                 {
@@ -75,7 +90,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (OrderData.Action != ACTION_TYPE.None)
             {
                 MapPoint _desintWorkStation = GetDesinteWorkStation();
-                _destine_point = StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());
+                _destine_point = OrderData.Action == ACTION_TYPE.Measure ? _desintWorkStation : StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());
             }
             else
             {

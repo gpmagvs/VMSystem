@@ -17,6 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             { ACTION_TYPE.Carry,  new TransferOrderHandler() },
             { ACTION_TYPE.Park,  new ParkOrderHandler() },
             { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler() },
+            { ACTION_TYPE.Measure,  new ExchangeBatteryOrderHandler() },
         };
 
         public OrderHandlerFactory() { }
@@ -86,6 +87,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
                 return _queue;
+            }
+            if (orderData.Action == ACTION_TYPE.Measure)
+            {
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MeasureTask(_agv, orderData));
             }
 
             return _queue;

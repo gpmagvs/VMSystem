@@ -74,7 +74,7 @@ namespace VMSystem.AGV
             }
         }
 
-       
+
         clsTaskDownloadData previousTaskData;
         CancellationTokenSource moveCancelTokenSource;
         Task move_task;
@@ -109,7 +109,7 @@ namespace VMSystem.AGV
 
                     await BarcodeMove(_currentBarcodeMoveArgs, token);
 
-                    if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                    if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
                         await _BackToHome(_currentBarcodeMoveArgs, token);
@@ -164,7 +164,7 @@ namespace VMSystem.AGV
 
                 int currentTag = runningSTatus.Last_Visited_Node;
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
-                moveArgs.nextMoveTrajectory = moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
+                moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure? moveArgs.orderTrajectory: moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
                 clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.ToArray();
                 ACTION_TYPE action = moveArgs.action;
@@ -308,7 +308,7 @@ namespace VMSystem.AGV
 
             }
         }
-      
+
 
         private void TurnToNextPoint(clsMapPoint[] Trajectory)
         {

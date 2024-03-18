@@ -47,7 +47,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override ACTION_TYPE ActionType => ACTION_TYPE.ExchangeBattery;
 
         public override VehicleMovementStage Stage => VehicleMovementStage.WorkingAtChargeStation;
-
+        public override bool IsAGVReachDestine
+        {
+            get
+            {
+                return Agv.states.Last_Visited_Node == this.TaskDonwloadToAGV.Homing_Trajectory[0].Point_ID;
+            }
+        }
         public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
         {
             throw new NotImplementedException();
