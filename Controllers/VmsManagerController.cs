@@ -112,5 +112,12 @@ namespace VMSystem.Controllers
             return Ok(new { confirm = result.confirm, message = result.message });
         }
 
+        [HttpPost("AddVehicle")]
+        public async Task<IActionResult> AddVehicle([FromBody] clsAGVStateDto dto)
+        {
+            var result = VMSManager.AddVehicle(dto);
+
+            return Ok();
+        }
     }
 }

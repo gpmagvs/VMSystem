@@ -50,7 +50,8 @@ namespace VMSystem.AGV
 
                 if (agvStates != null)
                 {
-                    runningSTatus.Last_Visited_Node = int.Parse(agvStates.CurrentLocation);
+                    if (int.TryParse(agvStates.CurrentLocation, out var lastVisitedTag))
+                        runningSTatus.Last_Visited_Node = lastVisitedTag;
                 }
                 else
                 {
@@ -164,7 +165,7 @@ namespace VMSystem.AGV
 
                 int currentTag = runningSTatus.Last_Visited_Node;
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
-                moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure? moveArgs.orderTrajectory: moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
+                moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure ? moveArgs.orderTrajectory : moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
                 clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.ToArray();
                 ACTION_TYPE action = moveArgs.action;

@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
+using System.Linq;
 using VMSystem.AGV;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsGPMInspectionAGV;
@@ -19,24 +20,6 @@ namespace VMSystem.VMS
     public partial class VMSManager
     {
         private const string Vehicle_Json_file = @"C:\AGVS\Vehicle.json";
-        private static Dictionary<VMS_GROUP, VMSConfig> _vehicle_configs = new Dictionary<VMS_GROUP, VMSConfig>()
-        {
-            { VMS_GROUP.GPM_FORK , new VMSConfig
-            {
-                 AGV_List = new Dictionary<string, clsAGVOptions>
-                 {
-                     {"AGV_001", new clsAGVOptions
-                     {
-                          HostIP = "192.168.0.101",
-                           HostPort=7025,
-                            Enabled = true,
-                             Simulation = false,
-                              InitTag = 1,
-                               Protocol =  clsAGVOptions.PROTOCOL.RESTFulAPI
-                     } }
-                 }
-            } }
-        };
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
@@ -72,42 +55,24 @@ namespace VMSystem.VMS
             TcpServerInit();
 
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
-            var _configs = VMSSerivces.ReadVMSVehicleGroupSetting(Vehicle_Json_file);
-            if (_configs != null)
-            {
-                _vehicle_configs = _configs;
-            }
 
-            foreach (var item in _vehicle_configs)
-            {
-                VMSAbstract VMSTeam = null;
-                VMS_GROUP vms_type = item.Key;
-                if (vms_type == VMS_GROUP.GPM_FORK)
-                {
-                    var gpm_fork_agvList = item.Value.AGV_List.Select(kp => new clsGPMForkAGV(kp.Key, kp.Value)).ToList();
-                    VMSTeam = new GPMForkAgvVMS(gpm_fork_agvList);
-                }
-                else if (vms_type == VMS_GROUP.GPM_SUBMARINE_SHIELD)
-                {
-                    var gpm_submarine_shieldList = item.Value.AGV_List.Select(kp => new clsGPMSubmarine_Shield(kp.Key, kp.Value)).ToList();
-                    VMSTeam = new GPMSubmarine_ShieldVMS(gpm_submarine_shieldList);
-                }
-                else if (vms_type == VMS_GROUP.YUNTECH_FORK)
-                {
-                    var yuntech_fork_agvList = item.Value.AGV_List.Select(kp => new clsYunTechAGV(kp.Key, kp.Value)).ToList();
-                    VMSTeam = new YunTechAgvVMS(yuntech_fork_agvList);
-                }
-                else if (vms_type == VMS_GROUP.GPM_INSPECTION_AGV)
-                {
-                    var gpm_inspection_agvList = item.Value.AGV_List.Select(kp => new clsGPMInspectionAGV(kp.Key, kp.Value)).ToList();
-                    VMSTeam = new GPMInspectionAGVVMS(gpm_inspection_agvList);
-                }
+            using AGVSDatabase database = new AGVSDatabase();
+            var agvList = database.tables.AgvStates.ToList();
 
-                Thread.Sleep(100);
-                VMSTeam.StartAGVs();
-                VMSList.Add(item.Key, VMSTeam);
-            }
+            var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
+            var submarineAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.SUBMERGED_SHIELD);
+            var inspectionAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.INSPECTION_AGV);
 
+            VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsGPMForkAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
+
+            List<Task> tasks = new List<Task>();
+
+            tasks.Add(VMSList[VMS_GROUP.GPM_FORK].StartAGVs());
+            tasks.Add(VMSList[VMS_GROUP.GPM_SUBMARINE_SHIELD].StartAGVs());
+            tasks.Add(VMSList[VMS_GROUP.GPM_INSPECTION_AGV].StartAGVs());
+            await Task.WhenAll(tasks);
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
 
@@ -115,6 +80,20 @@ namespace VMSystem.VMS
             AGVStatesStoreWorker();
             TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
+        }
+        private static clsAGVOptions CreateOptions(clsAGVStateDto agvDto)
+        {
+            return new clsAGVOptions
+            {
+                Enabled = agvDto.Enabled,
+                HostIP = agvDto.IP,
+                HostPort = agvDto.Port,
+                VehicleWidth = agvDto.VehicleWidth,
+                VehicleLength = agvDto.VehicleLength,
+                Simulation = agvDto.Simulation,
+                Protocol = agvDto.Protocol,
+                InitTag = agvDto.InitTag,
+            };
         }
 
         private static void TcpServerInit()
@@ -520,12 +499,82 @@ namespace VMSystem.VMS
                 return null;
         }
 
-        internal static async Task<(bool confirm, string message)> TryLocatingAGVAsync(string agv_name,clsLocalizationVM localizationVM )
+        internal static async Task<(bool confirm, string message)> TryLocatingAGVAsync(string agv_name, clsLocalizationVM localizationVM)
         {
 
             IAGV agv = GetAGVByName(agv_name);
-            
+
             return await agv.Locating(localizationVM);
+        }
+
+        internal static async Task<(bool confirm, string message)> AddVehicle(clsAGVStateDto dto)
+        {
+
+            var group = GetGroup(dto.Model);
+
+            dto.Group = group;
+            dto.Enabled = true;
+
+            var option = CreateOptions(dto);
+
+            if (VMSList[group].AGVList.Any(agv => agv.Value.Name == dto.AGV_Name))
+            {
+                return (false, $"已存在ID為 {dto.AGV_Name}的車輛!");
+            }
+
+            IAGV agv = null;
+            switch (dto.Model)
+            {
+                case AGV_TYPE.FORK:
+                    agv = new clsGPMForkAGV(dto.AGV_Name, option);
+                    break;
+                case AGV_TYPE.YUNTECH_FORK_AGV:
+                    agv = new clsYunTechAGV(dto.AGV_Name, option);
+                    break;
+                case AGV_TYPE.INSPECTION_AGV:
+                    agv = new clsGPMInspectionAGV(dto.AGV_Name, option);
+                    break;
+                case AGV_TYPE.SUBMERGED_SHIELD:
+                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option);
+                    break;
+                case AGV_TYPE.SUBMERGED_SHIELD_Parts:
+                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option);
+                    break;
+                case AGV_TYPE.Any:
+                    break;
+                default:
+                    break;
+            }
+
+            agv.VMSGroup = dto.Group;
+            agv.options.Enabled = true;
+            agv?.Run();
+            VMSList[dto.Group].AGVList.Add(agv.Name, agv);
+            bool addSuccess = await SaveVehicleInfoToDatabase(dto);
+            return (addSuccess, addSuccess ? "" : "新增車輛失敗(修改資料庫失敗)");
+
+            VMS_GROUP GetGroup(AGV_TYPE agv_model)
+            {
+                switch (agv_model)
+                {
+                    case AGV_TYPE.FORK:
+                        return VMS_GROUP.GPM_FORK;
+                    case AGV_TYPE.SUBMERGED_SHIELD:
+                        return VMS_GROUP.GPM_SUBMARINE_SHIELD;
+                    case AGV_TYPE.INSPECTION_AGV:
+                        return VMS_GROUP.GPM_INSPECTION_AGV;
+                    default:
+                        return VMS_GROUP.GPM_SUBMARINE_SHIELD;
+                }
+            }
+        }
+
+        private static async Task<bool> SaveVehicleInfoToDatabase(clsAGVStateDto dto)
+        {
+            using AGVSDatabase database = new AGVSDatabase();
+            database.tables.AgvStates.Add(dto);
+            int changeInt = await database.SaveChanges();
+            return changeInt == 1;
         }
     }
 }

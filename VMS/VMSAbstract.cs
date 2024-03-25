@@ -29,13 +29,14 @@ namespace VMSystem.VMS
         /// </summary>
         public Dictionary<string, IAGV> AGVList { get; set; }
 
-        internal void StartAGVs()
+        internal async Task StartAGVs()
         {
+            List<Task> tasks = new List<Task>();
             AGVList.Values.ToList().ForEach((agv) =>
             {
-                agv.Run();
-             
+                tasks.Add(agv.Run());
             });
+            await Task.WhenAll(tasks);
         }
     }
 }
