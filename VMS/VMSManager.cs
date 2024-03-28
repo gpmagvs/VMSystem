@@ -57,21 +57,29 @@ namespace VMSystem.VMS
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
 
             using AGVSDatabase database = new AGVSDatabase();
+            
             var agvList = database.tables.AgvStates.ToList();
+
+
+
 
             var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
             var submarineAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.SUBMERGED_SHIELD);
             var inspectionAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.INSPECTION_AGV);
+            var yunTechForkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.YUNTECH_FORK_AGV);
 
             VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsGPMForkAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
+            VMSList.Add(VMS_GROUP.YUNTECH_FORK, new YunTechAgvVMS(inspectionAgvList.Select(agv => new clsYunTechAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
 
             List<Task> tasks = new List<Task>();
 
             tasks.Add(VMSList[VMS_GROUP.GPM_FORK].StartAGVs());
             tasks.Add(VMSList[VMS_GROUP.GPM_SUBMARINE_SHIELD].StartAGVs());
             tasks.Add(VMSList[VMS_GROUP.GPM_INSPECTION_AGV].StartAGVs());
+            tasks.Add(VMSList[VMS_GROUP.YUNTECH_FORK].StartAGVs());
+
             await Task.WhenAll(tasks);
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));

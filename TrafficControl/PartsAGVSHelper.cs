@@ -42,15 +42,15 @@ namespace VMSystem.TrafficControl
             File.WriteAllText(FilePath, JsonConvert.SerializeObject(Parameters, Formatting.Indented));
         }
 
-        public static async Task<bool> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
+        public static async Task<(bool confirm, string message)> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
         {
             if (!NeedRegistRequestToParts)
             {
-                return true;
+                return (true, "Setting as NO Need To Regist To PARTS");
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
             var result = await parts_service.Regist(AGVName, List_RegistNames);
-            return result.accept;
+            return result;
         }
 
         public static async Task<bool> UnRegistStationRequestToAGVS(List<string> List_UnRegistName, string AGVName = "AMCAGV")

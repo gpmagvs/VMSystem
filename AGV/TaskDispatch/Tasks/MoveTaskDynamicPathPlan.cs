@@ -167,7 +167,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
-                        var _result = _DispatchTaskToAGV(_taskDownloadData, out var alarm);
+                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
                         if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
                             if (OnTaskDownloadToAGVButAGVRejected != null)
@@ -256,6 +256,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 catch (Exception ex)
                 {
                     throw ex;
+                }
+                finally
+                {
                 }
 
             }, token);

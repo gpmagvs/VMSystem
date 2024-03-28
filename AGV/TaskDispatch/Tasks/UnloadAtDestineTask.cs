@@ -7,6 +7,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     {
         public UnloadAtDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
+            DestineTag = order.To_Station_Tag;
         }
 
         public override VehicleMovementStage Stage { get; } = VehicleMovementStage.WorkingAtDestination;

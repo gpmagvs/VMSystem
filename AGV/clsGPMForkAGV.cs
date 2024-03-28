@@ -15,6 +15,7 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
+using VMSystem.TrafficControl;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsGPMInspectionAGV;
@@ -165,7 +166,10 @@ namespace VMSystem.AGV
                             return;
                         }
                         if (previousMapPoint != null)
+                        {
                             StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
+                            TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { previousMapPoint.Graph.Display });
+                        }
 
                         //if (taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
