@@ -240,8 +240,13 @@ namespace VMSystem.AGV.TaskDispatch
                     await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(AGV.Name, TaskOrder.From_Station_Tag, TaskOrder.To_Station_Tag);
                 }
 
+ 
+
                 SubTaskTracking = _task;
                 UpdateTransferProcess(TaskOrder.Action, SubTaskTracking.Action);
+
+                TaskOrder.StartTime = DateTime.Now;
+                RaiseTaskDtoChange(this, TaskOrder);
 
                 _return_code = _DispatchTaskToAGV(_task, out ALARMS alarm).ReturnCode;
                 if (_return_code != TASK_DOWNLOAD_RETURN_CODES.OK)

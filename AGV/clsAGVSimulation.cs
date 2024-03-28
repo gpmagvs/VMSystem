@@ -15,6 +15,7 @@ using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using VMSystem.Tools;
 using System.Drawing;
 using System.Diagnostics;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV
 {
@@ -74,7 +75,7 @@ namespace VMSystem.AGV
             }
         }
 
-       
+
         clsTaskDownloadData previousTaskData;
         CancellationTokenSource moveCancelTokenSource;
         Task move_task;
@@ -91,6 +92,8 @@ namespace VMSystem.AGV
                 }
             }
         }
+
+        public double totalSpendTime { get; private set; }
 
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {
@@ -134,7 +137,7 @@ namespace VMSystem.AGV
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
-                    _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
+                    _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.orderTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token);
                 }
 
@@ -160,7 +163,8 @@ namespace VMSystem.AGV
         {
             try
             {
-
+                double totalTimeSpend = 0;
+                double totalDistance = 0;
                 int currentTag = runningSTatus.Last_Visited_Node;
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
                 moveArgs.nextMoveTrajectory = moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
@@ -170,10 +174,15 @@ namespace VMSystem.AGV
 
                 var taskFeedbackData = moveArgs.Feedback;
                 int idx = 0;
+
+                //初始化字典用於儲存每個點的等待時間(Jason)
+                var waitTimes = new Dictionary<int, TimeSpan>();
+
+
                 //轉向第一個點
                 if (moveArgs.action == ACTION_TYPE.None)
                 {
-                    TurnToNextPoint(Trajectory);
+                    totalTimeSpend += TurnToNextPoint(Trajectory);
                 }
                 if (Trajectory[0].Point_ID == runningSTatus.Last_Visited_Node)
                 {
@@ -181,6 +190,10 @@ namespace VMSystem.AGV
                 }
                 foreach (clsMapPoint station in Trajectory)
                 {
+                    //紀錄抵達點前的時間(Jason)
+                    DateTime starTime = DateTime.Now;
+
+
                     MapPoint netMapPt = StaMap.GetPointByTagNumber(station.Point_ID);
 
                     bool isNeedTrackingTagCenter = station.Control_Mode.Dodge == 11;
@@ -197,7 +210,11 @@ namespace VMSystem.AGV
                     int stationTag = station.Point_ID;
                     var isNeedStopAndRotaionWhenReachNextPoint = DeterminNextPtIsNeedRotationOrNot(Trajectory, currentTag, out double theta);
                     var _speed = action == ACTION_TYPE.None ? parameters.MoveSpeedRatio : parameters.TapMoveSpeedRatio;
-                    await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: _speed * parameters.SpeedUpRate, token);
+                    var result = await MoveChangeSimulation(currentX, currentY, station.X, station.Y, speed: _speed * parameters.SpeedUpRate, token);
+
+                    totalTimeSpend += result.time;
+                    totalDistance += result.distance;
+
                     runningSTatus.Coordination.X = station.X;
                     runningSTatus.Coordination.Y = station.Y;
                     runningSTatus.Last_Visited_Node = stationTag;
@@ -216,10 +233,20 @@ namespace VMSystem.AGV
                         }
                         if (Trajectory.Last() != station)
                         {
-                            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle, token);
+                            totalTimeSpend += SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle, token);
                             runningSTatus.Coordination.Theta = targetAngle;
                         }
                     }
+
+                    DateTime endTime = DateTime.Now; //紀錄到達點後的時間(Jason)
+                    TimeSpan waitTime = endTime - starTime; //計算等待時間(Jason)
+
+                    await StorePointPassTimeToDatabase(stationTag, waitTime.TotalSeconds);
+
+
+                    waitTimes.Add(stationTag, waitTime); //儲存等待時間(Jason)
+
+
                     taskFeedbackData.PointIndex = moveArgs.orderTrajectory.GetTagList().ToList().IndexOf(stationTag);
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
 
@@ -234,7 +261,12 @@ namespace VMSystem.AGV
                 }
 
                 if (action == ACTION_TYPE.None && Trajectory.Length > 0)
-                    SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
+                    totalTimeSpend += SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
+                Console.WriteLine($"Time Spend={totalTimeSpend} sec, Distance={totalDistance} m");
+                LOG.TRACE($"Time Spend={totalTimeSpend} sec, Distance={totalDistance} m");
+
+                //輸出每個點的等待時間(Jason)
+                //RecordPassTimeOfAllPoints(waitTimes);
 
             }
             catch (Exception ex)
@@ -243,6 +275,28 @@ namespace VMSystem.AGV
             }
         }
 
+        private async Task RecordPassTimeOfAllPoints(Dictionary<int, TimeSpan> waitTimes)
+        {
+            foreach (var pair in waitTimes)
+            {
+                Console.WriteLine($"Point ID : {pair.Key}, Wait Time: {pair.Value.TotalSeconds} seconds");
+                LOG.TRACE($"Point ID : {pair.Key}, Wait Time: {pair.Value.TotalSeconds} seconds");
+                await StorePointPassTimeToDatabase(pair.Key, pair.Value.TotalSeconds);
+            }
+        }
+
+        private async Task StorePointPassTimeToDatabase(int tag, double duration)
+        {
+            using AGVSDatabase database = new AGVSDatabase();
+            database.tables.PointPassTime.Add(new AGVSystemCommonNet6.Availability.clsPointPassInfo
+            {
+                AGVName = this.agv.Name,
+                Duration = duration,
+                Tag = tag,
+                Time = DateTime.Now
+            });
+            await database.SaveChanges();
+        }
         private BarcodeMoveArguments CreateBarcodeMoveArgsFromAGVSOrder(clsTaskDownloadData orderData)
         {
             return new BarcodeMoveArguments
@@ -293,6 +347,8 @@ namespace VMSystem.AGV
                 {
                     string Action = (ActionType == ACTION_TYPE.Load || ActionType == ACTION_TYPE.LoadAndPark) ? "Load" : "Unload";
                     ClientSocket.Connect("127.0.0.1", 100);
+
+                    LOG.INFO($"Send Data To EQ Simulator:{Action},{EQName}");
                     ClientSocket.Send(Encoding.ASCII.GetBytes($"{Action},{EQName}"));
                 }
                 catch (Exception ex)
@@ -307,9 +363,9 @@ namespace VMSystem.AGV
 
             }
         }
-      
 
-        private void TurnToNextPoint(clsMapPoint[] Trajectory)
+
+        private double TurnToNextPoint(clsMapPoint[] Trajectory)
         {
             double targetAngle = 0;
             double currentAngle = runningSTatus.Coordination.Theta;
@@ -328,8 +384,9 @@ namespace VMSystem.AGV
                 targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
 
             }
-            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
+            double timeSpend = SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
             runningSTatus.Coordination.Theta = targetAngle;
+            return timeSpend;
         }
 
         private bool DeterminNextPtIsNeedRotationOrNot(clsMapPoint[] Trajectory, int currentTag, out double theta)
@@ -373,8 +430,11 @@ namespace VMSystem.AGV
 
         }
 
-        private async Task MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY, double speed = 2, CancellationToken token = default)
+        private async Task<(double time, double distance)> MoveChangeSimulation(double CurrentX, double CurrentY, double TargetX, double TargetY, double speed = 1, CancellationToken token = default)
         {
+            double totalDistance = 0;
+            double totalTime = 0;
+
             double error_total_x = TargetX - runningSTatus.Coordination.X;
             double error_total_Y = TargetY - runningSTatus.Coordination.Y;
             double O_Distance_All = Math.Sqrt(Math.Pow(error_total_x, 2) + Math.Pow(error_total_Y, 2)); //用來計算總共幾秒
@@ -382,24 +442,44 @@ namespace VMSystem.AGV
 
             double MoveSpeed_X = error_total_x / TotalSpendTime;//m
             double MoveSpeed_Y = error_total_Y / TotalSpendTime;
+
+
             Stopwatch timer = Stopwatch.StartNew();
             while (timer.ElapsedMilliseconds < TotalSpendTime * 1000)
             {
                 runningSTatus.Coordination.X += MoveSpeed_X * 0.1;
                 runningSTatus.Coordination.Y += MoveSpeed_Y * 0.1;
+
+                double distanceThisIteration = Math.Sqrt(Math.Pow(MoveSpeed_X * 0.1, 2) + Math.Pow(MoveSpeed_Y * 0.1, 2));
+
                 if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
-                    return;
+                    return (totalTime, totalDistance);
                 if (token.IsCancellationRequested)
                     token.ThrowIfCancellationRequested();
 
                 await Task.Delay(100);
+
+                //totalDistance += distanceThisIteration;
+                //totalTime += 0.1; // 累加每次迭代所用的時間
+
             }
+
             runningSTatus.Coordination.X = TargetX;
             runningSTatus.Coordination.Y = TargetY;
-            runningSTatus.Odometry += O_Distance_All;
+
+            Console.WriteLine($"走行距離 = {O_Distance_All} m");
+            Console.WriteLine($"需要花的時間 = {TotalSpendTime} 秒");
+            LOG.TRACE($"走行距離 = {O_Distance_All} m");
+            LOG.TRACE($"需要花的時間 = {TotalSpendTime} 秒");
+
+            //return (totalTime, totalDistance);
+            return (TotalSpendTime, O_Distance_All);
+
         }
 
-        private void SimulationThetaChange(double currentAngle, double targetAngle, CancellationToken token = default)
+
+
+        private double SimulationThetaChange(double currentAngle, double targetAngle, CancellationToken token = default)
         {
             bool clockwise = false;
             double shortestRotationAngle = (targetAngle - currentAngle + 360) % 360;
@@ -412,9 +492,9 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Start Angle: {currentAngle} degree");
             //Console.WriteLine($"Target Angle: {targetAngle} degree");
             //Console.WriteLine($"Shortest Rotation Angle: {shortestRotationAngle} degree");
-            Rotation(clockwise, shortestRotationAngle);
+            double timeSpend = Rotation(clockwise, shortestRotationAngle);
 
-            void Rotation(bool clockWise, double thetaToRotate)
+            double Rotation(bool clockWise, double thetaToRotate)
             {
 
                 double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 10.0;
@@ -428,7 +508,7 @@ namespace VMSystem.AGV
                     if (token.IsCancellationRequested)
                         token.ThrowIfCancellationRequested();
                     if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
-                        return;
+                        return _timer.ElapsedMilliseconds / 1000;
                     if (clockWise)
                         runningSTatus.Coordination.Theta -= deltaTheta;
                     else
@@ -440,10 +520,14 @@ namespace VMSystem.AGV
 
                 var speed_after_speed_up = thetaToRotate / _timer.ElapsedMilliseconds * 1000;
                 var speed = thetaToRotate / _timer.ElapsedMilliseconds / parameters.SpeedUpRate * 1000;
+                var speedTime = _timer.ElapsedMilliseconds / 1000;
                 Console.WriteLine($"Rotation Speed(加速後) = {speed_after_speed_up} 度/秒(預設={parameters.RotationSpeed})");
                 Console.WriteLine($"Rotation Speed = {speed} 度/秒(預設={parameters.RotationSpeed})");
+                Console.WriteLine($"旋轉總共花了 = {speedTime} 秒");
+                return speedTime;
             }
             runningSTatus.Coordination.Theta = targetAngle;
+            return timeSpend;
         }
 
         private async Task BatterSimulation()
