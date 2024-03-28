@@ -1,4 +1,4 @@
-
+﻿
 using Microsoft.AspNetCore.Http.Json;
 using VMSystem;
 using VMSystem.VMS;
@@ -13,7 +13,8 @@ using Microsoft.Data.Sqlite;
 using VMSystem.TrafficControl;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using VMSystem.Controllers;
-Console.Title = "GPM-�����޲z�t��(VMS)";
+using Microsoft.Extensions.FileProviders;
+Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
@@ -70,7 +71,23 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+var AGVUpdateFileFolder = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.AGVUpdateFileFolder;
+Directory.CreateDirectory(AGVUpdateFileFolder);
+var fileProvider = new PhysicalFileProvider(AGVUpdateFileFolder);
+var requestPath = "/AGVUpdateFiles";
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = fileProvider,
+    RequestPath = requestPath,
+    ServeUnknownFileTypes = true,  // 允许服务未知文件类型
+    DefaultContentType = "application/octet-stream",  // 为未知文件类型设置默认 MIME 类型
+});
 
+app.UseDirectoryBrowser(new DirectoryBrowserOptions
+{
+    FileProvider = fileProvider,
+    RequestPath = requestPath
+});
 
 try
 {

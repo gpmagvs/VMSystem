@@ -67,7 +67,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int _sequenceIndex = 0;
                     string task_simplex = this.TaskDonwloadToAGV.Task_Simplex;
                     List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
-                    int pointNum = 4;
+                    int pointNum = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.TaskControlConfigs.SegmentTrajectoryPointNum;
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
@@ -176,7 +176,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         var index = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                        var nextPoint = index == -1 || index + 1 >= nextPath.Count ? nextPath.First() : nextPath[index + 1];
+                        var nextPoint = pointNum == -1 ? MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() : index == -1 || index + 1 >= nextPath.Count ? nextPath.First() : nextPath[index + 1];
                         //1,2,3,4,5,6
                         LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextPoint.TagNumber}");
                         while (!IsAGVReachGoal(nextPoint.TagNumber))
@@ -199,8 +199,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                     List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
                     {
-                        var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
-                        return optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                        if (pointNum == -1)
+                        {
+                            return optimzedPathInfo.stations;
+                        }
+                        else
+                        {
+                            var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
+                            return optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                        }
                     }
 
 

@@ -285,7 +285,7 @@ namespace VMSystem.AGV
         }
 
 
-        private void ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
+        private async Task ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
         {
             try
             {
@@ -301,7 +301,7 @@ namespace VMSystem.AGV
                 {
                     ClientSocket.Dispose();
                 }
-                Thread.Sleep(500);
+                await Task.Delay(100);
                 ClientSocket.Close();
             }
             catch (Exception)
