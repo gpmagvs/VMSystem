@@ -520,7 +520,11 @@ namespace VMSystem.AGV
                 online_mode_req = ONLINE_STATE.OFFLINE;
                 return false;
             }
-
+            if (options.Simulation)
+            {
+                online_state = clsEnums.ONLINE_STATE.ONLINE;
+                return true;
+            }
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;

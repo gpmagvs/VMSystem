@@ -29,14 +29,8 @@ builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializ
 
 
 string DBConnection = AGVSConfigulator.SysConfigs.DBConnection;
-//Directory.CreateDirectory(Path.GetDirectoryName(DBConnection.Split('=')[1]));
-//var connectionString = new SqliteConnectionStringBuilder(DBConnection)
-//{
-//    Mode = SqliteOpenMode.ReadWriteCreate,
-//}.ToString();
 
 builder.Services.AddDbContext<AGVSDbContext>(options => options.UseSqlServer(DBConnection));
-
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;
@@ -44,6 +38,8 @@ builder.Services.Configure<JsonOptions>(options =>
     options.SerializerOptions.WriteIndented = true;
 });
 var app = builder.Build();
+
+
 
 
 using (IServiceScope scope = app.Services.CreateScope())
