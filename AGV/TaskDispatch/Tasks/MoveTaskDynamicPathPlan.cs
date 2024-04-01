@@ -210,6 +210,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                     }
 
+                    MapPoint GetGoalStationWhenNonNormalTaskExecute()
+                    {
+                        MapPoint _targetStation = new MapPoint();
+                        if (this.Stage == VehicleMovementStage.Traveling_To_Source)
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
+                        else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                        return _targetStation;
+                    }
 
                     void SettingParkAngle(ref clsTaskDownloadData _taskDownloadData)
                     {
@@ -217,7 +226,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (_taskDownloadData.Trajectory.Length < 2)
                         {
-                            _taskDownloadData.Trajectory.Last().Theta = _taskDownloadData.Trajectory.Last().Theta;
+
+                            if (OrderData.Action == ACTION_TYPE.None)
+                                _taskDownloadData.Trajectory.Last().Theta = _taskDownloadData.Trajectory.Last().Theta;
+                            else
+                            {
+                                MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
+                                _taskDownloadData.Trajectory.Last().Theta = _targetStation.Direction_Secondary_Point;
+
+                            }
                             return;
                         }
                         else
@@ -229,11 +246,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (this.Stage != VehicleMovementStage.Traveling)
                             {
-                                MapPoint _targetStation = new MapPoint();
-                                if (this.Stage == VehicleMovementStage.Traveling_To_Source)
-                                    _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
-                                else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
-                                    _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                                MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
                                 MapPoint _front_targetStation_point = StaMap.GetPointByIndex(_targetStation.Target.Keys.First());
 
                                 if (_front_targetStation_point.TagNumber == lastPoint.Point_ID)
