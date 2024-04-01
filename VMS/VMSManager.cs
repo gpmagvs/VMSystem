@@ -57,11 +57,8 @@ namespace VMSystem.VMS
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
 
             using AGVSDatabase database = new AGVSDatabase();
-            
+
             var agvList = database.tables.AgvStates.ToList();
-
-
-
 
             var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
             var submarineAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.SUBMERGED_SHIELD);
@@ -168,6 +165,10 @@ namespace VMSystem.VMS
                             IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
                             VehicleWidth = agv.options.VehicleWidth,
                             VehicleLength = agv.options.VehicleLength,
+                            Protocol = agv.options.Protocol,
+                            IP = agv.options.HostIP,
+                            Port = agv.options.HostPort,
+                            Simulation = agv.options.Simulation,
                         };
                         return dto;
                     };
@@ -180,10 +181,12 @@ namespace VMSystem.VMS
                         {
                             var dbentity = databse.tables.AgvStates.FirstOrDefault(ent => ent.AGV_Name == entity.AGV_Name);
                             if (dbentity != null)
+                            {
+
                                 dbentity.Update(entity);
-                            else
-                                databse.tables.Add(entity);
-                            databse.tables.SaveChanges();
+                                await databse.SaveChanges();
+                            }
+
                         }
                         else
                         {
@@ -561,19 +564,53 @@ namespace VMSystem.VMS
             bool addSuccess = await SaveVehicleInfoToDatabase(dto);
             return (addSuccess, addSuccess ? "" : "新增車輛失敗(修改資料庫失敗)");
 
-            VMS_GROUP GetGroup(AGV_TYPE agv_model)
+        }
+
+        internal static async Task<(bool confirm, string message)> EditVehicle(clsAGVStateDto dto, string ordAGVName)
+        {
+
+            using var agvdatabase = new AGVSDatabase();
+            var databaseDto = agvdatabase.tables.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
+            if (databaseDto != null)
             {
-                switch (agv_model)
+                var group = GetGroup(dto.Model);
+                var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
+
+                if (oriAGV == null)
                 {
-                    case AGV_TYPE.FORK:
-                        return VMS_GROUP.GPM_FORK;
-                    case AGV_TYPE.SUBMERGED_SHIELD:
-                        return VMS_GROUP.GPM_SUBMARINE_SHIELD;
-                    case AGV_TYPE.INSPECTION_AGV:
-                        return VMS_GROUP.GPM_INSPECTION_AGV;
-                    default:
-                        return VMS_GROUP.GPM_SUBMARINE_SHIELD;
+                    agvdatabase.tables.AgvStates.Add(dto);
+                    return (true, "");
                 }
+                databaseDto.IP = oriAGV.options.HostIP = dto.IP;
+                databaseDto.Port = oriAGV.options.HostPort = dto.Port;
+                databaseDto.Protocol = oriAGV.options.Protocol = dto.Protocol;
+                databaseDto.Model = oriAGV.model = dto.Model;
+                databaseDto.Group = group;
+                databaseDto.InitTag = oriAGV.options.InitTag = dto.InitTag;
+                oriAGV.Name = dto.AGV_Name;
+                databaseDto.VehicleLength = oriAGV.options.VehicleLength = dto.VehicleLength;
+                databaseDto.VehicleWidth = oriAGV.options.VehicleWidth = dto.VehicleWidth;
+
+                await agvdatabase.SaveChanges();
+            }
+            else
+            {
+                agvdatabase.tables.AgvStates.Add(dto);
+            }
+            return (true, "");
+        }
+        private static VMS_GROUP GetGroup(AGV_TYPE agv_model)
+        {
+            switch (agv_model)
+            {
+                case AGV_TYPE.FORK:
+                    return VMS_GROUP.GPM_FORK;
+                case AGV_TYPE.SUBMERGED_SHIELD:
+                    return VMS_GROUP.GPM_SUBMARINE_SHIELD;
+                case AGV_TYPE.INSPECTION_AGV:
+                    return VMS_GROUP.GPM_INSPECTION_AGV;
+                default:
+                    return VMS_GROUP.GPM_SUBMARINE_SHIELD;
             }
         }
 

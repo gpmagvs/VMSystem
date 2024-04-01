@@ -16,6 +16,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using static VMSystem.AGV.clsGPMInspectionAGV;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace VMSystem.Controllers
 {
@@ -115,9 +116,14 @@ namespace VMSystem.Controllers
         [HttpPost("AddVehicle")]
         public async Task<IActionResult> AddVehicle([FromBody] clsAGVStateDto dto)
         {
-            var result = VMSManager.AddVehicle(dto);
-
-            return Ok();
+            var result = await VMSManager.AddVehicle(dto);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
+        [HttpPost("EditVehicle")]
+        public async Task<IActionResult> EditVehicle([FromBody] clsAGVStateDto dto,string oriAGVID)
+        {
+            var result = await VMSManager.EditVehicle(dto, oriAGVID);
+            return Ok(new {confirm =result.confirm, message=result.message});
         }
     }
 }
