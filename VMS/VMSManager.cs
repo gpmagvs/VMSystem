@@ -264,10 +264,10 @@ namespace VMSystem.VMS
         {
             return AllAGV.FirstOrDefault(agv => agv.Name == AGVName);
         }
-        public static bool TryGetAGV(string AGVName, AGV_TYPE Model, out IAGV agv)
+        public static bool TryGetAGV(string AGVName, out IAGV agv)
         {
             agv = null;
-            var agvList = SearchAGVByName(AGVName, Model);
+            var agvList = SearchAGVByName(AGVName);
 
             if (agvList.Count == 0)
             {
@@ -281,7 +281,7 @@ namespace VMSystem.VMS
         }
 
 
-        public static List<IAGV> SearchAGVByName(string agv_name, AGV_TYPE model = AGV_TYPE.FORK)
+        public static List<IAGV> SearchAGVByName(string agv_name)
         {
             if (AllAGV.Count == 0)
                 return new List<IAGV>();

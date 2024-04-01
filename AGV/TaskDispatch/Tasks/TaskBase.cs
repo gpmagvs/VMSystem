@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using System.Security.Claims;
+using VMSystem.AGV.TaskDispatch.Exceptions;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -87,8 +88,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 return (false, ex.Alarm_Code);
             }
+            catch (AGVRejectTaskException ex)
+            {
+                return (false, ex.Alarm_Code);
+            }
             catch (Exception ex)
             {
+
                 LOG.ERROR(ex.ToString(), ex);
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
             }
@@ -116,7 +122,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
             var agv_response = await _DispatchTaskToAGV(taskData);
             if (agv_response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                throw new Exceptions.AGVRejectTaskException(agv_response.ReturnCode);
+                throw new Exceptions.AGVRejectTaskException();
         }
         public abstract void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData);
         public abstract void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData);
@@ -159,27 +165,31 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
-            (bool confirm, string message, List<string> regions) parts_accept = (false, "", new List<string>());
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            while (!parts_accept.confirm)
+            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
             {
-
-                if (stopwatch.Elapsed.TotalSeconds > 60)
+                (bool confirm, string message, List<string> regions) parts_accept = (false, "", new List<string>());
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                while (!parts_accept.confirm)
                 {
-                    return new TaskDownloadRequestResponse
+
+                    if (stopwatch.Elapsed.TotalSeconds > 60)
                     {
-                        Message = parts_accept.message,
-                        ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
-                    };
-                }
-                parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
-                if (!parts_accept.confirm)
-                {
-                    LOG.WARN($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
-                    await Task.Delay(1000);
-                }
+                        TrafficWaitingState.SetStatusNoWaiting();
+                        return new TaskDownloadRequestResponse
+                        {
+                            Message = parts_accept.message,
+                            ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
+                        };
+                    }
+                    parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
+                    if (!parts_accept.confirm)
+                    {
+                        TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
+                        LOG.WARN($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
+                        await Task.Delay(1000);
+                    }
 
+                }
             }
 
             LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");

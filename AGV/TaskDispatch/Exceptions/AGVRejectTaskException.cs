@@ -1,32 +1,14 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Exceptions;
 using System.Runtime.Serialization;
 
 namespace VMSystem.AGV.TaskDispatch.Exceptions
 {
     [Serializable]
-    internal class AGVRejectTaskException : Exception
+    internal class AGVRejectTaskException : VMSExceptionAbstract
     {
         private TASK_DOWNLOAD_RETURN_CODES returnCode;
-
-        public AGVRejectTaskException()
-        {
-        }
-
-        public AGVRejectTaskException(TASK_DOWNLOAD_RETURN_CODES returnCode)
-        {
-            this.returnCode = returnCode;
-        }
-
-        public AGVRejectTaskException(string? message) : base(message)
-        {
-        }
-
-        public AGVRejectTaskException(string? message, Exception? innerException) : base(message, innerException)
-        {
-        }
-
-        protected AGVRejectTaskException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-        }
+        public override ALARMS Alarm_Code { get; set; } = ALARMS.REGIST_REGIONS_TO_PARTS_SYSTEM_FAIL;
     }
 }
