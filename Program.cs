@@ -39,9 +39,6 @@ builder.Services.Configure<JsonOptions>(options =>
 });
 var app = builder.Build();
 
-
-
-
 using (IServiceScope scope = app.Services.CreateScope())
 {
     using (AGVSDbContext dbContext = scope.ServiceProvider.GetRequiredService<AGVSDbContext>())

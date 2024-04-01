@@ -9,14 +9,14 @@ namespace VMSystem.AGV
     {
         public override clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_INSPECTION_AGV;
         public override AGV_TYPE model { get; set; } = AGV_TYPE.INSPECTION_AGV;
-        public clsGPMInspectionAGV(string name, clsAGVOptions options) : base(name, options)
-        {
-            LOG.INFO($"AGV {name} Create. MODEL={model} ");
-        }
 
         protected override void CreateTaskDispatchModuleInstance()
         {
             taskDispatchModule = new clsInspectionAGVTaskDispatchModule(this);
+        }
+        public clsGPMInspectionAGV(string name, clsAGVOptions options) : base(name, options)
+        {
+
         }
         public override async Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM)
         {

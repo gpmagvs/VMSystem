@@ -11,7 +11,6 @@ namespace VMSystem.AGV
         public override AGV_TYPE model { get; set; } = AGV_TYPE.SUBMERGED_SHIELD;
         public clsGPMSubmarine_Shield(string name, clsAGVOptions connections) : base(name, connections)
         {
-            LOG.INFO($"AGV {name} Create. MODEL={model} ");
         }
 
         public override Task<object> GetAGVStateFromDB()

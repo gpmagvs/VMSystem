@@ -33,6 +33,7 @@ namespace VMSystem.AGV
         {
             this.options = options;
             Name = name;
+            LOG.INFO($"AGV {name} Create. MODEL={model} ");
         }
 
 
@@ -347,7 +348,7 @@ namespace VMSystem.AGV
                     DontFragment = false      // 是否允許分段，設為true表示不分段
                 };
 
-                PingReply reply = pingSender.Send(address, 3000, new byte[32], options);
+                PingReply reply = await pingSender.SendPingAsync(address, 3000, new byte[32], options);
                 bool ping_success = reply.Status == IPStatus.Success;
                 return ping_success;
             }
@@ -424,7 +425,7 @@ namespace VMSystem.AGV
                 {
                     Thread.Sleep(1000);
 
-                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE | SystemModes.RunMode != AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE || SystemModes.RunMode != AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
                         continue;
 
                     if (states.Cargo_Status == 1)
