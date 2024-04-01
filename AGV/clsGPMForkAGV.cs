@@ -73,7 +73,7 @@ namespace VMSystem.AGV
         /// </summary>
         public MapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
-        private bool _pingSuccess = false;
+        private bool _pingSuccess = true;
         public bool pingSuccess
         {
             get => _pingSuccess;
@@ -359,16 +359,13 @@ namespace VMSystem.AGV
             }
         }
 
-        private void PingCheck()
+        private async Task PingCheck()
         {
-            Task.Run(async () =>
+            while (true)
             {
-                while (true)
-                {
-                    Thread.Sleep(1000);
-                    pingSuccess = await PingServer();
-                }
-            });
+                await Task.Delay(1000);
+                pingSuccess = await PingServer();
+            }
         }
 
         private void AliveCheck()
