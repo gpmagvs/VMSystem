@@ -167,6 +167,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
             {
+                TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
+
                 (bool confirm, string message, List<string> regions) parts_accept = (false, "", new List<string>());
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 while (!parts_accept.confirm)
@@ -184,7 +186,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
                     {
-                        TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
                         LOG.WARN($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
                         await Task.Delay(1000);
                     }
@@ -192,6 +193,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
 
+            TrafficWaitingState.SetStatusNoWaiting();
             LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
             {
