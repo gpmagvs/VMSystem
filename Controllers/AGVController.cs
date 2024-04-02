@@ -19,7 +19,7 @@ namespace VMSystem.Controllers
     public class AGVController : ControllerBase
     {   //api/VmsManager/AGVStatus?AGVName=agvname
         [HttpPost("AGVStatus")]
-        public async Task<IActionResult> AGVStatus(string AGVName,  AGV_TYPE Model, clsRunningStatus status)
+        public async Task<IActionResult> AGVStatus(string AGVName, AGV_TYPE Model, clsRunningStatus status)
         {
             if (!VMSManager.TryGetAGV(AGVName, out IAGV agv))
             {
@@ -85,7 +85,7 @@ namespace VMSystem.Controllers
                         catch (Exception ex)
                         {
                             LOG.ERROR(ex.Message, ex);
-                             AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                            AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
                         }
                     }
                 });
@@ -190,7 +190,7 @@ namespace VMSystem.Controllers
 
         //api/VmsManager/OnlineMode
         [HttpGet("CarrierVirtualID")]
-        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_TYPE Model =  AGV_TYPE.Any)
+        public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_TYPE Model = AGV_TYPE.Any)
         {
             LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
             if (VMSManager.TryGetAGV(AGVName, out var agv))
@@ -209,7 +209,14 @@ namespace VMSystem.Controllers
             }
         }
 
-
+        [HttpPost("LeaveWorkStationRequest")]
+        public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
+        {
+            return Ok(new
+            {
+                confirm = true,
+            });
+        }
 
     }
 }

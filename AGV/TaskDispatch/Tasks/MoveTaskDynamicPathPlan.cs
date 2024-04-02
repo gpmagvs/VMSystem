@@ -130,7 +130,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 TrafficWaitingState.SetStatusNoWaiting();
                                 return;
                             }
-                            TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), "等待路徑干涉解除");
+                            TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), $"等待{(conflicAGVList.Any() ? $"與 {string.Join(",", conflicAGVList.Select(agv => agv.Name))} 之" : "")}路徑干涉解除");
                             await Task.Delay(1000);
                             continue;
                         }

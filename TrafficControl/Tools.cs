@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Numerics;
 using VMSystem.VMS;
+using AGVSystemCommonNet6.Log;
 
 namespace VMSystem.TrafficControl
 {
@@ -23,7 +24,7 @@ namespace VMSystem.TrafficControl
         {
             ConflicAGVList = new List<IAGV>();
             bool is_SinglePoint = _Path.Count() == 1;
-            int indexOfAGVLoc= _Path.ToList().FindIndex(pt => pt.TagNumber == _UsePathAGV.states.Last_Visited_Node);
+            int indexOfAGVLoc = _Path.ToList().FindIndex(pt => pt.TagNumber == _UsePathAGV.states.Last_Visited_Node);
             List<MapPoint> pathPoints = _Path.Skip(indexOfAGVLoc).ToList();
             if (is_SinglePoint)
             {
@@ -34,23 +35,45 @@ namespace VMSystem.TrafficControl
                 //將每個路徑段用矩形表示
                 double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0;
                 double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0;
-                List<MapRectangle> _PathRectangles = new List<MapRectangle>();
-                for (int i = 0; i < pathPoints.Count() - 1; i++)
-                {
-                    var startPt = pathPoints[i];
-                    var endPt = pathPoints[i + 1];
-                    MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth, (float)vehicleLength);
-                    _rectangle.StartPointTag = startPt;
-                    _rectangle.EndPointTag = endPt;
-                    _PathRectangles.Add(_rectangle);
-                }
+                List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
                 Dictionary<IAGV, MapRectangle> _OthersAGVRectangles = _OthersAGV.ToDictionary(agv => agv, agv => agv.AGVGeometery);
+                Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
+
+                IEnumerable<MapRectangle> allOthersAGVPathRectangles = _OthersAGVPathRectangles.Values.SelectMany(re => re);
+
                 var pathConflics = _PathRectangles.ToDictionary(reg => reg, reg => _OthersAGVRectangles.Where(agv => agv.Value.IsIntersectionTo(reg)));
-                bool isInterfernce = _PathRectangles.Any(path => _OthersAGVRectangles.Any(agv => agv.Value.IsIntersectionTo(path)));
                 pathConflics = pathConflics.Where(kp => kp.Value.Count() != 0).ToDictionary(k => k.Key, k => k.Value);
                 ConflicAGVList = pathConflics.Values.SelectMany(v => v.Select(vv => vv.Key)).ToList().Distinct();
-                return ConflicAGVList.Count() > 0;
+                
+                bool isAGVPathConflic = _PathRectangles.Any(rectangle => allOthersAGVPathRectangles.Any(_rectangle => rectangle.IsIntersectionTo(_rectangle)));
+                
+                bool isAGVGeometryConflic = ConflicAGVList.Count() > 0;
+
+
+                return isAGVGeometryConflic || isAGVPathConflic;
             }
+        }
+
+        private static List<MapRectangle> GetPathRegionsWithRectangle(List<int> remainTagList, double vehicleWidth, double vehicleLength)
+        {
+            List<MapPoint> pathPoints = remainTagList.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList();
+            return GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
+        }
+
+        private static List<MapRectangle> GetPathRegionsWithRectangle(List<MapPoint> pathPoints, double vehicleWidth, double vehicleLength)
+        {
+            List<MapRectangle> _PathRectangles = new List<MapRectangle>();
+            for (int i = 0; i < pathPoints.Count() - 1; i++)
+            {
+                var startPt = pathPoints[i];
+                var endPt = pathPoints[i + 1];
+                MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth, (float)vehicleLength);
+                _rectangle.StartPointTag = startPt;
+                _rectangle.EndPointTag = endPt;
+                _PathRectangles.Add(_rectangle);
+            }
+
+            return _PathRectangles;
         }
 
         /// <summary>
