@@ -38,13 +38,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                 {
-                    var sourceStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
-                    FinalStopTheta = sourceStation.Direction_Secondary_Point;
+                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.From_Station_Tag);
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    var destineStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
-                    FinalStopTheta = destineStation.Direction_Secondary_Point;
+                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.To_Station_Tag);
                 }
             }
         }
