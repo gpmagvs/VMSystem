@@ -165,7 +165,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
-            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts)
+            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && OrderData.Action != ACTION_TYPE.ExchangeBattery)
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
 
@@ -174,7 +174,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 while (!parts_accept.confirm)
                 {
 
-                    if (stopwatch.Elapsed.TotalSeconds > 60)
+                    if (stopwatch.Elapsed.TotalSeconds > 180)
                     {
                         TrafficWaitingState.SetStatusNoWaiting();
                         return new TaskDownloadRequestResponse
