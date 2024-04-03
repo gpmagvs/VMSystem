@@ -18,7 +18,6 @@ Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
-WebsocketClientMiddleware.middleware.Initialize();
 PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,6 +88,7 @@ try
     StaMap.Download();
     VMSManager.Initialize(builder.Configuration);
     TrafficControlCenter.Initialize();
+    WebsocketClientMiddleware.middleware.Initialize();
 
 }
 catch (Exception ex)
