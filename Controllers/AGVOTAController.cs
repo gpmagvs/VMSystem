@@ -7,7 +7,7 @@ namespace VMSystem.Controllers
     [ApiController]
     public class AGVOTAController : ControllerBase
     {
-
+        
         [HttpGet("GetNewestVersion")]
         public async Task<IActionResult> GetNewestVersion()
         {
