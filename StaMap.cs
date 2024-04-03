@@ -162,8 +162,8 @@ namespace VMSystem
                 bool _success = registerName == Name;
                 if (_success)
                 {
+                    TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
                     //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
-
                 }
                 else
                 {
@@ -216,6 +216,7 @@ namespace VMSystem
                         {
                             RegistDictionary.Remove(TagNumber, out var _);
                             OnTagUnregisted?.Invoke("", TagNumber);
+                            TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
                             //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
 
                             // LOG.TRACE($"{RegistDictionary.ToJson()}");

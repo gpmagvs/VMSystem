@@ -169,7 +169,6 @@ namespace VMSystem.AGV
                         if (previousMapPoint != null)
                         {
                             StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
-                            TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { previousMapPoint.Graph.Display });
                         }
 
                         //if (taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
