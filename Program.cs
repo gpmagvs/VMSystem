@@ -18,6 +18,15 @@ Console.Title = "GPM-車輛管理系統(VMS)";
 LOG.SetLogFolderName("VMS LOG");
 LOG.INFO("VMS System Start");
 AGVSConfigulator.Init();
+try
+{
+    AGVSDatabase.Initialize().GetAwaiter().GetResult();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"資料庫初始化異常-請確認資料庫! {ex.Message}");
+    Environment.Exit(4);
+}
 PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
 var builder = WebApplication.CreateBuilder(args);
 
