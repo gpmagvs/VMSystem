@@ -21,7 +21,7 @@ namespace VMSystem.AGV
     /// <summary>
     /// AGV模擬器
     /// </summary>
-    public partial class clsAGVSimulation
+    public partial class clsAGVSimulation : IDisposable
     {
         private IAGV agv => dispatcherModule.agv;
         private double[] batteryLevelSim = new double[] { 100.0 };
@@ -68,7 +68,7 @@ namespace VMSystem.AGV
 
         private async Task ReportRunningStatusSimulation()
         {
-            while (true)
+            while (!disposedValue)
             {
                 await Task.Delay(10);
                 agv.states = runningSTatus;
@@ -80,6 +80,8 @@ namespace VMSystem.AGV
         CancellationTokenSource moveCancelTokenSource;
         Task move_task;
         bool _waitReplanflag = false;
+        private bool disposedValue;
+
         bool waitReplanflag
         {
             get => _waitReplanflag;
@@ -450,7 +452,7 @@ namespace VMSystem.AGV
 
         private async Task BatterSimulation()
         {
-            while (true)
+            while (!disposedValue)
             {
                 if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
                 {
@@ -494,6 +496,35 @@ namespace VMSystem.AGV
             moveCancelTokenSource?.Cancel();
             TaskCancelTokenSource?.Cancel();
             //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: 處置受控狀態 (受控物件)
+                }
+
+                // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
+                // TODO: 將大型欄位設為 Null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: 僅有當 'Dispose(bool disposing)' 具有會釋出非受控資源的程式碼時，才覆寫完成項
+        // ~clsAGVSimulation()
+        // {
+        //     // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }
