@@ -8,9 +8,11 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.JSInterop.Infrastructure;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsGPMInspectionAGV;
@@ -566,6 +568,38 @@ namespace VMSystem.VMS
 
         }
 
+        internal static async Task<(bool confirm, string message)> DeleteVehicle(string aGV_Name)
+        {
+            try
+            {
+                using var agvdatabase = new AGVSDatabase();
+                var existData = agvdatabase.tables.AgvStates.FirstOrDefault(agv => agv.AGV_Name == aGV_Name);
+                if (existData == null)
+                {
+                    AGVStatueDtoStored.Remove(aGV_Name);
+                    return (true, "");
+                }
+
+                agvdatabase.tables.AgvStates.Remove(existData);
+
+                var group = VMSList.FirstOrDefault(kpair => kpair.Value.AGVList.ContainsKey(aGV_Name));
+                if (group.Value != null)
+                {
+                    var agv = group.Value.AGVList[aGV_Name];
+                    agv.AgvSimulation?.Dispose();
+                    group.Value.AGVList.Remove(aGV_Name);
+                }
+                await agvdatabase.SaveChanges();
+                AGVStatueDtoStored.Remove(aGV_Name);
+                return (true, "");
+
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+
+        }
         internal static async Task<(bool confirm, string message)> EditVehicle(clsAGVStateDto dto, string ordAGVName)
         {
 
@@ -573,13 +607,13 @@ namespace VMSystem.VMS
             var databaseDto = agvdatabase.tables.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
             if (databaseDto != null)
             {
+
                 var group = GetGroup(dto.Model);
                 var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
 
                 if (oriAGV == null)
                 {
-                    agvdatabase.tables.AgvStates.Add(dto);
-                    return (true, "");
+                    return await AddVehicle(dto);
                 }
                 databaseDto.IP = oriAGV.options.HostIP = dto.IP;
                 databaseDto.Port = oriAGV.options.HostPort = dto.Port;
@@ -590,6 +624,16 @@ namespace VMSystem.VMS
                 oriAGV.Name = dto.AGV_Name;
                 databaseDto.VehicleLength = oriAGV.options.VehicleLength = dto.VehicleLength;
                 databaseDto.VehicleWidth = oriAGV.options.VehicleWidth = dto.VehicleWidth;
+                if (dto.Simulation && !oriAGV.options.Simulation)
+                {
+                    oriAGV.AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)oriAGV.taskDispatchModule);
+                    oriAGV.AgvSimulation.StartSimulation();
+                }
+                else if (!dto.Simulation && oriAGV.options.Simulation)
+                {
+                    oriAGV.AgvSimulation.Dispose();
+                }
+                databaseDto.Simulation = oriAGV.options.Simulation = dto.Simulation;
 
                 await agvdatabase.SaveChanges();
             }

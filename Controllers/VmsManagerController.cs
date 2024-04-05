@@ -118,5 +118,11 @@ namespace VMSystem.Controllers
             var result = await VMSManager.EditVehicle(dto, oriAGVID);
             return Ok(new {confirm =result.confirm, message=result.message});
         }
+        [HttpDelete("DeleteVehicle")]
+        public async Task<IActionResult> DeleteVehicle(string AGV_Name)
+        {
+            var result = await VMSManager.DeleteVehicle(AGV_Name);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
     }
 }
