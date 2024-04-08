@@ -118,6 +118,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         _lastNextPath = nextPath;
+                        //計算干涉
                         bool _waitingInterference = false;
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList))
                         {
@@ -158,13 +159,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         _lastFinalEndTag = finalEndTag;
                         //計算停車角度
-
                         SettingParkAngle(ref _taskDownloadData);
 
                         TaskDonwloadToAGV = _taskDownloadData;
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, optimzePath.tags, nextPath, OrderData.IsTrafficControlTask);
 
-                        StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
                         var _result = await _DispatchTaskToAGV(_taskDownloadData);
@@ -174,6 +173,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
                             return;
                         }
+                        StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         var index = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
                         var nextPoint = pointNum == -1 ? MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() : index == -1 || index + 1 >= nextPath.Count ? nextPath.First() : nextPath[index + 1];

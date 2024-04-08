@@ -162,7 +162,7 @@ namespace VMSystem
                 bool _success = registerName == Name;
                 if (_success)
                 {
-                    TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                    //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
                     //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
                 }
                 else

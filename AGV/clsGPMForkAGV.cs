@@ -163,6 +163,7 @@ namespace VMSystem.AGV
                         if (value.IsEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
+                            TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
                             previousMapPoint = value;
                             return;
                         }

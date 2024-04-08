@@ -120,6 +120,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public virtual async Task SendTaskToAGV(clsTaskDownloadData taskData)
         {
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
+
             var agv_response = await _DispatchTaskToAGV(taskData);
             if (agv_response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                 throw new Exceptions.AGVRejectTaskException();
@@ -165,6 +166,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
+            _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
+            {
+                ActionName = OrderData.Action,
+                SourceTag = OrderData.Action == ACTION_TYPE.Carry ? OrderData.From_Station_Tag : OrderData.To_Station_Tag,
+                DestineTag = OrderData.To_Station_Tag,
+                DestineName = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag).Graph.Display,
+                SourceName = OrderData.Action == ACTION_TYPE.Carry ? StaMap.GetPointByTagNumber(OrderData.From_Station_Tag).Graph.Display : "",
+                IsTransferTask = OrderData.Action == ACTION_TYPE.Carry
+            };
+
             if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && OrderData.Action != ACTION_TYPE.ExchangeBattery && OrderData.Action != ACTION_TYPE.Measure)
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
@@ -183,6 +194,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
                         };
                     }
+                   
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
                     {
@@ -192,7 +204,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 }
             }
-
             TrafficWaitingState.SetStatusNoWaiting();
             LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
