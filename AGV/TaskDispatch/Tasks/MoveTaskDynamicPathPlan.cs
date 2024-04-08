@@ -17,7 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveTaskDynamicPathPlan : MoveTask
     {
-        public override VehicleMovementStage Stage => throw new NotImplementedException();
+        public override VehicleMovementStage Stage => VehicleMovementStage.Traveling;
         public MoveTaskDynamicPathPlan() : base()
         {
 
@@ -71,7 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
-                    while (!IsAGVReachGoal(DestineTag) || _sequenceIndex == 0)
+                    while (!IsAGVReachGoal(DestineTag, checkTheta: true) || _sequenceIndex == 0)
                     {
                         if (token.IsCancellationRequested)
                             token.ThrowIfCancellationRequested();
@@ -223,6 +223,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     void SettingParkAngle(ref clsTaskDownloadData _taskDownloadData)
                     {
                         double theta = 0;
+                        bool isNextStopIsFinal = _taskDownloadData.ExecutingTrajecory.Last().Point_ID == this.DestineTag;
+
+                        if (isNextStopIsFinal && (OrderData.Action == ACTION_TYPE.None || OrderData.Action == ACTION_TYPE.ExchangeBattery))
+                        {
+                            LOG.WARN($"Next path goal is destine, park");
+                            return;
+                        }
 
                         if (_taskDownloadData.Trajectory.Length < 2)
                         {
@@ -241,6 +248,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             var lastPoint = _taskDownloadData.Trajectory.Last();
                             var lastSecondPoint = _taskDownloadData.Trajectory[_taskDownloadData.Trajectory.Length - 2];
+
                             var lastPt = new PointF((float)lastPoint.X, (float)lastPoint.Y);
                             var lastSecondPt = new PointF((float)lastSecondPoint.X, (float)lastSecondPoint.Y);
 

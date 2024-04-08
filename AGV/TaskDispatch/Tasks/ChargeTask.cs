@@ -37,31 +37,4 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             throw new NotImplementedException();
         }
     }
-    public class ExchangeBatteryTask : ChargeTask
-    {
-        
-        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
-        {
-        }
-
-        public override ACTION_TYPE ActionType => ACTION_TYPE.ExchangeBattery;
-
-        public override VehicleMovementStage Stage => VehicleMovementStage.WorkingAtChargeStation;
-        public override bool IsAGVReachDestine
-        {
-            get
-            {
-                return Agv.states.Last_Visited_Node == this.TaskDonwloadToAGV.Homing_Trajectory[0].Point_ID;
-            }
-        }
-        public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
-        {
-            throw new NotImplementedException();
-        }
-    }
-}
+   }

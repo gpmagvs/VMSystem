@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading.Tasks;
 using AGVSystemCommonNet6.Microservices.VMS;
 using static AGVSystemCommonNet6.Microservices.VMS.clsPartsAGVSRegionRegistService.RegistEventObject;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6;
 
 namespace VMSystem.TrafficControl
 {
@@ -50,6 +52,7 @@ namespace VMSystem.TrafficControl
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
             var result = await parts_service.Regist(AGVName, List_RegistNames);
+            LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
             return result;
         }
 
@@ -64,6 +67,7 @@ namespace VMSystem.TrafficControl
                 }
                 clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
                 var result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                LOG.INFO($"Unregist Points to Parts System Result: {result.ToJson()}");
                 return result.accept;
             });
         }
