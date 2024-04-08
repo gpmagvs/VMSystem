@@ -30,6 +30,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public string TaskAbortReason { get; private set; } = "";
         public IAGV Agv { get; private set; }
 
+        public event EventHandler OnLoadingAtTransferStationTaskFinish;
+
+
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
@@ -84,7 +87,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
 
                 }
-                _SetOrderAsFinishState();
+                if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
+                {
+                    Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
+                    LoadingAtTransferStationTaskFinishInvoke();
+                }
+                else
+                    _SetOrderAsFinishState();
             }
             catch (Exception ex)
             {
@@ -95,12 +104,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
+
+        public void LoadingAtTransferStationTaskFinishInvoke()
+        {
+            OnLoadingAtTransferStationTaskFinish?.Invoke(this, EventArgs.Empty);
+        }
         internal async void HandleAGVFeedbackAsync(FeedbackData feedbackData)
         {
+            LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
             await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
             _ = Task.Run(async () =>
             {
-                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
 
                 if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                 {

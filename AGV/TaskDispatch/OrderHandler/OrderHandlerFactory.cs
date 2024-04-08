@@ -24,9 +24,26 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public OrderHandlerBase CreateHandler(clsTaskDto orderData)
         {
             OrderHandlerBase hander = _OrderHandlerMap[orderData.Action];
+            hander.OnLoadingAtTransferStationTaskFinish += HandleOnLoadingAtTransferStationTaskFinish;
             hander.OrderData = orderData;
             hander.SequenceTaskQueue = _CreateSequenceTasks(orderData);
             return hander;
+        }
+
+        private void HandleOnLoadingAtTransferStationTaskFinish(object? sender, EventArgs e)
+        {
+            //generate carry task from [transfer station] to [order destine station]
+            OrderHandlerBase order = (OrderHandlerBase)sender;
+            int transferStationTag = order.OrderData.ChangeAGVMiddleStationTag;
+
+            var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
+
+            order.OrderData.From_Station = transferStationTag + "";
+            order.OrderData.need_change_agv = false;
+            order.OrderData.DesignatedAGVName = order.OrderData.TransferToDestineAGVName;
+            var nextOrderHandler = CreateHandler(order.OrderData);
+            nextAGV.taskDispatchModule.OrderHandler = nextOrderHandler;
+            nextOrderHandler.StartOrder(nextAGV);
         }
 
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
@@ -85,7 +102,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData));
 
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
-                _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                if (orderData.need_change_agv)
+                {
+                    _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
+                }
+                else
+                {
+                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                }
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Measure)

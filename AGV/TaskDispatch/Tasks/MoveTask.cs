@@ -76,7 +76,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return null;
                     }
                     else
-                        return StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                        return StaMap.GetPointByTagNumber(this.OrderData.need_change_agv ? this.OrderData.ChangeAGVMiddleStationTag : this.OrderData.To_Station_Tag);
                 }
                 else
                 {

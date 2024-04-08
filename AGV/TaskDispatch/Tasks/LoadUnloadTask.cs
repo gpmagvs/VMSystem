@@ -29,22 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             base.CreateTaskToAGV();
 
-            int GetDestinTagByOrderInfo(clsTaskDto orderInfo)
-            {
-                if (orderInfo.Action == ACTION_TYPE.Load || orderInfo.Action == ACTION_TYPE.Unload)
-                {
-                    return orderInfo.To_Station_Tag;
-                }
-                else
-                {
-                    if (this.ActionType == ACTION_TYPE.Unload)
-                        return orderInfo.From_Station_Tag;
-                    else
-                        return orderInfo.To_Station_Tag;
-                }
-            }
-
-            MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestinTagByOrderInfo(OrderData));
+            MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
             MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
             base.CreateTaskToAGV();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
@@ -53,6 +38,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPointToTaskPoint(sourceMapPoint,index:0),
                 MapPointToTaskPoint(destinMapPoint,index:1)
             };
+        }
+
+        protected virtual int GetDestineWorkStationTagByOrderInfo(clsTaskDto orderInfo)
+        {
+            if (orderInfo.Action == ACTION_TYPE.Load || orderInfo.Action == ACTION_TYPE.Unload)
+            {
+                return orderInfo.To_Station_Tag;
+            }
+            else
+            {
+                if (this.ActionType == ACTION_TYPE.Unload)
+                    return orderInfo.From_Station_Tag;
+                else
+                    return orderInfo.To_Station_Tag;
+            }
         }
     }
 }
