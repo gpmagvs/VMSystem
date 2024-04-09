@@ -9,11 +9,11 @@ using AGVSystemCommonNet6.HttpTools;
 
 namespace VMSystem.Controllers
 {
-    public class WebsocketClientMiddleware:WebsocketServerMiddleware
+    public class WebsocketClientMiddleware : WebsocketServerMiddleware
     {
 
         public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware();
-        public override List<string> channelMaps { get; set; }=new List<string>()
+        public override List<string> channelMaps { get; set; } = new List<string>()
         {
              "/ws",
              "/ws/DynamicTrafficData",
@@ -30,8 +30,9 @@ namespace VMSystem.Controllers
                 {
                     DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
                     AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
-                    VMSAliveCheckVM= ViewModelFactory.GetVMSAliveCheckVM(),
-                    VMSStatusData= ViewModelFactory.GetVMSStatusData(),
+                    VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
+                    VMSStatusData = ViewModelFactory.GetVMSStatusData(),
+                    OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                 };
             }
             catch (Exception ex)

@@ -19,13 +19,18 @@ using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.VMS
 {
+    public class clsAGVStatusSimple
+    {
+        public string AGVName { get; set; }
+        public string Location { get; set; }
+    }
     public partial class VMSManager
     {
         private const string Vehicle_Json_file = @"C:\AGVS\Vehicle.json";
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
-
+        public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
         public static List<IAGV> AllAGV
         {
             get
@@ -664,6 +669,28 @@ namespace VMSystem.VMS
             database.tables.AgvStates.Add(dto);
             int changeInt = await database.SaveChanges();
             return changeInt == 1;
+        }
+
+        internal static void UpdatePartsAGVInfo(string aGVName, string location)
+        {
+            if (OthersAGVInfos.TryGetValue(aGVName, out var info))
+            {
+                bool _hasLocationChange = info.Location != location;
+                info.Location = location;
+                if (_hasLocationChange)
+                {
+                    LOG.TRACE($"Parts AGV-{aGVName} Location change to {location}");
+                }
+            }
+            else
+            {
+                LOG.TRACE($"Parts AGV-{aGVName} Location change to {location}");
+                OthersAGVInfos.Add(aGVName, new clsAGVStatusSimple
+                {
+                    Location = location,
+                    AGVName = aGVName
+                });
+            }
         }
     }
 }

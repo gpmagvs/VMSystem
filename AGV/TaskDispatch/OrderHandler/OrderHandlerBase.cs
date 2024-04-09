@@ -144,10 +144,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
             MAIN_STATUS _state_when_action_finish = GetAgvMainState();
-            if (RunningTask.IsAGVReachDestine && (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging))
-                _CurrnetTaskFinishResetEvent.Set();
+            if (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging)
+            {
+                RunningTask.ActionFinishInvoke();
+                if (RunningTask.IsAGVReachDestine)
+                {
+                    _CurrnetTaskFinishResetEvent.Set();
+                }
+            }
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)
                 AbortOrder(Agv.states.Alarm_Code);
+           
+           
         }
 
         internal async void AbortOrder(ALARMS agvsAlarm)

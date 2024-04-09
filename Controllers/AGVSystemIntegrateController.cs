@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using AGVSystemCommonNet6;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using VMSystem.VMS;
 
 namespace VMSystem.Controllers
 {
@@ -10,10 +12,17 @@ namespace VMSystem.Controllers
         [HttpPost("ReportAGVStatus")]
         public async Task<IActionResult> ReportAGVLocation([FromBody] Dictionary<string, string> payload)
         {
-            string _AGVName = payload["AGVName"];
-            string _Location = payload["Location"];
-            Console.WriteLine($"{_AGVName} locate in {_Location}");
-            return Ok();
+            try
+            {
+                string _AGVName = payload["AGVName"];
+                string _Location = payload["Location"];
+                VMSManager.UpdatePartsAGVInfo(_AGVName,_Location);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return new BadRequestResult();
+            }
         }
     }
 }

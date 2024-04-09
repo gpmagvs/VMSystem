@@ -194,7 +194,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
                         };
                     }
-                   
+
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
                     {
@@ -300,6 +300,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             clsTaskDownloadData _replanTask = TaskDonwloadToAGV.Clone();
             _replanTask.Trajectory = tags.Select(tag => StaMap.GetPointByTagNumber(tag)).Select(mapPt => MapPointToTaskPoint(mapPt)).ToArray();
             SendTaskToAGV(_replanTask);
+        }
+
+        public virtual void ActionFinishInvoke()
+        {
         }
     }
 

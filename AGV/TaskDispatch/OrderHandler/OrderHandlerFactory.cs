@@ -60,9 +60,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new DischargeTask(_agv, orderData));
             }
 
-            if (orderData.Action == ACTION_TYPE.None)
+            if (orderData.Action == ACTION_TYPE.None) //一般走行任務
             {
-                _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+                if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                {
+                    _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+                }
+                else
+                {
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                }
                 return _queue;
             }
 
