@@ -56,6 +56,8 @@ namespace VMSystem.Controllers
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
                         currentCoordication = agv.states.Coordination,
+                        vehicleWidth = agv.options.VehicleWidth,
+                        vehicleLength = agv.options.VehicleLength,
                         cargo_status = new
                         {
                             exist = agv.states.Cargo_Status == 1,
