@@ -673,6 +673,9 @@ namespace VMSystem.VMS
 
         internal static void UpdatePartsAGVInfo(string aGVName, string location)
         {
+            var allPointDisplayTexts = StaMap.Map.Points.Values.Select(pt => pt.Graph.Display);
+            if (!allPointDisplayTexts.Any(txt => txt == location))
+                return;
             if (OthersAGVInfos.TryGetValue(aGVName, out var info))
             {
                 bool _hasLocationChange = info.Location != location;

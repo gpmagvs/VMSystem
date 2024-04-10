@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Log;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.VMS;
@@ -16,11 +17,12 @@ namespace VMSystem.Controllers
             {
                 string _AGVName = payload["AGVName"];
                 string _Location = payload["Location"];
-                VMSManager.UpdatePartsAGVInfo(_AGVName,_Location);
+                VMSManager.UpdatePartsAGVInfo(_AGVName, _Location);
                 return Ok();
             }
             catch (Exception ex)
             {
+                LOG.ERROR(ex.Message);
                 return new BadRequestResult();
             }
         }

@@ -62,14 +62,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.None) //一般走行任務
             {
-                if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
-                {
-                    _queue.Enqueue(new NormalMoveTask(_agv, orderData));
-                }
-                else
-                {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
-                }
+                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                //{
+                //    _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+                //}
+                //else
+                //{
+                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                //}
+                _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+
                 return _queue;
             }
 
@@ -93,6 +95,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             if (orderData.Action == ACTION_TYPE.ExchangeBattery)
             {
+                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                //{
+                //    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                //}
+                //else
+                //{
+                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                //}
+                //
+                //
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData));
                 return _queue;

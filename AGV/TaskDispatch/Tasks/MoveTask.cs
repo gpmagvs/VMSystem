@@ -88,7 +88,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (OrderData.Action != ACTION_TYPE.None)
             {
                 MapPoint _desintWorkStation = GetDesinteWorkStation();
-                _destine_point = OrderData.Action == ACTION_TYPE.Measure ? _desintWorkStation : StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());
+                _destine_point = OrderData.Action == ACTION_TYPE.Measure ? _desintWorkStation : StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());//TODO 有兩個點的狀況
             }
             else
             {
