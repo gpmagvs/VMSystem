@@ -128,7 +128,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return registedPoints.Any();
                         }
 
-                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList) || _IsNextPathHasPointsRegisted(nextPath))
+                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList,false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
 
@@ -226,6 +226,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             else
                             {
+                                //0 , 1, 2 ,3
                                 while (output.Count == 0 && !_IsSubGoalIsDestine())
                                 {
                                     var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();

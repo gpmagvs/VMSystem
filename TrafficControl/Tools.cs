@@ -6,36 +6,64 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using System.Numerics;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.Log;
+using VMSystem.Tools;
 
 namespace VMSystem.TrafficControl
 {
     public class Tools
     {
-        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList)
+        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
         {
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
-            return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList);
+            return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, IsAGVBackward);
         }
 
         // <summary>
         /// 計算干涉
         /// </summary>
-        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList)
+        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
         {
+            var thetaOfUsePathAGV = _UsePathAGV.states.Coordination.Theta;
+            var _RotaionRegion = _UsePathAGV.AGVRotaionGeometry;
+
             ConflicAGVList = new List<IAGV>();
             bool is_SinglePoint = _Path.Count() == 1;
             int indexOfAGVLoc = _Path.ToList().FindIndex(pt => pt.TagNumber == _UsePathAGV.states.Last_Visited_Node);
             List<MapPoint> pathPoints = _Path.Skip(indexOfAGVLoc).ToList();
+
+            bool TryGetConflicAGVByRotation(MapCircleArea agvRotationRegion, out IEnumerable<IAGV> _ConflicAGVList)
+            {
+                _ConflicAGVList = _OthersAGV.Where(agv => agvRotationRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || agvRotationRegion.IsIntersectionTo(agv.AGVGeometery));
+                return _ConflicAGVList.Count() != 0;
+            }
+
             if (is_SinglePoint)
             {
+                bool isAgvWillRotation = Math.Abs(thetaOfUsePathAGV - _Path.Last().Direction) > 5;
+                if (isAgvWillRotation && !IsAGVBackward)
+                {
+                    return TryGetConflicAGVByRotation(_RotaionRegion, out ConflicAGVList);
+
+                }
                 return false;
             }
             else
             {
+                var thetaOfNextPath = NavigationTools.CalculationForwardAngle(_Path.First().ToCoordination(), _Path.Skip(1).Take(1).First().ToCoordination());
+                bool isAgvWillRotation = Math.Abs(thetaOfUsePathAGV - thetaOfNextPath) > 5;
+
                 //將每個路徑段用矩形表示
                 double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0;
                 double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0;
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
+
+                if (isAgvWillRotation && !IsAGVBackward)
+                {
+                    ConflicAGVList = _OthersAGV.Where(agv => _RotaionRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || _RotaionRegion.IsIntersectionTo(agv.AGVGeometery));
+                    if (TryGetConflicAGVByRotation(_RotaionRegion, out ConflicAGVList))
+                        return true;
+                }
+
                 Dictionary<IAGV, MapRectangle> _OthersAGVRectangles = _OthersAGV.ToDictionary(agv => agv, agv => agv.AGVGeometery);
                 Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
@@ -44,9 +72,9 @@ namespace VMSystem.TrafficControl
                 var pathConflics = _PathRectangles.ToDictionary(reg => reg, reg => _OthersAGVRectangles.Where(agv => agv.Value.IsIntersectionTo(reg)));
                 pathConflics = pathConflics.Where(kp => kp.Value.Count() != 0).ToDictionary(k => k.Key, k => k.Value);
                 ConflicAGVList = pathConflics.Values.SelectMany(v => v.Select(vv => vv.Key)).ToList().Distinct();
-                
+
                 bool isAGVPathConflic = _PathRectangles.Any(rectangle => allOthersAGVPathRectangles.Any(_rectangle => rectangle.IsIntersectionTo(_rectangle)));
-                
+
                 bool isAGVGeometryConflic = ConflicAGVList.Count() > 0;
 
 
@@ -79,9 +107,9 @@ namespace VMSystem.TrafficControl
         /// <summary>
         /// 計算干涉
         /// </summary>
-        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV)
+        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, bool IsAGVBackward)
         {
-            return CalculatePathInterference(_Path, _UsePathAGV, _OthersAGV, out _);
+            return CalculatePathInterference(_Path, _UsePathAGV, _OthersAGV, out _, IsAGVBackward);
         }
         public static MapRectangle CreateAGVRectangle(IAGV AGV)
         {
