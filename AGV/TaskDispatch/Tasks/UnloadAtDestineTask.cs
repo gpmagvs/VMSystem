@@ -17,5 +17,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             throw new NotImplementedException();
         }
+
+        protected override int GetSlotHeight()
+        {
+            if (int.TryParse(OrderData.To_Slot, out var height))
+                return height;
+            else
+                return 0;
+        }
     }
 }

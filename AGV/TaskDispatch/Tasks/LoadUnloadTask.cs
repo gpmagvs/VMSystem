@@ -32,7 +32,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
             MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
             base.CreateTaskToAGV();
-            this.TaskDonwloadToAGV.Height = OrderData.Height;
+
+
+            this.TaskDonwloadToAGV.Height = GetSlotHeight();
+
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
             this.TaskDonwloadToAGV.Homing_Trajectory = new clsMapPoint[2]
             {
@@ -41,6 +44,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             };
         }
 
+        protected abstract int GetSlotHeight();
+        
         protected virtual int GetDestineWorkStationTagByOrderInfo(clsTaskDto orderInfo)
         {
             if (orderInfo.Action == ACTION_TYPE.Load || orderInfo.Action == ACTION_TYPE.Unload)

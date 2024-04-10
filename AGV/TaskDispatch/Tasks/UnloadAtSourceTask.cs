@@ -22,6 +22,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             throw new NotImplementedException();
         }
+
+        protected override int GetSlotHeight()
+        {
+            if (int.TryParse(OrderData.From_Slot, out var height))
+                return height;
+            else
+                return 0;
+        }
+
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
