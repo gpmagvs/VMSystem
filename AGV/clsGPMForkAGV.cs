@@ -159,21 +159,22 @@ namespace VMSystem.AGV
                 {
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
-                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})", color: ConsoleColor.Green);
+                        int previousTag = (int)(previousMapPoint?.TagNumber);
+                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousTag})", color: ConsoleColor.Green);
                         if (value.IsEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
-                            TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
                             previousMapPoint = value;
                             return;
                         }
+
                         if (previousMapPoint != null)
                         {
-                            StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
+                            StaMap.UnRegistPoint(Name, previousTag, out string error_msg);
                         }
 
-                        //if (taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                        TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
 
                         previousMapPoint = value;
                     }

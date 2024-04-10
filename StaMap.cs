@@ -191,7 +191,15 @@ namespace VMSystem
             return UnRegistPoint("System", mapPoint, out error_message, true);
         }
 
-
+        internal static bool UnRegistPoints(string Name, IEnumerable<int> TagNumbers, out string errorMsg, bool isBySystem = false)
+        {
+            errorMsg = string.Empty;
+            foreach (var tag in TagNumbers)
+            {
+                UnRegistPoint(Name, tag, out errorMsg, isBySystem);
+            }
+            return true;
+        }
         internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
@@ -305,7 +313,7 @@ namespace VMSystem
             try
             {
                 var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
-                UnRegistPoints(agv.Name, registed_tag_except_current_tag.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList());
+                UnRegistPoints(agv.Name, registed_tag_except_current_tag, out string errMsg);
                 return true;
             }
             catch (Exception ex)

@@ -51,7 +51,20 @@ namespace VMSystem.TrafficControl
                 return (true, "Setting as NO Need To Regist To PARTS");
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-            var result = await parts_service.Regist(AGVName, List_RegistNames);
+
+            (bool accept, string message) result = (false, "");
+            int retryNum = 0;
+            while (!result.accept)
+            {
+                retryNum++;
+                if (retryNum >= 5)
+                {
+                    LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                    return (false, "Unregist Points to Parts System FAILURE...TIMEOUT");
+                }
+                await Task.Delay(500);
+                result = await parts_service.Regist(AGVName, List_RegistNames);
+            }
             LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
             return result;
         }
@@ -66,7 +79,20 @@ namespace VMSystem.TrafficControl
                     return true;
                 }
                 clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-                var result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                (bool accept, string message) result = (false, "");
+                int retryNum = 0;
+
+                while (!result.accept)
+                {
+                    retryNum++;
+                    if (retryNum >= 5)
+                    {
+                        LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                        return false;
+                    }
+                    await Task.Delay(500);
+                    result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                }
                 LOG.INFO($"Unregist Points to Parts System Result: {result.ToJson()}");
                 return result.accept;
             });
