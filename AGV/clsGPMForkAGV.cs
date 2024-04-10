@@ -167,7 +167,7 @@ namespace VMSystem.AGV
                             previousMapPoint = value;
                             return;
                         }
-                        if (previousMapPoint != null)
+                        if (previousMapPoint != null && taskDispatchModule.OrderHandler.RunningTask.ActionType == ACTION_TYPE.None)
                         {
                             StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
                         }

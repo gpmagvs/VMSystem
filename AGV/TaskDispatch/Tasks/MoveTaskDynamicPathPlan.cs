@@ -11,7 +11,8 @@ using System.Numerics;
 using System.Drawing;
 using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
-using System.Runtime.CompilerServices;  // 需要引用System.Numerics向量庫
+using System.Runtime.CompilerServices;
+using System.Diagnostics.Eventing.Reader;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -120,7 +121,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         _lastNextPath = nextPath;
                         //計算干涉
                         bool _waitingInterference = false;
-                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList))
+
+                        bool _IsNextPathHasPointsRegisted(List<MapPoint> nextPath)
+                        {
+                            var registedPoints = StaMap.RegistDictionary.Where(kp => nextPath.GetTagCollection().Contains(kp.Key) && kp.Value.RegisterAGVName != Agv.Name).Select(k => k.Value);
+                            return registedPoints.Any();
+                        }
+
+                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
 
@@ -206,7 +214,35 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         else
                         {
                             var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
-                            return optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                            var output = new List<MapPoint>();
+
+                            bool _IsSubGoalIsDestine()
+                            {
+                                return (index + pointNum) >= optimzedPathInfo.stations.Count;
+                            }
+                            if (_IsSubGoalIsDestine())
+                            {
+                                output = optimzedPathInfo.stations;
+                            }
+                            else
+                            {
+                                while (output.Count == 0 && !_IsSubGoalIsDestine())
+                                {
+                                    var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                                    if (subPath.Last().IsVirtualPoint)
+                                    {
+                                        pointNum += 1;
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        output = subPath.ToList();
+                                        break;
+                                    }
+                                }
+                            }
+
+                            return output;
                         }
                     }
 
