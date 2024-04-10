@@ -208,6 +208,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
             {
+                StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
                 TaskDownloadRequestResponse taskStateResponse = Agv.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
                 return taskStateResponse;
             }
@@ -229,7 +230,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         this.CancelOrder();
                     });
 #endif
-
+                    if(taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK )
+                    {
+                        StaMap.RegistPoint(Agv.Name,_TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
+                    }
                     return taskStateResponse;
                 }
                 catch (Exception)

@@ -479,7 +479,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 int currentTagIndex = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.GetTagCollection().ToList().IndexOf(this.Agv.states.Last_Visited_Node);
                 var remainTrajectory = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Skip(currentTagIndex);
-                return VMSystem.TrafficControl.Tools.CalculatePathInterference(remainTrajectory, this.Agv, VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv), out conflicAgvList);
+                return VMSystem.TrafficControl.Tools.CalculatePathInterference(remainTrajectory, this.Agv, VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv), out conflicAgvList, IsAGVBackward: false);
             }
         }
 

@@ -115,7 +115,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             bool IsPathInterference(int goal, IEnumerable<IAGV> _otherAGVList)
             {
                 MapPoint[] path = new MapPoint[2] { args.Agv.currentMapPoint, StaMap.GetPointByTagNumber(goal) };
-                return TrafficControl.Tools.CalculatePathInterference(path, args.Agv, _otherAGVList);
+                return TrafficControl.Tools.CalculatePathInterference(path, args.Agv, _otherAGVList, true);
             }
 
             bool IsDestineBlocked()
