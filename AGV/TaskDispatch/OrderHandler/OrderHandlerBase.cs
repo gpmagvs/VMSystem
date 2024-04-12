@@ -118,21 +118,29 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         internal async void HandleAGVFeedbackAsync(FeedbackData feedbackData)
         {
-            LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
-            await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
-            _ = Task.Run(async () =>
+            try
             {
+                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
+                await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
+                _ = Task.Run(async () =>
+                {
 
-                if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
-                {
-                    await HandleAGVActionFinishFeedback();
-                }
-                else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
-                {
-                    RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
-                }
-                _HandleTaskStateFeedbackSemaphoreSlim.Release();
-            });
+                    if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
+                    {
+                        await HandleAGVActionFinishFeedback();
+                    }
+                    else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
+                    {
+                        RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
+                    }
+                    _HandleTaskStateFeedbackSemaphoreSlim.Release();
+                });
+            }
+            catch (Exception ex)
+            {
+                _SetOrderAsFaiiureState(ex.Message);
+            }
+
         }
 
         protected virtual async Task HandleAGVActionFinishFeedback()

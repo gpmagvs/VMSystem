@@ -40,12 +40,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 ConstrainTags = justOptimePath ? new List<int>() : StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList(),
             };
             option.ConstrainTags.AddRange(PassedTags);
+
+            List<int> blockedTagsByEqMaintaining = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+
             if (additionContrainTags != null)
             {
                 option.ConstrainTags.AddRange(additionContrainTags);
             }
-
-            option.ConstrainTags = option.ConstrainTags.Where(tag => tag != startTag).ToList();
+            option.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
+            option.ConstrainTags = option.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
             clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, option);
             return pathPlanResult;
 
@@ -128,7 +131,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return registedPoints.Any();
                         }
 
-                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList,false) || _IsNextPathHasPointsRegisted(nextPath))
+                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
 
@@ -183,11 +186,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
-                        var index = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                        var nextPoint = pointNum == -1 ? MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() : index == -1 || index + 1 >= nextPath.Count ? nextPath.First() : nextPath[index + 1];
+                        var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
+                        var nextCheckPoint = pointNum == -1 ?
+                                            MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() :
+                                            agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ?
+                                            nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
-                        LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextPoint.TagNumber}");
-                        while (!IsAGVReachGoal(nextPoint.TagNumber))
+                        LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
+                        while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
                         {
                             await Task.Delay(10).ConfigureAwait(false);
 
@@ -199,7 +205,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 return;
                             }
                         }
-                        pathStartTagToCal = nextPoint.TagNumber;
+                        pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
                         await Task.Delay(10);
 

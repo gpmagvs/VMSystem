@@ -630,5 +630,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 sequenceList.Add(stations);
             return sequenceList;
         }
+
+
+        public async Task<List<int>> TryGetBlockedTagByEQMaintainFromAGVS()
+        {
+            try
+            {
+                var response = await AGVSystemCommonNet6.Microservices.AGVS.AGVSSerivces.TRAFFICS.GetBlockedTagsByEqMaintain();
+                if (response.confirm)
+                {
+                    return response.blockedTags;
+                }
+                else
+                {
+                    return new List<int>();
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex);
+                return new List<int>();
+            }
+        }
     }
 }

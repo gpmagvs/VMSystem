@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using VMSystem.TrafficControl;
@@ -56,7 +57,17 @@ namespace VMSystem.AGV
             if (action == ACTION_TYPE.Park)
                 workstations = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
+            {
+
                 workstations = StaMap.GetChargeableStations(this.agv);
+                var response = AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name).GetAwaiter().GetResult();
+                if (!response.confirm)
+                {
+                    alarm_code = ALARMS.INVALID_CHARGE_STATION;
+                    return false;
+                }
+                workstations = workstations.Where(station => response.usableChargeStationTags.Contains(station.TagNumber)).ToList();
+            }
 
 
             var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.agv);
