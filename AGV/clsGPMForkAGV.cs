@@ -161,7 +161,7 @@ namespace VMSystem.AGV
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousTag})", color: ConsoleColor.Green);
-                        if (value.IsEquipment)
+                        if (value.IsEquipment && !AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;

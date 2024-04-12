@@ -323,6 +323,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public int GoalTag;
         public LEAVE_WORKSTATION_ACTION ActionConfirm = LEAVE_WORKSTATION_ACTION.OK;
         public ManualResetEvent WaitSignal = new ManualResetEvent(false);
+
+        public string Message { get; internal set; }
     }
     public class clsMoveTaskEvent : EventArgs
     {

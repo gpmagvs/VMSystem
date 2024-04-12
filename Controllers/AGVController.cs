@@ -11,6 +11,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE;
 using System.Diagnostics;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.Controllers
 {
@@ -212,9 +213,17 @@ namespace VMSystem.Controllers
         [HttpPost("LeaveWorkStationRequest")]
         public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
         {
+            var EQPoint = StaMap.GetPointByTagNumber(EQTag);
+            var EntryPointOfEQ = StaMap.GetPointByIndex(EQPoint.Target.Keys.First());
+            var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg()
+            {
+                Agv = VMSManager.GetAGVByName(AGVName),
+                GoalTag = EntryPointOfEQ.TagNumber,
+            });
+            bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
             return Ok(new
             {
-                confirm = true,
+                confirm = allowLeve,
             });
         }
 
