@@ -7,6 +7,9 @@ using System.Numerics;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.Log;
 using VMSystem.Tools;
+using AGVSystemCommonNet6.Configuration;
+using System.Linq;
+using AGVSystemCommonNet6;
 
 namespace VMSystem.TrafficControl
 {
@@ -14,6 +17,11 @@ namespace VMSystem.TrafficControl
     {
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
         {
+            if (_Path.Count() == 0)
+            {
+                ConflicAGVList = new List<IAGV>();
+                return false;
+            }
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
             return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, IsAGVBackward);
         }
@@ -23,6 +31,11 @@ namespace VMSystem.TrafficControl
         /// </summary>
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
         {
+            //if (AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
+            //{
+            //    _OthersAGV = _OthersAGV.Where(agv => !agv.currentMapPoint.IsEquipment);
+            //}
+
             var thetaOfUsePathAGV = _UsePathAGV.states.Coordination.Theta;
             var _RotaionRegion = _UsePathAGV.AGVRotaionGeometry;
 
@@ -56,16 +69,27 @@ namespace VMSystem.TrafficControl
                 double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0;
                 double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0;
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
+                Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 if (isAgvWillRotation && !IsAGVBackward)
                 {
                     ConflicAGVList = _OthersAGV.Where(agv => _RotaionRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || _RotaionRegion.IsIntersectionTo(agv.AGVGeometery));
-                    if (TryGetConflicAGVByRotation(_RotaionRegion, out ConflicAGVList))
+                    var _pathConflicOtherAGVsRemainPath = _OthersAGVPathRectangles.Values.Select(rectangles => rectangles.Any(rectangle => _RotaionRegion.IsIntersectionTo(rectangle)));
+                    int indexOfLastConflicRegion = _pathConflicOtherAGVsRemainPath.ToList().FindLastIndex(r => r == true);
+                    bool conflicSoFar = false;
+                    if (indexOfLastConflicRegion >= 0)
+                    {
+                        var lastPathRegion = _OthersAGVPathRectangles.Values.ToList()[indexOfLastConflicRegion];
+                        var lastPathRegionOwner = _OthersAGVPathRectangles.FirstOrDefault(kp => kp.Value == lastPathRegion).Key;
+                        conflicSoFar = lastPathRegion.Last().StartPointTag.CalculateDistance(lastPathRegionOwner.states.Coordination.X, lastPathRegionOwner.states.Coordination.Y) > 5;
+                    }
+                    if (conflicSoFar)
+                        return false;
+                    if ((TryGetConflicAGVByRotation(_RotaionRegion, out ConflicAGVList) || _pathConflicOtherAGVsRemainPath.Any(ret => ret)))
                         return true;
                 }
 
                 Dictionary<IAGV, MapRectangle> _OthersAGVRectangles = _OthersAGV.ToDictionary(agv => agv, agv => agv.AGVGeometery);
-                Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 IEnumerable<MapRectangle> allOthersAGVPathRectangles = _OthersAGVPathRectangles.Values.SelectMany(re => re);
 

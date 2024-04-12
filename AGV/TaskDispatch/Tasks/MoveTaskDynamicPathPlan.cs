@@ -247,6 +247,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                         break;
                                     }
                                 }
+                                if(output.Count == 0)
+                                {
+                                    output = optimzedPathInfo.stations;
+                                }
                             }
 
                             return output;

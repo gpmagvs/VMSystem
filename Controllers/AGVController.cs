@@ -213,6 +213,7 @@ namespace VMSystem.Controllers
         [HttpPost("LeaveWorkStationRequest")]
         public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
         {
+         
             var EQPoint = StaMap.GetPointByTagNumber(EQTag);
             var EntryPointOfEQ = StaMap.GetPointByIndex(EQPoint.Target.Keys.First());
             var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg()
@@ -221,6 +222,14 @@ namespace VMSystem.Controllers
                 GoalTag = EntryPointOfEQ.TagNumber,
             });
             bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+            if (!allowLeve) {
+                response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber },"退出設備-等待主幹道可通行..");
+            }
+            else
+            {
+                response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
+
+            }
             return Ok(new
             {
                 confirm = allowLeve,
