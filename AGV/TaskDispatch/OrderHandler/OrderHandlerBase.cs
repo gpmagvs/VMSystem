@@ -59,6 +59,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
                         {
                             _SetOrderAsCancelState("");
+                            ActionsWhenOrderCancle();
                             return;
                         }
 
@@ -74,12 +75,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         LOG.WARN($"Task canceled.{TaskCancelReason}");
                         _SetOrderAsCancelState(TaskCancelReason);
+                        ActionsWhenOrderCancle();
                         return;
                     }
 
                     if (TaskAbortedFlag)
                     {
                         _SetOrderAsFaiiureState(TaskAbortReason);
+                        ActionsWhenOrderCancle();
                         return;
                     }
 
@@ -91,14 +94,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
                     LoadingAtTransferStationTaskFinishInvoke();
+
                 }
                 else
+                {
                     _SetOrderAsFinishState();
+                }
             }
             catch (Exception ex)
             {
                 LOG.Critical(ex.Message, ex);
                 _SetOrderAsFaiiureState(ex.Message);
+                ActionsWhenOrderCancle();
                 return;
             }
 
@@ -154,24 +161,26 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)
                 AbortOrder(Agv.states.Alarm_Code);
-           
-           
+
+
         }
 
-        internal async void AbortOrder(ALARMS agvsAlarm)
+        internal async Task AbortOrder(ALARMS agvsAlarm)
         {
             AGVSystemCommonNet6.Alarm.clsAlarmDto _alarmDto = await AlarmManagerCenter.AddAlarmAsync(agvsAlarm);
             TaskAbortedFlag = true;
             TaskAbortReason = _alarmDto.Description;
             _CurrnetTaskFinishResetEvent.Set();
+
+
         }
-        internal async void AbortOrder(AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] alarm_Code)
+        internal async Task AbortOrder(AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] alarm_Code)
         {
             TaskAbortedFlag = true;
             TaskAbortReason = string.Join(",", alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
             _CurrnetTaskFinishResetEvent.Set();
         }
-        internal async void CancelOrder(string reason = "")
+        internal async Task CancelOrder(string reason = "")
         {
             RunningTask.CancelTask();
             TaskCancelledFlag = true;
@@ -201,6 +210,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             RaiseTaskDtoChange(this, OrderData);
         }
+
         private void _SetOrderAsFaiiureState(string FailReason)
         {
             UnRegistPoints();
@@ -219,7 +229,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             int indexOfAgvCurrentTag = _trajectory_tags.ToList().FindIndex(tag => tag == _agv_current_tag);
             return _trajectory_tags.Skip(indexOfAgvCurrentTag).ToList();
         }
-
+        protected abstract void ActionsWhenOrderCancle();
         private void UnRegistPoints()
         {
             StaMap.UnRegistPointsOfAGVRegisted(this.Agv);
