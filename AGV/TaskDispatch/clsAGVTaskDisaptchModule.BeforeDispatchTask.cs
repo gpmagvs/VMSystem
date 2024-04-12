@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using VMSystem.TrafficControl;
@@ -25,7 +26,7 @@ namespace VMSystem.AGV
             if (!IsTaskContentCorrectCheck(_ExecutingTask, out int tag, out alarm_code))
                 return false;
 
-            bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge);
+            bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.ExchangeBattery);
             if (!_isAutoSearch)
                 return true;
             LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
@@ -39,7 +40,7 @@ namespace VMSystem.AGV
             return true;
         }
 
-        private bool SearchDestineStation(ACTION_TYPE action, out MapPoint optimized_workstation, out ALARMS alarm_code)
+        protected virtual bool SearchDestineStation(ACTION_TYPE action, out MapPoint optimized_workstation, out ALARMS alarm_code)
         {
             optimized_workstation = null;
             alarm_code = ALARMS.NONE;
@@ -56,7 +57,17 @@ namespace VMSystem.AGV
             if (action == ACTION_TYPE.Park)
                 workstations = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
+            {
+
                 workstations = StaMap.GetChargeableStations(this.agv);
+                var response = AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name).GetAwaiter().GetResult();
+                if (!response.confirm)
+                {
+                    alarm_code = ALARMS.INVALID_CHARGE_STATION;
+                    return false;
+                }
+                workstations = workstations.Where(station => response.usableChargeStationTags.Contains(station.TagNumber)).ToList();
+            }
 
 
             var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.agv);
@@ -71,7 +82,7 @@ namespace VMSystem.AGV
             var all_using_charge_station_tags = new List<int>();
             all_using_charge_station_tags.AddRange(charge_station_tag_assign_to_others_agv);
             all_using_charge_station_tags.AddRange(charge_stations_tag_occupied);
-            all_using_charge_station_tags= all_using_charge_station_tags.Distinct().ToList();
+            all_using_charge_station_tags = all_using_charge_station_tags.Distinct().ToList();
 
             workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));
 

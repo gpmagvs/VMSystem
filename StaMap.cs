@@ -68,6 +68,7 @@ namespace VMSystem
             var avoidStations = Map.Points.Values.ToList().FindAll(sta => sta.IsAvoid);
             return avoidStations;
         }
+
         internal static string GetBayNameByMesLocation(string location)
         {
             var Bay = Map.Bays.FirstOrDefault(bay => bay.Value.Points.Contains(location));
@@ -107,7 +108,7 @@ namespace VMSystem
 
         internal static MapPoint GetPointByName(string name)
         {
-            var point = Map.Points.FirstOrDefault(pt => pt.Value.Name == name);
+            var point = Map.Points.FirstOrDefault(pt => pt.Value.Graph.Display == name);
             if (point.Value != null)
                 return point.Value;
             return null;
@@ -161,8 +162,10 @@ namespace VMSystem
                 bool _success = registerName == Name;
                 if (_success)
                 {
-                    //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    LOG.TRACE($"{RegistDictionary.ToJson()}");
 
+                    //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                    //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
                 }
                 else
                 {
@@ -190,7 +193,15 @@ namespace VMSystem
             return UnRegistPoint("System", mapPoint, out error_message, true);
         }
 
-
+        internal static bool UnRegistPoints(string Name, IEnumerable<int> TagNumbers, out string errorMsg, bool isBySystem = false)
+        {
+            errorMsg = string.Empty;
+            foreach (var tag in TagNumbers)
+            {
+                UnRegistPoint(Name, tag, out errorMsg, isBySystem);
+            }
+            return true;
+        }
         internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
         {
             error_message = string.Empty;
@@ -215,9 +226,10 @@ namespace VMSystem
                         {
                             RegistDictionary.Remove(TagNumber, out var _);
                             OnTagUnregisted?.Invoke("", TagNumber);
-                            //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                            TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                            LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
 
-                           // LOG.TRACE($"{RegistDictionary.ToJson()}");
+                            LOG.TRACE($"{RegistDictionary.ToJson()}");
                         }
                     }
                     else
@@ -303,12 +315,13 @@ namespace VMSystem
             try
             {
                 var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
-                UnRegistPoints(agv.Name, registed_tag_except_current_tag.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList());
+                UnRegistPoints(agv.Name, registed_tag_except_current_tag, out string errMsg);
                 return true;
             }
             catch (Exception ex)
             {
-                throw ex;
+                LOG.Critical(ex);
+                return false;
             }
         }
 

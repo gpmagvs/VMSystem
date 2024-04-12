@@ -11,6 +11,7 @@ using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.MAP.Geometry;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.AGV
 {
@@ -64,6 +65,7 @@ namespace VMSystem.AGV
         bool IsAGVIdlingAtNormalPoint();
 
         bool IsAGVCargoStatusCanNotGoToCharge();
+        Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM);
 
         MapRectangle AGVGeometery { get; }
         MapCircleArea AGVRotaionGeometry { get; }

@@ -16,15 +16,34 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             { ACTION_TYPE.Unload ,  new UnloadOrderHandler() },
             { ACTION_TYPE.Carry,  new TransferOrderHandler() },
             { ACTION_TYPE.Park,  new ParkOrderHandler() },
+            { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler() },
+            { ACTION_TYPE.Measure,  new ExchangeBatteryOrderHandler() },
         };
 
         public OrderHandlerFactory() { }
         public OrderHandlerBase CreateHandler(clsTaskDto orderData)
         {
             OrderHandlerBase hander = _OrderHandlerMap[orderData.Action];
+            hander.OnLoadingAtTransferStationTaskFinish += HandleOnLoadingAtTransferStationTaskFinish;
             hander.OrderData = orderData;
             hander.SequenceTaskQueue = _CreateSequenceTasks(orderData);
             return hander;
+        }
+
+        private void HandleOnLoadingAtTransferStationTaskFinish(object? sender, EventArgs e)
+        {
+            //generate carry task from [transfer station] to [order destine station]
+            OrderHandlerBase order = (OrderHandlerBase)sender;
+            int transferStationTag = order.OrderData.ChangeAGVMiddleStationTag;
+
+            var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
+
+            order.OrderData.From_Station = transferStationTag + "";
+            order.OrderData.need_change_agv = false;
+            order.OrderData.DesignatedAGVName = order.OrderData.TransferToDestineAGVName;
+            var nextOrderHandler = CreateHandler(order.OrderData);
+            nextAGV.taskDispatchModule.OrderHandler = nextOrderHandler;
+            nextOrderHandler.StartOrder(nextAGV);
         }
 
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
@@ -35,15 +54,24 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 throw new NotFoundAGVException($"{orderData.DesignatedAGVName} not exist at system");
 
             var _queue = new Queue<TaskBase>();
-            MapPoint _agv_current_map_point = _agv.currentMapPoint; 
+            MapPoint _agv_current_map_point = _agv.currentMapPoint;
             if (IsAGVAtWorkStation(_agv))
             {
                 _queue.Enqueue(new DischargeTask(_agv, orderData));
             }
 
-            if (orderData.Action == ACTION_TYPE.None)
+            if (orderData.Action == ACTION_TYPE.None) //一般走行任務
             {
+                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                //{
+                //    _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+                //}
+                //else
+                //{
+                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                //}
                 _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+
                 return _queue;
             }
 
@@ -65,6 +93,22 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new ChargeTask(_agv, orderData));
                 return _queue;
             }
+            if (orderData.Action == ACTION_TYPE.ExchangeBattery)
+            {
+                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                //{
+                //    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                //}
+                //else
+                //{
+                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                //}
+                //
+                //
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData));
+                return _queue;
+            }
             if (orderData.Action == ACTION_TYPE.Park)
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
@@ -77,8 +121,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData));
 
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
-                _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                if (orderData.need_change_agv)
+                {
+                    _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
+                }
+                else
+                {
+                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                }
                 return _queue;
+            }
+            if (orderData.Action == ACTION_TYPE.Measure)
+            {
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MeasureTask(_agv, orderData));
             }
 
             return _queue;

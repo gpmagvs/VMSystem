@@ -38,13 +38,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                 {
-                    var sourceStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
-                    FinalStopTheta = sourceStation.Direction_Secondary_Point;
+                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.From_Station_Tag);
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    var destineStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
-                    FinalStopTheta = destineStation.Direction_Secondary_Point;
+                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.To_Station_Tag);
                 }
             }
         }
@@ -63,7 +61,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    return StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+
+                    if (OrderData.Action == ACTION_TYPE.Measure)
+                    {
+                        string bayName = this.OrderData.To_Station;
+
+                        if (StaMap.Map.Bays.TryGetValue(bayName, out Bay bay))
+                        {
+                            //移動到Bay的進入點
+                            var InPointOfBay = StaMap.GetPointByTagNumber(int.Parse(bay.InPoint));
+                            return InPointOfBay;
+                        }
+                        else
+                            return null;
+                    }
+                    else
+                        return StaMap.GetPointByTagNumber(this.OrderData.need_change_agv ? this.OrderData.ChangeAGVMiddleStationTag : this.OrderData.To_Station_Tag);
                 }
                 else
                 {
@@ -75,7 +88,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (OrderData.Action != ACTION_TYPE.None)
             {
                 MapPoint _desintWorkStation = GetDesinteWorkStation();
-                _destine_point = StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());
+                _destine_point = OrderData.Action == ACTION_TYPE.Measure ? _desintWorkStation : StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());//TODO 有兩個點的狀況
             }
             else
             {
@@ -220,7 +233,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 //}
 
                 StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
-                var _result = _DispatchTaskToAGV(_taskDownloadData, out var alarm);
+                var _result = await _DispatchTaskToAGV(_taskDownloadData);
                 if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                 {
                     if (OnTaskDownloadToAGVButAGVRejected != null)
@@ -287,7 +300,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
-                        var _result = _DispatchTaskToAGV(_taskDownloadData, out var alarm);
+                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
                         if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
                             if (OnTaskDownloadToAGVButAGVRejected != null)
@@ -466,7 +479,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 int currentTagIndex = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.GetTagCollection().ToList().IndexOf(this.Agv.states.Last_Visited_Node);
                 var remainTrajectory = MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Skip(currentTagIndex);
-                return VMSystem.TrafficControl.Tools.CalculatePathInterference(remainTrajectory, this.Agv, VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv), out conflicAgvList);
+                return VMSystem.TrafficControl.Tools.CalculatePathInterference(remainTrajectory, this.Agv, VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv), out conflicAgvList, IsAGVBackward: false);
             }
         }
 
@@ -505,8 +518,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return StaMap.GetPointByTagNumber(OrderData.To_Station_Tag).Direction_Secondary_Point;
             }
             else
-                return NavigationTools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
-                    new System.Drawing.PointF((float)lastPoint.X, (float)lastPoint.Y));
+                return trajectory.Last().Theta;
+            //return NavigationTools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
+            //    new System.Drawing.PointF((float)lastPoint.X, (float)lastPoint.Y));
         }
 
 
@@ -545,16 +559,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        protected bool IsAGVReachGoal(int goal_id, bool justAlmostReachGoal = false)
+        protected bool IsAGVReachGoal(int goal_id, bool justAlmostReachGoal = false, bool checkTheta = false)
         {
             CancellationTokenSource _cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 
-            return justAlmostReachGoal ? _IsAlmostReachTag(goal_id) : _IsReachTag(goal_id);
+            bool tagReach = justAlmostReachGoal ? _IsAlmostReachTag(goal_id) : _IsReachTag(goal_id);
+            if (!tagReach) return false;
+            bool thetaMatch = !checkTheta ? true : _IsThetaInErrorRange(goal_id);
+            return thetaMatch;
+
             bool _IsReachTag(int _goal_id)
             {
                 return Agv.states.Last_Visited_Node == _goal_id;
             }
-
             bool _IsAlmostReachTag(int _goal_id)
             {
                 var point = StaMap.GetPointByTagNumber(_goal_id);
@@ -562,6 +579,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 var agv_location_y = Agv.states.Coordination.Y;
                 var distance_of_goal_and_agv = point.CalculateDistance(agv_location_x, agv_location_y);
                 return distance_of_goal_and_agv <= 0.4;//unit:m(公尺)
+            }
+            bool _IsThetaInErrorRange(int _goal_id)
+            {
+                var thetaOfAGV = Agv.states.Coordination.Theta;
+                var point = StaMap.GetPointByTagNumber(_goal_id);
+                var finalTheta = Stage == VehicleMovementStage.Traveling ? point.Direction : FinalStopTheta;
+                var isInErrorRange = Math.Abs(thetaOfAGV - finalTheta) <= 10;
+
+                LOG.INFO($"AGV Theta check in destine tag {_goal_id} result:{isInErrorRange}, {thetaOfAGV}/{finalTheta}(AGV/Destine)");
+
+                return isInErrorRange;
             }
         }
 
@@ -601,6 +629,28 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (!sequenceList.Last().SequenceEqual(stations))
                 sequenceList.Add(stations);
             return sequenceList;
+        }
+
+
+        public async Task<List<int>> TryGetBlockedTagByEQMaintainFromAGVS()
+        {
+            try
+            {
+                var response = await AGVSystemCommonNet6.Microservices.AGVS.AGVSSerivces.TRAFFICS.GetBlockedTagsByEqMaintain();
+                if (response.confirm)
+                {
+                    return response.blockedTags;
+                }
+                else
+                {
+                    return new List<int>();
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex);
+                return new List<int>();
+            }
         }
     }
 }

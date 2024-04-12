@@ -15,8 +15,10 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
+using VMSystem.TrafficControl;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.AGV
 {
@@ -31,6 +33,7 @@ namespace VMSystem.AGV
         {
             this.options = options;
             Name = name;
+            LOG.INFO($"AGV {name} Create. MODEL={model} ");
         }
 
 
@@ -70,7 +73,7 @@ namespace VMSystem.AGV
         /// </summary>
         public MapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
-        private bool _pingSuccess = false;
+        private bool _pingSuccess = true;
         public bool pingSuccess
         {
             get => _pingSuccess;
@@ -156,18 +159,22 @@ namespace VMSystem.AGV
                 {
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
-                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousMapPoint.TagNumber})", color: ConsoleColor.Green);
-                        if (value.IsEquipment)
+                        int previousTag = (int)(previousMapPoint?.TagNumber);
+                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousTag})", color: ConsoleColor.Green);
+                        if (value.IsEquipment && !AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;
                             return;
                         }
-                        if (previousMapPoint != null)
-                            StaMap.UnRegistPoint(Name, previousMapPoint.TagNumber, out string error_msg);
 
-                        //if (taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                        if (previousMapPoint != null)
+                        {
+                            StaMap.UnRegistPoint(Name, previousTag, out string error_msg);
+                        }
+
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
+                        TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
 
                         previousMapPoint = value;
                     }
@@ -302,7 +309,7 @@ namespace VMSystem.AGV
             availabilityHelper = new AvailabilityHelper(Name);
             StopRegionHelper = new StopRegionHelper(Name);
             RestoreStatesFromDatabase();
-            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+            CreateTaskDispatchModuleInstance();
             _ = Task.Run(async () =>
             {
                 Thread.Sleep(100);
@@ -323,6 +330,12 @@ namespace VMSystem.AGV
 
             taskDispatchModule.Run();
         }
+
+        protected virtual void CreateTaskDispatchModuleInstance()
+        {
+            taskDispatchModule = new clsAGVTaskDisaptchModule(this);
+        }
+
         public async Task<bool> PingServer()
         {
             Ping pingSender = new Ping();
@@ -336,7 +349,7 @@ namespace VMSystem.AGV
                     DontFragment = false      // 是否允許分段，設為true表示不分段
                 };
 
-                PingReply reply = pingSender.Send(address, 3000, new byte[32], options);
+                PingReply reply = await pingSender.SendPingAsync(address, 3000, new byte[32], options);
                 bool ping_success = reply.Status == IPStatus.Success;
                 return ping_success;
             }
@@ -347,16 +360,13 @@ namespace VMSystem.AGV
             }
         }
 
-        private void PingCheck()
+        private async Task PingCheck()
         {
-            Task.Run(async () =>
+            while (true)
             {
-                while (true)
-                {
-                    Thread.Sleep(1000);
-                    pingSuccess = await PingServer();
-                }
-            });
+                await Task.Delay(1000);
+                pingSuccess = await PingServer();
+            }
         }
 
         private void AliveCheck()
@@ -413,7 +423,7 @@ namespace VMSystem.AGV
                 {
                     Thread.Sleep(1000);
 
-                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE | SystemModes.RunMode != AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE || SystemModes.RunMode != AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
                         continue;
 
                     if (states.Cargo_Status == 1)
@@ -509,7 +519,11 @@ namespace VMSystem.AGV
                 online_mode_req = ONLINE_STATE.OFFLINE;
                 return false;
             }
-
+            if (options.Simulation)
+            {
+                online_state = clsEnums.ONLINE_STATE.ONLINE;
+                return true;
+            }
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
@@ -729,6 +743,11 @@ namespace VMSystem.AGV
         public bool IsAGVCargoStatusCanNotGoToCharge()
         {
             return states.Cargo_Status == 1 || states.CSTID.Any(id => id != "");
+        }
+
+        public virtual Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM)
+        {
+            throw new NotImplementedException();
         }
     }
 }

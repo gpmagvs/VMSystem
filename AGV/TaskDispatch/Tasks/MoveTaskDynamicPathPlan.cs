@@ -11,13 +11,14 @@ using System.Numerics;
 using System.Drawing;
 using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
-using System.Runtime.CompilerServices;  // 需要引用System.Numerics向量庫
+using System.Runtime.CompilerServices;
+using System.Diagnostics.Eventing.Reader;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveTaskDynamicPathPlan : MoveTask
     {
-        public override VehicleMovementStage Stage => throw new NotImplementedException();
+        public override VehicleMovementStage Stage => VehicleMovementStage.Traveling;
         public MoveTaskDynamicPathPlan() : base()
         {
 
@@ -39,12 +40,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 ConstrainTags = justOptimePath ? new List<int>() : StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList(),
             };
             option.ConstrainTags.AddRange(PassedTags);
+
+            List<int> blockedTagsByEqMaintaining = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+
             if (additionContrainTags != null)
             {
                 option.ConstrainTags.AddRange(additionContrainTags);
             }
-
-            option.ConstrainTags = option.ConstrainTags.Where(tag => tag != startTag).ToList();
+            option.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
+            option.ConstrainTags = option.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
             clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, option);
             return pathPlanResult;
 
@@ -67,11 +71,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int _sequenceIndex = 0;
                     string task_simplex = this.TaskDonwloadToAGV.Task_Simplex;
                     List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
-                    int pointNum = 4;
+                    int pointNum = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.TaskControlConfigs.SegmentTrajectoryPointNum;
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
-                    while (!IsAGVReachGoal(DestineTag) || _sequenceIndex == 0)
+                    while (!IsAGVReachGoal(DestineTag, checkTheta: true) || _sequenceIndex == 0)
                     {
                         if (token.IsCancellationRequested)
                             token.ThrowIfCancellationRequested();
@@ -118,8 +122,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         _lastNextPath = nextPath;
+                        //計算干涉
                         bool _waitingInterference = false;
-                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList))
+
+                        bool _IsNextPathHasPointsRegisted(List<MapPoint> nextPath)
+                        {
+                            var registedPoints = StaMap.RegistDictionary.Where(kp => nextPath.GetTagCollection().Contains(kp.Key) && kp.Value.RegisterAGVName != Agv.Name).Select(k => k.Value);
+                            return registedPoints.Any();
+                        }
+
+                        while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
 
@@ -130,7 +142,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 TrafficWaitingState.SetStatusNoWaiting();
                                 return;
                             }
-                            TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), "等待路徑干涉解除");
+                            TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), $"等待{(conflicAGVList.Any() ? $"與 {string.Join(",", conflicAGVList.Select(agv => agv.Name))} 之" : "")}路徑干涉解除");
                             await Task.Delay(1000);
                             continue;
                         }
@@ -158,28 +170,30 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         _lastFinalEndTag = finalEndTag;
                         //計算停車角度
-
                         SettingParkAngle(ref _taskDownloadData);
 
                         TaskDonwloadToAGV = _taskDownloadData;
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, optimzePath.tags, nextPath, OrderData.IsTrafficControlTask);
 
-                        StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
-                        var _result = _DispatchTaskToAGV(_taskDownloadData, out var alarm);
+                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
                         if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
                             if (OnTaskDownloadToAGVButAGVRejected != null)
                                 OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
                             return;
                         }
+                        StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
-                        var index = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                        var nextPoint = index == -1 || index + 1 >= nextPath.Count ? nextPath.First() : nextPath[index + 1];
+                        var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
+                        var nextCheckPoint = pointNum == -1 ?
+                                            MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() :
+                                            agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ?
+                                            nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
-                        LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextPoint.TagNumber}");
-                        while (!IsAGVReachGoal(nextPoint.TagNumber))
+                        LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
+                        while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
                         {
                             await Task.Delay(10).ConfigureAwait(false);
 
@@ -191,7 +205,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 return;
                             }
                         }
-                        pathStartTagToCal = nextPoint.TagNumber;
+                        pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
                         await Task.Delay(10);
 
@@ -199,34 +213,91 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                     List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
                     {
-                        var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
-                        return optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                        if (pointNum == -1)
+                        {
+                            return optimzedPathInfo.stations;
+                        }
+                        else
+                        {
+                            var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
+                            var output = new List<MapPoint>();
+
+                            bool _IsSubGoalIsDestine()
+                            {
+                                return (index + pointNum) >= optimzedPathInfo.stations.Count;
+                            }
+                            if (_IsSubGoalIsDestine())
+                            {
+                                output = optimzedPathInfo.stations;
+                            }
+                            else
+                            {
+                                //0 , 1, 2 ,3
+                                while (output.Count == 0 && !_IsSubGoalIsDestine())
+                                {
+                                    var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                                    if (subPath.Last().IsVirtualPoint)
+                                    {
+                                        pointNum += 1;
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        output = subPath.ToList();
+                                        break;
+                                    }
+                                }
+                            }
+
+                            return output;
+                        }
                     }
 
+                    MapPoint GetGoalStationWhenNonNormalTaskExecute()
+                    {
+                        MapPoint _targetStation = new MapPoint();
+                        if (this.Stage == VehicleMovementStage.Traveling_To_Source)
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
+                        else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                        return _targetStation;
+                    }
 
                     void SettingParkAngle(ref clsTaskDownloadData _taskDownloadData)
                     {
                         double theta = 0;
+                        bool isNextStopIsFinal = _taskDownloadData.ExecutingTrajecory.Last().Point_ID == this.DestineTag;
+
+                        if (isNextStopIsFinal && (OrderData.Action == ACTION_TYPE.None || OrderData.Action == ACTION_TYPE.ExchangeBattery))
+                        {
+                            LOG.WARN($"Next path goal is destine, park");
+                            return;
+                        }
 
                         if (_taskDownloadData.Trajectory.Length < 2)
                         {
-                            _taskDownloadData.Trajectory.Last().Theta = _taskDownloadData.Trajectory.Last().Theta;
+
+                            if (OrderData.Action == ACTION_TYPE.None)
+                                _taskDownloadData.Trajectory.Last().Theta = _taskDownloadData.Trajectory.Last().Theta;
+                            else
+                            {
+                                MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
+                                _taskDownloadData.Trajectory.Last().Theta = _targetStation.Direction_Secondary_Point;
+
+                            }
                             return;
                         }
                         else
                         {
                             var lastPoint = _taskDownloadData.Trajectory.Last();
                             var lastSecondPoint = _taskDownloadData.Trajectory[_taskDownloadData.Trajectory.Length - 2];
+
                             var lastPt = new PointF((float)lastPoint.X, (float)lastPoint.Y);
                             var lastSecondPt = new PointF((float)lastSecondPoint.X, (float)lastSecondPoint.Y);
 
                             if (this.Stage != VehicleMovementStage.Traveling)
                             {
-                                MapPoint _targetStation = new MapPoint();
-                                if (this.Stage == VehicleMovementStage.Traveling_To_Source)
-                                    _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
-                                else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
-                                    _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                                MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
                                 MapPoint _front_targetStation_point = StaMap.GetPointByIndex(_targetStation.Target.Keys.First());
 
                                 if (_front_targetStation_point.TagNumber == lastPoint.Point_ID)
@@ -249,6 +320,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 catch (Exception ex)
                 {
                     throw ex;
+                }
+                finally
+                {
                 }
 
             }, token);

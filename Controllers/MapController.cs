@@ -35,6 +35,17 @@ namespace VMSystem.Controllers
 
         }
 
+        [HttpPost("RegistPartsRegion")]
+        public async Task<IActionResult> RegistPartsRegion(string regionName, string agvName)
+        {
+            var result = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { regionName }, agvName);
+            return Ok(new
+            {
+                confirm = result.confirm,
+                message = result.message
+            });
+        }
+
 
         [HttpGet("/ws/DynamicTrafficData")]
         public async Task GetDynamicTrafficData()

@@ -15,6 +15,8 @@ using System;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
+using static VMSystem.AGV.clsGPMInspectionAGV;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 
 namespace VMSystem.Controllers
 {
@@ -52,19 +54,12 @@ namespace VMSystem.Controllers
             bool online_success = false;
             string msg = string.Empty;
 
-            if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
+            if (VMSManager.TryGetAGV(agv_name, out IAGV agv))
             {
                 try
                 {
-                    if (agv.options.Simulation)
-                    {
-                        agv.online_state = clsEnums.ONLINE_STATE.ONLINE;
-                        online_success = true;
-                    }
-                    else
-                    {
-                        online_success = agv.AGVOnlineFromAGVS(out msg);
-                    }
+                    online_success = agv.AGVOnlineFromAGVS(out msg);
+                    
                     return Ok(new { ReturnCode = online_success ? 0 : 404, Message = msg });
                 }
                 catch (Exception ex)
@@ -84,7 +79,7 @@ namespace VMSystem.Controllers
         {
             Console.WriteLine($"AGV-{agv_name}要求下線");
             string msg = string.Empty;
-            if (VMSManager.TryGetAGV(agv_name, model, out IAGV agv))
+            if (VMSManager.TryGetAGV(agv_name, out IAGV agv))
             {
                 if (agv.options.Simulation)
                 {
@@ -104,6 +99,30 @@ namespace VMSystem.Controllers
             }
         }
 
+        [HttpPost("AGVLocating")]
+        public async Task<IActionResult> AGVLocating([FromBody] clsLocalizationVM localizationVM, string agv_name)
+        {
+            var result = await VMSManager.TryLocatingAGVAsync(agv_name, localizationVM);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
 
+        [HttpPost("AddVehicle")]
+        public async Task<IActionResult> AddVehicle([FromBody] clsAGVStateDto dto)
+        {
+            var result = await VMSManager.AddVehicle(dto);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
+        [HttpPost("EditVehicle")]
+        public async Task<IActionResult> EditVehicle([FromBody] clsAGVStateDto dto,string oriAGVID)
+        {
+            var result = await VMSManager.EditVehicle(dto, oriAGVID);
+            return Ok(new {confirm =result.confirm, message=result.message});
+        }
+        [HttpDelete("DeleteVehicle")]
+        public async Task<IActionResult> DeleteVehicle(string AGV_Name)
+        {
+            var result = await VMSManager.DeleteVehicle(AGV_Name);
+            return Ok(new { confirm = result.confirm, message = result.message });
+        }
     }
 }

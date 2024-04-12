@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading.Tasks;
 using AGVSystemCommonNet6.Microservices.VMS;
 using static AGVSystemCommonNet6.Microservices.VMS.clsPartsAGVSRegionRegistService.RegistEventObject;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6;
 
 namespace VMSystem.TrafficControl
 {
@@ -42,15 +44,29 @@ namespace VMSystem.TrafficControl
             File.WriteAllText(FilePath, JsonConvert.SerializeObject(Parameters, Formatting.Indented));
         }
 
-        public static async Task<bool> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
+        public static async Task<(bool confirm, string message)> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
         {
             if (!NeedRegistRequestToParts)
             {
-                return true;
+                return (true, "Setting as NO Need To Regist To PARTS");
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-            var result = await parts_service.Regist(AGVName, List_RegistNames);
-            return result.accept;
+
+            (bool accept, string message) result = (false, "");
+            int retryNum = 0;
+            while (!result.accept)
+            {
+                retryNum++;
+                if (retryNum >= 5)
+                {
+                    LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                    return (false, "Unregist Points to Parts System FAILURE...TIMEOUT");
+                }
+                await Task.Delay(500);
+                result = await parts_service.Regist(AGVName, List_RegistNames);
+            }
+            LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
+            return result;
         }
 
         public static async Task<bool> UnRegistStationRequestToAGVS(List<string> List_UnRegistName, string AGVName = "AMCAGV")
@@ -63,7 +79,21 @@ namespace VMSystem.TrafficControl
                     return true;
                 }
                 clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-                var result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                (bool accept, string message) result = (false, "");
+                int retryNum = 0;
+
+                while (!result.accept)
+                {
+                    retryNum++;
+                    if (retryNum >= 5)
+                    {
+                        LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                        return false;
+                    }
+                    await Task.Delay(500);
+                    result = await parts_service.Unregist(AGVName, List_UnRegistName);
+                }
+                LOG.INFO($"Unregist Points to Parts System Result: {result.ToJson()}");
                 return result.accept;
             });
         }
