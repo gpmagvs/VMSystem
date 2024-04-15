@@ -100,9 +100,9 @@ namespace VMSystem.TrafficControl
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
 
                     clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
-                    bool isNeedWait=  IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out isTagRegisted, out isTagBlocked, out isInterference, out isInterfercenWhenRotation);
-                    args.ActionConfirm = isNeedWait ? clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT: clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-                    args.Message = CreateWaitingInfoDisplayMessage(args,isTagRegisted,isTagBlocked,isInterfercenWhenRotation);
+                    bool isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out isTagRegisted, out isTagBlocked, out isInterference, out isInterfercenWhenRotation);
+                    args.ActionConfirm = isNeedWait ? clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT : clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                    args.Message = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
                     return args;
                 }
                 else
@@ -167,7 +167,7 @@ namespace VMSystem.TrafficControl
                 _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
                 isInterference = IsPathInterference(_goalTag, _otherAGVList);
-                isInterfercenWhenRotation = _otherAGVList.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(_agvCircleAreaWhenReachGoal));
+                isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo( agv.AGVGeometery));
                 isTagBlocked = IsDestineBlocked();
                 return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
             }
