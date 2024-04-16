@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -69,6 +70,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     LOG.INFO($"Task-{task.ActionType} 開始");
                     _CurrnetTaskFinishResetEvent.WaitOne();
+                    task.ActionFinishInvoke();
                     LOG.INFO($"Task-{task.ActionType} 結束");
 
                     if (TaskCancelledFlag)
@@ -108,6 +110,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 ActionsWhenOrderCancle();
                 return;
             }
+            finally
+            {
+            }
 
         }
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
@@ -124,15 +129,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
                 _ = Task.Run(async () =>
                 {
-
                     if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                     {
                         await HandleAGVActionFinishFeedback();
                     }
                     else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
                     {
-                        RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
+                        HandleAGVNavigatingFeedback();
                     }
+                    else if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_START)
+                        HandleAGVActionStartFeedback();
                     _HandleTaskStateFeedbackSemaphoreSlim.Release();
                 });
             }
@@ -141,6 +147,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _SetOrderAsFaiiureState(ex.Message);
             }
 
+        }
+
+        protected virtual void HandleAGVActionStartFeedback()
+        {
+
+        }
+
+        protected virtual void HandleAGVNavigatingFeedback()
+        {
+            RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
         }
 
         protected virtual async Task HandleAGVActionFinishFeedback()
@@ -217,6 +233,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
             RaiseTaskDtoChange(this, OrderData);
+
+            if (PartsAGVSHelper.NeedRegistRequestToParts)
+            {
+                PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>()
+                {
+                     Agv.currentMapPoint.Graph.Display
+                });
+            }
         }
 
         private void _SetOrderAsFaiiureState(string FailReason)
@@ -237,7 +261,25 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             int indexOfAgvCurrentTag = _trajectory_tags.ToList().FindIndex(tag => tag == _agv_current_tag);
             return _trajectory_tags.Skip(indexOfAgvCurrentTag).ToList();
         }
-        protected abstract void ActionsWhenOrderCancle();
+        protected virtual void ActionsWhenOrderCancle()
+        {
+            if (PartsAGVSHelper.NeedRegistRequestToParts)
+            {
+                //0,1,2,3
+                var excutingTraj=RunningTask.TaskDonwloadToAGV.ExecutingTrajecory;
+                var lastVisiPointIndex = excutingTraj.ToList().FindIndex(pt=>pt.Point_ID== Agv.currentMapPoint.TagNumber);
+                var stopPtTag = 0;
+                if (lastVisiPointIndex == excutingTraj.Count() - 1)
+                    stopPtTag = excutingTraj.Last().Point_ID;
+                else
+                    stopPtTag = excutingTraj[lastVisiPointIndex + 1].Point_ID;
+                var expectRegionName = StaMap.GetPointByTagNumber(stopPtTag).Graph.Display;
+                PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>()
+                {
+                    expectRegionName
+                });
+            }
+        }
         private void UnRegistPoints()
         {
             StaMap.UnRegistPointsOfAGVRegisted(this.Agv);

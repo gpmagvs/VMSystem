@@ -12,7 +12,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        public override VehicleMovementStage Stage => VehicleMovementStage.MeasureInBay;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.MeasureInBay;
 
         public override ACTION_TYPE ActionType => ACTION_TYPE.Measure;
         public override void CreateTaskToAGV()
@@ -33,7 +33,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
         }
-
         public override bool IsAGVReachDestine
         {
             get

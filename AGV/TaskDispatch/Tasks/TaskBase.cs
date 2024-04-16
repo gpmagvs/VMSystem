@@ -33,7 +33,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <summary>
         /// 當前任務的階段
         /// </summary>
-        public abstract VehicleMovementStage Stage { get; }
+        public abstract VehicleMovementStage Stage { get; set; }
         public abstract ACTION_TYPE ActionType { get; }
         /// <summary>
         /// 目的地Tag
@@ -163,7 +163,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
         }
-
+        public List<int> FuturePlanNavigationTags = new List<int>();
         protected async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
             _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
@@ -176,7 +176,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 IsTransferTask = OrderData.Action == ACTION_TYPE.Carry
             };
 
-            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && OrderData.Action != ACTION_TYPE.ExchangeBattery && OrderData.Action != ACTION_TYPE.Measure)
+            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
 
@@ -230,9 +230,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         this.CancelOrder();
                     });
 #endif
-                    if(taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK )
+                    if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                     {
-                        StaMap.RegistPoint(Agv.Name,_TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
+                        StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
                     }
                     return taskStateResponse;
                 }
@@ -245,7 +245,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         protected virtual async Task<(bool confirm, string message, List<string> regions)> RegistToPartsSystem(clsTaskDownloadData _TaskDonwloadToAGV)
         {
-            var pointNames = _TaskDonwloadToAGV.ExecutingTrajecory.Select(pt => StaMap.GetStationNameByTag(pt.Point_ID)).ToList();
+            var indexOfAgv = _TaskDonwloadToAGV.ExecutingTrajecory.ToList().FindIndex(pt => pt.Point_ID == Agv.currentMapPoint.TagNumber);
+            var remainPoints = _TaskDonwloadToAGV.ExecutingTrajecory.Skip(indexOfAgv);
+            var pointNames = remainPoints.Select(pt => StaMap.GetStationNameByTag(pt.Point_ID)).ToList();
+            var pointTags = remainPoints.Select(pt => pt.Point_ID);
+            FuturePlanNavigationTags = pointTags.ToList();
             var result = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(pointNames);
             return (result.confirm, result.message, pointNames);
         }
@@ -308,6 +312,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual void ActionFinishInvoke()
         {
+            FuturePlanNavigationTags.Clear();
+            TrafficWaitingState.SetStatusNoWaiting();
         }
     }
 

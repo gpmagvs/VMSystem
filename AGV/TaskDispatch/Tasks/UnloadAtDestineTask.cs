@@ -10,7 +10,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             DestineTag = order.To_Station_Tag;
         }
 
-        public override VehicleMovementStage Stage { get; } = VehicleMovementStage.WorkingAtDestination;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtDestination;
         public override ACTION_TYPE ActionType => ACTION_TYPE.Unload;
 
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)

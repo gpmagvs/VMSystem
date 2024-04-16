@@ -18,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveTaskDynamicPathPlan : MoveTask
     {
-        public override VehicleMovementStage Stage => VehicleMovementStage.Traveling;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling;
         public MoveTaskDynamicPathPlan() : base()
         {
 
@@ -29,37 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         }
 
-        private clsPathInfo CalculateOptimizedPath(int startTag, bool justOptimePath, List<int> additionContrainTags = null)
-        {
-            PathFinder _pathFinder = new PathFinder();
-            MapPoint destinPoint = StaMap.GetPointByTagNumber(this.DestineTag);
-            MapPoint startPoint = StaMap.GetPointByTagNumber(startTag);
-            var option = new PathFinderOption()
-            {
-                OnlyNormalPoint = true,
-                ConstrainTags = justOptimePath ? new List<int>() : StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList(),
-            };
-            option.ConstrainTags.AddRange(PassedTags);
-
-            List<int> blockedTagsByEqMaintaining = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
-
-            if (additionContrainTags != null)
-            {
-                option.ConstrainTags.AddRange(additionContrainTags);
-            }
-            option.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
-            option.ConstrainTags = option.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
-            clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, option);
-            return pathPlanResult;
-
-        }
-
-        private MapPoint GetAGVCurrentPoint()
-        {
-            return StaMap.GetPointByTagNumber(Agv.states.Last_Visited_Node);
-        }
-
-
+        protected List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
         public override async Task SendTaskToAGV()
         {
 
@@ -70,7 +40,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     int _sequenceIndex = 0;
                     string task_simplex = this.TaskDonwloadToAGV.Task_Simplex;
-                    List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
+                    _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                     int pointNum = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.TaskControlConfigs.SegmentTrajectoryPointNum;
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
@@ -101,8 +71,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             pathStartTagToCal = Agv.states.Last_Visited_Node;
                             continue;
                         }
-
-
 
                         List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, pointNum);
 
@@ -156,11 +124,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         _previsousTrajectorySendToAGV.AddRange(PathFinder.GetTrajectory(StaMap.Map.Name, nextPath));
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.DistinctBy(pt => pt.Point_ID).ToList();
 
-
                         clsTaskDownloadData _taskDownloadData = this.TaskDonwloadToAGV.Clone();
                         _taskDownloadData.Task_Sequence = _sequenceIndex;
                         _taskDownloadData.Task_Simplex = task_simplex + "-" + _sequenceIndex;
                         _taskDownloadData.Trajectory = _previsousTrajectorySendToAGV.ToArray();
+
+                        if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
+                            _taskDownloadData.Destination = _previsousTrajectorySendToAGV.Last().Point_ID;
 
                         int finalEndTag = _previsousTrajectorySendToAGV.Last().Point_ID;
 
@@ -188,74 +158,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
                         var nextCheckPoint = pointNum == -1 ?
-                                            MoveTaskEvent.AGVRequestState.NextSequenceTaskTrajectory.Last() :
+                                            nextPath.Last() :
                                             agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ?
                                             nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
-                        LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
-                        while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
-                        {
-                            await Task.Delay(10).ConfigureAwait(false);
-
-                            if (token.IsCancellationRequested)
-                                token.ThrowIfCancellationRequested();
-                            if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                            {
-                                TrafficWaitingState.SetStatusNoWaiting();
-                                return;
-                            }
-                        }
+                        await WaitAGVReachNexCheckPoint(nextCheckPoint, token).ConfigureAwait(false);
                         pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
                         await Task.Delay(10);
 
                     }
 
-                    List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
-                    {
-                        if (pointNum == -1)
-                        {
-                            return optimzedPathInfo.stations;
-                        }
-                        else
-                        {
-                            var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
-                            var output = new List<MapPoint>();
 
-                            bool _IsSubGoalIsDestine()
-                            {
-                                return (index + pointNum) >= optimzedPathInfo.stations.Count;
-                            }
-                            if (_IsSubGoalIsDestine())
-                            {
-                                output = optimzedPathInfo.stations;
-                            }
-                            else
-                            {
-                                //0 , 1, 2 ,3
-                                while (output.Count == 0 && !_IsSubGoalIsDestine())
-                                {
-                                    var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
-                                    if (subPath.Last().IsVirtualPoint)
-                                    {
-                                        pointNum += 1;
-                                        continue;
-                                    }
-                                    else
-                                    {
-                                        output = subPath.ToList();
-                                        break;
-                                    }
-                                }
-                                if(output.Count == 0)
-                                {
-                                    output = optimzedPathInfo.stations;
-                                }
-                            }
-
-                            return output;
-                        }
-                    }
 
                     MapPoint GetGoalStationWhenNonNormalTaskExecute()
                     {
@@ -331,6 +245,70 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             }, token);
         }
+
+        protected virtual async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, CancellationToken token)
+        {
+            LOG.WARN($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
+            while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
+            {
+                await Task.Delay(10).ConfigureAwait(false);
+
+                if (token.IsCancellationRequested)
+                    token.ThrowIfCancellationRequested();
+                if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                {
+                    TrafficWaitingState.SetStatusNoWaiting();
+                    throw new OperationCanceledException();
+                }
+            }
+            return true;
+        }
+
+        protected virtual List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
+        {
+            if (pointNum == -1)
+            {
+                return optimzedPathInfo.stations;
+            }
+            else
+            {
+                var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
+                var output = new List<MapPoint>();
+
+                bool _IsSubGoalIsDestine()
+                {
+                    return (index + pointNum) >= optimzedPathInfo.stations.Count;
+                }
+                if (_IsSubGoalIsDestine())
+                {
+                    output = optimzedPathInfo.stations;
+                }
+                else
+                {
+                    //0 , 1, 2 ,3
+                    while (output.Count == 0 && !_IsSubGoalIsDestine())
+                    {
+                        var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                        if (subPath.Last().IsVirtualPoint)
+                        {
+                            pointNum += 1;
+                            continue;
+                        }
+                        else
+                        {
+                            output = subPath.ToList();
+                            break;
+                        }
+                    }
+                    if (output.Count == 0)
+                    {
+                        output = optimzedPathInfo.stations;
+                    }
+                }
+
+                return output;
+            }
+        }
         public override List<List<MapPoint>> GenSequenceTaskByTrafficCheckPoints(List<MapPoint> stations)
         {
             var trafficeControlPtNum = stations.Count() / 3;
@@ -353,5 +331,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return sequences.ToList();
 
         }
+
+        protected virtual PathFinderOption pathFinderOptionOfOptimzed { get; } = new PathFinderOption()
+        {
+            OnlyNormalPoint = true,
+            ContainElevatorPoint = false
+        };
+        private clsPathInfo CalculateOptimizedPath(int startTag, bool justOptimePath, List<int> additionContrainTags = null)
+        {
+            PathFinder _pathFinder = new PathFinder();
+            MapPoint destinPoint = StaMap.GetPointByTagNumber(this.DestineTag);
+            MapPoint startPoint = StaMap.GetPointByTagNumber(startTag);
+
+            pathFinderOptionOfOptimzed.ConstrainTags = justOptimePath ? new List<int>() : StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList();
+            pathFinderOptionOfOptimzed.ConstrainTags.AddRange(PassedTags);
+
+            List<int> blockedTagsByEqMaintaining = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+
+            if (additionContrainTags != null)
+            {
+                pathFinderOptionOfOptimzed.ConstrainTags.AddRange(additionContrainTags);
+            }
+            pathFinderOptionOfOptimzed.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
+            pathFinderOptionOfOptimzed.ConstrainTags = pathFinderOptionOfOptimzed.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
+            clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, pathFinderOptionOfOptimzed);
+            return pathPlanResult;
+
+        }
+
     }
 }

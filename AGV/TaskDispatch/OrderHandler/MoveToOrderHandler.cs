@@ -8,6 +8,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
+            base.ActionsWhenOrderCancle();
         }
 
         protected override async Task HandleAGVActionFinishFeedback()

@@ -1,8 +1,10 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DevicesControl;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using System.Linq;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -16,33 +18,138 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             get
             {
-                return Agv.states.Last_Visited_Node == OrderData.To_Station_Tag;
+                if (OrderData.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Measure)
+                {
+                    return StaMap.Map.Bays[OrderData.To_Station].InPoint == Agv.currentMapPoint.Graph.Display;
+                }
+                else if (OrderData.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.ExchangeBattery)
+                {
+                    var exchangeStation = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+                    return Agv.currentMapPoint.TagNumber == exchangeStation.TagOfInPoint;
+                }
+                else
+                    return Agv.states.Last_Visited_Node == OrderData.To_Station_Tag;
             }
         }
+        public override VehicleMovementStage Stage => VehicleMovementStage.Traveling_To_Destine;
         public AMCAGVMoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }
         private ManualResetEvent _waitTaskFinish = new ManualResetEvent(false);
-        internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
-        {
-            List<clsTaskDto> subsOrders = SplitOrder(OrderData);
-            List<MoveTaskDynamicPathPlan> moveTasksCollection = subsOrders.Select(subOrder => new MoveTaskDynamicPathPlan(Agv, subOrder)
-            {
-                TaskName = OrderData.TaskName
-            }).ToList();
-            foreach (MoveTaskDynamicPathPlan _moveTask in moveTasksCollection)
-            {
-                _waitTaskFinish.Reset();
-                (bool confirmed, ALARMS alarm_code) _result = await _moveTask.DistpatchToAGV();
-                _waitTaskFinish.WaitOne();
-                LOG.INFO($"Task-{_moveTask.TaskSimple} confirm:{_result.confirmed}, Alarm Code:{_result.alarm_code}(AGV Locate :{Agv.states.Last_Visited_Node})");
 
-            }
-            return (true, ALARMS.NONE);
+        public enum ELEVATOR_ENTRY_STATUS
+        {
+            MOVE_TO_ENTRY_PT_OF_ELEVATOR,
+            ENTER_ELEVATOR,
+            LEAVE_ELEVATOR,
+            NO_PASS_ELEVATOR
         }
+        public ELEVATOR_ENTRY_STATUS ElevatorStatus { get; set; } = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
+        private MapPoint EntryPointOfElevator;
+        protected override PathFinderOption pathFinderOptionOfOptimzed => new PathFinderOption
+        {
+            OnlyNormalPoint = true,
+            ContainElevatorPoint = true
+        };
+        protected override List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
+        {
+            var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == AGVSystemCommonNet6.AGVDispatch.Messages.STATION_TYPE.Elevator);
+            bool IsPathContainElevator = elevatorPoint != null;
+            int IndexOfAGVLocation()
+            {
+                return optimzedPathInfo.stations.FindIndex(st => st.TagNumber == Agv.currentMapPoint.TagNumber);
+            }
+            if (IsPathContainElevator && ElevatorStatus == ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR)
+            {
+                _previsousTrajectorySendToAGV.Clear();
+                var pointsOfElevatorEntryAndLeave = elevatorPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+                EntryPointOfElevator = optimzedPathInfo.stations.First(station => pointsOfElevatorEntryAndLeave.Contains(station));
+                var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
+
+                ElevatorStatus = ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR;
+                //0 1 2 3
+                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(entryPointIndexOfPath + 1).ToList();
+            }
+            else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR)
+            {
+                _previsousTrajectorySendToAGV.Clear();
+                var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
+                ElevatorStatus = ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR;
+                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(2).ToList(); // 0. 1 .2.3.4
+            }
+            else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR)
+            {
+                _previsousTrajectorySendToAGV.Clear();
+                ElevatorStatus = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
+                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(optimzedPathInfo.stations.Count - IndexOfAGVLocation()).ToList();
+            }
+            else
+                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, pointNum);
+        }
+        public ElevatorControl Elevator { get; private set; } = new ElevatorControl();
+        protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, CancellationToken token)
+        {
+            await base.WaitAGVReachNexCheckPoint(nextCheckPoint, token);
+            await ElevatorTaskControl();
+            return true;
+        }
+
+        private async Task ElevatorTaskControl()
+        {
+            switch (ElevatorStatus)
+            {
+                case ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR:
+
+                    TrafficWaitingState.SetDisplayMessage("等待電梯底抵達當前樓層...");
+                    await Elevator.CallElevatorComeAndWait(Agv.currentFloor);
+                    TrafficWaitingState.SetDisplayMessage("進入電梯...");
+                    break;
+                case ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR:
+                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                    {
+
+                        if (_TaskCancelTokenSource.IsCancellationRequested)
+                            return;
+                        TrafficWaitingState.SetDisplayMessage($"等待AGV停車於電梯");
+                        await Task.Delay(1000);
+                    }
+                    int nextFloor = 1;
+                    while ((nextFloor = new Random(DateTime.Now.Second).Next(1, 6)) == Agv.currentFloor)
+                    {
+                        if (_TaskCancelTokenSource.IsCancellationRequested)
+                            return;
+                        await Task.Delay(1000);
+                    }
+                    TrafficWaitingState.SetDisplayMessage($"等待電梯抵達[{nextFloor}]樓..");
+                    await Elevator.GoTo(nextFloor);
+                    TrafficWaitingState.SetStatusNoWaiting();
+                    Agv.currentFloor = nextFloor;
+                    _ = Task.Run(async () =>
+                    {
+                        while (Agv.currentMapPoint.StationType == AGVSystemCommonNet6.AGVDispatch.Messages.STATION_TYPE.Elevator)
+                        {
+                            if (_TaskCancelTokenSource.IsCancellationRequested)
+                                return;
+                            TrafficWaitingState.SetDisplayMessage($"等待AGV離開電梯...");
+                            await Task.Delay(1000);
+                        }
+                        TrafficWaitingState.SetStatusNoWaiting();
+                        await Elevator.CloseDoor(Agv.currentFloor);
+                    });
+                    break;
+                case ELEVATOR_ENTRY_STATUS.LEAVE_ELEVATOR:
+                    break;
+                case ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR:
+                    break;
+                default:
+                    break;
+            }
+        }
+
         public override void ActionFinishInvoke()
         {
             _waitTaskFinish.Set();
+            base.ActionFinishInvoke();
         }
         private List<clsTaskDto> SplitOrder(clsTaskDto orderData)
         {

@@ -9,6 +9,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        public override VehicleMovementStage Stage { get; } = VehicleMovementStage.Traveling_To_Source;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Source;
     }
 }

@@ -8,6 +8,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
+            base.ActionsWhenOrderCancle();
+        }
+
+        protected override void HandleAGVNavigatingFeedback()
+        {
+            base.HandleAGVNavigatingFeedback();
+        }
+        protected override void HandleAGVActionStartFeedback()
+        {
+            base.HandleAGVActionStartFeedback();
+            RunningTask.TrafficWaitingState.SetDisplayMessage($"量測任務進行中...");
         }
     }
 }

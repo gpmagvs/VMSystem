@@ -17,6 +17,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
+
+        }
+        protected override void HandleAGVNavigatingFeedback()
+        {
+            base.HandleAGVNavigatingFeedback();
+        }
+        protected override void HandleAGVActionStartFeedback()
+        {
+            base.HandleAGVActionStartFeedback();
+            RunningTask.TrafficWaitingState.SetDisplayMessage("電池交換中...");
         }
     }
 
