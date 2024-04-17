@@ -83,8 +83,8 @@ namespace VMSystem.TrafficControl
                         var lastPathRegionOwner = _OthersAGVPathRectangles.FirstOrDefault(kp => kp.Value == lastPathRegion).Key;
                         conflicSoFar = lastPathRegion.Last().StartPointTag.CalculateDistance(lastPathRegionOwner.states.Coordination.X, lastPathRegionOwner.states.Coordination.Y) > 5;
                     }
-                    if (conflicSoFar)
-                        return false;
+                    //if (conflicSoFar)
+                    //    return false;
                     if ((TryGetConflicAGVByRotation(_RotaionRegion, out ConflicAGVList) || _pathConflicOtherAGVsRemainPath.Any(ret => ret)))
                         return true;
                 }
