@@ -12,7 +12,8 @@ using System.Drawing;
 using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
 using System.Runtime.CompilerServices;
-using System.Diagnostics.Eventing.Reader;  // 需要引用System.Numerics向量庫
+using System.Diagnostics.Eventing.Reader;
+using VMSystem.Tools;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -167,7 +168,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                             nextPath.Last() :
                                             agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ? nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
-                        await WaitAGVReachNexCheckPoint(nextCheckPoint, token).ConfigureAwait(false);
+                        await WaitAGVReachNexCheckPoint(nextCheckPoint, nextPath, token).ConfigureAwait(false);
                         pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
                         await Task.Delay(10);
@@ -251,9 +252,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }, token);
         }
 
-        protected virtual async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, CancellationToken token)
+        protected virtual async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
         {
             LOG.WARN($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
+            bool _remainPathConflic = false;
             while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
             {
                 await Task.Delay(10).ConfigureAwait(false);
@@ -265,6 +267,30 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     TrafficWaitingState.SetStatusNoWaiting();
                     throw new OperationCanceledException();
                 }
+                bool IsRemainPathConflic = _IsRemainPathConflic();
+                if (IsRemainPathConflic != _remainPathConflic)
+                {
+                    if (IsRemainPathConflic)
+                    {
+                        LOG.WARN($"請求 {Agv.Name} 減速");
+                        TrafficWaitingState.SetDisplayMessage("交管請求減速...");
+                        Agv.SpeedSlowRequest();
+                    }
+                    else
+                    {
+                        LOG.WARN($"請求 {Agv.Name} 速度恢復");
+                        TrafficWaitingState.SetStatusNoWaiting();
+                        Agv.SpeedRecovertRequest();
+                    }
+                }
+                _remainPathConflic = IsRemainPathConflic;
+            }
+
+            bool _IsRemainPathConflic()
+            {
+                var indexOfAGV = nextPath.FindIndex(pt => pt.TagNumber == Agv.currentMapPoint.TagNumber);
+                //0.1.2.3.4
+                return VMSystem.TrafficControl.Tools.CalculatePathInterferenceByAGVGeometry(nextPath.Skip(indexOfAGV + 1), this.Agv, out var conflicAGVList);
             }
             return true;
         }

@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DevicesControl;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using System.Collections.Generic;
 using System.Linq;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
@@ -87,9 +88,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return base.GetNextPath(optimzedPathInfo, agvCurrentTag, pointNum);
         }
         public ElevatorControl Elevator { get; private set; } = new ElevatorControl();
-        protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, CancellationToken token)
+        protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
         {
-            await base.WaitAGVReachNexCheckPoint(nextCheckPoint, token);
+            await base.WaitAGVReachNexCheckPoint(nextCheckPoint, nextPath, token);
             await ElevatorTaskControl();
             return true;
         }

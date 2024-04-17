@@ -66,11 +66,12 @@ namespace VMSystem.AGV
 
         bool IsAGVCargoStatusCanNotGoToCharge();
         Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM);
+        Task<bool> SpeedRecovertRequest();
+        Task<bool> SpeedSlowRequest();
 
         MapRectangle AGVGeometery { get; }
         MapCircleArea AGVRotaionGeometry { get; }
         int currentFloor { get; set; }
-
     }
 
 }

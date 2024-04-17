@@ -751,5 +751,30 @@ namespace VMSystem.AGV
         {
             throw new NotImplementedException();
         }
+
+        public async Task<bool> SpeedRecovertRequest()
+        {
+            try
+            {
+                return await AGVHttp.GetAsync<bool>("/api/TrafficState/SpeedDown");
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> SpeedSlowRequest()
+        {
+            try
+            {
+                return await AGVHttp.GetAsync<bool>("/api/TrafficState/SpeedRecovery");
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
     }
 }
