@@ -174,7 +174,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 DestineTag = OrderData.To_Station_Tag,
                 DestineName = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag).Graph.Display,
                 SourceName = OrderData.Action == ACTION_TYPE.Carry ? StaMap.GetPointByTagNumber(OrderData.From_Station_Tag).Graph.Display : "",
-                IsTransferTask = OrderData.Action == ACTION_TYPE.Carry
+                IsTransferTask = OrderData.Action == ACTION_TYPE.Carry,
+                DestineSlot = int.Parse(OrderData.To_Slot),
+                SourceSlot = int.Parse(OrderData.From_Slot)
             };
 
             if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
