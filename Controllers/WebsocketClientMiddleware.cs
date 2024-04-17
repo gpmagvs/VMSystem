@@ -71,7 +71,7 @@ namespace VMSystem.Controllers
                         states = new
                         {
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,
-                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING | taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
+                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING || taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
                             main_status = agv.main_state
                         },
                         currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType

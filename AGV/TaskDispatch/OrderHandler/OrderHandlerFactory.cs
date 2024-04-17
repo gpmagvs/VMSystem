@@ -77,19 +77,28 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.Unload)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Unload
+                });
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Load)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Load
+                });
                 _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Charge)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Charge
+                });
                 _queue.Enqueue(new ChargeTask(_agv, orderData));
                 return _queue;
             }
@@ -97,11 +106,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.ExchangeBattery
+                    });
                 }
                 else
                 {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.ExchangeBattery
+                    });
                 }
                 //
                 //
@@ -111,16 +126,28 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             if (orderData.Action == ACTION_TYPE.Park)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Park
+                });
                 _queue.Enqueue(new ParkTask(_agv, orderData));
             }
 
             if (orderData.Action == ACTION_TYPE.Carry)
             {
-                _queue.Enqueue(new MoveToSourceTask(_agv, orderData));
-                _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData));
+                _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Unload
+                });
+                _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.None
+                });
 
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Load
+                });
                 if (orderData.need_change_agv)
                 {
                     _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
@@ -135,11 +162,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Measure
+                    });
                 }
                 else
                 {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Measure
+                    });
                 }
                 //_queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new MeasureTask(_agv, orderData));

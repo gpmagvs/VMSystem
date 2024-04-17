@@ -252,22 +252,27 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RaiseTaskDtoChange(this, OrderData);
         }
 
-        internal List<int> GetNavPathTags()
+        internal virtual List<int> GetNavPathTags()
         {
             if (Agv == null)
                 return new List<int>();
-            int _agv_current_tag = Agv.states.Last_Visited_Node;
-            var _trajectory_tags = RunningTask.TaskDonwloadToAGV.ExecutingTrajecory.Select(p => p.Point_ID);
-            int indexOfAgvCurrentTag = _trajectory_tags.ToList().FindIndex(tag => tag == _agv_current_tag);
-            return _trajectory_tags.Skip(indexOfAgvCurrentTag).ToList();
+            return GetNavPathTags(RunningTask.TaskDonwloadToAGV.ExecutingTrajecory.Select(p => p.Point_ID));
         }
+
+        protected List<int> GetNavPathTags(IEnumerable<int> AllTagsOfPath)
+        {
+            int _agv_current_tag = Agv.states.Last_Visited_Node;
+            int indexOfAgvCurrentTag = AllTagsOfPath.ToList().FindIndex(tag => tag == _agv_current_tag);
+            return AllTagsOfPath.Skip(indexOfAgvCurrentTag).ToList();
+        }
+
         protected virtual void ActionsWhenOrderCancle()
         {
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
                 //0,1,2,3
-                var excutingTraj=RunningTask.TaskDonwloadToAGV.ExecutingTrajecory;
-                var lastVisiPointIndex = excutingTraj.ToList().FindIndex(pt=>pt.Point_ID== Agv.currentMapPoint.TagNumber);
+                var excutingTraj = RunningTask.TaskDonwloadToAGV.ExecutingTrajecory;
+                var lastVisiPointIndex = excutingTraj.ToList().FindIndex(pt => pt.Point_ID == Agv.currentMapPoint.TagNumber);
                 var stopPtTag = 0;
                 if (lastVisiPointIndex == excutingTraj.Count() - 1)
                     stopPtTag = excutingTraj.Last().Point_ID;

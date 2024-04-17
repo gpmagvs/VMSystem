@@ -15,6 +15,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.MeasureInBay;
 
         public override ACTION_TYPE ActionType => ACTION_TYPE.Measure;
+
+        public List<int> TagsOfMeasureCompletedPoint { get; private set; } = new List<int>();
+        public bool IsAllPointMeasured
+        {
+            get
+            {
+                var measurePointsNum = this.TaskDonwloadToAGV.Homing_Trajectory.Length - 1;
+                return TagsOfMeasureCompletedPoint.Count == measurePointsNum;
+            }
+        }
         public override void CreateTaskToAGV()
         {
             base.CreateTaskToAGV();
@@ -52,6 +62,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {
             throw new NotImplementedException();
+        }
+
+        internal void UpdateMeasureProgress(int tagID)
+        {
+            TagsOfMeasureCompletedPoint.Add(tagID);
         }
     }
 }

@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 
 namespace VMSystem.Controllers
 {
@@ -70,26 +71,7 @@ namespace VMSystem.Controllers
         {
             if (VMSManager.TryGetAGV(AGVName, out var agv))
             {
-                string BayName = StaMap.GetBayNameByMesLocation(measureResult.location);
-                measureResult.AGVName = AGVName;
-                measureResult.BayName = BayName;
-                LOG.INFO($"AGV-{AGVName} Report Measure Data: {measureResult.ToJson()}");
-                _ = Task.Run(() =>
-                {
-                    using (var database = new AGVSDatabase())
-                    {
-                        try
-                        {
-                            database.tables.InstrumentMeasureResult.Add(measureResult);
-                            database.SaveChanges();
-                        }
-                        catch (Exception ex)
-                        {
-                            LOG.ERROR(ex.Message, ex);
-                            AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
-                        }
-                    }
-                });
+                (agv.taskDispatchModule.OrderHandler as MeasureOrderHandler).MeasureResultFeedback(measureResult);
                 return Ok(new { ReturnCode = 0, Message = "" });
             }
             else
@@ -213,7 +195,7 @@ namespace VMSystem.Controllers
         [HttpPost("LeaveWorkStationRequest")]
         public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
         {
-         
+
             var EQPoint = StaMap.GetPointByTagNumber(EQTag);
             var EntryPointOfEQ = StaMap.GetPointByIndex(EQPoint.Target.Keys.First());
             var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg()
@@ -222,8 +204,9 @@ namespace VMSystem.Controllers
                 GoalTag = EntryPointOfEQ.TagNumber,
             });
             bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-            if (!allowLeve) {
-                response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber },"退出設備-等待主幹道可通行..");
+            if (!allowLeve)
+            {
+                response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備-等待主幹道可通行..");
             }
             else
             {

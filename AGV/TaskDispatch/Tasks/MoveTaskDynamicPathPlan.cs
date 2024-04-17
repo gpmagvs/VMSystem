@@ -130,7 +130,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         _taskDownloadData.Trajectory = _previsousTrajectorySendToAGV.ToArray();
 
                         if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
+                        {
                             _taskDownloadData.Destination = _previsousTrajectorySendToAGV.Last().Point_ID;
+                        }
 
                         int finalEndTag = _previsousTrajectorySendToAGV.Last().Point_ID;
 
@@ -154,13 +156,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
                             return;
                         }
+                        if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
+                        {
+                            _previsousTrajectorySendToAGV.Clear();
+                        }
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                        var nextCheckPoint = pointNum == -1 ?
+                        var nextCheckPoint = pointNum == -1 || Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV ?
                                             nextPath.Last() :
-                                            agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ?
-                                            nextPath.First() : nextPath[nextPath.Count - 2];
+                                            agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ? nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
                         await WaitAGVReachNexCheckPoint(nextCheckPoint, token).ConfigureAwait(false);
                         pathStartTagToCal = nextCheckPoint.TagNumber;

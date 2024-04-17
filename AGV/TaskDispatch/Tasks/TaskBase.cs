@@ -21,7 +21,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public delegate clsLeaveFromWorkStationConfirmEventArg BeforeLeaveFromWorkStationDelegate(clsLeaveFromWorkStationConfirmEventArg args);
         public static BeforeLeaveFromWorkStationDelegate BeforeLeaveFromWorkStation;
-
+        public ACTION_TYPE NextAction { get; set; } = ACTION_TYPE.NoAction;
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -169,6 +169,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
             {
                 ActionName = OrderData.Action,
+                NextAction = this.NextAction,
                 SourceTag = OrderData.Action == ACTION_TYPE.Carry ? OrderData.From_Station_Tag : OrderData.To_Station_Tag,
                 DestineTag = OrderData.To_Station_Tag,
                 DestineName = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag).Graph.Display,

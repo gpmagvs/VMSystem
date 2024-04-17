@@ -3,6 +3,9 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
+    /// <summary>
+    /// 到目的地取貨
+    /// </summary>
     public class UnloadAtDestineTask : LoadUnloadTask
     {
         public UnloadAtDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
