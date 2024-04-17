@@ -25,11 +25,21 @@ namespace VMSystem.TrafficControl
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
             return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, IsAGVBackward);
         }
-
+        public static bool CalculatePathInterferenceByAGVGeometry(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList)
+        {
+            if (_Path.Count() == 0)
+            {
+                ConflicAGVList = new List<IAGV>();
+                return false;
+            }
+            var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
+            return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, false, NoConsiderOtherAGVRemainPath: true);
+        }
         // <summary>
         /// 計算干涉
         /// </summary>
-        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
+        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward,
+            bool NoConsiderOtherAGVRemainPath = false)
         {
             //if (AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
             //{
@@ -69,7 +79,9 @@ namespace VMSystem.TrafficControl
                 double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0;
                 double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0;
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
-                Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
+                Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = NoConsiderOtherAGVRemainPath ?
+                    _OthersAGV.ToDictionary(agv => agv, agv => new List<MapRectangle> { agv.AGVGeometery }) :
+                    _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 if (isAgvWillRotation && !IsAGVBackward)
                 {
