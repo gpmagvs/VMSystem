@@ -120,7 +120,7 @@ namespace VMSystem.AGV
         public ONLINE_STATE online_mode_req { get; set; } = ONLINE_STATE.OFFLINE;
 
         public clsEnums.ONLINE_STATE _online_state;
-        public clsEnums.ONLINE_STATE online_state
+        public virtual clsEnums.ONLINE_STATE online_state
         {
             get => _online_state;
             set
@@ -303,6 +303,8 @@ namespace VMSystem.AGV
                 return TrafficControl.Tools.CreateAGVRectangle(this);
             }
         }
+
+        public int currentFloor { get; set; } = 1;
 
         public async Task Run()
         {

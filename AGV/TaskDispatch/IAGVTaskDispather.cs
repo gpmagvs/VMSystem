@@ -113,19 +113,24 @@ namespace VMSystem.AGV.TaskDispatch
             if (OnAGVWaitingStatusChanged != null)
                 OnAGVWaitingStatusChanged(this);
         }
-        
+
         internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags)
         {
             SetStatusWaitingConflictPointRelease(blockedTags, $"等待-{string.Join(",", blockedTags)}可通行");
         }
 
-        internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags,string customMessage)
+        internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags, string customMessage)
         {
             this.IsWaiting = true;
             this.WaitingPoint = new MapPoint("", -1);
             Descrption = customMessage;
             StartWaitingTime = DateTime.Now;
             Status = WAIT_STATUS.WAITING;
+        }
+
+        internal void SetDisplayMessage(string message)
+        {
+            SetStatusWaitingConflictPointRelease(new List<int>(), message);
         }
     }
 }

@@ -15,6 +15,8 @@ using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using VMSystem.Tools;
 using System.Drawing;
 using System.Diagnostics;
+using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 
 namespace VMSystem.AGV
 {
@@ -139,7 +141,7 @@ namespace VMSystem.AGV
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
-                    await BarcodeMove(_args, _token);
+                    await BarcodeMove(_args, _token, homing: true);
                 }
 
                 void _CargoStateSimulate(ACTION_TYPE action, string cstID)
@@ -160,7 +162,7 @@ namespace VMSystem.AGV
             return new TaskDownloadRequestResponse() { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK };
         }
 
-        private async Task BarcodeMove(BarcodeMoveArguments moveArgs, CancellationToken token)
+        private async Task BarcodeMove(BarcodeMoveArguments moveArgs, CancellationToken token, bool homing = false)
         {
             try
             {
@@ -228,7 +230,10 @@ namespace VMSystem.AGV
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
 
                     int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
-
+                    if (action == ACTION_TYPE.Measure && !homing)
+                    {
+                        await MeasureSimulation(stationTag);
+                    }
                     idx += 1;
                 }
 
@@ -245,6 +250,18 @@ namespace VMSystem.AGV
             {
                 throw ex;
             }
+        }
+
+        private async Task MeasureSimulation(int stationTag)
+        {
+            var mapPoint = StaMap.GetPointByTagNumber(stationTag);
+            await Task.Delay(3000);
+            (agv.taskDispatchModule.OrderHandler as MeasureOrderHandler).MeasureResultFeedback(
+                new clsMeasureResult(stationTag)
+                {
+                    location = mapPoint.Graph.Display,
+                    AGVName = agv.Name,
+                });
         }
 
         private BarcodeMoveArguments CreateBarcodeMoveArgsFromAGVSOrder(clsTaskDownloadData orderData)

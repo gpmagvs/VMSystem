@@ -44,15 +44,15 @@ namespace VMSystem.TrafficControl
             File.WriteAllText(FilePath, JsonConvert.SerializeObject(Parameters, Formatting.Indented));
         }
 
-        public static async Task<(bool confirm, string message)> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
+        public static async Task<(bool confirm, string message, string responseJson)> RegistStationRequestToAGVS(List<string> List_RegistNames, string AGVName = "AMCAGV")
         {
             if (!NeedRegistRequestToParts)
             {
-                return (true, "Setting as NO Need To Regist To PARTS");
+                return (true, "Setting as NO Need To Regist To PARTS","");
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
 
-            (bool accept, string message) result = (false, "");
+            (bool accept, string message, string responseJson) result = (false, "","");
             int retryNum = 0;
             while (!result.accept)
             {
@@ -60,7 +60,7 @@ namespace VMSystem.TrafficControl
                 if (retryNum >= 5)
                 {
                     LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
-                    return (false, "Unregist Points to Parts System FAILURE...TIMEOUT");
+                    return (false, "Unregist Points to Parts System FAILURE...TIMEOUT", "");
                 }
                 await Task.Delay(500);
                 result = await parts_service.Regist(AGVName, List_RegistNames);
@@ -68,7 +68,31 @@ namespace VMSystem.TrafficControl
             LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
             return result;
         }
+        public static async Task<bool> UnRegistStationExceptSpeficStationName(List<string> ExceptStationNames, string AGVName = "AMCAGV")
+        {
+            try
+            {
+                using clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
+                var QueryResult = await parts_service.Query();
+                var RegistedInfo = QueryResult.Item2;
+                var toUnRegistNames = RegistedInfo.Where(keypair => keypair.Value == AGVName && !ExceptStationNames.Contains(keypair.Key)).Select(kp => kp.Key);
+                LOG.TRACE($"[UnRegistStationExceptSpeficStationName] To UnRegist Names :{toUnRegistNames.ToJson()}");
+                if (toUnRegistNames.Count() == 0)
+                {
+                    return true;
+                }
+                var result = await parts_service.Unregist(AGVName, toUnRegistNames.ToList());
+                var success = result.accept;
+                LOG.INFO($"UnRegist Region Expect {string.Join(",", ExceptStationNames)}, Success?..{success}");
+                return success;
+            }
+            catch (Exception ex)
+            {
+                LOG.WARN($"{ex.Message}");
 
+                return false;
+            }
+        }
         public static async Task<bool> UnRegistStationRequestToAGVS(List<string> List_UnRegistName, string AGVName = "AMCAGV")
         {
             return await await Task.Factory.StartNew(async () =>
@@ -79,7 +103,7 @@ namespace VMSystem.TrafficControl
                     return true;
                 }
                 clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
-                (bool accept, string message) result = (false, "");
+                (bool accept, string message, string responseJson) result = (false, "", "");
                 int retryNum = 0;
 
                 while (!result.accept)

@@ -52,6 +52,7 @@ namespace VMSystem.Controllers
                     if (agv.currentMapPoint == null)
                         return new { };
                     var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
+                    var OrderHandler = agv.taskDispatchModule.OrderHandler;
                     return new
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
@@ -64,13 +65,13 @@ namespace VMSystem.Controllers
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = agv.main_state != MAIN_STATUS.RUN ? new List<int>() : agv.taskDispatchModule.OrderHandler.GetNavPathTags(),
+                        nav_path = agv.main_state != MAIN_STATUS.RUN ? OrderHandler.RunningTask.FuturePlanNavigationTags : OrderHandler.GetNavPathTags(),
                         theta = agv.states.Coordination.Theta,
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
                         {
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,
-                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING | taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
+                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING || taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
                             main_status = agv.main_state
                         },
                         currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType

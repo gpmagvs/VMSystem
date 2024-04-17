@@ -3,6 +3,9 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
+    /// <summary>
+    /// 到目的地取貨
+    /// </summary>
     public class UnloadAtDestineTask : LoadUnloadTask
     {
         public UnloadAtDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
@@ -10,7 +13,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             DestineTag = order.To_Station_Tag;
         }
 
-        public override VehicleMovementStage Stage { get; } = VehicleMovementStage.WorkingAtDestination;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtDestination;
         public override ACTION_TYPE ActionType => ACTION_TYPE.Unload;
 
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)

@@ -69,6 +69,7 @@ namespace VMSystem.AGV
 
         MapRectangle AGVGeometery { get; }
         MapCircleArea AGVRotaionGeometry { get; }
+        int currentFloor { get; set; }
 
     }
 

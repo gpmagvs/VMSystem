@@ -17,7 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             { ACTION_TYPE.Carry,  new TransferOrderHandler() },
             { ACTION_TYPE.Park,  new ParkOrderHandler() },
             { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler() },
-            { ACTION_TYPE.Measure,  new ExchangeBatteryOrderHandler() },
+            { ACTION_TYPE.Measure,  new MeasureOrderHandler() },
         };
 
         public OrderHandlerFactory() { }
@@ -62,65 +62,92 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.None) //一般走行任務
             {
-                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
-                //{
-                //    _queue.Enqueue(new NormalMoveTask(_agv, orderData));
-                //}
-                //else
-                //{
-                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
-                //}
-                _queue.Enqueue(new NormalMoveTask(_agv, orderData));
+                if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                {
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                }
+                else
+                {
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                }
+                //_queue.Enqueue(new NormalMoveTask(_agv, orderData));
 
                 return _queue;
             }
 
             if (orderData.Action == ACTION_TYPE.Unload)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Unload
+                });
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Load)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Load
+                });
                 _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Charge)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Charge
+                });
                 _queue.Enqueue(new ChargeTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.ExchangeBattery)
             {
-                //if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
-                //{
-                //    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
-                //}
-                //else
-                //{
-                //    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
-                //}
+                if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                {
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.ExchangeBattery
+                    });
+                }
+                else
+                {
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.ExchangeBattery
+                    });
+                }
                 //
                 //
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                //_queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Park)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Park
+                });
                 _queue.Enqueue(new ParkTask(_agv, orderData));
             }
 
             if (orderData.Action == ACTION_TYPE.Carry)
             {
-                _queue.Enqueue(new MoveToSourceTask(_agv, orderData));
-                _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData));
+                _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Unload
+                });
+                _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.None
+                });
 
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                {
+                    NextAction = ACTION_TYPE.Load
+                });
                 if (orderData.need_change_agv)
                 {
                     _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
@@ -133,7 +160,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             if (orderData.Action == ACTION_TYPE.Measure)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
+                {
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Measure
+                    });
+                }
+                else
+                {
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Measure
+                    });
+                }
+                //_queue.Enqueue(new MoveToDestineTask(_agv, orderData));
                 _queue.Enqueue(new MeasureTask(_agv, orderData));
             }
 
@@ -148,7 +189,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         bool IsAGVAtWorkStation(IAGV agv)
         {
-            return agv.currentMapPoint.StationType != STATION_TYPE.Normal;
+            return agv.currentMapPoint.StationType != STATION_TYPE.Normal && agv.currentMapPoint.StationType != STATION_TYPE.Elevator;
         }
     }
 }

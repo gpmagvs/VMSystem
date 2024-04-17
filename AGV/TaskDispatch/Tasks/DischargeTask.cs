@@ -45,7 +45,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             _taskDownloadData.Homing_Trajectory.Last().Theta = _taskDownloadData.Homing_Trajectory.First().Theta;
         }
 
-        public override VehicleMovementStage Stage { get; } = VehicleMovementStage.LeaveFrom_ChargeStation;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.LeaveFrom_ChargeStation;
         public override ACTION_TYPE ActionType => ACTION_TYPE.Discharge;
 
 

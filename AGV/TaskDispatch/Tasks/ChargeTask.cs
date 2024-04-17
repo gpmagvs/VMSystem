@@ -10,7 +10,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        public override VehicleMovementStage Stage { get; } = VehicleMovementStage.WorkingAtChargeStation;
+        public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtChargeStation;
         public override ACTION_TYPE ActionType => ACTION_TYPE.Charge;
 
         public override void CreateTaskToAGV()
