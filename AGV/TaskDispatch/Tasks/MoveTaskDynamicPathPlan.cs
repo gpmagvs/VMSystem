@@ -57,7 +57,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
-                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
+                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, false)) == null)
                         {
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
@@ -103,7 +103,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
-
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
                             if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -267,23 +266,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     TrafficWaitingState.SetStatusNoWaiting();
                     throw new OperationCanceledException();
                 }
-                bool IsRemainPathConflic = _IsRemainPathConflic();
-                if (IsRemainPathConflic != _remainPathConflic)
-                {
-                    if (IsRemainPathConflic)
-                    {
-                        LOG.WARN($"請求 {Agv.Name} 減速");
-                        TrafficWaitingState.SetDisplayMessage("交管請求減速...");
-                        Agv.SpeedSlowRequest();
-                    }
-                    else
-                    {
-                        LOG.WARN($"請求 {Agv.Name} 速度恢復");
-                        TrafficWaitingState.SetStatusNoWaiting();
-                        Agv.SpeedRecovertRequest();
-                    }
-                }
-                _remainPathConflic = IsRemainPathConflic;
+                //bool IsRemainPathConflic = _IsRemainPathConflic();
+                //if (IsRemainPathConflic != _remainPathConflic)
+                //{
+                //    if (IsRemainPathConflic)
+                //    {
+                //        LOG.WARN($"請求 {Agv.Name} 減速");
+                //        TrafficWaitingState.SetDisplayMessage("交管請求減速...");
+                //        Agv.SpeedSlowRequest();
+                //    }
+                //    else
+                //    {
+                //        LOG.WARN($"請求 {Agv.Name} 速度恢復");
+                //        TrafficWaitingState.SetStatusNoWaiting();
+                //        Agv.SpeedRecovertRequest();
+                //    }
+                //}
+                //_remainPathConflic = IsRemainPathConflic;
             }
 
             bool _IsRemainPathConflic()
