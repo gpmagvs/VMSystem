@@ -52,8 +52,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             OnlyNormalPoint = true,
             ContainElevatorPoint = true
         };
-        protected override List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
+        protected override List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)
         {
+            isNexPathHasEQReplacingParts = false;
+            TagOfBlockedByPartsReplace = -1;
             var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == AGVSystemCommonNet6.AGVDispatch.Messages.STATION_TYPE.Elevator);
             bool IsPathContainElevator = elevatorPoint != null;
             int IndexOfAGVLocation()
@@ -85,7 +87,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(optimzedPathInfo.stations.Count - IndexOfAGVLocation()).ToList();
             }
             else
-                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, pointNum);
+                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, out bool _, out int _, pointNum);
         }
         public ElevatorControl Elevator { get; private set; } = new ElevatorControl();
         protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
