@@ -20,6 +20,34 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
+
+        internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
+
+        internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
+        {
+            get
+            {
+                lock (TagListOfWorkstationInPartsReplacing)
+                {
+                    return TagListOfWorkstationInPartsReplacing.SelectMany(tag =>
+                                                StaMap.GetPointByTagNumber(tag).Target.Keys.Select(index => StaMap.GetPointByIndex(index).TagNumber)).ToList();
+                }
+            }
+        }
+
+
+        internal static void AddWorkStationInPartsReplacing(int workstationTag)
+        {
+            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag)) return;
+            TagListOfWorkstationInPartsReplacing.Add(workstationTag);
+        }
+
+        internal static void RemoveWorkStationInPartsReplacing(int workstationTag)
+        {
+            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag)) return;
+            TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
+        }
+
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
         /// <summary>
@@ -138,7 +166,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             constrainTags = constrainTags.Distinct().ToList();
             return PathFind(_destine_point, constrainTags); //遞迴方式
         }
+        protected async Task WaitNextPathPassableByEQPartsReplace(List<MapPoint> nextPath)
+        {
+            while (IsNextPathPassableByEQPartsReplace(nextPath))
+            {
+                TrafficWaitingState.SetDisplayMessage($"暫停動作:等待設備部件更換");
+                await Task.Delay(1000);
+            }
+            TrafficWaitingState.SetStatusNoWaiting();
+        }
 
+        protected bool IsNextPathPassableByEQPartsReplace(List<MapPoint> nextPath)
+        {
+            bool _IsNextPathBlockBypartsReplace(List<int> tags, out List<string> eqNamesOfPartsReplacing)
+            {
+                eqNamesOfPartsReplacing = new List<string>();
+                var _tagsInfrontOfeq = tags.Where(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
+                return _tagsInfrontOfeq.Any();
+            }
+
+            if (nextPath.Count == 1)
+            {
+                return _IsNextPathBlockBypartsReplace(nextPath.Select(pt => pt.TagNumber).ToList(), out List<string> _);
+            }
+
+            var indexOfAGV = nextPath.FindIndex(pt => pt.TagNumber == Agv.currentMapPoint.TagNumber);
+            return _IsNextPathBlockBypartsReplace(nextPath.Skip(indexOfAGV + 1).Select(pt => pt.TagNumber).ToList(), out List<string> _);
+        }
         private List<int> GetConstrainTags(ref clsPathInfo optimized_path_info)
         {
             List<int> tags = new List<int>();
@@ -652,5 +706,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return new List<int>();
             }
         }
+
     }
 }

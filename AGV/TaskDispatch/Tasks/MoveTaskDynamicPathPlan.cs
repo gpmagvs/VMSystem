@@ -46,6 +46,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
+                    bool IsNexPathHasEQReplacingParts = false;
                     while (!IsAGVReachGoal(DestineTag, checkTheta: true) || _sequenceIndex == 0)
                     {
                         if (token.IsCancellationRequested)
@@ -57,7 +58,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
-                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
+                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, false)) == null)
                         {
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
@@ -73,7 +74,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, pointNum);
+                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, out IsNexPathHasEQReplacingParts, out int TagBlockedByPartsReplacing, pointNum);
 
                         if (_lastNextPath.Count != 0 && !nextPath.Contains(_lastNextPath.Last()))
                         {
@@ -103,7 +104,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
-
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
                             if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -120,6 +120,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             pathStartTagToCal = Agv.states.Last_Visited_Node;
                             continue;
                         }
+
+                        //await WaitNextPathPassableByEQPartsReplace(nextPath);
 
                         TrafficWaitingState.SetStatusNoWaiting();
                         _previsousTrajectorySendToAGV.AddRange(PathFinder.GetTrajectory(StaMap.Map.Name, nextPath));
@@ -169,6 +171,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                             agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ? nextPath.First() : nextPath[nextPath.Count - 2];
                         //1,2,3,4,5,6
                         await WaitAGVReachNexCheckPoint(nextCheckPoint, nextPath, token).ConfigureAwait(false);
+                        while (TagListOfInFrontOfPartsReplacingWorkstation.Contains(TagBlockedByPartsReplacing))
+                        {
+                            TrafficWaitingState.SetDisplayMessage($"Wait EQ Parts Replacing Finish...Blocked Tag={TagBlockedByPartsReplacing}");
+                            await Task.Delay(1000);
+                        }
+                        TrafficWaitingState.SetStatusNoWaiting();
                         pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
                         await Task.Delay(10);
@@ -252,6 +260,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }, token);
         }
 
+
+
         protected virtual async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
         {
             LOG.WARN($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
@@ -267,25 +277,26 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     TrafficWaitingState.SetStatusNoWaiting();
                     throw new OperationCanceledException();
                 }
-                bool IsRemainPathConflic = _IsRemainPathConflic();
-                if (IsRemainPathConflic != _remainPathConflic)
-                {
-                    if (IsRemainPathConflic)
-                    {
-                        LOG.WARN($"請求 {Agv.Name} 減速");
-                        TrafficWaitingState.SetDisplayMessage("交管請求減速...");
-                        Agv.SpeedSlowRequest();
-                    }
-                    else
-                    {
-                        LOG.WARN($"請求 {Agv.Name} 速度恢復");
-                        TrafficWaitingState.SetStatusNoWaiting();
-                        Agv.SpeedRecovertRequest();
-                    }
-                }
-                _remainPathConflic = IsRemainPathConflic;
-            }
 
+
+                //bool IsRemainPathConflic = _IsRemainPathConflic();
+                //if (IsRemainPathConflic != _remainPathConflic)
+                //{
+                //    if (IsRemainPathConflic)
+                //    {
+                //        LOG.WARN($"請求 {Agv.Name} 減速");
+                //        TrafficWaitingState.SetDisplayMessage("交管請求減速...");
+                //        Agv.SpeedSlowRequest();
+                //    }
+                //    else
+                //    {
+                //        LOG.WARN($"請求 {Agv.Name} 速度恢復");
+                //        TrafficWaitingState.SetStatusNoWaiting();
+                //        Agv.SpeedRecovertRequest();
+                //    }
+                //}
+                //_remainPathConflic = IsRemainPathConflic;
+            }
             bool _IsRemainPathConflic()
             {
                 var indexOfAGV = nextPath.FindIndex(pt => pt.TagNumber == Agv.currentMapPoint.TagNumber);
@@ -295,31 +306,39 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return true;
         }
 
-        protected virtual List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, int pointNum = 3)
+        protected virtual List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)
         {
+            isNexPathHasEQReplacingParts = false;
+            TagOfBlockedByPartsReplace = -1;
             if (pointNum == -1)
             {
                 return optimzedPathInfo.stations;
             }
             else
             {
-                var index = optimzedPathInfo.stations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
+                //0 1 2 3 4 
+                var indexOfTagInFrontReplacingEQ = optimzedPathInfo.tags.FindIndex(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
+
+                isNexPathHasEQReplacingParts = indexOfTagInFrontReplacingEQ != -1;
+                TagOfBlockedByPartsReplace = isNexPathHasEQReplacingParts ? optimzedPathInfo.tags[indexOfTagInFrontReplacingEQ] : -1;
+                var _validstations = indexOfTagInFrontReplacingEQ == -1 ? optimzedPathInfo.stations : optimzedPathInfo.stations.Take(indexOfTagInFrontReplacingEQ).ToList();
+                var index = _validstations.GetTagCollection().ToList().IndexOf(agvCurrentTag);
                 var output = new List<MapPoint>();
 
                 bool _IsSubGoalIsDestine()
                 {
-                    return (index + pointNum) >= optimzedPathInfo.stations.Count;
+                    return (index + pointNum) >= _validstations.Count;
                 }
                 if (_IsSubGoalIsDestine())
                 {
-                    output = optimzedPathInfo.stations;
+                    output = _validstations;
                 }
                 else
                 {
                     //0 , 1, 2 ,3
                     while (output.Count == 0 && !_IsSubGoalIsDestine())
                     {
-                        var subPath = optimzedPathInfo.stations.Skip(index).Take(pointNum).ToList();
+                        var subPath = _validstations.Skip(index).Take(pointNum).ToList();
                         if (subPath.Last().IsVirtualPoint)
                         {
                             pointNum += 1;
@@ -333,7 +352,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     if (output.Count == 0)
                     {
-                        output = optimzedPathInfo.stations;
+                        output = _validstations;
                     }
                 }
 

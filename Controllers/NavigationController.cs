@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System.Text;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 
@@ -13,7 +14,18 @@ namespace VMSystem.Controllers
     [ApiController]
     public class NavigationController : ControllerBase
     {
+        [HttpGet("AddPartsReplaceworkstationTag")]
+        public async Task<IActionResult> AddPartsReplaceworkstationTag(int workstationTag)
+        {
+            MoveTask.AddWorkStationInPartsReplacing(workstationTag);
+            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
+        }
 
-
+        [HttpGet("RemovePartsReplaceworkstationTag")]
+        public async Task<IActionResult> RemovePartsReplaceworkstationTag(int workstationTag)
+        {
+            MoveTask.RemoveWorkStationInPartsReplacing(workstationTag);
+            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
+        }
     }
 }
