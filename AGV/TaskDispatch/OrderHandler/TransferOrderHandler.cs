@@ -27,7 +27,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override Task StartOrder(IAGV Agv)
         {
-            AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, OrderData.To_Station_Tag, ACTION_TYPE.Carry);
+            int destineTag = OrderData.need_change_agv ? OrderData.ChangeAGVMiddleStationTag : OrderData.To_Station_Tag;
+            AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, destineTag, ACTION_TYPE.Carry);
             return base.StartOrder(Agv);
         }
 
