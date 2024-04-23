@@ -157,8 +157,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
 
-                        if (_taskDownloadData.ExecutingTrajecory.Length > 1)
-                        {
+                       
                             var _result = await _DispatchTaskToAGV(_taskDownloadData);
                             if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                             {
@@ -166,7 +165,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
                                 return;
                             }
-                        }
 
                         if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                         {
