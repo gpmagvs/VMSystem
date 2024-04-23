@@ -70,6 +70,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     LOG.INFO($"Task-{task.ActionType} 開始");
                     _CurrnetTaskFinishResetEvent.WaitOne();
+                    task.Dispose();
                     task.ActionFinishInvoke();
                     LOG.INFO($"Task-{task.ActionType} 結束");
 
@@ -108,6 +109,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 LOG.Critical(ex.Message, ex);
                 _SetOrderAsFaiiureState(ex.Message);
                 ActionsWhenOrderCancle();
+                RunningTask.Dispose();
                 return;
             }
             finally

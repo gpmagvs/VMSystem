@@ -74,8 +74,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, out IsNexPathHasEQReplacingParts, out int TagBlockedByPartsReplacing, pointNum);
+                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, out movePause, out int _tagOfBlockedByPartsReplacing, pointNum);
 
+                        if (movePause)
+                        {
+                            tagOfBlockedByPartsReplacing = GetWorkStationTagByNormalPointTag(_tagOfBlockedByPartsReplacing);
+                        }
                         if (_lastNextPath.Count != 0 && !nextPath.Contains(_lastNextPath.Last()))
                         {
                             LOG.Critical($"Replan . Use other path");
@@ -152,30 +156,31 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
-                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
-                        if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                        {
-                            if (OnTaskDownloadToAGVButAGVRejected != null)
-                                OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
-                            return;
-                        }
+
+                       
+                            var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                            if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
+                            {
+                                if (OnTaskDownloadToAGVButAGVRejected != null)
+                                    OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
+                                return;
+                            }
+
                         if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                         {
                             _previsousTrajectorySendToAGV.Clear();
                         }
+
+
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
 
                         var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
                         var nextCheckPoint = pointNum == -1 || Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV ?
                                             nextPath.Last() :
                                             agvLastVisitNodeIndex == -1 || agvLastVisitNodeIndex + 1 >= nextPath.Count ? nextPath.First() : nextPath[nextPath.Count - 2];
-                        //1,2,3,4,5,6
+                        //1,2,3,4,5,6)
                         await WaitAGVReachNexCheckPoint(nextCheckPoint, nextPath, token).ConfigureAwait(false);
-                        while (TagListOfInFrontOfPartsReplacingWorkstation.Contains(TagBlockedByPartsReplacing))
-                        {
-                            TrafficWaitingState.SetDisplayMessage($"Wait EQ Parts Replacing Finish...Blocked Tag={TagBlockedByPartsReplacing}");
-                            await Task.Delay(1000);
-                        }
+
                         TrafficWaitingState.SetStatusNoWaiting();
                         pathStartTagToCal = nextCheckPoint.TagNumber;
                         _sequenceIndex += 1;
@@ -260,16 +265,40 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }, token);
         }
 
-
+        private int GetWorkStationTagByNormalPointTag(int tagOfBlockedByPartsReplacing)
+        {
+            var normalTag = StaMap.GetPointByTagNumber(tagOfBlockedByPartsReplacing);
+            var workstationPt = normalTag.Target.Keys.Select(index => StaMap.GetPointByIndex(index)).FirstOrDefault(pt => pt.StationType != STATION_TYPE.Normal);
+            if (workstationPt != null)
+            {
+                return workstationPt.TagNumber;
+            }
+            else
+                return -1;
+        }
 
         protected virtual async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
         {
+            bool _waitMovePauseResume = movePause;
+
             LOG.WARN($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
             bool _remainPathConflic = false;
+            bool _isAGVAlreadyGoal = IsAGVReachGoal(nextCheckPoint.TagNumber);
+            if (_isAGVAlreadyGoal && _waitMovePauseResume)
+            {
+                await WaitPauseResume();
+                return true;
+            }
             while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
             {
-                await Task.Delay(10).ConfigureAwait(false);
+                if (_waitMovePauseResume||movePause)
+                {
 
+                    await WaitPauseResume();
+                    return true;
+                }
+
+                await Task.Delay(10).ConfigureAwait(false);
                 if (token.IsCancellationRequested)
                     token.ThrowIfCancellationRequested();
                 if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -304,6 +333,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return VMSystem.TrafficControl.Tools.CalculatePathInterferenceByAGVGeometry(nextPath.Skip(indexOfAGV + 1), this.Agv, out var conflicAGVList);
             }
             return true;
+
+            async Task WaitPauseResume()
+            {
+                while (movePause)
+                {
+                    await Task.Delay(100);
+                    TrafficWaitingState.SetDisplayMessage("Pause...");
+                }
+                _previsousTrajectorySendToAGV.Clear();
+            }
         }
 
         protected virtual List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)

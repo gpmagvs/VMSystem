@@ -22,7 +22,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     {
 
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
-
+        internal static event EventHandler<int> OnWorkStationStartPartsReplace;
+        internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
         internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
         {
             get
@@ -38,14 +39,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal static void AddWorkStationInPartsReplacing(int workstationTag)
         {
-            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag)) return;
+            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
+            {
+                OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
+                return;
+            }
             TagListOfWorkstationInPartsReplacing.Add(workstationTag);
+            OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
         }
 
         internal static void RemoveWorkStationInPartsReplacing(int workstationTag)
         {
-            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag)) return;
+            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
+            {
+                OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
+                return;
+            }
             TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
+            OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
         }
 
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
@@ -62,6 +73,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         protected MoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
+            MoveTask.OnWorkStationStartPartsReplace += HandleWorkStationStartPartsReplace;
+            MoveTask.OnWorkStationFinishPartsReplace += HandleWorkStationFinishPartsReplace;
             if (this.Stage != VehicleMovementStage.Traveling)
             {
                 if (this.Stage == VehicleMovementStage.Traveling_To_Source)
@@ -77,6 +90,60 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+
+        public bool movePause = false;
+        public int tagOfBlockedByPartsReplacing = 0;
+
+        private void HandleWorkStationStartPartsReplace(object? sender, int workStationTag)
+        {
+            if (disposedValue)
+            {
+                MoveTask.OnWorkStationStartPartsReplace -= HandleWorkStationStartPartsReplace;
+                return;
+            }
+
+            var _remainTags = MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList;
+            var firstIndex = _remainTags.FindIndex(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
+            if (firstIndex >= 0)
+            {
+                tagOfBlockedByPartsReplacing = workStationTag;
+                movePause = true;
+                Task.Run(async () =>
+                {
+                    var indexOfSendCancelTag = firstIndex - 2;
+                    if (indexOfSendCancelTag < 0)
+                    {
+                        await SendCancelRequestToAGV();
+                    }
+                    else
+                    {
+                        int sendCancelTag = _remainTags[indexOfSendCancelTag];
+                        //wait agv near in parts replacing workstation 
+
+                        while (Agv.states.Last_Visited_Node != sendCancelTag)
+                        {
+                            TrafficWaitingState.SetDisplayMessage($"Wait Reach Tag {sendCancelTag} will send Cycle Stop.");
+                            await Task.Delay(100);
+                        }
+                        await SendCancelRequestToAGV();
+                    }
+
+                });
+            }
+        }
+
+        private void HandleWorkStationFinishPartsReplace(object? sender, int workStationTag)
+        {
+            if (disposedValue || !movePause)
+            {
+                MoveTask.OnWorkStationFinishPartsReplace -= HandleWorkStationFinishPartsReplace;
+                return;
+            }
+            if (tagOfBlockedByPartsReplacing == workStationTag)
+            {
+                movePause = false;
+            }
+        }
         public override ACTION_TYPE ActionType => ACTION_TYPE.None;
 
         public override void CreateTaskToAGV()
