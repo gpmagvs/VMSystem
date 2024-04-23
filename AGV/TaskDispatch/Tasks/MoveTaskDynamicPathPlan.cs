@@ -385,6 +385,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             pathFinderOptionOfOptimzed.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
             pathFinderOptionOfOptimzed.ConstrainTags = pathFinderOptionOfOptimzed.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
+            pathFinderOptionOfOptimzed.OnlyNormalPoint = false;
             clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, pathFinderOptionOfOptimzed);
             return pathPlanResult;
 
