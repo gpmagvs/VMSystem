@@ -137,7 +137,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
                     else if (feedbackData.TaskStatus == TASK_RUN_STATUS.NAVIGATING)
                     {
-                        HandleAGVNavigatingFeedback();
+                        HandleAGVNavigatingFeedback(feedbackData);
                     }
                     else if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_START)
                         HandleAGVActionStartFeedback();
@@ -156,9 +156,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
 
-        protected virtual void HandleAGVNavigatingFeedback()
+        protected virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
-            RunningTask.PassedTags.Add(Agv.states.Last_Visited_Node);
+            
+            RunningTask.HandleAGVNavigatingFeedback(feedbackData);
         }
 
         protected virtual async Task HandleAGVActionFinishFeedback()
@@ -258,7 +259,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             if (Agv == null)
                 return new List<int>();
-            return GetNavPathTags(RunningTask.TaskDonwloadToAGV.ExecutingTrajecory.Select(p => p.Point_ID));
+            //return GetNavPathTags(RunningTask.TaskDonwloadToAGV.ExecutingTrajecory.Select(p => p.Point_ID));
+            return GetNavPathTags(RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList);
         }
 
         protected List<int> GetNavPathTags(IEnumerable<int> AllTagsOfPath)

@@ -211,7 +211,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
             {
-                StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
+                //StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
                 TaskDownloadRequestResponse taskStateResponse = Agv.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
                 return taskStateResponse;
             }
@@ -235,7 +235,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 #endif
                     if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                     {
-                        StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
+                        //StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
                     }
                     return taskStateResponse;
                 }
@@ -349,6 +349,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
+
+        internal virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
+        {
+            PassedTags.Add(Agv.states.Last_Visited_Node);
+        }
     }
 
     public class clsLeaveFromWorkStationConfirmEventArg : EventArgs
@@ -390,7 +395,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             this.AGVRequestState.Agv = agv;
             this.AGVRequestState.OptimizedToDestineTrajectoryTagList = tagsOfTrajectory.ToList();
-            this.AGVRequestState.NextSequenceTaskTrajectory = nextSequenceTaskTrajectoryTagList.ToList();
+            this.AGVRequestState.NextSequenceTaskTrajectory = nextSequenceTaskTrajectoryTagList?.ToList();
             this.AGVRequestState.IsTrafficeControlTask = isTrafficeControlTask;
             this.TrafficResponse.TrafficWaitingState = new clsWaitingInfo(agv);
         }
@@ -426,7 +431,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 get
                 {
-                    if (NextSequenceTaskTrajectory.Count == 0)
+                    if (NextSequenceTaskTrajectory == null || NextSequenceTaskTrajectory.Count == 0)
                         return new List<int>();
                     int agv_location_pt_index = NextSequenceTaskTrajectory.GetTagCollection().ToList().IndexOf(Agv.states.Last_Visited_Node);
                     return NextSequenceTaskTrajectory.Skip(agv_location_pt_index + 1).GetTagCollection().ToList();

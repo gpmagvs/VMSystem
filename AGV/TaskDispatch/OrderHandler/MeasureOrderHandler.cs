@@ -66,9 +66,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 return new List<int>();
             }
         }
-        protected override void HandleAGVNavigatingFeedback()
+        protected override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
-            base.HandleAGVNavigatingFeedback();
+            base.HandleAGVNavigatingFeedback(feedbackData);
         }
         protected override void HandleAGVActionStartFeedback()
         {

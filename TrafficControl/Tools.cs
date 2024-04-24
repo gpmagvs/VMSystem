@@ -81,7 +81,7 @@ namespace VMSystem.TrafficControl
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
                 Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = NoConsiderOtherAGVRemainPath ?
                     _OthersAGV.ToDictionary(agv => agv, agv => new List<MapRectangle> { agv.AGVGeometery }) :
-                    _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.RemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
+                    _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 if (isAgvWillRotation && !IsAGVBackward)
                 {

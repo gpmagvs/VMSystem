@@ -24,6 +24,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPointToTaskPoint(AGVCurrentMapPoint,index:0),
                 MapPointToTaskPoint(destinMapPoint,index:1)
             };
+            MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { AGVCurrentMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
+
 
         }
         public override async Task SendTaskToAGV()

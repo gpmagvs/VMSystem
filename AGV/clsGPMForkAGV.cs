@@ -53,7 +53,8 @@ namespace VMSystem.AGV
             get => _states;
             set
             {
-                currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
+                if (currentMapPoint.TagNumber != value.Last_Visited_Node)
+                    currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
                 main_state = value.AGV_Status;
@@ -170,7 +171,7 @@ namespace VMSystem.AGV
 
                         if (previousMapPoint != null)
                         {
-                            StaMap.UnRegistPoint(Name, previousTag, out string error_msg);
+                            StaMap.UnRegistPoint(Name, previousTag);
                         }
 
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);

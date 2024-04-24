@@ -31,7 +31,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
             MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
-            base.CreateTaskToAGV();
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
@@ -40,10 +39,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPointToTaskPoint(sourceMapPoint,index:0),
                 MapPointToTaskPoint(destinMapPoint,index:1)
             };
+            MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { sourceMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
         }
 
         protected abstract int GetSlotHeight();
-        
+        internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
+        {
+            base.HandleAGVNavigatingFeedback(feedbackData);
+
+            if (feedbackData.LastVisitedNode == DestineTag)
+            {
+                MoveTaskEvent.AGVRequestState.OptimizedToDestineTrajectoryTagList.Reverse();
+            }
+        }
         protected virtual int GetDestineWorkStationTagByOrderInfo(clsTaskDto orderInfo)
         {
             if (orderInfo.Action == ACTION_TYPE.Load || orderInfo.Action == ACTION_TYPE.Unload)

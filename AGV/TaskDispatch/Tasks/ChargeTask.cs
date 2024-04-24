@@ -25,6 +25,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPointToTaskPoint(destinMapPoint,index:1)
             };
 
+            MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { sourceMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
         }
 
         public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)

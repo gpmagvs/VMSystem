@@ -465,16 +465,6 @@ namespace VMSystem.AGV
             return 0;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>       
-        /// <param name="EQTag">取放貨設備的Tag</param>
-        /// <param name="LDULD">0:load , 1:unlod</param>
-        private async Task LDULDFinishReport(int EQTag, int LDULD)
-        {
-            await agv.AGVHttp.PostAsync<object, object>($"/api/Task/LDULDFinishFeedback?agv_name={agv.Name}&EQTag={EQTag}&LDULD={LDULD}", null);
-        }
-
         public async Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData data)
         {
             try

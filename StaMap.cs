@@ -188,24 +188,24 @@ namespace VMSystem
                 return registSuccess;
             }
         }
-        internal static bool UnRegistPointBySystem(MapPoint mapPoint, out string error_message)
+        internal static async Task<(bool success, string error_message)> UnRegistPointBySystem(MapPoint mapPoint)
         {
-            return UnRegistPoint("System", mapPoint, out error_message, true);
+            return await UnRegistPoint("System", mapPoint, true);
         }
 
-        internal static bool UnRegistPoints(string Name, IEnumerable<int> TagNumbers, out string errorMsg, bool isBySystem = false)
+        internal static async Task<(bool success, string error_message)> UnRegistPoints(string Name, IEnumerable<int> TagNumbers, bool isBySystem = false)
         {
-            errorMsg = string.Empty;
             foreach (var tag in TagNumbers)
             {
-                UnRegistPoint(Name, tag, out errorMsg, isBySystem);
+                await UnRegistPoint(Name, tag, isBySystem);
             }
-            return true;
+            return (true, "");
         }
-        internal static bool UnRegistPoint(string Name, int TagNumber, out string error_message, bool IsBySystem = false)
+        private static SemaphoreSlim _unregistSemaphore = new SemaphoreSlim(1, 1);
+        internal static async Task<(bool success, string error_message)> UnRegistPoint(string Name, int TagNumber, bool IsBySystem = false)
         {
-            error_message = string.Empty;
-            lock (RegistDictionary)
+            await _unregistSemaphore.WaitAsync();
+            try
             {
                 var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
                 if (IsBySystem)
@@ -213,24 +213,20 @@ namespace VMSystem
                     RegistDictionary.Remove(TagNumber, out var _);
                     mapPoint.RegistInfo = new clsPointRegistInfo();
                     LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
-                    return true;
+                    return (true, "");
                 }
                 if (RegistDictionary.ContainsKey(TagNumber))
                 {
+                    var error_message = "";
                     string registerName = RegistDictionary[TagNumber].RegisterAGVName;
                     bool allow_remove = registerName == Name;
                     if (allow_remove)
                     {
                         mapPoint.RegistInfo = new clsPointRegistInfo();
-                        lock (RegistDictionary)
-                        {
-                            RegistDictionary.Remove(TagNumber, out var _);
-                            OnTagUnregisted?.Invoke("", TagNumber);
-                            TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
-                            LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
-
-                            //LOG.TRACE($"{RegistDictionary.ToJson()}");
-                        }
+                        RegistDictionary.Remove(TagNumber, out var _);
+                        OnTagUnregisted?.Invoke("", TagNumber);
+                        TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
                     }
                     else
                     {
@@ -238,21 +234,28 @@ namespace VMSystem
                         LOG.TRACE($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
                     }
 
-                    return allow_remove;
+                    return (allow_remove, error_message);
                 }
                 else
                 {
                     OnTagUnregisted?.Invoke("", TagNumber);
                     //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
-                    return true;
+                    return (true, "");
                 }
             }
+            catch (Exception ex)
+            {
+                var error_message = ex.Message;
+                LOG.WARN($"{Name} UnRegist Tag {TagNumber} Fail : {error_message}");
+                return (false, error_message);
+            }
+            finally { _unregistSemaphore.Release(); }
 
         }
 
-        internal static bool UnRegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
+        internal static async Task<(bool success, string error_message)> UnRegistPoint(string Name, MapPoint mapPoint, bool IsBySystem = false)
         {
-            return UnRegistPoint(Name, mapPoint.TagNumber, out error_message, IsBySystem);
+            return await UnRegistPoint(Name, mapPoint.TagNumber, IsBySystem);
         }
 
         internal static bool CheckTagExistOnMap(int currentTag)
@@ -292,11 +295,11 @@ namespace VMSystem
             return Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == name).ToList();
         }
 
-        internal static void UnRegistPoints(string name, List<MapPoint> unRegistList)
+        internal static async Task UnRegistPoints(string name, List<MapPoint> unRegistList)
         {
             foreach (var point in unRegistList)
             {
-                UnRegistPoint(name, point, out string errmsg);
+                await UnRegistPoint(name, point);
             }
         }
 
@@ -310,13 +313,13 @@ namespace VMSystem
                 return false;
         }
 
-        internal static bool UnRegistPointsOfAGVRegisted(IAGV agv)
+        internal static async Task<bool> UnRegistPointsOfAGVRegisted(IAGV agv)
         {
             try
             {
                 var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
-                UnRegistPoints(agv.Name, registed_tag_except_current_tag, out string errMsg);
-                return true;
+                var result = await UnRegistPoints(agv.Name, registed_tag_except_current_tag);
+                return result.success;
             }
             catch (Exception ex)
             {

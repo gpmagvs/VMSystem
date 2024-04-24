@@ -321,7 +321,7 @@ namespace VMSystem.AGV.TaskDispatch
                     if (!UpdatedRegistedPointsByParts.Contains(item.Name))
                     {
                         string Error;
-                        StaMap.UnRegistPoint("Parts", item.TagNumber, out Error);
+                        StaMap.UnRegistPoint("Parts", item.TagNumber);
                         RegistPointByPart.Remove(item);
                     }
                 }

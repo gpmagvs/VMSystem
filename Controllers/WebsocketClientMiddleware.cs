@@ -53,6 +53,7 @@ namespace VMSystem.Controllers
                         return new { };
                     var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
                     var OrderHandler = agv.taskDispatchModule.OrderHandler;
+                    bool isOrderExecuting = agv.taskDispatchModule.OrderExecuteState == AGV.clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
                     return new
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
@@ -65,7 +66,7 @@ namespace VMSystem.Controllers
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = agv.main_state != MAIN_STATUS.RUN ? OrderHandler.RunningTask.FuturePlanNavigationTags : OrderHandler.GetNavPathTags(),
+                        nav_path = isOrderExecuting ? OrderHandler.GetNavPathTags():OrderHandler.RunningTask.FuturePlanNavigationTags,
                         theta = agv.states.Coordination.Theta,
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new

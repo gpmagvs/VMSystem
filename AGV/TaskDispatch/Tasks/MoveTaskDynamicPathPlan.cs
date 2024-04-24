@@ -58,7 +58,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
-                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
+                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, true)) == null)
                         {
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
@@ -432,18 +432,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             MapPoint destinPoint = StaMap.GetPointByTagNumber(this.DestineTag);
             MapPoint startPoint = StaMap.GetPointByTagNumber(startTag);
 
-            pathFinderOptionOfOptimzed.ConstrainTags = justOptimePath ? new List<int>() : StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList();
-            pathFinderOptionOfOptimzed.ConstrainTags.AddRange(PassedTags);
+            List<int> ConstrainTags = new List<int>();
+            ConstrainTags = StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName != Agv.Name).Select(kp => kp.Key).ToList();
+            ConstrainTags.AddRange(PassedTags);
 
             List<int> blockedTagsByEqMaintaining = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
 
             if (additionContrainTags != null)
             {
-                pathFinderOptionOfOptimzed.ConstrainTags.AddRange(additionContrainTags);
+                ConstrainTags.AddRange(additionContrainTags);
             }
-            pathFinderOptionOfOptimzed.ConstrainTags.AddRange(blockedTagsByEqMaintaining);
-            pathFinderOptionOfOptimzed.ConstrainTags = pathFinderOptionOfOptimzed.ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
-            pathFinderOptionOfOptimzed.OnlyNormalPoint = false;
+            ConstrainTags.AddRange(blockedTagsByEqMaintaining);
+            ConstrainTags = ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
+            pathFinderOptionOfOptimzed.ConstrainTags = justOptimePath ? new List<int>() : ConstrainTags;
             clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, pathFinderOptionOfOptimzed);
             return pathPlanResult;
 

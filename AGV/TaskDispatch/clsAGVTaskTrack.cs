@@ -903,11 +903,11 @@ namespace VMSystem.AGV.TaskDispatch
             {
                 if (agv != AGV.Name)
                 {
-                    StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber, out var msg);
+                    StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber);
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, task.Destination);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
-                    StaMap.RegistPoint(AGV.Name, task.Destination, out msg);//重新註冊二次定位點
+                    StaMap.RegistPoint(AGV.Name, task.Destination, out var msg);//重新註冊二次定位點
                 }
             }
 
@@ -915,14 +915,14 @@ namespace VMSystem.AGV.TaskDispatch
             var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= AGV.options.VehicleLength / 2.0 / 100.0);
             if (tooNearAgvDistanc.Any())
             {
-                StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber, out var msg);
+                StaMap.UnRegistPoint(AGV.Name, task.Destination.TagNumber);
                 foreach (var kp in tooNearAgvDistanc)
                 {
                     waitingInfo.SetStatusWaitingConflictPointRelease(AGV, AGV.currentMapPoint.TagNumber, kp.Key.currentMapPoint);
                     waitingInfo.AllowMoveResumeResetEvent.WaitOne();
                     waitingInfo.SetStatusNoWaiting(AGV);
                 }
-                StaMap.RegistPoint(AGV.Name, task.Destination, out msg); //重新註冊二次定位點
+                StaMap.RegistPoint(AGV.Name, task.Destination, out var msg); //重新註冊二次定位點
             }
         }
 
@@ -1027,7 +1027,7 @@ namespace VMSystem.AGV.TaskDispatch
         private void UnRegistPointsRegisted()
         {
             //解除除了當前位置知所有註冊點
-            var IsAllPointsUnRegisted = StaMap.UnRegistPointsOfAGVRegisted(AGV);
+            var IsAllPointsUnRegisted = StaMap.UnRegistPointsOfAGVRegisted(AGV).GetAwaiter().GetResult();
             //Map.Points.Values.Where(pt => pt.RegistInfo != null).Where(pt => pt.RegistInfo.RegisterAGVName == AGV.Name);
             if (IsAllPointsUnRegisted)
             {
