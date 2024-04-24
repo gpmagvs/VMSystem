@@ -83,7 +83,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    var destineTag = OrderData.need_change_agv ? OrderData.ChangeAGVMiddleStationTag : OrderData.To_Station_Tag;
+                    var destineTag = OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ?
+                        OrderData.TransferToTag : OrderData.To_Station_Tag;
 
                     FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(destineTag);
                 }
@@ -173,7 +174,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return null;
                     }
                     else
-                        return StaMap.GetPointByTagNumber(this.OrderData.need_change_agv ? this.OrderData.ChangeAGVMiddleStationTag : this.OrderData.To_Station_Tag);
+                        return StaMap.GetPointByTagNumber(this.OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ? this.OrderData.TransferToTag : this.OrderData.To_Station_Tag);
                 }
                 else
                 {

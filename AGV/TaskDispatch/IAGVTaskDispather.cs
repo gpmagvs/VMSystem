@@ -16,7 +16,7 @@ namespace VMSystem.AGV.TaskDispatch
             PLEASE_YIELD_ME
         }
         Task Run();
-        List<clsTaskDto> taskList { get; set; }
+        List<clsTaskDto> taskList { get; }
         MapPoint[] CurrentTrajectory { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
         Task<string> CancelTask(bool unRegistPoints = true);
@@ -32,6 +32,9 @@ namespace VMSystem.AGV.TaskDispatch
         string ExecutingTaskName { get; set; }
 
         Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; }
+
+        public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection);
+        void RemoveTaskFromQueue(string task_name);
     }
 
     public class clsWaitingInfo

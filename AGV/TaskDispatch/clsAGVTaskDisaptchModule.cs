@@ -206,36 +206,60 @@ namespace VMSystem.AGV
         //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         //}
 
-        public List<clsTaskDto> _taskList = new List<clsTaskDto>();
-        public virtual List<clsTaskDto> taskList
+        public void RemoveTaskFromQueue(string task_name)
         {
-            get => _taskList;
-            set
+            using (AGVSDatabase db = new AGVSDatabase())
             {
-                _taskList = value;
-                if (value.Count != 0)
+                var task = db.tables.Tasks.FirstOrDefault(t => t.TaskName == task_name);
+                if (task != null)
                 {
-                    try
-                    {
-                        var chargeTaskNow = value.FirstOrDefault(tk => tk.TaskName == ExecutingTaskName && tk.Action == ACTION_TYPE.Charge);
-                        if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN && chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
-                        {
-                            if (value.FindAll(tk => tk.Action != ACTION_TYPE.Charge && tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
-                            {
-                                CancelTask(false);
+                    task.State = TASK_RUN_STATUS.CANCEL;
+                    task.FinishTime = DateTime.Now;
+                    VMSManager.HandleTaskDBChangeRequestRaising(this, task);
 
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                    }
-                }
-                if (ExecutingTaskName != null)
-                {
-
+                    taskList.RemoveAt(taskList.FindIndex(tk => tk.TaskName == task_name));
                 }
             }
+        }
+        public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
+        {
+            var notInQuqueOrders = tasksCollection.FindAll(task => !_taskListFromAGVS.Any(tk => tk.TaskName == task.TaskName));
+            if (notInQuqueOrders.Any())
+            {
+                _taskListFromAGVS.AddRange(notInQuqueOrders);
+            }
+        }
+        public List<clsTaskDto> _taskListFromAGVS = new List<clsTaskDto>();
+
+        public virtual List<clsTaskDto> taskList
+        {
+            get => _taskListFromAGVS;
+            //set
+            //{
+            //    _taskListFromAGVS = value;
+            //    if (value.Count != 0)
+            //    {
+            //        try
+            //        {
+            //            var chargeTaskNow = value.FirstOrDefault(tk => tk.TaskName == ExecutingTaskName && tk.Action == ACTION_TYPE.Charge);
+            //            if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN && chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
+            //            {
+            //                if (value.FindAll(tk => tk.Action != ACTION_TYPE.Charge && tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
+            //                {
+            //                    CancelTask(false);
+
+            //                }
+            //            }
+            //        }
+            //        catch (Exception ex)
+            //        {
+            //        }
+            //    }
+            //    if (ExecutingTaskName != null)
+            //    {
+
+            //    }
+            //}
         }
 
         public MapPoint[] CurrentTrajectory
@@ -291,7 +315,7 @@ namespace VMSystem.AGV
                 if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
                     return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
             }
-            if (taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING).Count() == 0)
+            if (!taskList.Any(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
             if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name))
                 return AGV_ORDERABLE_STATUS.EXECUTING;
@@ -300,17 +324,19 @@ namespace VMSystem.AGV
         public OrderHandlerBase OrderHandler { get; set; } = new MoveToOrderHandler();
         protected virtual async Task TaskAssignWorker()
         {
-            Thread OrderMonitorThread = new Thread(async () =>
+            _ = Task.Run(async () =>
             {
                 while (true)
                 {
-                    Thread.Sleep(100);
+                    await Task.Delay(1000);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
                         if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
                         {
                             var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
+                            if (!taskOrderedByPriority.Any())
+                                continue;
                             var _ExecutingTask = taskOrderedByPriority.First();
                             ALARMS alarm_code = ALARMS.NONE;
 
@@ -334,6 +360,7 @@ namespace VMSystem.AGV
                             OrderHandler = factory.CreateHandler(_ExecutingTask);
                             OrderHandler.StartOrder(agv);
                             OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
+                            // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
                             await Task.Delay(1000);
                         }
 
@@ -348,6 +375,11 @@ namespace VMSystem.AGV
 
                                 }
                             }
+                        }
+                        int removeNum = _taskListFromAGVS.RemoveAll(task => task.State == TASK_RUN_STATUS.CANCEL || task.State == TASK_RUN_STATUS.FAILURE || task.State == TASK_RUN_STATUS.ACTION_FINISH);
+                        if (removeNum != 0)
+                        {
+
                         }
                     }
                     catch (NoPathForNavigatorException ex)
@@ -371,7 +403,6 @@ namespace VMSystem.AGV
                     }
                 }
             });
-            OrderMonitorThread.Start();
 
             Thread AutoChargeThread = new Thread(() =>
             {
@@ -614,5 +645,6 @@ namespace VMSystem.AGV
             WaitingForYieldedAGVList.Remove(agv);
             this.OrderHandler.RunningTask.WaitingForAGV = WaitingForYieldedAGVList;
         }
+
     }
 }

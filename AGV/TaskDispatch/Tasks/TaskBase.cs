@@ -34,6 +34,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// 當前任務的階段
         /// </summary>
         public abstract VehicleMovementStage Stage { get; set; }
+        public TransferStage TransferStage { get; set; }
         public abstract ACTION_TYPE ActionType { get; }
         /// <summary>
         /// 目的地Tag

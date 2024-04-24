@@ -33,7 +33,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv? OrderData.TransferToTag: OrderData.To_Station_Tag, ACTION_TYPE.Load);
             return await base.DistpatchToAGV();
         }
 

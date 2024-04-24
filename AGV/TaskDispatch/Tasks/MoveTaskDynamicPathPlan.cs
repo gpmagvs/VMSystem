@@ -157,14 +157,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
 
-                       
-                            var _result = await _DispatchTaskToAGV(_taskDownloadData);
-                            if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                            {
-                                if (OnTaskDownloadToAGVButAGVRejected != null)
-                                    OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
-                                return;
-                            }
+
+                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                        if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
+                        {
+                            if (OnTaskDownloadToAGVButAGVRejected != null)
+                                OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
+                            return;
+                        }
 
                         if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                         {
@@ -196,7 +196,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                             _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
                         else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
-                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.need_change_agv && this.TransferStage == TransferStage.MoveToTransferStationLoad ?
+                                this.OrderData.TransferToTag : this.OrderData.To_Station_Tag);
                         return _targetStation;
                     }
 
@@ -291,7 +292,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
             {
-                if (_waitMovePauseResume||movePause)
+                if (_waitMovePauseResume || movePause)
                 {
 
                     await WaitPauseResume();
