@@ -229,7 +229,7 @@ namespace VMSystem.AGV
                     }
                     taskFeedbackData.PointIndex = moveArgs.orderTrajectory.GetTagList().ToList().IndexOf(stationTag);
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
-
+                    taskFeedbackData.LastVisitedNode = stationTag;
                     int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
                     if (action == ACTION_TYPE.Measure && !homing)
                     {
