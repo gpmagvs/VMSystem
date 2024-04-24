@@ -83,7 +83,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.To_Station_Tag);
+                    var destineTag = OrderData.need_change_agv ? OrderData.ChangeAGVMiddleStationTag : OrderData.To_Station_Tag;
+
+                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(destineTag);
                 }
             }
         }
