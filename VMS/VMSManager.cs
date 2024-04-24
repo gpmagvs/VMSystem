@@ -521,8 +521,18 @@ namespace VMSystem.VMS
         {
 
             IAGV agv = GetAGVByName(agv_name);
-
-            return await agv.Locating(localizationVM);
+            if (agv.model == AGV_TYPE.INSPECTION_AGV)
+                return await agv.Locating(localizationVM);
+            else if (agv.options.Simulation)
+            {
+                agv.AgvSimulation.runningSTatus.Last_Visited_Node = localizationVM.currentID;
+                var _mapPoint = StaMap.GetPointByTagNumber(localizationVM.currentID);
+                agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
+                agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+                return (true, "");
+            }
+            else
+                return (false, "");
         }
 
         internal static async Task<(bool confirm, string message)> AddVehicle(clsAGVStateDto dto)
