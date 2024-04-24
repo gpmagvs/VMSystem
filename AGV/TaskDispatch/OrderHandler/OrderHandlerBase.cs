@@ -29,7 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public bool TrafficControlling { get; private set; } = false;
         public string TaskCancelReason { get; private set; } = "";
         public string TaskAbortReason { get; private set; } = "";
-        public IAGV Agv { get; private set; }
+        public IAGV Agv { get; protected set; }
 
         public event EventHandler OnLoadingAtTransferStationTaskFinish;
 
@@ -245,7 +245,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
         }
 
-        private void _SetOrderAsFaiiureState(string FailReason)
+        protected void _SetOrderAsFaiiureState(string FailReason)
         {
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.FAILURE;

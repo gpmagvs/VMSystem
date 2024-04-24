@@ -312,20 +312,37 @@ namespace VMSystem.AGV
             StopRegionHelper = new StopRegionHelper(Name);
             RestoreStatesFromDatabase();
             CreateTaskDispatchModuleInstance();
-            _ = Task.Run(async () =>
+            //_ = Task.Run(async () =>
+            //{
+            //    await Task.Delay(10);
+            //    //AutoParkWorker();
+            //    AliveCheck();
+            //    Console.WriteLine($"[{Name}] Alive Check Process Start");
+            //    PingCheck();
+            //    Console.WriteLine($"[{Name}] Ping Process Start");
+
+            //    if (options.Simulation)
+            //    {
+            //        AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
+            //        AgvSimulation.StartSimulation();
+            //        Console.WriteLine($"[{Name}] Simulation Start");
+            //    }
+
+            //});
+
+            //AutoParkWorker();
+            AliveCheck();
+            Console.WriteLine($"[{Name}] Alive Check Process Start");
+            PingCheck();
+            Console.WriteLine($"[{Name}] Ping Process Start");
+
+            if (options.Simulation)
             {
-                Thread.Sleep(100);
-                AutoParkWorker();
-                AliveCheck();
-                PingCheck();
+                AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
+                AgvSimulation.StartSimulation();
+                Console.WriteLine($"[{Name}] Simulation Start");
+            }
 
-                if (options.Simulation)
-                {
-                    AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
-                    AgvSimulation.StartSimulation();
-                }
-
-            });
 
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
@@ -380,7 +397,7 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    Thread.Sleep(1);
+                    await Task.Delay(1);
                     try
                     {
                         if (simulationMode)

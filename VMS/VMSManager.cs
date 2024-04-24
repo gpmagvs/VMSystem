@@ -57,8 +57,9 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static async void Initialize(ConfigurationManager configuration)
+        internal static async Task Initialize(ConfigurationManager configuration)
         {
+            await Task.Delay(1);
             TcpServerInit();
 
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;

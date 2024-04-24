@@ -41,31 +41,32 @@ namespace VMSystem.AGV
 
         }
 
-        internal void StartSimulation()
+        internal async Task StartSimulation()
         {
-            Thread thread = new Thread(async () =>
-            {
-                Thread.Sleep(1000);
-                Console.WriteLine($"{agv.Name}-Start AGV Simulation");
-                //從資料庫取得狀態數據
-                AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
+            await Task.Delay(1);
+            //從資料庫取得狀態數據
+            AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
 
-                if (agvStates != null)
-                {
-                    if (int.TryParse(agvStates.CurrentLocation, out var lastVisitedTag))
-                        runningSTatus.Last_Visited_Node = lastVisitedTag;
-                }
-                else
-                {
-                    runningSTatus.Last_Visited_Node = agv.options.InitTag;
-                }
-                var loc = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
-                runningSTatus.Coordination = new clsCoordination(loc.X, loc.Y, loc.Direction);
-                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                BatterSimulation();
-                ReportRunningStatusSimulation();
-            });
-            thread.Start();
+            if (agvStates != null)
+            {
+                if (int.TryParse(agvStates.CurrentLocation, out var lastVisitedTag))
+                    runningSTatus.Last_Visited_Node = lastVisitedTag;
+            }
+            else
+            {
+                runningSTatus.Last_Visited_Node = agv.options.InitTag;
+            }
+            var loc = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+            runningSTatus.Coordination = new clsCoordination(loc.X, loc.Y, loc.Direction);
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+            BatterSimulation();
+            ReportRunningStatusSimulation();
+            //Thread thread = new Thread(async () =>
+            //{
+            //    Thread.Sleep(1000);
+
+            //});
+            //thread.Start();
         }
 
         private async Task ReportRunningStatusSimulation()
