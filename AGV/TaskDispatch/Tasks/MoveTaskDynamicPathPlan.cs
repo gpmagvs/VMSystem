@@ -58,7 +58,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
-                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, false)) == null)
+                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
                         {
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
@@ -157,14 +157,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
 
-                       
-                            var _result = await _DispatchTaskToAGV(_taskDownloadData);
-                            if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                            {
-                                if (OnTaskDownloadToAGVButAGVRejected != null)
-                                    OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
-                                return;
-                            }
+
+                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                        if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
+                        {
+                            if (OnTaskDownloadToAGVButAGVRejected != null)
+                                OnTaskDownloadToAGVButAGVRejected(_result.ReturnCode.ToAGVSAlarmCode());
+                            return;
+                        }
 
                         if (Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                         {
@@ -291,7 +291,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             while (!IsAGVReachGoal(nextCheckPoint.TagNumber))
             {
-                if (_waitMovePauseResume||movePause)
+                if (_waitMovePauseResume || movePause)
                 {
 
                     await WaitPauseResume();

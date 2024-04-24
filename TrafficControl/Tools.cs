@@ -45,7 +45,7 @@ namespace VMSystem.TrafficControl
             //{
             //    _OthersAGV = _OthersAGV.Where(agv => !agv.currentMapPoint.IsEquipment);
             //}
-
+            //_OthersAGV = _OthersAGV.Where(agv=>agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
             var thetaOfUsePathAGV = _UsePathAGV.states.Coordination.Theta;
             var _RotaionRegion = _UsePathAGV.AGVRotaionGeometry;
 
