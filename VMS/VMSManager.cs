@@ -134,7 +134,7 @@ namespace VMSystem.VMS
         }
 
         private static ConcurrentQueue<clsTaskDto> WaitingForWriteToTaskDatabaseQueue = new ConcurrentQueue<clsTaskDto>();
-        private static void HandleTaskDBChangeRequestRaising(object? sender, clsTaskDto task_data_dto)
+        public static void HandleTaskDBChangeRequestRaising(object? sender, clsTaskDto task_data_dto)
         {
             WaitingForWriteToTaskDatabaseQueue.Enqueue(task_data_dto);
         }
@@ -227,7 +227,8 @@ namespace VMSystem.VMS
                             continue;
 
                         var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
-                        _agv.taskDispatchModule.taskList = tasks.ToList();
+                        _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
+                       // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                     }
                 }
             });

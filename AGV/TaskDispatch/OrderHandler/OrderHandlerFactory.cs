@@ -4,6 +4,8 @@ using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.VMS;
+using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Microservices.AGVS;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -34,16 +36,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             //generate carry task from [transfer station] to [order destine station]
             OrderHandlerBase order = (OrderHandlerBase)sender;
-            int transferStationTag = order.OrderData.ChangeAGVMiddleStationTag;
+            int transferStationTag = order.OrderData.TransferFromTag;
 
             var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
-
             order.OrderData.From_Station = transferStationTag + "";
             order.OrderData.need_change_agv = false;
             order.OrderData.DesignatedAGVName = order.OrderData.TransferToDestineAGVName;
-            var nextOrderHandler = CreateHandler(order.OrderData);
-            nextAGV.taskDispatchModule.OrderHandler = nextOrderHandler;
-            nextOrderHandler.StartOrder(nextAGV);
+            order.OrderData.State = TASK_RUN_STATUS.WAIT;
+            //var nextOrderHandler = CreateHandler(order.OrderData);
+            //nextAGV.taskDispatchModule.OrderHandler = nextOrderHandler;
+            //nextOrderHandler.StartOrder(nextAGV);
+            //nextAGV.taskDispatchModule.OrderExecuteState = clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+            nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
         }
 
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
@@ -135,6 +139,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.Carry)
             {
+                if (orderData.need_change_agv)
+                {
+                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    orderData.TransferToTag = _transferTo;
+                    orderData.TransferFromTag = _transferFrom;
+                }
                 _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
                 {
                     NextAction = ACTION_TYPE.Unload
@@ -146,7 +156,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {
-                    NextAction = ACTION_TYPE.Load
+                    NextAction = ACTION_TYPE.Load,
+                    TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
+
                 });
                 if (orderData.need_change_agv)
                 {
@@ -181,6 +193,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             return _queue;
         }
 
+        public static async Task<(int transferToTag, int transferFromTag)> GetTransferStationTag(clsTaskDto orderData)
+        {
+            int tagOfMiddleStation = orderData.ChangeAGVMiddleStationTag;
+            MapPoint stationMapPoint = StaMap.GetPointByTagNumber(tagOfMiddleStation);
+            var entryPoints = stationMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+            var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+            Dictionary<int, int> AcceptAGVInfoOfEQTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));
+            IAGV toSourceAGV = VMSManager.GetAGVByName(orderData.DesignatedAGVName);
+            IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
+            int toSourceModel = (int)toSourceAGV.model;
+            int toDestineModel = (int)toDestineAGV.model;
+            int _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toSourceModel).Key;
+            int _transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toDestineModel).Key;
+            return (_transferToTag, _transferFromTag);
+        }
 
         IAGV GetIAGVByName(string agvName)
         {

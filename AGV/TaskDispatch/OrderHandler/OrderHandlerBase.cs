@@ -96,6 +96,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
                 {
                     Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
+                    UnRegistPoints();
                     LoadingAtTransferStationTaskFinishInvoke();
 
                 }

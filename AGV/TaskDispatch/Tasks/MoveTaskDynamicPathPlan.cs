@@ -196,7 +196,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                             _targetStation = StaMap.GetPointByTagNumber(this.OrderData.From_Station_Tag);
                         else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
-                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.To_Station_Tag);
+                            _targetStation = StaMap.GetPointByTagNumber(this.OrderData.need_change_agv && this.TransferStage == TransferStage.MoveToTransferStationLoad ?
+                                this.OrderData.TransferToTag : this.OrderData.To_Station_Tag);
                         return _targetStation;
                     }
 
