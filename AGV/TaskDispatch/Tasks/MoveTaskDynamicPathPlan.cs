@@ -58,7 +58,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
-                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, false)) == null)
+                        while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, _sequenceIndex == 0)) == null)
                         {
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
