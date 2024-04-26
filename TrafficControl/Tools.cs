@@ -76,12 +76,28 @@ namespace VMSystem.TrafficControl
                 bool isAgvWillRotation = Math.Abs(thetaOfUsePathAGV - thetaOfNextPath) > 5;
 
                 //將每個路徑段用矩形表示
-                double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0;
-                double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0;
+                double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0 + (IsAGVBackward ? 0.3 : 0);
+                double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0 + (IsAGVBackward ? 0.0 : 0.5); ;
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
+
+                List<int> _GetRemainTagsOfAGV(IAGV agv)
+                {
+                    var outputs = new List<int>();
+                    var trafficState = agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState;
+                    var _remainTags = trafficState.NextSequenceTaskRemainTagList;
+                    if (!_remainTags.Any())
+                        return new List<int>();
+                    //trafficState.SequenceTaskTrajectoryList
+                    var firstTagOfReminTags = _remainTags.First();
+
+                    outputs.Add(agv.states.Last_Visited_Node);
+                    outputs.AddRange(_remainTags);
+                    return outputs;
+                }
+
                 Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = NoConsiderOtherAGVRemainPath ?
                     _OthersAGV.ToDictionary(agv => agv, agv => new List<MapRectangle> { agv.AGVGeometery }) :
-                    _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(agv.taskDispatchModule.OrderHandler.RunningTask.MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
+                    _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(_GetRemainTagsOfAGV(agv), agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 if (isAgvWillRotation && !IsAGVBackward)
                 {

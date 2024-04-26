@@ -15,7 +15,8 @@ using System.Runtime.CompilerServices;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.Tools;
 using AGVSystemCommonNet6.Microservices.VMS;
-using VMSystem.VMS;  // 需要引用System.Numerics向量庫
+using VMSystem.VMS;
+using System.Diagnostics;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -110,8 +111,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         bool _agvAlreadyTurnToNextPathDirection = false;
                         bool _isCurrentPointInFrontOfCharger = Agv.currentMapPoint.Target.Keys.Any(index => StaMap.GetPointByIndex(index).IsCharge);
                         bool _isCurrentPtisFirstPtOfWholePath = _previsousTrajectorySendToAGV.Count == 0;
+
+                        Stopwatch timer = Stopwatch.StartNew();
+                        bool _recalculateOptimizePath = false;
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
+                            if (timer.Elapsed.Seconds > 5)
+                            {
+                                timer.Stop();
+                                _recalculateOptimizePath = true;
+                                break;
+                            }
                             _waitingInterference = true;
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
@@ -126,8 +136,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 _agvAlreadyTurnToNextPathDirection = true;
                                 TurnToNextPath(nextPath);
-
+                                if (_recalculateOptimizePath)
+                                    break;
                             }
+                            continue;
+                        }
+                        if (_recalculateOptimizePath)
+                        {
+                            StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            MoveTaskEvent.AGVRequestState.OptimizedToDestineTrajectoryTagList.Clear();
+                            await SendCancelRequestToAGV();
+                            _previsousTrajectorySendToAGV.Clear();
                             continue;
                         }
                         if (_waitingInterference)
@@ -277,9 +296,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }, token);
         }
 
-        private void TurnToNextPath(List<MapPoint> nextPath)
+        private async void TurnToNextPath(List<MapPoint> nextPath)
         {
-
+            if (nextPath.Count < 2)
+                return;
             var start = new PointF((float)nextPath[0].X, (float)nextPath[0].Y);
             var end = new PointF((float)nextPath[1].X, (float)nextPath[1].Y);
             double theta = NavigationTools.CalculationForwardAngle(start, end);
@@ -287,8 +307,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var firstPt = _taskDto.Trajectory.Take(1).First();
             _taskDto.Trajectory = new clsMapPoint[1] { firstPt.Clone() };
             _taskDto.Trajectory[0].Theta = theta;
-            var _result = _DispatchTaskToAGV(_taskDto).GetAwaiter().GetResult();
+            _taskDto.Destination = firstPt.Point_ID;
 
+
+            //while (VMSystem.TrafficControl.Tools.CalculatePathInterferenceByAGVGeometry(nextPath, Agv, out var conflicAGV))
+            //{
+            //    TrafficWaitingState.SetDisplayMessage($"準備轉向至下一路段|等待干涉解除.");
+            //    await Task.Delay(1000);
+            //    if (IsTaskCanceled|| disposedValue)
+            //        return;
+            //}
+
+            var _result = _DispatchTaskToAGV(_taskDto).GetAwaiter().GetResult();
+            if (_result.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
+            {
+                while (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
+                {
+                    if (IsTaskCanceled || disposedValue)
+                        return;
+                    await Task.Delay(1000);
+                }
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    if (IsTaskCanceled || disposedValue)
+                        return;
+                    await Task.Delay(1000);
+                }
+            }
         }
 
         private int GetWorkStationTagByNormalPointTag(int tagOfBlockedByPartsReplacing)

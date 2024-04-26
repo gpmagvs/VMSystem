@@ -297,6 +297,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     taskStateResponse = Agv.TcpClientHandler.SendTaskCancelMessage(reset_cmd);
                 }
                 LOG.WARN($"取消{Agv.Name}任務-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
+
+                if (taskStateResponse.ReturnCode == RETURN_CODE.OK)
+                {
+                    await Task.Delay(1000);
+                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                    {
+                        await Task.Delay(1000);
+                        if (IsTaskCanceled || disposedValue)
+                            break;
+                    }
+
+                }
                 return taskStateResponse;
             }
             catch (Exception ex)
