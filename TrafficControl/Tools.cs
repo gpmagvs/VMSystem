@@ -6,15 +6,54 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using System.Numerics;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.Log;
-using VMSystem.Tools;
+
 using AGVSystemCommonNet6.Configuration;
 using System.Linq;
 using AGVSystemCommonNet6;
+using Newtonsoft.Json;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 
 namespace VMSystem.TrafficControl
 {
+    public class clsInterferenceCalculateParameters
+    {
+        /// <summary>
+        /// unit:m
+        /// </summary>
+        public double VehicleWidthExpandSizeOfNormalMove { get; set; } = 0.5;
+        public double VehicleLengthExpandSizeOfNormalMove { get; set; } = 0.5;
+
+
+        public double VehicleWidthExpandSizeOfLeaveWorkStation { get; set; } = 0.5;
+        public double VehicleLengthExpandSizeOfLeaveWorkStation { get; set; } = 0.5;
+
+
+
+
+    }
+
     public class Tools
     {
+        public static clsInterferenceCalculateParameters Parameters { get; set; } = new clsInterferenceCalculateParameters();
+
+        public static void LoadParametersFromJsonFile(string jsonFilePath)
+        {
+            if (File.Exists(jsonFilePath))
+            {
+                try
+                {
+                    Parameters = JsonConvert.DeserializeObject<clsInterferenceCalculateParameters>(File.ReadAllText(jsonFilePath));
+                }
+                catch (Exception ex)
+                {
+                    LOG.Critical($"Read Navi Tools Parameters fail. {ex.Message}:{ex.StackTrace}");
+                }
+            }
+
+            File.WriteAllText(jsonFilePath, Parameters.ToJson());
+        }
+
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
         {
             if (_Path.Count() == 0)
@@ -72,7 +111,7 @@ namespace VMSystem.TrafficControl
             }
             else
             {
-                var thetaOfNextPath = NavigationTools.CalculationForwardAngle(_Path.First().ToCoordination(), _Path.Skip(1).Take(1).First().ToCoordination());
+                var thetaOfNextPath = Tools.CalculationForwardAngle(_Path.First().ToCoordination(), _Path.Skip(1).Take(1).First().ToCoordination());
                 bool isAgvWillRotation = Math.Abs(thetaOfUsePathAGV - thetaOfNextPath) > 5;
 
                 //將每個路徑段用矩形表示
@@ -279,6 +318,92 @@ namespace VMSystem.TrafficControl
 
             return path;
         }
+        /// <summary>
+        /// 計算航向角度
+        /// </summary>
+        /// <param name="startPt"></param>
+        /// <param name="endPt"></param>
+        /// <returns></returns>
+        public static double CalculationForwardAngle(PointF startPt, PointF endPt)
+        {
+
+            double deltaX = endPt.X - startPt.X;
+            double deltaY = endPt.Y - startPt.Y;
+            double angleInRadians = Math.Atan2(deltaY, deltaX);
+            double angleInDegrees = angleInRadians * (180 / Math.PI);
+            // 將角度調整到 -180 至 180 度的範圍
+            if (angleInDegrees > 180)
+            {
+                angleInDegrees -= 360;
+            }
+            return angleInDegrees;
+
+        }
+
+        internal static double CalculateWorkStationStopAngle(int workstationTag, int speficEntryTag = -1)
+        {
+            var workStation = StaMap.GetPointByTagNumber(workstationTag);
+            var indexsOfTarget = workStation.Target.Keys;
+            IEnumerable<MapPoint> secondaryPoints = indexsOfTarget.Select(_index => StaMap.GetPointByIndex(_index));
+            if (secondaryPoints.Count() == 0)
+                return 0;
+            MapPoint _fromPoint = null;
+            if (speficEntryTag != -1)
+            {
+                _fromPoint = secondaryPoints.FirstOrDefault(pt => pt.TagNumber == speficEntryTag);
+            }
+            else
+            {
+                _fromPoint = secondaryPoints.FirstOrDefault();
+            }
+            PointF _fromP = new PointF((float)_fromPoint.X, (float)_fromPoint.Y);
+            PointF _toP = new PointF((float)workStation.X, (float)workStation.Y);
+            return CalculationForwardAngle(_fromP, _toP);
+        }
+
+        /// <summary>
+        ///  計算航向角度
+        /// </summary>
+        /// <param name="startCoordination"></param>
+        /// <param name="endCoordination"></param>
+        /// <returns></returns>
+        internal static double CalculationForwardAngle(clsCoordination startCoordination, clsCoordination endCoordination)
+        {
+            return CalculationForwardAngle(new PointF((float)startCoordination.X, (float)startCoordination.Y), new PointF((float)endCoordination.X, (float)endCoordination.Y));
+        }
+
+
+        /// <summary>
+        /// 搜尋會與指定點位干涉的AGV
+        /// </summary>
+        /// <param name="naving_agv"></param>
+        /// <param name="point"></param>
+        /// <param name="interferenceAGVList"></param>
+        /// <returns></returns>
+        internal static bool TryFindInterferenceAGVOfPoint(IAGV naving_agv, MapPoint point, out List<IAGV> interferenceAGVList)
+        {
+            interferenceAGVList = new List<IAGV>();
+            var agv_distance_from_secondaryPt = VMSManager.AllAGV.FilterOutAGVFromCollection(naving_agv.Name).Where(agv => agv.currentMapPoint.StationType == STATION_TYPE.Normal).ToDictionary(agv => agv, agv => agv.currentMapPoint.CalculateDistance(point));
+            var tooNearAgvDistanc = agv_distance_from_secondaryPt.Where(kp => kp.Value <= naving_agv.options.VehicleLength / 100.0);
+            interferenceAGVList = tooNearAgvDistanc.Select(kp => kp.Key).ToList();
+            return interferenceAGVList.Count > 0;
+        }
+
+        internal static bool TryFindInterferenceAGVOfPoint(IAGV naving_agv, IEnumerable<MapPoint> points, out Dictionary<MapPoint, List<IAGV>> interferenceMapPoints)
+        {
+            interferenceMapPoints = new Dictionary<MapPoint, List<IAGV>>();
+
+            foreach (var point in points)
+            {
+                if (TryFindInterferenceAGVOfPoint(naving_agv, point, out var agvList))
+                {
+                    interferenceMapPoints.Add(point, agvList);
+                }
+            }
+
+            return interferenceMapPoints.Count > 0;
+        }
+
 
         #region Private Methods
 

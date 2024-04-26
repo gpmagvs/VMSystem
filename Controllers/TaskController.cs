@@ -25,10 +25,7 @@ namespace VMSystem.Controllers
             {
                 await taskOwnerAGV.taskDispatchModule.OrderHandler.CancelOrder("User Cancel");
             }
-            else
-            {
-                taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
-            }
+            taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
 
             return Ok("done");
         }

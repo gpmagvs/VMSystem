@@ -12,7 +12,7 @@ using System.Net.Sockets;
 using System.Text;
 using AGVSystemCommonNet6.Log;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
-using VMSystem.Tools;
+
 using System.Drawing;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -364,8 +364,8 @@ namespace VMSystem.AGV
                     return true;
 
                 var _nextPointCoord = new clsCoordination(Trajectory[0].X, Trajectory[0].Y, 0);
-                var _forwardangle = NavigationTools.CalculationForwardAngle(runningSTatus.Coordination, _nextPointCoord);
-                var _forwardangle2 = NavigationTools.CalculationForwardAngle(_nextPointCoord, new clsCoordination(Trajectory[1].X, Trajectory[1].Y, 0));
+                var _forwardangle = Tools.CalculationForwardAngle(runningSTatus.Coordination, _nextPointCoord);
+                var _forwardangle2 = Tools.CalculationForwardAngle(_nextPointCoord, new clsCoordination(Trajectory[1].X, Trajectory[1].Y, 0));
                 theta = Math.Abs(_forwardangle2 - _forwardangle);
                 return theta > 3;
             }
@@ -377,14 +377,14 @@ namespace VMSystem.AGV
             }
             var nextPoint = Trajectory[nexPtIndex];
             var nextPointCoord = new clsCoordination(nextPoint.X, nextPoint.Y, 0);
-            var forwardangle = NavigationTools.CalculationForwardAngle(runningSTatus.Coordination, nextPointCoord);
+            var forwardangle = Tools.CalculationForwardAngle(runningSTatus.Coordination, nextPointCoord);
 
             var nextNextPtIndex = currentPtIndex + 2;
 
             try
             {
                 var nextNextPoint = Trajectory[nextNextPtIndex];
-                var forwardangle2 = NavigationTools.CalculationForwardAngle(nextPointCoord, new clsCoordination(nextNextPoint.X, nextNextPoint.Y, 0));
+                var forwardangle2 = Tools.CalculationForwardAngle(nextPointCoord, new clsCoordination(nextNextPoint.X, nextNextPoint.Y, 0));
                 theta = Math.Abs(forwardangle2 - forwardangle);
                 return theta > 3;
             }

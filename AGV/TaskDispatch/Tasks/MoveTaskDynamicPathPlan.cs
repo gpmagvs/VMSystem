@@ -13,7 +13,7 @@ using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
 using System.Runtime.CompilerServices;
 using System.Diagnostics.Eventing.Reader;
-using VMSystem.Tools;
+
 using AGVSystemCommonNet6.Microservices.VMS;
 using VMSystem.VMS;
 using System.Diagnostics;  // 需要引用System.Numerics向量庫
@@ -50,6 +50,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();
                     bool IsNexPathHasEQReplacingParts = false;
+
+                    bool _agvAlreadyTurnToNextPathDirection = false;
                     while (!IsAGVReachGoal(DestineTag, checkTheta: true) || _sequenceIndex == 0)
                     {
                         if (token.IsCancellationRequested)
@@ -108,21 +110,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return registedPoints.Any();
                         }
 
-                        bool _agvAlreadyTurnToNextPathDirection = false;
                         bool _isCurrentPointInFrontOfCharger = Agv.currentMapPoint.Target.Keys.Any(index => StaMap.GetPointByIndex(index).IsCharge);
                         bool _isCurrentPtisFirstPtOfWholePath = _previsousTrajectorySendToAGV.Count == 0;
 
                         Stopwatch timer = Stopwatch.StartNew();
                         bool _recalculateOptimizePath = false;
+
+                        //if (!_isCurrentPointInFrontOfCharger && !_agvAlreadyTurnToNextPathDirection && _isCurrentPtisFirstPtOfWholePath)
+                        //{
+                        //    _agvAlreadyTurnToNextPathDirection = true;
+                        //    TurnToNextPath(nextPath);
+                        //}
+
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
-                            if (timer.Elapsed.Seconds > 5)
-                            {
-                                timer.Stop();
-                                _recalculateOptimizePath = true;
-                                break;
-                            }
                             _waitingInterference = true;
+                            
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
                             if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -131,22 +134,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 return;
                             }
                             TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), $"等待{(conflicAGVList.Any() ? $"與 {string.Join(",", conflicAGVList.Select(agv => agv.Name))} 之" : "")}路徑干涉解除");
-                            await Task.Delay(100);
-                            if (!_isCurrentPointInFrontOfCharger && !_agvAlreadyTurnToNextPathDirection && _isCurrentPtisFirstPtOfWholePath)
+                            if (timer.Elapsed.Seconds < 5)
                             {
-                                _agvAlreadyTurnToNextPathDirection = true;
-                                TurnToNextPath(nextPath);
-                                if (_recalculateOptimizePath)
-                                    break;
+                                await Task.Delay(1000);
+                                continue;
                             }
-                            continue;
+                             _recalculateOptimizePath = true;
+                            break;
                         }
                         if (_recalculateOptimizePath)
                         {
+                            await SendCancelRequestToAGV();
                             StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             MoveTaskEvent.AGVRequestState.OptimizedToDestineTrajectoryTagList.Clear();
-                            await SendCancelRequestToAGV();
                             _previsousTrajectorySendToAGV.Clear();
+                            PassedTags.Clear();
+                            pathStartTagToCal = Agv.states.Last_Visited_Node;
                             continue;
                         }
                         if (_waitingInterference)
@@ -276,7 +279,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 }
                             }
 
-                            _taskDownloadData.Trajectory.Last().Theta = Tools.NavigationTools.CalculationForwardAngle(lastSecondPt, lastPt); ;
+                            _taskDownloadData.Trajectory.Last().Theta = Tools.CalculationForwardAngle(lastSecondPt, lastPt); ;
                         }
                     }
                 }
@@ -302,7 +305,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return;
             var start = new PointF((float)nextPath[0].X, (float)nextPath[0].Y);
             var end = new PointF((float)nextPath[1].X, (float)nextPath[1].Y);
-            double theta = NavigationTools.CalculationForwardAngle(start, end);
+            double theta = Tools.CalculationForwardAngle(start, end);
             var _taskDto = TaskDonwloadToAGV.Clone();
             var firstPt = _taskDto.Trajectory.Take(1).First();
             _taskDto.Trajectory = new clsMapPoint[1] { firstPt.Clone() };
@@ -513,6 +516,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 ConstrainTags.AddRange(additionContrainTags);
             }
+
+            List<int> _optiPathConstrain = new List<int>();
+
             var otherAGVTags = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Select(agv => agv.states.Last_Visited_Node).ToList();
 
             ConstrainTags.AddRange(blockedTagsByEqMaintaining);

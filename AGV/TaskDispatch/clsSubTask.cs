@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using VMSystem.Tools;
+
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -92,7 +92,7 @@ namespace VMSystem.AGV.TaskDispatch
                     List<MapPoint> PathPointWithRegistNearPoint = StaMap.GetRegistedPointWithNearPointOfPath(FollowingPath, Dict_NearPoint, ExecuteOrderAGVName);
                     List<MapPoint> regitedPoints = StaMap.GetRegistedPointsOfPath(FollowingPath, ExecuteOrderAGVName);
                     regitedPoints.AddRange(PathPointWithRegistNearPoint);
-                    if (Action == ACTION_TYPE.None && NavigationTools.TryFindInterferenceAGVOfPoint(TargetAGVItem, FollowingPath, out var interferenceMapPoints))
+                    if (Action == ACTION_TYPE.None && Tools.TryFindInterferenceAGVOfPoint(TargetAGVItem, FollowingPath, out var interferenceMapPoints))
                     {
                         regitedPoints.AddRange(interferenceMapPoints.Select(di => di.Key).ToList());
                         regitedPoints = regitedPoints.Distinct().ToList();
@@ -277,7 +277,7 @@ namespace VMSystem.AGV.TaskDispatch
                 var indexOfLastTwoPt = EntirePathPlan.FindIndex(pt => pt.TagNumber == trajectoryToExecute.Last().Point_ID) + 1;
                 finalCountDown2PtPointF.X = (float)EntirePathPlan[indexOfLastTwoPt].X;
                 finalCountDown2PtPointF.Y = (float)EntirePathPlan[indexOfLastTwoPt].Y;
-                return NavigationTools.CalculationForwardAngle(finalPtPointF, finalCountDown2PtPointF);
+                return Tools.CalculationForwardAngle(finalPtPointF, finalCountDown2PtPointF);
             }
             else
             {
@@ -288,7 +288,7 @@ namespace VMSystem.AGV.TaskDispatch
                 clsMapPoint countDown2Pt = trajectoryToExecute[countDown2PtIndex];
                 finalCountDown2PtPointF.X = (float)countDown2Pt.X;
                 finalCountDown2PtPointF.Y = (float)countDown2Pt.Y;
-                return NavigationTools.CalculationForwardAngle(finalCountDown2PtPointF, finalPtPointF);
+                return Tools.CalculationForwardAngle(finalCountDown2PtPointF, finalPtPointF);
 
             }
 

@@ -206,7 +206,7 @@ namespace VMSystem.AGV
         //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         //}
 
-        private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1,1);
+        private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1, 1);
         public async void AsyncTaskQueueFromDatabase()
         {
             await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
@@ -228,9 +228,10 @@ namespace VMSystem.AGV
                         var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
                         if (navagatings.Any())
                         {
-                            var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
+                            var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName)).ToArray();
                             foreach (var idx in indexs)
                             {
+                                LOG.TRACE($"{agv.Name}:{taskList[idx].TaskName} Remove from task queue");
                                 taskList.RemoveAt(idx);
                             }
                         }
@@ -240,13 +241,13 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.StackTrace);
+                LOG.ERROR(ex.Message + ex.StackTrace);
             }
             finally
             {
                 _syncTaskQueueFronDBSemaphoreSlim.Release();
             }
-          
+
         }
         public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
@@ -331,12 +332,12 @@ namespace VMSystem.AGV
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
-            if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
             if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                 return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
-            if (agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                return AGV_ORDERABLE_STATUS.EXECUTING;
+
+            if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
+
             if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
             {
                 if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
@@ -344,7 +345,7 @@ namespace VMSystem.AGV
             }
             if (!taskList.Any(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name))
+            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name)|| agv.main_state == clsEnums.MAIN_STATUS.RUN)
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
@@ -359,55 +360,63 @@ namespace VMSystem.AGV
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
-                        if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTABLE)
+
+                        switch (OrderExecuteState)
                         {
-                            var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
-                            if (!taskOrderedByPriority.Any())
-                                continue;
-                            var _ExecutingTask = taskOrderedByPriority.First();
-                            ALARMS alarm_code = ALARMS.NONE;
+                            case AGV_ORDERABLE_STATUS.EXECUTABLE:
+                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
+                                if (!taskOrderedByPriority.Any())
+                                    continue;
+                                var _ExecutingTask = taskOrderedByPriority.First();
+                                ALARMS alarm_code = ALARMS.NONE;
 
-                            if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out alarm_code))
-                            {
-                                _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
-                                _ExecutingTask.FinishTime = DateTime.Now;
-                                TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
-                                await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);
-                                continue;
-                            }
-
-                            agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
-                            _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
-                            TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
-
-                            //await ExecuteTaskAsync(_ExecutingTask);
-
-                            OrderHandlerFactory factory = new OrderHandlerFactory();
-
-                            OrderHandler = factory.CreateHandler(_ExecutingTask);
-                            OrderHandler.StartOrder(agv);
-                            OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
-                            // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
-                            await Task.Delay(1000);
-                        }
-
-                        else if (OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING_RESUME)
-                        {
-                            using (var database = new AGVSDatabase())
-                            {
-                                var _lastPauseTask = database.tables.Tasks.Where(f => f.DesignatedAGVName == agv.Name && f.TaskName == TaskStatusTracker.OrderTaskName).FirstOrDefault();
-                                if (_lastPauseTask != null)
+                                if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out alarm_code))
                                 {
-                                    await ExecuteTaskAsync(_lastPauseTask);
-
+                                    _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
+                                    _ExecutingTask.FinishTime = DateTime.Now;
+                                    TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
+                                    await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);
+                                    continue;
                                 }
-                            }
-                        }
-                        int removeNum = _taskListFromAGVS.RemoveAll(task => task.State == TASK_RUN_STATUS.CANCEL || task.State == TASK_RUN_STATUS.FAILURE || task.State == TASK_RUN_STATUS.ACTION_FINISH);
-                        if (removeNum != 0)
-                        {
 
+                                agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
+                                _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
+                                TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
+                                //await ExecuteTaskAsync(_ExecutingTask);
+                                OrderHandlerFactory factory = new OrderHandlerFactory();
+                                OrderHandler = factory.CreateHandler(_ExecutingTask);
+                                OrderHandler.StartOrder(agv);
+                                OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
+                                // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
+                                await Task.Delay(1000);
+                                break;
+                            case AGV_ORDERABLE_STATUS.EXECUTING:
+                                break;
+                            case AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR:
+                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("STATUS_ERROR");
+                                break;
+                            case AGV_ORDERABLE_STATUS.NO_ORDER:
+                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("IDLING");
+                                break;
+                            case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
+                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("OFFLINE");
+                                break;
+                            case AGV_ORDERABLE_STATUS.EXECUTING_RESUME:
+                                using (var database = new AGVSDatabase())
+                                {
+                                    var _lastPauseTask = database.tables.Tasks.Where(f => f.DesignatedAGVName == agv.Name && f.TaskName == TaskStatusTracker.OrderTaskName).FirstOrDefault();
+                                    if (_lastPauseTask != null)
+                                    {
+                                        await ExecuteTaskAsync(_lastPauseTask);
+
+                                    }
+                                }
+                                break;
+                            default:
+                                break;
                         }
+                        //int removeNum = _taskListFromAGVS.RemoveAll(task => task.State == TASK_RUN_STATUS.CANCEL || task.State == TASK_RUN_STATUS.FAILURE || task.State == TASK_RUN_STATUS.ACTION_FINISH);
+
                     }
                     catch (NoPathForNavigatorException ex)
                     {

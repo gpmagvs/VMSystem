@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using System.Diagnostics.Tracing;
 using System.Net;
-using VMSystem.Tools;
+
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -79,14 +79,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                 {
-                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(this.OrderData.From_Station_Tag);
+                    FinalStopTheta = Tools.CalculateWorkStationStopAngle(this.OrderData.From_Station_Tag);
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
                     var destineTag = OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ?
                         OrderData.TransferToTag : OrderData.To_Station_Tag;
 
-                    FinalStopTheta = Tools.NavigationTools.CalculateWorkStationStopAngle(destineTag);
+                    FinalStopTheta = Tools.CalculateWorkStationStopAngle(destineTag);
                 }
             }
         }
@@ -471,7 +471,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 var lastPoint = nextTrajectory.ToList()[1];
                 var second_lastPoint = nextTrajectory.ToList()[0];
 
-                var theta = NavigationTools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
+                var theta = Tools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
                         new System.Drawing.PointF((float)lastPoint.X, (float)lastPoint.Y));
                 _taskDownloadData.Trajectory.Last().Theta = theta;
             }
@@ -643,7 +643,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             else
                 return trajectory.Last().Theta;
-            //return NavigationTools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
+            //return Tools.CalculationForwardAngle(new System.Drawing.PointF((float)second_lastPoint.X, (float)second_lastPoint.Y),
             //    new System.Drawing.PointF((float)lastPoint.X, (float)lastPoint.Y));
         }
 

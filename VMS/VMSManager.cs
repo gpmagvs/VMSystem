@@ -57,7 +57,7 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static async Task Initialize(ConfigurationManager configuration)
+        internal static async Task Initialize()
         {
             await Task.Delay(1);
             TcpServerInit();
@@ -262,11 +262,6 @@ namespace VMSystem.VMS
                 }
 
             }
-        }
-
-        public static void Initialize()
-        {
-            ForkAGVVMS = new GPMForkAgvVMS();
         }
 
         internal static IAGV GetAGVByName(string AGVName)
