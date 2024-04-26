@@ -34,7 +34,7 @@ namespace VMSystem.AGV.TaskDispatch
         Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; }
 
         public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection);
-        void RemoveTaskFromQueue(string task_name);
+        void AsyncTaskQueueFromDatabase();
     }
 
     public class clsWaitingInfo

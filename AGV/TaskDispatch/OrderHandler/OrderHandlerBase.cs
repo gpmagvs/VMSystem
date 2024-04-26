@@ -115,6 +115,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             finally
             {
+                Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             }
 
         }
@@ -273,7 +274,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected virtual void ActionsWhenOrderCancle()
         {
-            Agv.taskDispatchModule.RemoveTaskFromQueue(OrderData.TaskName);
+            Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
                 //0,1,2,3

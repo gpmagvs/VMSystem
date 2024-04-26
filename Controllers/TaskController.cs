@@ -27,7 +27,7 @@ namespace VMSystem.Controllers
             }
             else
             {
-                taskOwnerAGV.taskDispatchModule.RemoveTaskFromQueue(task_name);
+                taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
             }
 
             return Ok("done");

@@ -206,21 +206,32 @@ namespace VMSystem.AGV
         //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         //}
 
-        public void RemoveTaskFromQueue(string task_name)
+        public void AsyncTaskQueueFromDatabase()
         {
+            var taskIDs = taskList.Select(tk => tk.TaskName);
+            if (!taskIDs.Any())
+                return;
             using (AGVSDatabase db = new AGVSDatabase())
             {
-                var task = db.tables.Tasks.FirstOrDefault(t => t.TaskName == task_name);
-                if (task != null)
-                {
-                    task.State = TASK_RUN_STATUS.CANCEL;
-                    task.FinishTime = DateTime.Now;
-                    VMSManager.HandleTaskDBChangeRequestRaising(this, task);
+                var taskInDB = db.tables.Tasks.Where(t => taskIDs.Contains(t.TaskName));
 
-                    var index = taskList.FindIndex(tk => tk.TaskName == task_name);
-                    if (index >= 0)
-                        taskList.RemoveAt(index);
+                if (!taskInDB.Any())
+                    return;
+
+                var stateNoEqualTasks = taskList.Where(tk => tk.State != taskInDB.First(tk => tk.TaskName == tk.TaskName).State);
+                if (stateNoEqualTasks.Any())
+                {
+                    var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
+                    if (navagatings.Any())
+                    {
+                        var indexs= navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
+                        foreach (var idx in indexs)
+                        {
+                            taskList.RemoveAt(idx);
+                        }
+                    }
                 }
+
             }
         }
         public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
@@ -483,7 +494,7 @@ namespace VMSystem.AGV
             var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
             if (task_tracking == null)
             {
-                RemoveTaskFromQueue(feedbackData.TaskName);
+                AsyncTaskQueueFromDatabase();
                 LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
                 return 0;
             }

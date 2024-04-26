@@ -129,6 +129,8 @@ namespace VMSystem.AGV
                 if (_online_state != value)
                 {
                     _online_state = value;
+
+                    taskDispatchModule.AsyncTaskQueueFromDatabase();
                     if (main_state == clsEnums.MAIN_STATUS.IDLE)
                     {
                         availabilityHelper.ResetIDLEStartTime();
