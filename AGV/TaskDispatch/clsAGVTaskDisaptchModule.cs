@@ -213,7 +213,7 @@ namespace VMSystem.AGV
                 return;
             using (AGVSDatabase db = new AGVSDatabase())
             {
-                var taskInDB = db.tables.Tasks.Where(t => taskIDs.Contains(t.TaskName));
+                var taskInDB = db.tables.Tasks.Where(t => taskIDs.Contains(t.TaskName)).AsNoTracking();
 
                 if (!taskInDB.Any())
                     return;
@@ -224,7 +224,7 @@ namespace VMSystem.AGV
                     var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
                     if (navagatings.Any())
                     {
-                        var indexs= navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
+                        var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
                         foreach (var idx in indexs)
                         {
                             taskList.RemoveAt(idx);
