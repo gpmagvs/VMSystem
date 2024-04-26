@@ -206,33 +206,47 @@ namespace VMSystem.AGV
         //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         //}
 
-        public void AsyncTaskQueueFromDatabase()
+        private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1,1);
+        public async void AsyncTaskQueueFromDatabase()
         {
-            var taskIDs = taskList.Select(tk => tk.TaskName);
-            if (!taskIDs.Any())
-                return;
-            using (AGVSDatabase db = new AGVSDatabase())
+            await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
+            try
             {
-                var taskInDB = db.tables.Tasks.Where(t => taskIDs.Contains(t.TaskName)).AsNoTracking();
-
-                if (!taskInDB.Any())
+                var taskIDs = taskList.Select(tk => tk.TaskName);
+                if (!taskIDs.Any())
                     return;
-
-                var stateNoEqualTasks = taskList.Where(tk => tk.State != taskInDB.First(tk => tk.TaskName == tk.TaskName).State);
-                if (stateNoEqualTasks.Any())
+                using (AGVSDatabase db = new AGVSDatabase())
                 {
-                    var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
-                    if (navagatings.Any())
+                    var taskInDB = db.tables.Tasks.Where(t => taskIDs.Contains(t.TaskName)).AsNoTracking();
+
+                    if (!taskInDB.Any())
+                        return;
+
+                    var stateNoEqualTasks = taskList.Where(tk => tk.State != taskInDB.First(tk => tk.TaskName == tk.TaskName).State);
+                    if (stateNoEqualTasks.Any())
                     {
-                        var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
-                        foreach (var idx in indexs)
+                        var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
+                        if (navagatings.Any())
                         {
-                            taskList.RemoveAt(idx);
+                            var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName));
+                            foreach (var idx in indexs)
+                            {
+                                taskList.RemoveAt(idx);
+                            }
                         }
                     }
-                }
 
+                }
             }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex.StackTrace);
+            }
+            finally
+            {
+                _syncTaskQueueFronDBSemaphoreSlim.Release();
+            }
+          
         }
         public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
