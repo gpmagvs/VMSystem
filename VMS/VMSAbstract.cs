@@ -11,7 +11,6 @@ namespace VMSystem.VMS
     /// </summary>
     public abstract class VMSAbstract
     {
-        protected AGVStatusDBHelper AGVStatusDBHelper { get; set; } = new AGVStatusDBHelper();
         public VMSAbstract() { }
         public VMSAbstract(List<IAGV> AGVList)
         {
