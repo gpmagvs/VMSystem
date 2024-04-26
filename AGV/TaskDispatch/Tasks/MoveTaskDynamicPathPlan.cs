@@ -13,7 +13,9 @@ using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
 using System.Runtime.CompilerServices;
 using System.Diagnostics.Eventing.Reader;
-using VMSystem.Tools;  // 需要引用System.Numerics向量庫
+using VMSystem.Tools;
+using AGVSystemCommonNet6.Microservices.VMS;
+using VMSystem.VMS;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -105,6 +107,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return registedPoints.Any();
                         }
 
+                        bool _agvAlreadyTurnToNextPathDirection = false;
+                        bool _isCurrentPointInFrontOfCharger = Agv.currentMapPoint.Target.Keys.Any(index => StaMap.GetPointByIndex(index).IsCharge);
+                        bool _isCurrentPtisFirstPtOfWholePath = _previsousTrajectorySendToAGV.Count == 0;
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
@@ -116,7 +121,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 return;
                             }
                             TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), $"等待{(conflicAGVList.Any() ? $"與 {string.Join(",", conflicAGVList.Select(agv => agv.Name))} 之" : "")}路徑干涉解除");
-                            await Task.Delay(1000);
+                            await Task.Delay(100);
+                            if (!_isCurrentPointInFrontOfCharger && !_agvAlreadyTurnToNextPathDirection && _isCurrentPtisFirstPtOfWholePath)
+                            {
+                                _agvAlreadyTurnToNextPathDirection = true;
+                                TurnToNextPath(nextPath);
+
+                            }
                             continue;
                         }
                         if (_waitingInterference)
@@ -264,6 +275,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
 
             }, token);
+        }
+
+        private void TurnToNextPath(List<MapPoint> nextPath)
+        {
+
+            var start = new PointF((float)nextPath[0].X, (float)nextPath[0].Y);
+            var end = new PointF((float)nextPath[1].X, (float)nextPath[1].Y);
+            double theta = NavigationTools.CalculationForwardAngle(start, end);
+            var _taskDto = TaskDonwloadToAGV.Clone();
+            var firstPt = _taskDto.Trajectory.Take(1).First();
+            _taskDto.Trajectory = new clsMapPoint[1] { firstPt.Clone() };
+            _taskDto.Trajectory[0].Theta = theta;
+            var _result = _DispatchTaskToAGV(_taskDto).GetAwaiter().GetResult();
+
         }
 
         private int GetWorkStationTagByNormalPointTag(int tagOfBlockedByPartsReplacing)
@@ -443,9 +468,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 ConstrainTags.AddRange(additionContrainTags);
             }
+            var otherAGVTags = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Select(agv => agv.states.Last_Visited_Node).ToList();
+
             ConstrainTags.AddRange(blockedTagsByEqMaintaining);
             ConstrainTags = ConstrainTags.Where(tag => tag != startTag && !PassedTags.Contains(tag)).ToList();
-            pathFinderOptionOfOptimzed.ConstrainTags = justOptimePath ? new List<int>() : ConstrainTags;
+            pathFinderOptionOfOptimzed.ConstrainTags = justOptimePath ? otherAGVTags : ConstrainTags;
             clsPathInfo pathPlanResult = _pathFinder.FindShortestPath(StaMap.Map, startPoint, destinPoint, pathFinderOptionOfOptimzed);
             return pathPlanResult;
 

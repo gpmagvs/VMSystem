@@ -159,7 +159,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
-            
+
             RunningTask.HandleAGVNavigatingFeedback(feedbackData);
         }
 
@@ -273,6 +273,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected virtual void ActionsWhenOrderCancle()
         {
+            Agv.taskDispatchModule.RemoveTaskFromQueue(OrderData.TaskName);
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
                 //0,1,2,3

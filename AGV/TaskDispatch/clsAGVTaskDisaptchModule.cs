@@ -217,7 +217,9 @@ namespace VMSystem.AGV
                     task.FinishTime = DateTime.Now;
                     VMSManager.HandleTaskDBChangeRequestRaising(this, task);
 
-                    taskList.RemoveAt(taskList.FindIndex(tk => tk.TaskName == task_name));
+                    var index = taskList.FindIndex(tk => tk.TaskName == task_name);
+                    if (index >= 0)
+                        taskList.RemoveAt(index);
                 }
             }
         }
@@ -481,6 +483,7 @@ namespace VMSystem.AGV
             var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
             if (task_tracking == null)
             {
+                RemoveTaskFromQueue(feedbackData.TaskName);
                 LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
                 return 0;
             }
