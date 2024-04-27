@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.AGV;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.Controllers
 {
@@ -28,13 +29,13 @@ namespace VMSystem.Controllers
 
 
         [HttpPost("SetTag")]
-        public async Task<IActionResult> SetTag(string AGVName,int tag)
+        public async Task<IActionResult> SetTag(string AGVName, int tag)
         {
             IAGV agv = VMSManager.GetAGVByName(AGVName);
             if (agv == null)
                 return BadRequest();
             agv.AgvSimulation.runningSTatus.Last_Visited_Node = tag;
-            var _mapPoint=StaMap.GetPointByTagNumber(tag);
+            var _mapPoint = StaMap.GetPointByTagNumber(tag);
             agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
             agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
             return Ok();
@@ -105,6 +106,33 @@ namespace VMSystem.Controllers
                 return BadRequest();
             var _oriCoor = agv.AgvSimulation.runningSTatus.Coordination.Clone();
             agv.AgvSimulation.runningSTatus.Coordination.Theta = _oriCoor.Theta + 1;
+            return Ok();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="AGVName"></param>
+        /// <param name="status"> 1:IDLE, 2:RUN, 3:DOWN, 4:Charging,</param>
+        /// <returns></returns>
+        [HttpPost("SetMainStatus")]
+        public async Task<IActionResult> SetMainStatus(string AGVName, MAIN_STATUS status)
+        {
+
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.runningSTatus.AGV_Status = status;
+            return Ok();
+        }
+        [HttpPost("SetBatteryLevel")]
+        public async Task<IActionResult> SetBatteryLevel(string AGVName, double lv)
+        {
+
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.runningSTatus.Electric_Volume[0] = lv;
             return Ok();
         }
     }
