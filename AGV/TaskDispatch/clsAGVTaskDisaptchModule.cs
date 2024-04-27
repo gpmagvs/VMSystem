@@ -49,6 +49,9 @@ namespace VMSystem.AGV
             NO_ORDER,
             AGV_OFFLINE,
             EXECUTING_RESUME,
+            BatteryLowLevel,
+            ChargingButBatteryUnderMiddleLevel,
+            BatteryStatusError
         }
 
         public IAGV agv;
@@ -345,7 +348,7 @@ namespace VMSystem.AGV
             }
             if (!taskList.Any(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
                 return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name)|| agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
                 return AGV_ORDERABLE_STATUS.EXECUTING;
             return AGV_ORDERABLE_STATUS.EXECUTABLE;
         }
@@ -396,7 +399,8 @@ namespace VMSystem.AGV
                                 OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("STATUS_ERROR");
                                 break;
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
-                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("IDLING");
+                                bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
+                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging?"充電中..":"IDLING");
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
                                 OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("OFFLINE");

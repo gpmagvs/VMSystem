@@ -1,7 +1,10 @@
-﻿using AGVSystemCommonNet6.DATABASE;
+﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Microservices.ResponseModel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 using VMSystem.VMS;
 
 namespace VMSystem.Controllers
@@ -28,6 +31,17 @@ namespace VMSystem.Controllers
             taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
 
             return Ok("done");
+        }
+
+        [HttpGet("CheckOrderExecutableByBatStatus")]
+        public async Task<IActionResult> CheckOrderExecutableByBatStatus(string agvName, ACTION_TYPE orderAction)
+        {
+            var vehicle = VMSManager.GetAGVByName(agvName);
+            if (vehicle == null)
+                return Ok(new clsResponseBase(false, $"{agvName} Not Exist."));
+
+            bool accept = vehicle.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(orderAction, out string message);
+            return Ok(new clsResponseBase(accept, message));
         }
     }
 }

@@ -17,6 +17,14 @@ namespace VMSystem.AGV
 {
     public interface IAGV
     {
+        public enum BATTERY_STATUS
+        {
+            HIGH,
+            MIDDLE_HIGH,
+            MIDDLE_LOW,
+            LOW,
+            UNKNOWN,
+        }
         Task Run();
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
@@ -25,6 +33,7 @@ namespace VMSystem.AGV
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }
+        BATTERY_STATUS batteryStatus { get; }
 
         ONLINE_STATE online_mode_req { get; set; }
         ONLINE_STATE online_state { get; set; }
@@ -69,9 +78,12 @@ namespace VMSystem.AGV
         Task<bool> SpeedRecovertRequest();
         Task<bool> SpeedSlowRequest();
 
+        bool CheckOutOrderExecutableByBatteryStatusAndChargingStatus(ACTION_TYPE orderAction, out string message);
         MapRectangle AGVGeometery { get; }
         MapCircleArea AGVRotaionGeometry { get; }
         int currentFloor { get; set; }
+
+
     }
 
 }

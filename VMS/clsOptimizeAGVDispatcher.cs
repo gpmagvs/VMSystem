@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore;
 using VMSystem.AGV;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.VMS
 {
@@ -32,21 +33,20 @@ namespace VMSystem.VMS
         {
             Thread AssignThred = new Thread(async () =>
             {
+                var database = new AGVSDatabase();
                 while (true)
                 {
                     try
                     {
                         Thread.Sleep(400);
                         List<string> List_TaskAGV = new List<string>();
-                        using (var database = new AGVSDatabase())
-                        {
-                            var _taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                        var _taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
 
-                            TryAppendTasksToQueue(_taskList);
-                            List_TaskAGV = database.tables.Tasks.AsNoTracking().Where(task => task.State == TASK_RUN_STATUS.NAVIGATING || task.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                            List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
-                            List_TaskAGV.AddRange(List_idlecarryAGV);
-                        }
+                        TryAppendTasksToQueue(_taskList);
+                        List_TaskAGV = database.tables.Tasks.AsNoTracking().Where(task => task.State == TASK_RUN_STATUS.NAVIGATING || task.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                        List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
+                        List_TaskAGV.AddRange(List_idlecarryAGV);
+
                         if (taskList.Count == 0)
                             continue;
 
@@ -83,26 +83,29 @@ namespace VMSystem.VMS
         /// <returns></returns>
         private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto, List<string> List_ExceptAGV)
         {
-            MapPoint refStation = null;
+            MapPoint goalStation = null;
             //取 放貨
             if (taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.LoadAndPark || taskDto.Action == ACTION_TYPE.Unload)
             {
-                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out refStation);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
             }
             else if (taskDto.Action == ACTION_TYPE.Carry)
             {
-                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out refStation);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out goalStation);
             }
 
-            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE && agv.IsSolvingTrafficInterLock == false).OrderBy(agv => refStation.CalculateDistance(agv.states.Coordination.X, agv.states.Coordination.Y)).OrderByDescending(agv => agv.online_state);
-            var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => item.states.Electric_Volume[0] > 50).Where(item => !List_ExceptAGV.Contains(item.Name));
-            AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(item => item.states.AGV_Status != clsEnums.MAIN_STATUS.Charging || (item.states.AGV_Status == clsEnums.MAIN_STATUS.Charging && item.states.Electric_Volume[0] > 80));
+            var agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE && agv.IsSolvingTrafficInterLock == false)
+                                                       .OrderBy(agv => Tools.ElevateDistanceToGoalStation(goalStation, agv))
+                                                       .OrderByDescending(agv => agv.online_state);
+            var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => !List_ExceptAGV.Contains(item.Name));
+            AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(item => item.states.AGV_Status != clsEnums.MAIN_STATUS.Charging || (item.states.AGV_Status == clsEnums.MAIN_STATUS.Charging));
 
-            if (taskDto.Action == ACTION_TYPE.Unload || taskDto.Action == ACTION_TYPE.Load && taskDto.To_Station_AGV_Type != clsEnums.AGV_TYPE.Any)
+            if ((taskDto.Action == ACTION_TYPE.Unload || taskDto.Action == ACTION_TYPE.Load) && taskDto.To_Station_AGV_Type != clsEnums.AGV_TYPE.Any)
             {
-                AGVListRemoveTaskAGV=AGVListRemoveTaskAGV.Where(agv => agv.model == taskDto.To_Station_AGV_Type);
+                AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.model == taskDto.To_Station_AGV_Type);
             }
 
+            AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(taskDto.Action, out string _));
 
             if (AGVListRemoveTaskAGV.Count() == 0)
                 return null;
@@ -117,5 +120,6 @@ namespace VMSystem.VMS
             }
             return AGVListRemoveTaskAGV.First();
         }
+
     }
 }

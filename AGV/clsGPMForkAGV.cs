@@ -45,6 +45,29 @@ namespace VMSystem.AGV
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
 
+        public IAGV.BATTERY_STATUS batteryStatus
+        {
+            get
+            {
+                var volumes = states.Electric_Volume;
+                if (volumes == null || volumes.Length == 0)
+                    return IAGV.BATTERY_STATUS.UNKNOWN;
+
+                double avgVolume = volumes.Average();
+                if (avgVolume < options.BatteryOptions.LowLevel)
+                    return IAGV.BATTERY_STATUS.LOW;
+                else if (avgVolume > options.BatteryOptions.HightLevel)
+                    return IAGV.BATTERY_STATUS.HIGH;
+                else
+                {
+                    if (avgVolume < options.BatteryOptions.MiddleLevel)
+                        return IAGV.BATTERY_STATUS.MIDDLE_LOW;
+                    else
+                        return IAGV.BATTERY_STATUS.MIDDLE_HIGH;
+                }
+            }
+        }
+
         public AvailabilityHelper availabilityHelper { get; private set; }
         public StopRegionHelper StopRegionHelper { get; private set; }
         private clsRunningStatus _states = new clsRunningStatus();
@@ -799,5 +822,31 @@ namespace VMSystem.AGV
             }
         }
 
+        public virtual bool CheckOutOrderExecutableByBatteryStatusAndChargingStatus(ACTION_TYPE orderAction, out string message)
+        {
+            message = "";
+
+            //一律接受充電任務
+            if (orderAction == ACTION_TYPE.Charge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
+                return true;
+            //電池低電量與電量未知不可接收任務
+            if (batteryStatus == IAGV.BATTERY_STATUS.LOW || batteryStatus == IAGV.BATTERY_STATUS.UNKNOWN)
+            {
+                message = "Battery Low Level or Status Unknown";
+                return false;
+            }
+
+            //充電中:
+            if (main_state == MAIN_STATUS.Charging)
+            {
+                bool chargingAndAboveMiddle = batteryStatus == IAGV.BATTERY_STATUS.MIDDLE_HIGH;
+                message = chargingAndAboveMiddle ? "" : "充電中但未達中電量";
+                return chargingAndAboveMiddle;
+            }
+            else//非充電中
+            {
+                return true;
+            }
+        }
     }
 }

@@ -404,6 +404,20 @@ namespace VMSystem.TrafficControl
             return interferenceMapPoints.Count > 0;
         }
 
+        public static double ElevateDistanceToGoalStation(MapPoint goal, IAGV agv)
+        {
+            var from = agv.currentMapPoint;
+
+            PathFinder pathFinder = new PathFinder();
+            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = true });
+            if (result == null)
+                return 9999999999999;
+            else
+            {
+                return result.total_travel_distance;
+            }
+
+        }
 
         #region Private Methods
 

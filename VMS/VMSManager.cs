@@ -106,6 +106,12 @@ namespace VMSystem.VMS
                 Simulation = agvDto.Simulation,
                 Protocol = agvDto.Protocol,
                 InitTag = agvDto.InitTag,
+                BatteryOptions = new clsBatteryOptions
+                {
+                    LowLevel = agvDto.LowBatLvThreshold,
+                    MiddleLevel = agvDto.MiddleBatLvThreshold,
+                    HightLevel = agvDto.HighBatLvThreshold
+                }
             };
         }
 
@@ -177,6 +183,9 @@ namespace VMSystem.VMS
                             IP = agv.options.HostIP,
                             Port = agv.options.HostPort,
                             Simulation = agv.options.Simulation,
+                            LowBatLvThreshold = agv.options.BatteryOptions.LowLevel,
+                            MiddleBatLvThreshold = agv.options.BatteryOptions.MiddleLevel,
+                            HighBatLvThreshold = agv.options.BatteryOptions.HightLevel,
                         };
                         return dto;
                     };
@@ -228,7 +237,7 @@ namespace VMSystem.VMS
 
                         var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
-                       // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
+                        // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                     }
                 }
             });
