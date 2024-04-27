@@ -10,6 +10,7 @@ using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Log;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.TrafficControl.Solvers
 {

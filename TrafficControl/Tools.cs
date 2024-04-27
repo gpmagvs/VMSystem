@@ -13,6 +13,7 @@ using AGVSystemCommonNet6;
 using Newtonsoft.Json;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.TrafficControl
 {

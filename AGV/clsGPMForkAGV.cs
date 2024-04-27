@@ -18,6 +18,7 @@ using VMSystem.AGV.TaskDispatch;
 using VMSystem.TrafficControl;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.AGV

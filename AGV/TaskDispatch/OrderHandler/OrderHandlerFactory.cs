@@ -6,6 +6,7 @@ using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.VMS;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {

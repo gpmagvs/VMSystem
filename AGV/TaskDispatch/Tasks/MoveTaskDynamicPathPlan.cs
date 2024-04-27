@@ -16,7 +16,8 @@ using System.Diagnostics.Eventing.Reader;
 
 using AGVSystemCommonNet6.Microservices.VMS;
 using VMSystem.VMS;
-using System.Diagnostics;  // 需要引用System.Numerics向量庫
+using System.Diagnostics;
+using static AGVSystemCommonNet6.MAP.MapPoint;  // 需要引用System.Numerics向量庫
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {

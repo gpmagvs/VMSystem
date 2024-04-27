@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using System.Collections.Generic;
 using System.Linq;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -56,7 +57,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             isNexPathHasEQReplacingParts = false;
             TagOfBlockedByPartsReplace = -1;
-            var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == AGVSystemCommonNet6.AGVDispatch.Messages.STATION_TYPE.Elevator);
+            var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == STATION_TYPE.Elevator);
             bool IsPathContainElevator = elevatorPoint != null;
             int IndexOfAGVLocation()
             {
@@ -129,7 +130,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Agv.currentFloor = nextFloor;
                     _ = Task.Run(async () =>
                     {
-                        while (Agv.currentMapPoint.StationType == AGVSystemCommonNet6.AGVDispatch.Messages.STATION_TYPE.Elevator)
+                        while (Agv.currentMapPoint.StationType == STATION_TYPE.Elevator)
                         {
                             if (_TaskCancelTokenSource.IsCancellationRequested)
                                 return;

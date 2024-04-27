@@ -29,6 +29,7 @@ using System.Linq;
 using VMSystem.TrafficControl.Exceptions;
 using System.Runtime.CompilerServices;
 using AGVSystemCommonNet6.MAP.Geometry;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.TrafficControl
 {
