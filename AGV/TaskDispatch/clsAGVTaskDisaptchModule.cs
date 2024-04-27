@@ -33,6 +33,7 @@ using VMSystem.AGV.TaskDispatch.OrderHandler;
 using static VMSystem.AGV.TaskDispatch.IAGVTaskDispather;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
 {
@@ -58,6 +59,7 @@ namespace VMSystem.AGV
         private PathFinder pathFinder = new PathFinder();
         private DateTime LastNonNoOrderTime;
         private bool _IsChargeTaskCreating;
+        private bool _IsChargeStatesChecking = false;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.NO_ORDER;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
@@ -131,6 +133,9 @@ namespace VMSystem.AGV
                 Thread.Sleep(10);
 
                 if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
+                    continue;
+
+                if (_IsChargeStatesChecking)
                     continue;
 
                 if (previous_OrderExecuteState != AGV_ORDERABLE_STATUS.NO_ORDER)
@@ -389,6 +394,10 @@ namespace VMSystem.AGV
                                 OrderHandlerFactory factory = new OrderHandlerFactory();
                                 OrderHandler = factory.CreateHandler(_ExecutingTask);
                                 OrderHandler.StartOrder(agv);
+
+                                if (_ExecutingTask.Action == ACTION_TYPE.Charge)
+                                    (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
+
                                 OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
                                 // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
                                 await Task.Delay(1000);
@@ -400,7 +409,8 @@ namespace VMSystem.AGV
                                 break;
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
                                 bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
-                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging?"充電中..":"IDLING");
+                                if (!_IsChargeStatesChecking)
+                                    OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging ? "充電中.." : "IDLING");
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
                                 OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("OFFLINE");
@@ -451,7 +461,51 @@ namespace VMSystem.AGV
             AutoChargeThread.Start();
         }
 
-        private async void CreateChargeTask()
+        private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)
+        {
+
+            orderHandler.onAGVChargeOrderDone -= HandleAGVChargeTaskRedoRequest;
+            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE)
+                return;
+            ConfirmAGVChargeState(orderHandler);
+
+
+        }
+        private async Task ConfirmAGVChargeState(ChargeOrderHandler orderHandler)
+        {
+            try
+            {
+                _IsChargeStatesChecking = true;
+                if (agv.batteryStatus >= IAGV.BATTERY_STATUS.MIDDLE_HIGH)
+                    return;
+
+                CancellationTokenSource stateIncorrectConfrimCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                while (agv.main_state == MAIN_STATUS.IDLE)
+                {
+                    orderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage($"確認充電狀態中-{stopwatch.Elapsed.ToString("mm\\:ss")}");
+                    await Task.Delay(1);
+                    if (stateIncorrectConfrimCts.IsCancellationRequested)
+                    {
+                        LOG.WARN($"{agv.Name} 完成充電任務已經過20秒仍未充電 且電量低於強制充電設定，重新發起充電任務");
+                        OrderHandler.OrderData.State = TASK_RUN_STATUS.WAIT;
+                        VMSManager.HandleTaskDBChangeRequestRaising(this, orderHandler.OrderData);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                orderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
+                _IsChargeStatesChecking = false;
+            }
+
+        }
+        private async void CreateChargeTask(int chargeStationTag = -1)
         {
             _ = await TaskDBHelper.Add(new clsTaskDto
             {
@@ -460,6 +514,7 @@ namespace VMSystem.AGV
                 DispatcherName = "VMS_Idle",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,
+                To_Station = chargeStationTag + ""
             });
         }
 

@@ -781,7 +781,7 @@ namespace VMSystem.AGV
 
         public bool IsAGVIdlingAtChargeStationButBatteryLevelLow()
         {
-            return currentMapPoint.IsCharge && states.Electric_Volume.Any(level => level < 70) && main_state == clsEnums.MAIN_STATUS.IDLE;
+            return currentMapPoint.IsCharge && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
         }
         public bool IsAGVIdlingAtNormalPoint()
         {
@@ -830,9 +830,10 @@ namespace VMSystem.AGV
             if (orderAction == ACTION_TYPE.Charge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
                 return true;
             //電池低電量與電量未知不可接收任務
-            if (batteryStatus == IAGV.BATTERY_STATUS.LOW || batteryStatus == IAGV.BATTERY_STATUS.UNKNOWN)
+            if (batteryStatus <= IAGV.BATTERY_STATUS.LOW)
             {
-                message = "Battery Low Level or Status Unknown";
+
+                message = batteryStatus== IAGV.BATTERY_STATUS.LOW? "電量過低無法接收訂單任務": "電量狀態未知無法接收訂單任務";
                 return false;
             }
 
@@ -840,7 +841,7 @@ namespace VMSystem.AGV
             if (main_state == MAIN_STATUS.Charging)
             {
                 bool chargingAndAboveMiddle = batteryStatus == IAGV.BATTERY_STATUS.MIDDLE_HIGH;
-                message = chargingAndAboveMiddle ? "" : "充電中但未達中電量";
+                message = chargingAndAboveMiddle ? "" : "充電中但當前電量仍無法接收訂單任務。";
                 return chargingAndAboveMiddle;
             }
             else//非充電中

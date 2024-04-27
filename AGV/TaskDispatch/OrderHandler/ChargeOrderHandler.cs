@@ -1,14 +1,19 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using System.Diagnostics;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class ChargeOrderHandler : OrderHandlerBase
     {
+        public event EventHandler<ChargeOrderHandler> onAGVChargeOrderDone;
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Charge;
-
-        protected override void ActionsWhenOrderCancle()
+        protected override void _SetOrderAsFinishState()
         {
+            base._SetOrderAsFinishState();
+            onAGVChargeOrderDone?.Invoke(this, this);
         }
+      
     }
 
     public class ExchangeBatteryOrderHandler : OrderHandlerBase

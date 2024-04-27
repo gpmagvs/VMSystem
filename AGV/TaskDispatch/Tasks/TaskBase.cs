@@ -30,6 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
         }
+        public bool IsFinalAction { get; set; } = false;
         /// <summary>
         /// 當前任務的階段
         /// </summary>

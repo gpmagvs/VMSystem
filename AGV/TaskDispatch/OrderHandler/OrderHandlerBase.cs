@@ -180,19 +180,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
             MAIN_STATUS _state_when_action_finish = GetAgvMainState();
-            if (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging)
+            if (RunningTask.IsAGVReachDestine && _state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging)
             {
                 RunningTask.ActionFinishInvoke();
-                if (RunningTask.IsAGVReachDestine)
-                {
-                    _CurrnetTaskFinishResetEvent.Set();
-                }
+                _CurrnetTaskFinishResetEvent.Set();
             }
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)
                 AbortOrder(Agv.states.Alarm_Code);
 
 
         }
+
 
         internal async Task AbortOrder(ALARMS agvsAlarm)
         {
@@ -232,7 +230,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RaiseTaskDtoChange(this, OrderData);
 
         }
-        private void _SetOrderAsFinishState()
+        protected virtual void _SetOrderAsFinishState()
         {
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
@@ -246,6 +244,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                      Agv.currentMapPoint.Graph.Display
                 });
             }
+
         }
 
         protected void _SetOrderAsFaiiureState(string FailReason)

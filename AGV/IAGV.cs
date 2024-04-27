@@ -19,11 +19,11 @@ namespace VMSystem.AGV
     {
         public enum BATTERY_STATUS
         {
-            HIGH,
-            MIDDLE_HIGH,
-            MIDDLE_LOW,
-            LOW,
             UNKNOWN,
+            LOW,
+            MIDDLE_LOW,
+            MIDDLE_HIGH,
+            HIGH,
         }
         Task Run();
         AvailabilityHelper availabilityHelper { get; }
