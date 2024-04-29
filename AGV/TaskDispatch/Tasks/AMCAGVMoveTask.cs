@@ -88,7 +88,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(optimzedPathInfo.stations.Count - IndexOfAGVLocation()).ToList();
             }
             else
-                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, out bool _, out int _, pointNum);
+                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, out bool _, out int _, pointNum).ToList();
         }
         public ElevatorControl Elevator { get; private set; } = new ElevatorControl();
         protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)

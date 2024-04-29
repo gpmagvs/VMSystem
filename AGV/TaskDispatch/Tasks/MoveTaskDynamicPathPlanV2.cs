@@ -30,6 +30,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override bool IsAGVReachDestine => Agv.states.Last_Visited_Node == DestineTag;
 
+        public class clsPathResult
+        {
+            public bool IsConflicByNarrowPathDirection { get; set; }
+            public bool isPathConflicByAGVGeometry { get; set; }
+        }
         /// <summary>
         /// 
         /// </summary>
@@ -49,31 +54,44 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (IsTaskCanceled)
                     return;
 
-                async Task<(bool success, IEnumerable<MapPoint> optimizePath)> _SearchPassablePath(MapPoint goal)
+                async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathResult results)> _SearchPassablePath(MapPoint goal)
                 {
+                    clsPathResult _searchResult = new clsPathResult();
+                    bool PassableInNarrowPath()
+                    {
+                        if (!Agv.currentMapPoint.IsNarrowPath)
+                            return true;
+                        var nonHorizontalAGVs = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv)
+                                                .Where(_agv => _agv.currentMapPoint.IsNarrowPath)
+                                                .Where(_agv => !_agv.IsDirectionHorizontalTo(Agv));
+                        return !nonHorizontalAGVs.Any();
+                    }
+
                     var optimizePath = LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, goal);
                     bool isPathHasPointsBeRegisted = optimizePath.IsPathHasPointsBeRegisted(this.Agv, out var registed);
                     bool isHasAnyYieldPoints = optimizePath.IsPathHasAnyYieldingPoints(out var yieldPoints);
-                    bool isPathConflicByAGVGeometry = optimizePath.IsPathConflicWithOtherAGVBody(this.Agv, out var conflicAGVList);
+                    _searchResult.isPathConflicByAGVGeometry = optimizePath.IsPathConflicWithOtherAGVBody(this.Agv, out var conflicAGVList);
+                    _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath() && _searchResult.isPathConflicByAGVGeometry;
                     bool HasOtherNewPath = false;
-                    bool IsPathPassable = !isPathHasPointsBeRegisted && !isPathConflicByAGVGeometry;
+                    bool IsPathPassable = !isPathHasPointsBeRegisted && !_searchResult.isPathConflicByAGVGeometry && !_searchResult.IsConflicByNarrowPathDirection;
 
                     IEnumerable<MapPoint> secondaryPath = new List<MapPoint>();
                     if (!IsPathPassable)
                     {
                         var OtherNewPathFound = LowLevelSearch.TryGetOptimizedMapPointWithConstrains(ref optimizePath, registed, out secondaryPath);
-
                         bool isPathconflicOfSecondaryPath = secondaryPath.IsPathConflicWithOtherAGVBody(this.Agv, out conflicAGVList);
-                        if (OtherNewPathFound && !isPathconflicOfSecondaryPath)
+                        _searchResult.isPathConflicByAGVGeometry = isPathconflicOfSecondaryPath;
+                        _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath() && _searchResult.isPathConflicByAGVGeometry;
+                        if (OtherNewPathFound && !isPathconflicOfSecondaryPath && !_searchResult.IsConflicByNarrowPathDirection)
                         {
 
-                            return (true, secondaryPath);
+                            return (true, secondaryPath, _searchResult);
                         }
 
                     }
-                    return (IsPathPassable && optimizePath.Last() != Agv.currentMapPoint, optimizePath);
+                    return (IsPathPassable && optimizePath.Last() != Agv.currentMapPoint, optimizePath, _searchResult);
                 }
-                (bool success, IEnumerable<MapPoint> optimizePath) result = new(false, null);
+                (bool success, IEnumerable<MapPoint> optimizePath, clsPathResult results) result = new(false, null, new clsPathResult());
 
 
 
@@ -88,10 +106,34 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     while (!(result = await _SearchPassablePath(_tempGoal)).success)
                     {
-                        TrafficWaitingState.SetDisplayMessage($"Search Path to Tag-{_tempGoal.TagNumber}");
 
                         if (IsTaskCanceled)
                             return;
+                        if (result.results.IsConflicByNarrowPathDirection)
+                        {
+                            await SendCancelRequestToAGV();
+                            var newPath = new MapPoint[1] { Agv.currentMapPoint };
+                            var agvIndex = result.optimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
+                            var pathForCaluStopAngle = result.optimizePath.Skip(agvIndex).Take(2);
+                            double _stopAngle = pathForCaluStopAngle.GetStopDirectionAngle(OrderData, Agv, Stage, pathForCaluStopAngle.Last());
+                            clsTaskDownloadData turnTask = new clsTaskDownloadData
+                            {
+                                Task_Name = OrderData.TaskName,
+                                Task_Sequence = _sequence,
+                                Action_Type = ACTION_TYPE.None,
+                                Destination = Agv.currentMapPoint.TagNumber,
+                            };
+                            turnTask.Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, newPath.ToList()).ToArray();
+                            turnTask.Trajectory.Last().Theta = _stopAngle;
+                            await base._DispatchTaskToAGV(turnTask);
+                            _previsousTrajectorySendToAGV.Clear();
+                            await Task.Delay(1000);
+                            continue;
+
+                        }
+
+                        TrafficWaitingState.SetDisplayMessage($"Search Path to Tag-{_tempGoal.TagNumber}");
+
                         await Task.Delay(10);
                         try
                         {
@@ -112,16 +154,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
 
 
-                var agvIndex = nextOptimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                var nextFinnalGoalIndex = agvIndex + 4;
-                var nextPath = nextOptimizePath.Take(nextFinnalGoalIndex);
+                //var agvIndex = nextOptimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
+                //var nextFinnalGoalIndex = agvIndex + 4;
+                //var nextPath = nextOptimizePath.Take(nextFinnalGoalIndex);
+                var nextPath = GetNextPath(new clsPathInfo
+                {
+                    stations = nextOptimizePath.ToList(),
+                }, Agv.states.Last_Visited_Node, out bool IsNexPathHasEqReplcingParts, out int blockByEqPartsReplace, 4);
 
                 var isNextPathGoalIsFinal = nextPath.Last() == finalMapPoint;
 
-                //_previsousTrajectorySendToAGV.AddRange(;
-
-                //_taskDownloadData.Task_Sequence = _sequenceIndex;
-                //_taskDownloadData.Task_Simplex = task_simplex + "-" + _sequenceIndex;  
 
                 double stopAngle = nextPath.GetStopDirectionAngle(OrderData, Agv, Stage, nextPath.Last());
                 var pathToAGVSegment = PathFinder.GetTrajectory(StaMap.Map.Name, nextPath.ToList()).ToArray();
@@ -151,13 +193,28 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                          .FirstOrDefault().TagNumber;
 
 
-                UpdateMoveStateMessage($"前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber}");
+                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{DestineTag}\r\n前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber}");
                 while (!PassedTags.Contains(nearGoalTag))
                 {
+
                     if (IsTaskCanceled)
                         return;
                     if (_isAagvAlreadyThereBegin)
                         break;
+                    if (nearGoalTag == DestineTag)
+                    {
+                        while (Agv.states.Last_Visited_Node != DestineTag)
+                        {
+                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{DestineTag}\r\n即將抵達終點-{DestineTag}");
+                            await Task.Delay(1);
+                        }
+                        return;
+                    }
+                    else
+                    {
+                        if (Agv.states.Last_Visited_Node == nearGoalTag || nextPath.Last().TagNumber == Agv.states.Last_Visited_Node)
+                            break;
+                    }
                     await Task.Delay(100);
                 }
                 _isAagvAlreadyThereBegin = false;
@@ -275,7 +332,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return !path.Any() ? 0 : path.Last().Direction;
             }
             var lastPt = path.Last();
-            var lastSecondPt = path.Last();
+            var lastSecondPt = path.First();
             clsCoordination lastCoord = new clsCoordination(lastPt.X, lastPt.Y, 0);
             clsCoordination lastSecondCoord = new clsCoordination(lastSecondPt.X, lastSecondPt.Y, 0);
             return Tools.CalculationForwardAngle(lastSecondCoord, lastCoord);
@@ -284,7 +341,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public static IEnumerable<MapPoint> TargetNormalPoints(this MapPoint mapPoint)
         {
-            return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index)).Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
+            return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
+                .Where(pt => StaMap.Map.Points.Values.Contains(pt))
+                .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
         }
         /// <summary>
         /// 
@@ -313,7 +372,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 // 0 1 2 3 4 5
                 int indexOfBeforeStopPoint = path.ToList().FindIndex(pt => pt.TagNumber == nextStopPoint.TagNumber) - 1;
                 if (indexOfBeforeStopPoint < 0)
-                    throw new Exception("無窄道路徑");
+                {
+                    //由圖資計算
+
+                    return new MapPoint[2] { stopPoint, nearNarrowPoints.First() }.FinalForwardAngle();
+                }
                 return new MapPoint[2] { path.ToList()[indexOfBeforeStopPoint], stopPoint }.FinalForwardAngle();
             }
 
@@ -325,6 +388,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (refOrderInfo.Action == ACTION_TYPE.None)
                 {
+                    if (nextStopPoint.IsNarrowPath)
+                        return _narrowPathDirection(nextStopPoint);
                     return finalStopPoint.Direction;
                 }
                 else

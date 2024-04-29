@@ -379,7 +379,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
-            PassedTags.Add(Agv.states.Last_Visited_Node);
+            Task.Run(async () =>
+            {
+                await Task.Delay(300);
+                PassedTags.Add(Agv.currentMapPoint.TagNumber);
+            });
         }
     }
 

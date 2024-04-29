@@ -125,7 +125,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
-                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.TaskStatus}");
+                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.ToJson()}");
                 await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
                 _ = Task.Run(async () =>
                 {

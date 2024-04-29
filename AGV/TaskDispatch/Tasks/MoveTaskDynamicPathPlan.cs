@@ -80,7 +80,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, out movePause, out int _tagOfBlockedByPartsReplacing, pointNum);
+                        List<MapPoint> nextPath = GetNextPath(optimzePath, pathStartTagToCal, out movePause, out int _tagOfBlockedByPartsReplacing, pointNum).ToList();
 
                         if (movePause)
                         {
@@ -126,7 +126,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         while (VMSystem.TrafficControl.Tools.CalculatePathInterference(nextPath, this.Agv, out var conflicAGVList, false) || _IsNextPathHasPointsRegisted(nextPath))
                         {
                             _waitingInterference = true;
-                            
+
                             if (token.IsCancellationRequested)
                                 token.ThrowIfCancellationRequested();
                             if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -140,7 +140,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 await Task.Delay(1000);
                                 continue;
                             }
-                             _recalculateOptimizePath = true;
+                            _recalculateOptimizePath = true;
                             break;
                         }
                         if (_recalculateOptimizePath)
@@ -420,7 +420,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        protected virtual List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)
+        protected virtual IEnumerable<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)
         {
             isNexPathHasEQReplacingParts = false;
             TagOfBlockedByPartsReplace = -1;
