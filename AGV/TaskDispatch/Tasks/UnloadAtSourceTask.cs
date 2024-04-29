@@ -31,6 +31,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return 0;
         }
 
+        protected override void UpdateActionDisplay()
+        {
+            //終點站放貨
+            var equipment = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+            TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
+        }
+
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);

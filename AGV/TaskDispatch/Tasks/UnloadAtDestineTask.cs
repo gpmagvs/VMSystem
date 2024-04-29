@@ -28,5 +28,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else
                 return 0;
         }
+
+        protected override void UpdateActionDisplay()
+        {
+            //終點站放貨
+            var equipment = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+            TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
+        }
     }
 }

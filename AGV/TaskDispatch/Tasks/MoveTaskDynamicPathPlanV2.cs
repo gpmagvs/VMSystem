@@ -188,12 +188,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await base._DispatchTaskToAGV(_taskDownloadData);
                 _sequence += 1;
 
+
+                string GetDestineDisplay()
+                {
+                    int _destineTag = 0;
+                    bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
+                    _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
+                    return StaMap.GetStationNameByTag(_destineTag);
+                }
+
                 int nearGoalTag = nextPath.Reverse()
                                          .Skip(isNextPathGoalIsFinal || nextPath.Count() <= 2 ? 0 : 1)
                                          .FirstOrDefault().TagNumber;
 
 
-                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{DestineTag}\r\n前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber}");
+                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber}");
                 while (!PassedTags.Contains(nearGoalTag))
                 {
 
@@ -205,7 +214,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         while (Agv.states.Last_Visited_Node != DestineTag)
                         {
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{DestineTag}\r\n即將抵達終點-{DestineTag}");
+                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n即將抵達終點-{DestineTag}");
                             await Task.Delay(1);
                         }
                         return;

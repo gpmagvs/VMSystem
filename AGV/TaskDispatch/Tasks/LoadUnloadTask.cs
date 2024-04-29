@@ -25,12 +25,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             throw new NotImplementedException();
         }
+        protected abstract void UpdateActionDisplay();
         public override void CreateTaskToAGV()
         {
+
             base.CreateTaskToAGV();
 
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
-            MapPoint sourceMapPoint = GetEntryPointsOfWorkStation(destinMapPoint);           
+            MapPoint sourceMapPoint = GetEntryPointsOfWorkStation(destinMapPoint);
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
