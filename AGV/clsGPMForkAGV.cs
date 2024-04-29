@@ -871,7 +871,7 @@ namespace VMSystem.AGV
             double distance = Math.Sqrt(Math.Pow(Agv1X - Agv2X, 2) + Math.Pow(Agv1Y - Agv2Y, 2));
             bool isHorizon = angleDifference < 5 && angleDifference > -5 ||
                    angleDifference > 175 && angleDifference <=180;
-            Console.WriteLine($"Direction To {otherAGV.Name} is Horizon(水平) ? {isHorizon} ");
+            //Console.WriteLine($"Direction To {otherAGV.Name} is Horizon(水平) ? {isHorizon} ");
             return isHorizon;
 
         }

@@ -111,31 +111,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return;
                         if (result.results.IsConflicByNarrowPathDirection && !_isTurningAngleDoneInNarrow)
                         {
-                            await SendCancelRequestToAGV();
-                            var newPath = new MapPoint[1] { Agv.currentMapPoint };
-                            var agvIndex = result.optimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
-                            var pathForCaluStopAngle = result.optimizePath.Skip(agvIndex).Take(2);
-                            double _stopAngle = pathForCaluStopAngle.GetStopDirectionAngle(OrderData, Agv, Stage, pathForCaluStopAngle.Last());
-                            clsTaskDownloadData turnTask = new clsTaskDownloadData
-                            {
-                                Task_Name = OrderData.TaskName,
-                                Task_Sequence = _sequence,
-                                Action_Type = ACTION_TYPE.None,
-                                Destination = Agv.currentMapPoint.TagNumber,
-                            };
-                            turnTask.Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, newPath.ToList()).ToArray();
-                            turnTask.Trajectory.Last().Theta = _stopAngle;
-                            await base._DispatchTaskToAGV(turnTask);
-                            _previsousTrajectorySendToAGV.Clear();
-                            _isTurningAngleDoneInNarrow = true;
+                            _isTurningAngleDoneInNarrow = await HandleAGVAtNarrowPath(_sequence, _isTurningAngleDoneInNarrow, result);
                             await Task.Delay(1000);
                             continue;
 
                         }
 
-                        TrafficWaitingState.SetDisplayMessage($"Search Path to Tag-{_tempGoal.TagNumber}");
+                        TrafficWaitingState.SetDisplayMessage($"(Search Path to Tag-{_tempGoal.TagNumber}...)");
 
-                        await Task.Delay(10);
+                        await Task.Delay(100);
                         try
                         {
                             //取出下一個停止點
@@ -203,7 +187,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                          .FirstOrDefault().TagNumber;
 
 
-                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber}");
+                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber})");
                 while (!PassedTags.Contains(nearGoalTag))
                 {
 
@@ -215,8 +199,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         while (Agv.states.Last_Visited_Node != DestineTag)
                         {
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n即將抵達終點-{DestineTag}");
+                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(即將抵達終點-{DestineTag})");
                             await Task.Delay(1);
+                            if (IsTaskCanceled)
+                                return;
                         }
                         return;
                     }
@@ -237,6 +223,28 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
             //return base.SendTaskToAGV();
+        }
+
+        private async Task<bool> HandleAGVAtNarrowPath(int _sequence, bool _isTurningAngleDoneInNarrow, (bool success, IEnumerable<MapPoint> optimizePath, clsPathResult results) result)
+        {
+            await SendCancelRequestToAGV();
+            var newPath = new MapPoint[1] { Agv.currentMapPoint };
+            var agvIndex = result.optimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
+            var pathForCaluStopAngle = result.optimizePath.Skip(agvIndex).Take(2);
+            double _stopAngle = pathForCaluStopAngle.GetStopDirectionAngle(OrderData, Agv, Stage, pathForCaluStopAngle.Last());
+            clsTaskDownloadData turnTask = new clsTaskDownloadData
+            {
+                Task_Name = OrderData.TaskName,
+                Task_Sequence = _sequence,
+                Action_Type = ACTION_TYPE.None,
+                Destination = Agv.currentMapPoint.TagNumber,
+            };
+            turnTask.Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, newPath.ToList()).ToArray();
+            turnTask.Trajectory.Last().Theta = _stopAngle;
+            await base._DispatchTaskToAGV(turnTask);
+            _previsousTrajectorySendToAGV.Clear();
+            _isTurningAngleDoneInNarrow = true;
+            return _isTurningAngleDoneInNarrow;
         }
 
         private void UpdateMoveStateMessage(string msg)

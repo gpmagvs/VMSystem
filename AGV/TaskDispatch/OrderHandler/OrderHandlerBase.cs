@@ -59,8 +59,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
                         {
-                            _SetOrderAsCancelState("");
-                            ActionsWhenOrderCancle();
+                            DetermineTaskState(out bool isTaskFail);
+                            if (isTaskFail)
+                            {
+                                return;
+                            }
                             return;
                         }
 
@@ -74,21 +77,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     task.ActionFinishInvoke();
                     LOG.INFO($"Task-{task.ActionType} 結束");
 
-                    if (TaskCancelledFlag)
+                    DetermineTaskState(out bool _isTaskFail);
+                    if (_isTaskFail)
                     {
-                        LOG.WARN($"Task canceled.{TaskCancelReason}");
-                        _SetOrderAsCancelState(TaskCancelReason);
-                        ActionsWhenOrderCancle();
                         return;
                     }
-
-                    if (TaskAbortedFlag)
-                    {
-                        _SetOrderAsFaiiureState(TaskAbortReason);
-                        ActionsWhenOrderCancle();
-                        return;
-                    }
-
                     CompleteTaskStack.Push(task);
 
 
@@ -114,6 +107,24 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             }
 
+            void DetermineTaskState(out bool isTaskFail)
+            {
+                isTaskFail = false;
+                if (TaskAbortedFlag)
+                {
+                    LOG.WARN($"Task Aborted!.{TaskCancelReason}");
+                    _SetOrderAsFaiiureState(TaskAbortReason);
+                    ActionsWhenOrderCancle();
+                    isTaskFail = true;
+                }
+                if (TaskCancelledFlag)
+                {
+                    LOG.WARN($"Task canceled.{TaskCancelReason}");
+                    _SetOrderAsCancelState(TaskCancelReason);
+                    ActionsWhenOrderCancle();
+                    isTaskFail = true;
+                }
+            }
         }
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
 
@@ -193,6 +204,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             AGVSystemCommonNet6.Alarm.clsAlarmDto _alarmDto = await AlarmManagerCenter.AddAlarmAsync(agvsAlarm);
             TaskAbortedFlag = true;
             TaskAbortReason = _alarmDto.Description;
+            RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
 
 
@@ -201,13 +213,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             TaskAbortedFlag = true;
             TaskAbortReason = string.Join(",", alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
+            RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
         internal async Task CancelOrder(string reason = "")
         {
-            RunningTask.CancelTask();
             TaskCancelledFlag = true;
             TaskCancelReason = reason;
+            RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
         private void _SetOrderAsRunningState()
