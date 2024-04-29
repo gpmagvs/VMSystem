@@ -43,11 +43,13 @@ namespace VMSystem.TrafficControl
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
             clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
             TaskBase.BeforeMoveToNextGoalTaskDispatch += ProcessTaskRequest;
+            TaskBase.OnPathConflicForSoloveRequest += HandleOnPathConflicForSoloveRequest;
             //TaskBase.BeforeMoveToNextGoalTaskDispatch += HandleAgvGoToNextGoalTaskSend;
             StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
             Task.Run(() => TrafficInterLockSolveWorker());
         }
+
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
         private static async void HandleRunModeOn()

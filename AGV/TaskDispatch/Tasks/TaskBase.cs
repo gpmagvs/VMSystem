@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
+using static VMSystem.TrafficControl.TrafficControlCenter;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -21,6 +22,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public delegate clsLeaveFromWorkStationConfirmEventArg BeforeLeaveFromWorkStationDelegate(clsLeaveFromWorkStationConfirmEventArg args);
         public static BeforeLeaveFromWorkStationDelegate BeforeLeaveFromWorkStation;
+
+        public static event EventHandler<PathConflicRequest> OnPathConflicForSoloveRequest;
+
+
         public ACTION_TYPE NextAction { get; set; } = ACTION_TYPE.NoAction;
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
@@ -348,6 +353,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TrafficWaitingState.SetStatusNoWaiting();
         }
 
+        public void PathConflicSolveRequestInvoke(PathConflicRequest request)
+        {
+            TaskBase.OnPathConflicForSoloveRequest?.Invoke(this, request);
+        }
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

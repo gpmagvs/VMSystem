@@ -20,7 +20,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
         internal static event EventHandler<int> OnWorkStationStartPartsReplace;
         internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
