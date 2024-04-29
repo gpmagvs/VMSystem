@@ -59,9 +59,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public Action<ALARMS> OnTaskDownloadToAGVButAGVRejected;
         public clsMoveTaskEvent MoveTaskEvent { get; protected set; } = new clsMoveTaskEvent();
-        public bool IsTaskCanceled { get; private set; } = false;
+        public bool IsTaskCanceled { get; protected set; } = false;
         public List<int> PassedTags { get; set; } = new List<int>();
         public clsWaitingInfo TrafficWaitingState { set; get; } = new clsWaitingInfo();
+        public IEnumerable<MapPoint> RealTimeOptimizePathSearchReuslt = new List<MapPoint>();
         public virtual bool IsAGVReachDestine
         {
             get
@@ -97,6 +98,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
                 await SendTaskToAGV();
@@ -184,7 +186,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         }
         public List<int> FuturePlanNavigationTags = new List<int>();
-        protected async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
+        internal async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
             _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
             {

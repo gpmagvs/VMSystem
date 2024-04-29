@@ -54,7 +54,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         AbortOrder(_alarm);
                     };
                     var dispatch_result = await task.DistpatchToAGV();
-
+                    LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 開始");
                     if (!dispatch_result.confirmed)
                     {
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
@@ -71,11 +71,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         throw new Exception(dispatch_result.alarm_code.ToString());
                     }
 
-                    LOG.INFO($"Task-{task.ActionType} 開始");
                     _CurrnetTaskFinishResetEvent.WaitOne();
                     task.Dispose();
                     task.ActionFinishInvoke();
-                    LOG.INFO($"Task-{task.ActionType} 結束");
+                    LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
                     DetermineTaskState(out bool _isTaskFail);
                     if (_isTaskFail)
