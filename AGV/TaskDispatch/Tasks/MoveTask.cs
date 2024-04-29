@@ -75,22 +75,28 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             MoveTask.OnWorkStationStartPartsReplace += HandleWorkStationStartPartsReplace;
             MoveTask.OnWorkStationFinishPartsReplace += HandleWorkStationFinishPartsReplace;
+
+        }
+
+        protected void CalculateStopAngle(MapPoint entryPoint)
+        {
             if (this.Stage != VehicleMovementStage.Traveling)
             {
+                var workstationTag = 0;
                 if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                 {
-                    FinalStopTheta = Tools.CalculateWorkStationStopAngle(this.OrderData.From_Station_Tag);
+                    workstationTag = this.OrderData.From_Station_Tag;
+
                 }
                 else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
-                    var destineTag = OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ?
+                    workstationTag = OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ?
                         OrderData.TransferToTag : OrderData.To_Station_Tag;
-
-                    FinalStopTheta = Tools.CalculateWorkStationStopAngle(destineTag);
                 }
+
+                FinalStopTheta = Tools.CalculateWorkStationStopAngle(workstationTag, entryPoint.TagNumber == workstationTag ? -1 : entryPoint.TagNumber);
             }
         }
-
 
         public bool movePause = false;
         public int tagOfBlockedByPartsReplacing = 0;
@@ -146,7 +152,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public override ACTION_TYPE ActionType => ACTION_TYPE.None;
-
         public override void CreateTaskToAGV()
         {
             base.CreateTaskToAGV();
@@ -186,12 +191,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (OrderData.Action != ACTION_TYPE.None)
             {
                 MapPoint _desintWorkStation = GetDesinteWorkStation();
-                _destine_point = OrderData.Action == ACTION_TYPE.Measure ? _desintWorkStation : StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());//TODO 有兩個點的狀況
+                if (OrderData.Action == ACTION_TYPE.Measure)
+                    _destine_point = _desintWorkStation;
+                else
+                {
+                    _destine_point = GetEntryPointsOfWorkStation(_desintWorkStation);
+                    InfrontOfWorkStationPoint = _destine_point;
+                    //StaMap.GetPointByIndex(_desintWorkStation.Target.Keys.First());//TODO 有兩個點的狀況
+                }
             }
             else
             {
                 _destine_point = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             }
+
             clsPathInfo path_found_result = PathFind(_destine_point, new List<int>(), _justOptimizedPath: true); //僅會返回最優路徑
             if (path_found_result == null)
             {
@@ -201,10 +214,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.TaskSequenceList = GenSequenceTaskByTrafficCheckPoints(path_found_result.stations);
             this.TaskDonwloadToAGV.Trajectory = path_found_result.stations.Select(pt => TaskBase.MapPointToTaskPoint(pt)).ToArray();
             this.DestineTag = this.TaskDonwloadToAGV.Destination = _destine_point.TagNumber;
-
+            CalculateStopAngle(_destine_point);
 
             LOG.TRACE($"{this.TaskDonwloadToAGV.Task_Name}_ Path Sequences:\r\n" + string.Join("r\n", this.TaskSequenceList.Select(seq => string.Join("->", seq.GetTagCollection()))));
         }
+
+
 
         private clsPathInfo PathFind(MapPoint _destine_point, List<int> constrainTags, bool _justOptimizedPath = false)
         {
@@ -721,8 +736,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{goal_id}");
             CancellationTokenSource _cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            TrafficWaitingState.SetDisplayMessage($"Wait Reach Tag {goal_id}");
             while (!IsAGVReachGoal(goal_id, justAlmostReachGoal))
             {
+                //Agv.states.Last_Visited_Node
+                bool isPassTag = PassedTags.Contains(goal_id);
+                if (isPassTag)
+                {
+                    return true;
+                }
                 Thread.Sleep(1);
 
                 if (_cancellation.IsCancellationRequested)

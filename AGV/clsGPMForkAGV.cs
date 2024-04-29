@@ -834,7 +834,7 @@ namespace VMSystem.AGV
             if (batteryStatus <= IAGV.BATTERY_STATUS.LOW)
             {
 
-                message = batteryStatus== IAGV.BATTERY_STATUS.LOW? "電量過低無法接收訂單任務": "電量狀態未知無法接收訂單任務";
+                message = batteryStatus == IAGV.BATTERY_STATUS.LOW ? "電量過低無法接收訂單任務" : "電量狀態未知無法接收訂單任務";
                 return false;
             }
 
@@ -849,6 +849,31 @@ namespace VMSystem.AGV
             {
                 return true;
             }
+        }
+
+        public bool IsDirectionHorizontalTo(IAGV otherAGV)
+        {
+            double Agv1X = states.Coordination.X;
+            double Agv1Y = states.Coordination.Y;
+            double Agv1Theta = states.Coordination.Theta;
+            double Agv1Width = options.VehicleWidth;
+            double Agv1Length = options.VehicleLength;
+
+            double Agv2X = otherAGV.states.Coordination.X;
+            double Agv2Y = otherAGV.states.Coordination.Y;
+            double Agv2Theta = otherAGV.states.Coordination.Theta;
+            double Agv2Width = otherAGV.options.VehicleWidth;
+            double Agv2Length = otherAGV.options.VehicleLength;
+
+            // 確定角度差異，調整為介於0和180度之間
+            double angleDifference = Math.Abs(Agv1Theta - Agv2Theta);
+            angleDifference = angleDifference > 180 ? 360 - angleDifference : angleDifference;
+            double distance = Math.Sqrt(Math.Pow(Agv1X - Agv2X, 2) + Math.Pow(Agv1Y - Agv2Y, 2));
+            bool isHorizon = angleDifference < 5 && angleDifference > -5 ||
+                   angleDifference > 175 && angleDifference <=180;
+            Console.WriteLine($"Direction To {otherAGV.Name} is Horizon(水平) ? {isHorizon} ");
+            return isHorizon;
+
         }
     }
 }

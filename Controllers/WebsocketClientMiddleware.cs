@@ -12,7 +12,12 @@ namespace VMSystem.Controllers
     public class WebsocketClientMiddleware : WebsocketServerMiddleware
     {
 
-        public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware();
+        public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware(130);
+
+        public WebsocketClientMiddleware(int publish_duraction) : base(publish_duraction)
+        {
+
+        }
         public override List<string> channelMaps { get; set; } = new List<string>()
         {
              "/ws",

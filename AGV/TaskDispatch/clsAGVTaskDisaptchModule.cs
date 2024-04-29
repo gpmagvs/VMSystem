@@ -52,7 +52,8 @@ namespace VMSystem.AGV
             EXECUTING_RESUME,
             BatteryLowLevel,
             ChargingButBatteryUnderMiddleLevel,
-            BatteryStatusError
+            BatteryStatusError,
+            SystemError
         }
 
         public IAGV agv;
@@ -257,47 +258,30 @@ namespace VMSystem.AGV
             }
 
         }
-        public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
+        public async void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
-            var notInQuqueOrders = tasksCollection.FindAll(task => !_taskListFromAGVS.Any(tk => tk.TaskName == task.TaskName));
-            if (notInQuqueOrders.Any())
+            await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
+            try
             {
-                _taskListFromAGVS.AddRange(notInQuqueOrders);
+                var notInQuqueOrders = tasksCollection.FindAll(task => !taskList.Any(tk => tk.TaskName == task.TaskName))
+                                                        .SkipWhile(tk => tk.DesignatedAGVName != agv.Name);
+
+                if (notInQuqueOrders.Any())
+                {
+                    taskList.AddRange(notInQuqueOrders);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                _syncTaskQueueFronDBSemaphoreSlim.Release();
             }
         }
-        public List<clsTaskDto> _taskListFromAGVS = new List<clsTaskDto>();
 
-        public virtual List<clsTaskDto> taskList
-        {
-            get => _taskListFromAGVS;
-            //set
-            //{
-            //    _taskListFromAGVS = value;
-            //    if (value.Count != 0)
-            //    {
-            //        try
-            //        {
-            //            var chargeTaskNow = value.FirstOrDefault(tk => tk.TaskName == ExecutingTaskName && tk.Action == ACTION_TYPE.Charge);
-            //            if (chargeTaskNow != null && SystemModes.RunMode == RUN_MODE.RUN && chargeTaskNow.State != TASK_RUN_STATUS.CANCEL)
-            //            {
-            //                if (value.FindAll(tk => tk.Action != ACTION_TYPE.Charge && tk.TaskName != ExecutingTaskName).Count > 0) //有其他非充電任務產生
-            //                {
-            //                    CancelTask(false);
-
-            //                }
-            //            }
-            //        }
-            //        catch (Exception ex)
-            //        {
-            //        }
-            //    }
-            //    if (ExecutingTaskName != null)
-            //    {
-
-            //    }
-            //}
-        }
-
+        public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
         public MapPoint[] CurrentTrajectory
         {
             get
@@ -340,22 +324,30 @@ namespace VMSystem.AGV
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
-            if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
-                return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
-
-            if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
-
-            if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+            try
             {
-                if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
-                    return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
+                if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                    return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
+
+                if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                    return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
+
+                if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
+                {
+                    if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
+                        return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
+                }
+                if (!taskList.Any(tk => tk.DesignatedAGVName== agv.Name && tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
+                    return AGV_ORDERABLE_STATUS.NO_ORDER;
+                if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                    return AGV_ORDERABLE_STATUS.EXECUTING;
+                return AGV_ORDERABLE_STATUS.EXECUTABLE;
             }
-            if (!taskList.Any(tk => tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
-                return AGV_ORDERABLE_STATUS.NO_ORDER;
-            if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                return AGV_ORDERABLE_STATUS.EXECUTING;
-            return AGV_ORDERABLE_STATUS.EXECUTABLE;
+            catch (Exception ex)
+            {
+                LOG.Critical(ex.Message + ex.StackTrace);
+                return AGV_ORDERABLE_STATUS.SystemError;
+            }
         }
         public OrderHandlerBase OrderHandler { get; set; } = new MoveToOrderHandler();
         protected virtual async Task TaskAssignWorker()
@@ -367,14 +359,19 @@ namespace VMSystem.AGV
                     await Task.Delay(1000);
                     try
                     {
+                        await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
                         OrderExecuteState = GetAGVReceiveOrderStatus();
 
                         switch (OrderExecuteState)
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
-                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime);
+                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
+                                taskOrderedByPriority = taskOrderedByPriority.Where(tk=>tk.DesignatedAGVName ==agv.Name).ToList();
                                 if (!taskOrderedByPriority.Any())
+                                {
+                                    taskList.Clear();
                                     continue;
+                                }
                                 var _ExecutingTask = taskOrderedByPriority.First();
                                 ALARMS alarm_code = ALARMS.NONE;
 
@@ -410,7 +407,7 @@ namespace VMSystem.AGV
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
                                 bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
                                 if (!_IsChargeStatesChecking)
-                                    OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging ? "充電中.." : "IDLING");
+                                    OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging ? "充電中.." : "IDLE");
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
                                 OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("OFFLINE");
@@ -450,6 +447,10 @@ namespace VMSystem.AGV
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
+                    }
+                    finally
+                    {
+                        _syncTaskQueueFronDBSemaphoreSlim.Release();
                     }
                 }
             });

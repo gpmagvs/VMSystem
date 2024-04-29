@@ -2,7 +2,7 @@
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class MoveToDestineTask : MoveTaskDynamicPathPlan
+    public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
         public MoveToDestineTask() : base()
         {

@@ -83,6 +83,7 @@ namespace VMSystem.AGV
         MapCircleArea AGVRotaionGeometry { get; }
         int currentFloor { get; set; }
 
+        bool IsDirectionHorizontalTo(IAGV OtherAGV);
 
     }
 

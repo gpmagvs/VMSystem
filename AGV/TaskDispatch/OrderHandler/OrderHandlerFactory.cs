@@ -7,6 +7,7 @@ using VMSystem.VMS;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using static AGVSystemCommonNet6.MAP.MapPoint;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -35,20 +36,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         private void HandleOnLoadingAtTransferStationTaskFinish(object? sender, EventArgs e)
         {
-            //generate carry task from [transfer station] to [order destine station]
-            OrderHandlerBase order = (OrderHandlerBase)sender;
-            int transferStationTag = order.OrderData.TransferFromTag;
+            Task.Factory.StartNew(async () =>
+            {
+                await Task.Delay(1000);
+                //generate carry task from [transfer station] to [order destine station]
+                OrderHandlerBase order = (OrderHandlerBase)sender;
+                int transferStationTag = order.OrderData.TransferFromTag;
 
-            var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
-            order.OrderData.From_Station = transferStationTag + "";
-            order.OrderData.need_change_agv = false;
-            order.OrderData.DesignatedAGVName = order.OrderData.TransferToDestineAGVName;
-            order.OrderData.State = TASK_RUN_STATUS.WAIT;
-            //var nextOrderHandler = CreateHandler(order.OrderData);
-            //nextAGV.taskDispatchModule.OrderHandler = nextOrderHandler;
-            //nextOrderHandler.StartOrder(nextAGV);
-            //nextAGV.taskDispatchModule.OrderExecuteState = clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
-            nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
+                var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
+                order.OrderData.From_Station = transferStationTag + "";
+                order.OrderData.need_change_agv = false;
+                order.OrderData.DesignatedAGVName = order.OrderData.TransferToDestineAGVName;
+                order.OrderData.State = TASK_RUN_STATUS.WAIT;
+                nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
+                VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
+            });
         }
 
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
@@ -198,9 +200,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             int tagOfMiddleStation = orderData.ChangeAGVMiddleStationTag;
             MapPoint stationMapPoint = StaMap.GetPointByTagNumber(tagOfMiddleStation);
+            bool isTwoEntryPoints = stationMapPoint.Target.Keys.Count > 1;
+
+            if (isTwoEntryPoints)
+                return (tagOfMiddleStation, tagOfMiddleStation);
+
             var entryPoints = stationMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-            Dictionary<int, int> AcceptAGVInfoOfEQTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));
+            Dictionary<int, int> AcceptAGVInfoOfEQTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
             IAGV toSourceAGV = VMSManager.GetAGVByName(orderData.DesignatedAGVName);
             IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
             int toSourceModel = (int)toSourceAGV.model;

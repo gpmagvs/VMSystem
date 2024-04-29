@@ -30,7 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             base.CreateTaskToAGV();
 
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
-            MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
+            MapPoint sourceMapPoint = GetEntryPointsOfWorkStation(destinMapPoint);           
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;

@@ -254,7 +254,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             else
                             {
                                 MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
-                                _taskDownloadData.Trajectory.Last().Theta = _targetStation.Direction_Secondary_Point;
+                                CalculateStopAngle(this.InfrontOfWorkStationPoint);
+                                _taskDownloadData.Trajectory.Last().Theta = FinalStopTheta;
 
                             }
                             return;
@@ -270,9 +271,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (this.Stage != VehicleMovementStage.Traveling)
                             {
                                 MapPoint _targetStation = GetGoalStationWhenNonNormalTaskExecute();
-                                MapPoint _front_targetStation_point = StaMap.GetPointByIndex(_targetStation.Target.Keys.First());
 
-                                if (_front_targetStation_point.TagNumber == lastPoint.Point_ID)
+                                if (InfrontOfWorkStationPoint.TagNumber == lastPoint.Point_ID)
                                 {
                                     theta = FinalStopTheta;
                                     _taskDownloadData.Trajectory.Last().Theta = theta;

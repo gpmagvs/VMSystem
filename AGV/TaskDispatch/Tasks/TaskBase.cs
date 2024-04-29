@@ -30,6 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
         }
+        public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
         /// <summary>
         /// 當前任務的階段
@@ -74,7 +75,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 LOG.TRACE($"AGV=[ {string.Join(",", _WaitingForAGV.Select(agv => agv.Name))}] is Waiting For {this.Agv.Name}");
             }
         }
+        protected MapPoint GetEntryPointsOfWorkStation(MapPoint _desintWorkStation)
+        {
+            MapPoint _destine_point;
+            var forbidsMapPoints = StaMap.GetNoStopPointsByAGVModel(this.Agv.model);
+            var entryPoints = _desintWorkStation.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+            var usablePoints = entryPoints.Where(pt => !forbidsMapPoints.Contains(pt));
 
+            if (usablePoints.Any())
+                _destine_point = usablePoints.First();
+            else
+                throw new NoPathForNavigatorException();
+            return _destine_point;
+        }
         internal virtual async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             try

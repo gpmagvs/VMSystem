@@ -14,6 +14,7 @@ using Newtonsoft.Json;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using static AGVSystemCommonNet6.MAP.MapPoint;
+using VMSystem.AGV.TaskDispatch.Tasks;
 
 namespace VMSystem.TrafficControl
 {
@@ -72,7 +73,11 @@ namespace VMSystem.TrafficControl
                 ConflicAGVList = new List<IAGV>();
                 return false;
             }
-            var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
+            var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV.Name).ToList();
+            _UsePathAGV.IsDirectionHorizontalTo(otherAGV.First());
+            var cannotPassToAgvCollection = otherAGV.Where(agv => !agv.IsDirectionHorizontalTo(_UsePathAGV));
+
+
             return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, false, NoConsiderOtherAGVRemainPath: true);
         }
         // <summary>
@@ -180,7 +185,7 @@ namespace VMSystem.TrafficControl
             return GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
         }
 
-        private static List<MapRectangle> GetPathRegionsWithRectangle(List<MapPoint> pathPoints, double vehicleWidth, double vehicleLength)
+        public static List<MapRectangle> GetPathRegionsWithRectangle(List<MapPoint> pathPoints, double vehicleWidth, double vehicleLength)
         {
             List<MapRectangle> _PathRectangles = new List<MapRectangle>();
             for (int i = 0; i < pathPoints.Count() - 1; i++)

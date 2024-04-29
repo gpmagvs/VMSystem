@@ -73,7 +73,7 @@ namespace VMSystem.AGV
         {
             while (!disposedValue)
             {
-                await Task.Delay(10);
+                await Task.Delay(100);
                 agv.states = runningSTatus;
             }
         }
@@ -100,7 +100,7 @@ namespace VMSystem.AGV
 
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {
-            Console.WriteLine(data.RosTaskCommandGoal.ToJson());
+            //Console.WriteLine(data.RosTaskCommandGoal.ToJson());
             TaskCancelTokenSource.Cancel();
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;
@@ -456,14 +456,14 @@ namespace VMSystem.AGV
                     else
                         runningSTatus.Coordination.Theta += deltaTheta;
                     rotatedAngele += deltaTheta;
-                    Console.WriteLine($"{rotatedAngele}/{thetaToRotate}");
+                    //Console.WriteLine($"{rotatedAngele}/{thetaToRotate}");
                 }
                 _timer.Stop();
 
                 var speed_after_speed_up = thetaToRotate / _timer.ElapsedMilliseconds * 1000;
                 var speed = thetaToRotate / _timer.ElapsedMilliseconds / parameters.SpeedUpRate * 1000;
-                Console.WriteLine($"Rotation Speed(加速後) = {speed_after_speed_up} 度/秒(預設={parameters.RotationSpeed})");
-                Console.WriteLine($"Rotation Speed = {speed} 度/秒(預設={parameters.RotationSpeed})");
+                //Console.WriteLine($"Rotation Speed(加速後) = {speed_after_speed_up} 度/秒(預設={parameters.RotationSpeed})");
+                //Console.WriteLine($"Rotation Speed = {speed} 度/秒(預設={parameters.RotationSpeed})");
             }
             runningSTatus.Coordination.Theta = targetAngle;
         }

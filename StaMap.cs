@@ -16,9 +16,19 @@ using System.Diagnostics.Eventing.Reader;
 using System.Runtime.InteropServices;
 using System.Runtime;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using AGVSystemCommonNet6.MAP.Geometry;
 
 namespace VMSystem
 {
+    public static class MapExtensions
+    {
+        public static MapCircleArea GetCircleArea(this MapPoint point, ref IAGV refAGv)
+        {
+            float length = (float)(refAGv.options.VehicleLength / 100.0);
+            float width = (float)(refAGv.options.VehicleWidth / 100.0);
+            return new MapCircleArea(length, width, new System.Drawing.PointF((float)point.X, (float)point.Y));
+        }
+    }
     public class StaMap
     {
         public static Map Map { get; set; }
@@ -144,7 +154,34 @@ namespace VMSystem
         {
             return RegistPoint("System", mapPoint, out error_message, true);
         }
-        internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false)
+
+        private static void RegistNearPoints(string VehicleName, MapPoint CenterPoints)
+        {
+            IAGV registAgv = VMSManager.GetAGVByName(VehicleName);
+
+            var centerCircleArea = CenterPoints.GetCircleArea(ref registAgv);
+
+            var normalPoints = Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
+
+            var conflicPoints = normalPoints.Where(pt => pt.GetCircleArea(ref registAgv).IsIntersectionTo(centerCircleArea));
+
+            foreach (var point in conflicPoints)
+            {
+                bool success = RegistPoint(VehicleName, point, out var errMsg, registNearPoints: false);
+                if (!success)
+                {
+
+                }
+                else
+                {
+                    RegistDictionary[point.TagNumber].NearRegistInfo.IsRegisted = true;
+                    RegistDictionary[point.TagNumber].NearRegistInfo.RegistByPointTag = CenterPoints.TagNumber;
+                }
+            }
+            //registAgv.AGVRotaionGeometry
+        }
+
+        internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false, bool registNearPoints = true)
         {
             error_message = string.Empty;
             var TagNumber = mapPoint.TagNumber;
@@ -162,6 +199,7 @@ namespace VMSystem
                 bool _success = registerName == Name;
                 if (_success)
                 {
+
                     //LOG.TRACE($"{RegistDictionary.ToJson()}");
 
                     //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
@@ -180,7 +218,11 @@ namespace VMSystem
                 mapPoint.RegistInfo = new clsPointRegistInfo(Name);
                 bool registSuccess = RegistDictionary.TryAdd(TagNumber, mapPoint.RegistInfo);
                 if (registSuccess)
+                {
                     LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    //if (registNearPoints)
+                    //    RegistNearPoints(Name, mapPoint);
+                }
                 else
                 {
                     //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
@@ -205,6 +247,7 @@ namespace VMSystem
         internal static async Task<(bool success, string error_message)> UnRegistPoint(string Name, int TagNumber, bool IsBySystem = false)
         {
             await _unregistSemaphore.WaitAsync();
+            IAGV agv = VMSManager.GetAGVByName(Name);
             try
             {
                 var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
@@ -222,11 +265,24 @@ namespace VMSystem
                     bool allow_remove = registerName == Name;
                     if (allow_remove)
                     {
+
+
                         mapPoint.RegistInfo = new clsPointRegistInfo();
                         RegistDictionary.Remove(TagNumber, out var _);
                         OnTagUnregisted?.Invoke("", TagNumber);
                         TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
                         LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+
+                        //var nearRegistedPoints = RegistDictionary.Where(pair => pair.Value.NearRegistInfo.RegistByPointTag == TagNumber).Select(p => p.Key);
+
+                        //if (nearRegistedPoints.Any())
+                        //{
+                        //    foreach (var tag in nearRegistedPoints)
+                        //    {
+                        //        RegistDictionary.Remove(tag);
+                        //    }
+                        //}
+
                     }
                     else
                     {
@@ -404,6 +460,33 @@ namespace VMSystem
         internal static double CalculateDistance(double X1, double X2, double Y1, double Y2)
         {
             return Math.Pow(Math.Pow(X1 - X2, 2) + Math.Pow(Y1 - Y2, 2) * 1.0, 0.5);
+        }
+
+        internal static IEnumerable<MapPoint> GetNoStopPointsByAGVModel(clsEnums.AGV_TYPE model)
+        {
+            List<int> tags = new List<int>();
+            switch (model)
+            {
+                case clsEnums.AGV_TYPE.FORK:
+                    tags = Map.TagNoStopOfForkAGV;
+                    break;
+                case clsEnums.AGV_TYPE.YUNTECH_FORK_AGV:
+                    break;
+                case clsEnums.AGV_TYPE.INSPECTION_AGV:
+                    break;
+                case clsEnums.AGV_TYPE.SUBMERGED_SHIELD:
+                    tags = Map.TagNoStopOfSubmarineAGV;
+                    break;
+                case clsEnums.AGV_TYPE.SUBMERGED_SHIELD_Parts:
+                    break;
+                case clsEnums.AGV_TYPE.Any:
+                    break;
+                default:
+                    break;
+            }
+
+            return tags.Select(tag => GetPointByTagNumber(tag));
+
         }
 
         public class MapPointComparer : IEqualityComparer<MapPoint>
