@@ -47,7 +47,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             DestineTag = finalMapPoint.TagNumber;
             bool _isAagvAlreadyThereBegin = Agv.states.Last_Visited_Node == DestineTag;
             int _sequence = 0;
-
+            bool _isTurningAngleDoneInNarrow = false;
             while (_isAagvAlreadyThereBegin || Agv.states.Last_Visited_Node != DestineTag && !IsTaskCanceled) //需考慮AGV已經在目的地
             {
 
@@ -109,7 +109,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (IsTaskCanceled)
                             return;
-                        if (result.results.IsConflicByNarrowPathDirection)
+                        if (result.results.IsConflicByNarrowPathDirection && !_isTurningAngleDoneInNarrow)
                         {
                             await SendCancelRequestToAGV();
                             var newPath = new MapPoint[1] { Agv.currentMapPoint };
@@ -127,6 +127,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             turnTask.Trajectory.Last().Theta = _stopAngle;
                             await base._DispatchTaskToAGV(turnTask);
                             _previsousTrajectorySendToAGV.Clear();
+                            _isTurningAngleDoneInNarrow = true;
                             await Task.Delay(1000);
                             continue;
 
@@ -153,7 +154,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     nextOptimizePath = result.optimizePath;
                 }
 
-
+                _isTurningAngleDoneInNarrow = false;
                 //var agvIndex = nextOptimizePath.ToList().FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
                 //var nextFinnalGoalIndex = agvIndex + 4;
                 //var nextPath = nextOptimizePath.Take(nextFinnalGoalIndex);
