@@ -78,7 +78,10 @@ namespace VMSystem.AGV
             set
             {
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
+                {
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
+                    var region = currentMapPoint.GetRegion( StaMap.Map);
+                }
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
                 main_state = value.AGV_Status;
@@ -870,7 +873,7 @@ namespace VMSystem.AGV
             angleDifference = angleDifference > 180 ? 360 - angleDifference : angleDifference;
             double distance = Math.Sqrt(Math.Pow(Agv1X - Agv2X, 2) + Math.Pow(Agv1Y - Agv2Y, 2));
             bool isHorizon = angleDifference < 5 && angleDifference > -5 ||
-                   angleDifference > 175 && angleDifference <=180;
+                   angleDifference > 175 && angleDifference <= 180;
             //Console.WriteLine($"Direction To {otherAGV.Name} is Horizon(水平) ? {isHorizon} ");
             return isHorizon;
 

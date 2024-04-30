@@ -121,7 +121,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     RealTimeOptimizePathSearchReuslt = nextOptimizePath = result.optimizePath;
 
-
+                    
                     async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results)> _SearchPassablePath(MapPoint goal)
                     {
                         clsPathSearchResult _searchResult = new clsPathSearchResult();
