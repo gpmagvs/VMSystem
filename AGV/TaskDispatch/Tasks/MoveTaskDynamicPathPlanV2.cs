@@ -52,6 +52,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, finalMapPoint);
             MapPoint _tempGoal = finalMapPoint;
 
+            MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
             DestineTag = finalMapPoint.TagNumber;
 
 
@@ -61,51 +62,73 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                             .Where(regin => regin != null)
                                             .Distinct();
 
-            List<MapPoint> checkPoints = new List<MapPoint>();
+            Dictionary<MapPoint, bool> checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>();
 
             if (regions.Any())
             {
                 //切成數個小終點
                 var AgvCurrentRegion = Agv.currentMapPoint.GetRegion(CurrentMap);
-
+                bool _IsAGVChangeRegion = AgvCurrentRegion != finalGoalRegion;
                 if (AgvCurrentRegion != null && AgvCurrentRegion.LeavingTags.Any())
                 {
+                    int currentRegionAGVNum = AgvCurrentRegion.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
+                    bool _isAllAgvInCurrentRegion = currentRegionAGVNum == VMSManager.AllAGV.Count;
                     MapPoint leavingPoint = AgvCurrentRegion.GetNearLeavingPoint(CurrentMap, Agv.currentMapPoint);
-                    if (leavingPoint != null)
-                        checkPoints.Add(leavingPoint);//離開該區域
+                    if (!_isAllAgvInCurrentRegion && _IsAGVChangeRegion && leavingPoint != null)
+                        checkPointIsRegionEntryOrLeavingPoint.Add(leavingPoint, true);//離開該區域
                 }
                 foreach (var region in regions.Where(reg => reg != AgvCurrentRegion))
                 {
                     MapPoint entryPoint = region.GetNearEntryPoint(CurrentMap, Agv.currentMapPoint);
-                    if (entryPoint != null)
-                        checkPoints.Add(entryPoint);
+                    int NextRegionAGVNum = region.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
+                    bool _isNextRegionHasAGV = NextRegionAGVNum != 0;
+
+                    if (_isNextRegionHasAGV && _IsAGVChangeRegion && entryPoint != null)
+                        checkPointIsRegionEntryOrLeavingPoint.Add(entryPoint, true);
                 }
             }
 
 
-            if (!checkPoints.Any())
-                checkPoints = new List<MapPoint>() { finalMapPoint };
-
-            checkPoints.Add(finalMapPoint);
-            checkPoints = checkPoints.Distinct().ToList();
-
-            foreach (MapPoint item in checkPoints)
+            if (!checkPointIsRegionEntryOrLeavingPoint.Any())
+                checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>()
+                {
+                    {finalMapPoint,false }
+                };
+            else
             {
-                var _subGaol = item;
-                _tempGoal = item;
+                checkPointIsRegionEntryOrLeavingPoint.Add(finalMapPoint, false);
+            }
+
+            MapRegion GetAGVCurrentRegion()
+            {
+                return Agv.currentMapPoint.GetRegion(CurrentMap);
+            }
+
+            var agvCurrentRegion = GetAGVCurrentRegion();
+            int _sequence = 0;
+
+
+            foreach (var keypair in checkPointIsRegionEntryOrLeavingPoint)
+            {
+                var checkPoint = keypair.Key;
+                bool _isCurrentGoalIsEntryOrLeavePtOfRegion = keypair.Value;
+                if (_isCurrentGoalIsEntryOrLeavePtOfRegion)
+                {
+                    StaMap.RegistPoint(Agv.Name, checkPoint, out var msg);
+                }
+                var _subGaol = _tempGoal = NextCheckPoint = checkPoint;
                 bool _isAagvAlreadyThereBegin = Agv.states.Last_Visited_Node == _tempGoal.TagNumber;
-                int _sequence = 0;
+
                 bool _isTurningAngleDoneInNarrow = false;
                 Stopwatch _searPathTimer = Stopwatch.StartNew();
+
                 while (_isAagvAlreadyThereBegin || Agv.states.Last_Visited_Node != _subGaol.TagNumber && !IsTaskCanceled) //需考慮AGV已經在目的地
                 {
 
                     if (IsTaskCanceled)
                         return;
+
                     (bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results) result = new(false, null, new clsPathSearchResult());
-
-
-
                     IEnumerable<MapPoint> nextOptimizePath = new List<MapPoint>();
 
                     if (_isAagvAlreadyThereBegin)
@@ -116,11 +139,37 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     else
                     {
                         _searPathTimer.Restart();
-                        while (!(result = await _SearchPassablePath(_tempGoal)).success)
+                        while (!(result = await _SearchPassablePath(_tempGoal, new List<MapPoint>())).success)
                         {
+                            if (Agv.main_state == clsEnums.MAIN_STATUS.IDLE && !Agv.IsDirectionIsMatchToRegionSetting(out double regionSetting, out double diff) && Agv.currentMapPoint.TagNumber != DestineTag)
+                            {
+                                await SendCancelRequestToAGV();
+                                await _DispatchTaskToAGV(new clsTaskDownloadData
+                                {
+                                    Task_Name = OrderData.TaskName,
+                                    Task_Sequence = _sequence,
+                                    Action_Type = ACTION_TYPE.None,
+                                    Destination = Agv.currentMapPoint.TagNumber,
+                                    Trajectory = new clsMapPoint[1] { new clsMapPoint{
+                                        Point_ID = Agv.currentMapPoint.TagNumber,
+                                        Theta = regionSetting,
+                                        X = Agv.currentMapPoint.X,
+                                        Y = Agv.currentMapPoint.Y,
+                                        Laser =  5
+                                    } }
+                                });
+
+                                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN || !Agv.IsDirectionIsMatchToRegionSetting(out regionSetting, out diff))
+                                {
+                                    await Task.Delay(1000);
+                                    if (IsTaskCanceled)
+                                        return;
+                                }
+                                _previsousTrajectorySendToAGV.Clear();
+                                await DirectionCheck();
+                                continue;
+                            }
                             RealTimeOptimizePathSearchReuslt = result.optimizePath;
-
-
                             //if (_searPathTimer.Elapsed.Seconds > 5)
                             //{
                             //    PathConflicRequest.CONFLIC_STATE conflicReason = result.results.IsConflicByNarrowPathDirection ?
@@ -134,6 +183,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (IsTaskCanceled)
                                 return;
+
                             if (result.results.IsConflicByNarrowPathDirection && !_isTurningAngleDoneInNarrow)
                             {
                                 _isTurningAngleDoneInNarrow = await HandleAGVAtNarrowPath(_sequence, _isTurningAngleDoneInNarrow, result);
@@ -148,9 +198,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             try
                             {
                                 //取出下一個停止點
-                                var otherAGVPoints = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Select(agv => agv.currentMapPoint);
+                                var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv);
+                                var otherAGVPoints = othersAGV.Select(agv => agv.currentMapPoint);
                                 var filterVirtualPoints = result.optimizePath.Where(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber)
                                                                              .Where(pt => !pt.IsVirtualPoint) //濾除虛擬點
+                                                                             .Where(pt => !othersAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(Agv.AGVRotaionGeometry)))
                                                                              .Where(pt => otherAGVPoints.All(agv_pt => agv_pt.CalculateDistance(pt) >= 2));//距離其他車輛2公尺以上
                                 _tempGoal = filterVirtualPoints.Reverse().Skip(2).First();
                             }
@@ -163,8 +215,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         RealTimeOptimizePathSearchReuslt = nextOptimizePath = result.optimizePath;
 
-
-                        async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results)> _SearchPassablePath(MapPoint goal)
+                        //[Loacal Method]Low Level Search
+                        async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results)> _SearchPassablePath(MapPoint goal, IEnumerable<MapPoint> _constrains)
                         {
                             clsPathSearchResult _searchResult = new clsPathSearchResult();
                             bool PassableInNarrowPath(out IEnumerable<IAGV> conflicAGVCollection)
@@ -216,6 +268,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                                 var OtherNewPathFound = LowLevelSearch.TryGetOptimizedMapPointWithConstrains(ref optimizePath, constrains, out secondaryPath);
                                 bool isPathconflicOfSecondaryPath = secondaryPath.IsPathConflicWithOtherAGVBody(this.Agv, out conflicAGVListOfPathCollsion);
+                                bool isPathPtRegistedOfSecondaryPath = secondaryPath.IsPathHasPointsBeRegisted(this.Agv, out registed);
                                 _searchResult.isPathConflicByAGVGeometry = isPathconflicOfSecondaryPath;
                                 _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath(out conflicNarrowPathAGVCollection) && _searchResult.isPathConflicByAGVGeometry;
 
@@ -226,7 +279,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 _searchResult.ConflicAGVCollection = conflicAGVs;
 
 
-                                if (OtherNewPathFound && !isPathconflicOfSecondaryPath && !_searchResult.IsConflicByNarrowPathDirection)
+                                if (OtherNewPathFound && !isPathPtRegistedOfSecondaryPath && !isPathconflicOfSecondaryPath && !_searchResult.IsConflicByNarrowPathDirection)
                                 {
 
                                     return (true, secondaryPath, _searchResult);
@@ -236,6 +289,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return (IsPathPassable && optimizePath.Last() != Agv.currentMapPoint, optimizePath, _searchResult);
                         }
                     }
+
+                    await DirectionCheck();
 
                     _isTurningAngleDoneInNarrow = false;
                     var nextPath = GetNextPath(new clsPathInfo
@@ -264,7 +319,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     _taskDownloadData.Trajectory.Last().Theta = stopAngle;
 
                     MoveTaskEvent = new clsMoveTaskEvent(Agv, nextOptimizePath.GetTagCollection(), nextPath.ToList(), false);
-                    StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
+                    while (!StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage))
+                    {
+                        var regMsg = string.Join(",", MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList);
+                        UpdateMoveStateMessage($"嘗試註冊點位中...{regMsg}");
+                        await Task.Delay(1000);
+                    }
 
                     await base._DispatchTaskToAGV(_taskDownloadData);
                     _sequence += 1;
@@ -304,6 +364,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         else
                         {
+                            if (_tempGoal.TagNumber == Agv.states.Last_Visited_Node)
+                            {
+
+                            }
                             if (Agv.states.Last_Visited_Node == nearGoalTag || nextPath.Last().TagNumber == Agv.states.Last_Visited_Node)
                                 break;
                         }
@@ -311,6 +375,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     _isAagvAlreadyThereBegin = false;
                     _tempGoal = _subGaol;
+                    bool reachDesine = checkPoint.TagNumber == DestineTag;
 
                     await Task.Delay(1);
 
@@ -318,6 +383,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 }
 
+            }
+
+            async Task DirectionCheck()
+            {
+
+                if (!GetAGVCurrentRegion().IsNarrowPath)
+                    return;
+
+                bool _AnyAGVInRegionNotCorrectDirection()
+                {
+                    return VMSManager.AllAGV.FilterOutAGVFromCollection(Agv).Where(agv => agv.currentMapPoint.GetRegion(CurrentMap)?.Name == GetAGVCurrentRegion()?.Name)
+                                                                .Where(agv => agv.IsDirectionIsMatchToRegionSetting(out _, out _)).Any();
+                }
+
+                while (_AnyAGVInRegionNotCorrectDirection())
+                {
+                    if (IsTaskCanceled)
+                        return;
+                    UpdateMoveStateMessage($"Wait Direction Check...");
+                    await Task.Delay(1000);
+                }
             }
 
 
@@ -581,15 +667,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public static bool IsPathConflicWithOtherAGVBody(this IEnumerable<MapPoint> path, IAGV pathOwner, out IEnumerable<IAGV> conflicAGVList)
         {
-            //var pathCircleAreas = path.Select(pt => pt.GetCircleArea(ref pathOwner));
-            //var conclifsAGV = otherAGVCollection.Where(agv => pathCircleAreas.Any(circle => circle.IsIntersectionTo(agv.AGVRotaionGeometry)));
-            //if(conclifsAGV.Any())
-            //{
-            //    conflicAGVList = conclifsAGV.ToList();
-            //    return true;
-            //}
             conflicAGVList = new List<IAGV>();
+            var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(pathOwner);
+            if (path == null || !path.Any())
+            {
+                conflicAGVList = othersAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(pathOwner.AGVRotaionGeometry));
+                return conflicAGVList.Any();
+            }
 
+            var finalCircleRegion = path.Last().GetCircleArea(ref pathOwner);
+
+            conflicAGVList = othersAGV.Where(agv => agv.AGVRotaionGeometry.IsIntersectionTo(finalCircleRegion));
+
+            if (conflicAGVList.Any())
+                return true;
             return Tools.CalculatePathInterferenceByAGVGeometry(path, pathOwner, out conflicAGVList);
         }
 
@@ -611,6 +702,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         }
 
+        public static bool IsDirectionIsMatchToRegionSetting(this IAGV Agv, out double regionSetting, out double diff)
+        {
+            regionSetting = 0;
+            diff = 0;
+            var currentMapRegion = Agv.currentMapPoint.GetRegion(StaMap.Map);
+            if (currentMapRegion == null) return true;
+
+            var agvTheta = Agv.states.Coordination.Theta;
+            regionSetting = currentMapRegion.ThetaLimitWhenAGVIdling;
+            // 確定角度差異，調整為介於0和180度之間
+            double angleDifference = Math.Abs(agvTheta - regionSetting);
+            angleDifference = angleDifference > 180 ? 360 - angleDifference : angleDifference;
+            diff = Math.Abs(angleDifference);
+            return diff >= -5 && diff <= 5 || diff >= 175 && diff <= 180;
+        }
 
         public static bool CanVehiclePassTo(this IAGV Agv, IAGV otherAGV)
         {

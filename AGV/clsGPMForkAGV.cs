@@ -80,7 +80,7 @@ namespace VMSystem.AGV
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
-                    var region = currentMapPoint.GetRegion( StaMap.Map);
+                    var region = currentMapPoint.GetRegion(StaMap.Map);
                 }
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
@@ -179,6 +179,9 @@ namespace VMSystem.AGV
                 }
             }
         }
+
+        public List<MapPoint> noRegistedByConflicCheck { get; set; } = new List<MapPoint>();
+        public List<MapPoint> RegistedByConflicCheck { get; set; } = new List<MapPoint>();
         public MapPoint previousMapPoint { get; private set; } = new MapPoint("", -1);
         public MapPoint currentMapPoint
         {
@@ -187,6 +190,8 @@ namespace VMSystem.AGV
             {
                 try
                 {
+                    IAGV _thisAGV = this;
+                    var currentCircleArea = value.GetCircleArea(ref _thisAGV);
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
@@ -200,11 +205,50 @@ namespace VMSystem.AGV
 
                         if (previousMapPoint != null)
                         {
+                            bool _isPreviousPointTooNearCurrnetPoint = previousMapPoint.GetCircleArea(ref _thisAGV).IsIntersectionTo(currentCircleArea);
+                            //if (_isPreviousPointTooNearCurrnetPoint && previousMapPoint.TagNumber != value.TagNumber)
+                            //{
+                            //    noRegistedByConflicCheck.Add(previousMapPoint);
+                            //}
+                            //else
                             StaMap.UnRegistPoint(Name, previousTag);
                         }
 
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
+
+
+                        var tooNearUnregistedPoints = StaMap.Map.Points.Values.Where(pt => !StaMap.RegistDictionary.ContainsKey(pt.TagNumber))
+                                                .Where(pt => pt.GetCircleArea(ref _thisAGV, 0.5).IsIntersectionTo(currentCircleArea));
+
+                        if (tooNearUnregistedPoints.Any())
+                        {
+                            RegistedByConflicCheck.AddRange(tooNearUnregistedPoints);
+                            StaMap.RegistPoint(Name, tooNearUnregistedPoints, out var msg);
+                        }
+
+
                         TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
+
+
+                        if (noRegistedByConflicCheck.Any())
+                        {
+                            var _farPoints = noRegistedByConflicCheck.Where(pt => !pt.GetCircleArea(ref _thisAGV).IsIntersectionTo(currentCircleArea)).ToList();
+                            foreach (var item in _farPoints)
+                            {
+                                StaMap.UnRegistPoint(Name, item);
+                                noRegistedByConflicCheck.Remove(item);
+                            }
+                        }
+                        if (RegistedByConflicCheck.Any())
+                        {
+                            var _farPoints = RegistedByConflicCheck.Where(pt => !this.CurrentRunningTask().RealTimeOptimizePathSearchReuslt.Contains(pt))
+                                                                    .Where(pt => !pt.GetCircleArea(ref _thisAGV, 0.5).IsIntersectionTo(currentCircleArea)).ToList();
+                            foreach (var item in _farPoints)
+                            {
+                                StaMap.UnRegistPoint(Name, item);
+                                RegistedByConflicCheck.Remove(item);
+                            }
+                        }
 
                         previousMapPoint = value;
                     }
@@ -322,7 +366,7 @@ namespace VMSystem.AGV
         {
             get
             {
-                return new MapCircleArea((float)(options.VehicleLength / 100f), (float)(options.VehicleWidth / 100f), new System.Drawing.PointF((float)states.Coordination.X, (float)states.Coordination.Y));
+                return new MapCircleArea((float)(options.VehicleLength / 100f), (float)(options.VehicleWidth / 100f), new System.Drawing.PointF((float)currentMapPoint.X, (float)currentMapPoint.Y));
             }
         }
 

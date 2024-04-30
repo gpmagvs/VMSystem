@@ -22,10 +22,10 @@ namespace VMSystem
 {
     public static class MapExtensions
     {
-        public static MapCircleArea GetCircleArea(this MapPoint point, ref IAGV refAGv)
+        public static MapCircleArea GetCircleArea(this MapPoint point, ref IAGV refAGv, double sizeRatio = 1)
         {
-            float length = (float)(refAGv.options.VehicleLength / 100.0);
-            float width = (float)(refAGv.options.VehicleWidth / 100.0);
+            float length = (float)(refAGv.options.VehicleLength / 100.0 * sizeRatio);
+            float width = (float)(refAGv.options.VehicleWidth / 100.0 * sizeRatio);
             return new MapCircleArea(length, width, new System.Drawing.PointF((float)point.X, (float)point.Y));
         }
     }
@@ -183,52 +183,66 @@ namespace VMSystem
 
         internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false, bool registNearPoints = true)
         {
-            error_message = string.Empty;
-            var TagNumber = mapPoint.TagNumber;
-            if (IsBySystem)
+            try
             {
-                mapPoint.RegistInfo = new clsPointRegistInfo("System");
-                RegistDictionary.Remove(TagNumber, out clsPointRegistInfo _info);
-                RegistDictionary.Add(TagNumber, mapPoint.RegistInfo);
-                //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
-                return true;
-            }
-            if (RegistDictionary.ContainsKey(TagNumber))
-            {
-                string registerName = RegistDictionary[TagNumber].RegisterAGVName;
-                bool _success = registerName == Name;
-                if (_success)
+                _registSemaphore.Wait();
+                error_message = string.Empty;
+                var TagNumber = mapPoint.TagNumber;
+                if (IsBySystem)
                 {
-
-                    //LOG.TRACE($"{RegistDictionary.ToJson()}");
-
-                    //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                    mapPoint.RegistInfo = new clsPointRegistInfo("System");
+                    RegistDictionary.Remove(TagNumber, out clsPointRegistInfo _info);
+                    RegistDictionary.Add(TagNumber, mapPoint.RegistInfo);
                     //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    return true;
                 }
-                else
+                if (RegistDictionary.ContainsKey(TagNumber))
                 {
-                    error_message = $"Tag {TagNumber} is registed by [{registerName}]";
-                    //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
+                    string registerName = RegistDictionary[TagNumber].RegisterAGVName;
+                    bool _success = registerName == Name;
+                    if (_success)
+                    {
 
-                }
-                return _success;
-            }
-            else
-            {
-                mapPoint.RegistInfo = new clsPointRegistInfo(Name);
-                bool registSuccess = RegistDictionary.TryAdd(TagNumber, mapPoint.RegistInfo);
-                if (registSuccess)
-                {
-                    LOG.TRACE($"{Name} Regist Tag {TagNumber}");
-                    //if (registNearPoints)
-                    //    RegistNearPoints(Name, mapPoint);
+                        //LOG.TRACE($"{RegistDictionary.ToJson()}");
+
+                        //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
+                        //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    }
+                    else
+                    {
+                        error_message = $"Tag {TagNumber} is registed by [{registerName}]";
+                        //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
+
+                    }
+                    return _success;
                 }
                 else
                 {
-                    //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
+                    mapPoint.RegistInfo = new clsPointRegistInfo(Name);
+                    bool registSuccess = RegistDictionary.TryAdd(TagNumber, mapPoint.RegistInfo);
+                    if (registSuccess)
+                    {
+                        LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                        //if (registNearPoints)
+                        //    RegistNearPoints(Name, mapPoint);
+                    }
+                    else
+                    {
+                        //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
+                    }
+                    return registSuccess;
                 }
-                return registSuccess;
             }
+            catch (Exception ex)
+            {
+                error_message = ex.Message;
+                return false;
+            }
+            finally
+            {
+                _registSemaphore.Release();
+            }
+
         }
         internal static async Task<(bool success, string error_message)> UnRegistPointBySystem(MapPoint mapPoint)
         {
@@ -244,10 +258,12 @@ namespace VMSystem
             return (true, "");
         }
         private static SemaphoreSlim _unregistSemaphore = new SemaphoreSlim(1, 1);
+        private static SemaphoreSlim _registSemaphore = new SemaphoreSlim(1, 1);
         internal static async Task<(bool success, string error_message)> UnRegistPoint(string Name, int TagNumber, bool IsBySystem = false)
         {
             await _unregistSemaphore.WaitAsync();
             IAGV agv = VMSManager.GetAGVByName(Name);
+            var registedPointsByConflic = agv.RegistedByConflicCheck;
             try
             {
                 var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
@@ -260,6 +276,14 @@ namespace VMSystem
                 }
                 if (RegistDictionary.ContainsKey(TagNumber))
                 {
+                    //var mapPt = registedPointsByConflic.FirstOrDefault(pt => pt.TagNumber == TagNumber);
+                    //if (mapPt != null && mapPt.GetCircleArea(ref agv, 0.5).IsIntersectionTo(agv.AGVRotaionGeometry))
+                    //{
+                    //    var msg = $"Too Near Point cannot unregist-{Name}";
+                    //    LOG.TRACE(msg);
+                    //    return (false, msg);
+                    //}
+
                     var error_message = "";
                     string registerName = RegistDictionary[TagNumber].RegisterAGVName;
                     bool allow_remove = registerName == Name;

@@ -48,6 +48,8 @@ namespace VMSystem.AGV
         bool AGVOnlineFromAGVS(out string message);
         bool AGVOfflineFromAGVS(out string message);
 
+        List<MapPoint> noRegistedByConflicCheck { get;  set; }
+        List<MapPoint> RegistedByConflicCheck { get;  set; }
         MapPoint[] PlanningNavigationMapPoints { get; }
         Task<object> GetAGVStateFromDB();
 

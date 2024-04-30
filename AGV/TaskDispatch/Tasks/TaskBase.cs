@@ -28,6 +28,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected Map CurrentMap => StaMap.Map;
 
         public ACTION_TYPE NextAction { get; set; } = ACTION_TYPE.NoAction;
+
+        public MapPoint NextCheckPoint { get; set; } = new MapPoint();
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {

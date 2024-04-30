@@ -56,7 +56,7 @@ namespace VMSystem.TrafficControl
             File.WriteAllText(jsonFilePath, Parameters.ToJson());
         }
 
-        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward)
+        public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward, double expandRatio = 1)
         {
             if (_Path.Count() == 0)
             {
@@ -64,9 +64,9 @@ namespace VMSystem.TrafficControl
                 return false;
             }
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV);
-            return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, IsAGVBackward);
+            return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, IsAGVBackward, expandRatio: expandRatio);
         }
-        public static bool CalculatePathInterferenceByAGVGeometry(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList)
+        public static bool CalculatePathInterferenceByAGVGeometry(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, double expandRatio = 1)
         {
             if (_Path.Count() == 0)
             {
@@ -76,15 +76,13 @@ namespace VMSystem.TrafficControl
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(_UsePathAGV.Name).ToList();
             _UsePathAGV.IsDirectionHorizontalTo(otherAGV.First());
             var cannotPassToAgvCollection = otherAGV.Where(agv => !agv.IsDirectionHorizontalTo(_UsePathAGV));
-
-
             return CalculatePathInterference(_Path, _UsePathAGV, otherAGV, out ConflicAGVList, false, NoConsiderOtherAGVRemainPath: true);
         }
         // <summary>
         /// 計算干涉
         /// </summary>
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward,
-            bool NoConsiderOtherAGVRemainPath = false)
+            bool NoConsiderOtherAGVRemainPath = false, double expandRatio = 1)
         {
             //if (AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
             //{
@@ -121,8 +119,8 @@ namespace VMSystem.TrafficControl
                 bool isAgvWillRotation = Math.Abs(thetaOfUsePathAGV - thetaOfNextPath) > 5;
 
                 //將每個路徑段用矩形表示
-                double vehicleWidth = _UsePathAGV.options.VehicleWidth / 100.0 + (IsAGVBackward ? 0.3 : 0);
-                double vehicleLength = _UsePathAGV.options.VehicleLength / 100.0 + (IsAGVBackward ? 0.0 : 0.5); ;
+                double vehicleWidth = _UsePathAGV.options.VehicleWidth * expandRatio / 100.0;
+                double vehicleLength = _UsePathAGV.options.VehicleLength * expandRatio / 100.0;
                 List<MapRectangle> _PathRectangles = GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
 
                 List<int> _GetRemainTagsOfAGV(IAGV agv)
@@ -213,7 +211,7 @@ namespace VMSystem.TrafficControl
             var angleDegrees = (float)AGV.states.Coordination.Theta;
             var length = AGV.options.VehicleLength / 100.0;
             var width = AGV.options.VehicleWidth / 100.0;
-            var center = new PointF((float)AGV.states.Coordination.X, (float)AGV.states.Coordination.Y);
+            var center = new PointF((float)AGV.currentMapPoint.X, (float)AGV.currentMapPoint.Y);
             // 角度轉換為弧度
             float angleRadians = angleDegrees * (float)Math.PI / 180.0f;
             // 長度和寬度的一半
