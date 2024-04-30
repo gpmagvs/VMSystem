@@ -25,6 +25,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public static event EventHandler<PathConflicRequest> OnPathConflicForSoloveRequest;
 
+        protected Map CurrentMap => StaMap.Map;
 
         public ACTION_TYPE NextAction { get; set; } = ACTION_TYPE.NoAction;
         public TaskBase() { }
