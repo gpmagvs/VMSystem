@@ -217,14 +217,14 @@ namespace VMSystem.AGV
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
 
 
-                        var tooNearUnregistedPoints = StaMap.Map.Points.Values.Where(pt => !StaMap.RegistDictionary.ContainsKey(pt.TagNumber))
-                                                .Where(pt => pt.GetCircleArea(ref _thisAGV, 0.5).IsIntersectionTo(currentCircleArea));
+                        //var tooNearUnregistedPoints = StaMap.Map.Points.Values.Where(pt => !StaMap.RegistDictionary.ContainsKey(pt.TagNumber))
+                        //                        .Where(pt => pt.GetCircleArea(ref _thisAGV, 0.5).IsIntersectionTo(currentCircleArea));
 
-                        if (tooNearUnregistedPoints.Any())
-                        {
-                            RegistedByConflicCheck.AddRange(tooNearUnregistedPoints);
-                            StaMap.RegistPoint(Name, tooNearUnregistedPoints, out var msg);
-                        }
+                        //if (tooNearUnregistedPoints.Any())
+                        //{
+                        //    RegistedByConflicCheck.AddRange(tooNearUnregistedPoints);
+                        //    StaMap.RegistPoint(Name, tooNearUnregistedPoints, out var msg);
+                        //}
 
 
                         TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });

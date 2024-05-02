@@ -11,7 +11,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         protected override void _SetOrderAsFinishState()
         {
             base._SetOrderAsFinishState();
-            onAGVChargeOrderDone?.Invoke(this, this);
+             onAGVChargeOrderDone?.Invoke(this, this);
         }
       
     }

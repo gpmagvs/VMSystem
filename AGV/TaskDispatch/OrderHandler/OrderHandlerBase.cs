@@ -59,7 +59,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
                         {
-                            DetermineTaskState(out bool isTaskFail);
+                            bool isTaskFail = await DetermineTaskState();
                             if (isTaskFail)
                             {
                                 return;
@@ -74,9 +74,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     _CurrnetTaskFinishResetEvent.WaitOne();
                     task.Dispose();
                     task.ActionFinishInvoke();
+
+                  
                     LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
-                    DetermineTaskState(out bool _isTaskFail);
+                    bool _isTaskFail = await DetermineTaskState();
                     if (_isTaskFail)
                     {
                         return;
@@ -106,8 +108,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             }
 
-            void DetermineTaskState(out bool isTaskFail)
+            async Task<bool>  DetermineTaskState()
             {
+                bool isTaskFail = false;
+                while (Agv.main_state == MAIN_STATUS.RUN)
+                {
+                    await Task.Delay(100);
+                }
                 isTaskFail = false;
                 if (TaskAbortedFlag)
                 {
@@ -123,6 +130,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
                 }
+                return isTaskFail;
             }
         }
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
@@ -133,10 +141,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         internal async void HandleAGVFeedbackAsync(FeedbackData feedbackData)
         {
+            await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
             try
             {
                 LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.ToJson()}");
-                await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
                 _ = Task.Run(async () =>
                 {
                     if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
@@ -149,12 +157,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
                     else if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_START)
                         HandleAGVActionStartFeedback();
-                    _HandleTaskStateFeedbackSemaphoreSlim.Release();
                 });
             }
             catch (Exception ex)
             {
                 _SetOrderAsFaiiureState(ex.Message);
+            }
+            finally
+            {
+                _HandleTaskStateFeedbackSemaphoreSlim.Release();
             }
 
         }
@@ -231,6 +242,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         private void _SetOrderAsCancelState(string taskCancelReason)
         {
+            RunningTask.CancelTask();
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
@@ -257,6 +269,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected void _SetOrderAsFaiiureState(string FailReason)
         {
+            RunningTask.CancelTask();
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.FAILURE;
             OrderData.FinishTime = DateTime.Now;

@@ -36,6 +36,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv = this.Agv,
                 GoalTag = TaskDonwloadToAGV.Destination
             });
+            StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
             await base.SendTaskToAGV();
         }
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)

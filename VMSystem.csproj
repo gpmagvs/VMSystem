@@ -52,6 +52,10 @@
     <!--<Exec Command="powershell.exe -ExecutionPolicy Bypass -File &quot;AutoVersionModify.ps1&quot;&#xD;&#xA;" />-->
   </Target>
 
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="tasklist | find /I &quot;VMSystem.exe&quot; &gt; nul &amp;&amp; taskkill /F /IM &quot;VMSystem.exe&quot; || echo &quot;VMSystemnot running.&quot;&amp; exit 0" />
+  </Target>
+
 </Project>
 
 

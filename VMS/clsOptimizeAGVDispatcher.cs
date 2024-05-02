@@ -38,7 +38,7 @@ namespace VMSystem.VMS
                 {
                     try
                     {
-                        Thread.Sleep(400);
+                        await Task.Delay(100);
                         List<string> List_TaskAGV = new List<string>();
                         var _taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
 

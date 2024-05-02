@@ -112,6 +112,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (TaskCanceledException ex)
             {
+                TrafficWaitingState.SetDisplayMessage("任務取消中...");
                 return (false, ALARMS.Task_Canceled);
             }
             catch (NoPathForNavigatorException ex)
@@ -294,9 +295,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public virtual async void CancelTask()
         {
             _TaskCancelTokenSource.Cancel();
+            IsTaskCanceled = true;
+            this.Dispose();
             await SendCancelRequestToAGV();
             TrafficWaitingState.SetStatusNoWaiting();
-            IsTaskCanceled = true;
         }
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()

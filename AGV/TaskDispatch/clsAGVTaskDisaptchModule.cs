@@ -131,7 +131,7 @@ namespace VMSystem.AGV
             Task<clsAlarmDto> _charge_forbid_alarm = null;
             while (true)
             {
-                Thread.Sleep(10);
+                await Task.Delay(10);
 
                 if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
                     continue;
@@ -148,7 +148,7 @@ namespace VMSystem.AGV
                 if (agv.main_state == clsEnums.MAIN_STATUS.Charging)
                     continue;
 
-                Thread.Sleep(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
+                await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
                 if (agv.IsAGVCargoStatusCanNotGoToCharge() && !agv.currentMapPoint.IsCharge)
                 {
                     if (_charge_forbid_alarm != null)
@@ -260,6 +260,10 @@ namespace VMSystem.AGV
         }
         public async void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
+            if(tasksCollection.Any(tk=>tk.State == TASK_RUN_STATUS.CANCEL))
+            {
+
+            }
             await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
             try
             {
