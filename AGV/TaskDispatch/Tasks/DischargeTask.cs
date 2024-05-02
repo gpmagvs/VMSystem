@@ -58,6 +58,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), result.Message);
                 await Task.Delay(1000);
+                if (IsTaskCanceled)
+                {
+                    break;
+                }
             }
             TrafficWaitingState.SetStatusNoWaiting();
 

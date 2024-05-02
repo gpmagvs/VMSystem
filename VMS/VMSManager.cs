@@ -14,6 +14,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
+using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using static VMSystem.AGV.clsGPMInspectionAGV;
@@ -149,6 +150,20 @@ namespace VMSystem.VMS
         internal static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored = new Dictionary<string, clsAGVStateDto>();
         private static async Task AGVStatesStoreWorker()
         {
+            void GetStationsName(IAGV agv, out string current, out string from, out string to)
+            {
+                current = from = to = "";
+                current = agv.currentMapPoint.Graph.Display;
+                bool isExecuting = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+                if (!isExecuting)
+                    return;
+                clsTaskDto currentOrder = agv.CurrentRunningTask().OrderData;
+                if (currentOrder == null)
+                    return;
+                from = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
+                to = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
+            }
+
             AGVSDatabase databse = new AGVSDatabase();
             while (true)
             {
@@ -156,6 +171,7 @@ namespace VMSystem.VMS
                 {
                     clsAGVStateDto CreateDTO(IAGV agv)
                     {
+                        GetStationsName(agv, out string currentLocDisplay, out string sourceDisplay, out string destineDisplay);
                         var dto = new clsAGVStateDto
                         {
                             AGV_Name = agv.Name,
@@ -187,6 +203,9 @@ namespace VMSystem.VMS
                             LowBatLvThreshold = agv.options.BatteryOptions.LowLevel,
                             MiddleBatLvThreshold = agv.options.BatteryOptions.MiddleLevel,
                             HighBatLvThreshold = agv.options.BatteryOptions.HightLevel,
+                            TaskSourceStationName = sourceDisplay,
+                            TaskDestineStationName = destineDisplay,
+                            StationName = currentLocDisplay
                         };
                         return dto;
                     };
@@ -218,7 +237,7 @@ namespace VMSystem.VMS
                     LOG.ERROR($"AGVStatesStoreWorker 收集AGV狀態數據的過程中發生錯誤", ex);
                 }
 
-                await Task.Delay(50);
+                await Task.Delay(150);
             }
         }
 

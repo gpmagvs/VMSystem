@@ -33,11 +33,11 @@ namespace VMSystem.Controllers
             {
                 CurrentViewModelDataOfAllChannel[channelMaps[0]] = new
                 {
-                    DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
+                    //DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
+                    //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
                     AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
-                    VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
-                    VMSStatusData = ViewModelFactory.GetVMSStatusData(),
                     OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
+                    VMSStatus = VMSManager.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
                 };
             }
             catch (Exception ex)
@@ -71,7 +71,7 @@ namespace VMSystem.Controllers
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = isOrderExecuting ? OrderHandler.GetNavPathTags():OrderHandler.RunningTask.FuturePlanNavigationTags,
+                        nav_path = isOrderExecuting ? OrderHandler.GetNavPathTags() : OrderHandler.RunningTask.FuturePlanNavigationTags,
                         theta = agv.states.Coordination.Theta,
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new

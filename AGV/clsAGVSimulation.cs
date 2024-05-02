@@ -172,7 +172,8 @@ namespace VMSystem.AGV
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
                 moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure ? moveArgs.orderTrajectory : moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
-                clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.ToArray();
+                clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.Count() == 1 ?
+                                            moveArgs.nextMoveTrajectory.ToArray() : moveArgs.nextMoveTrajectory.Where(pt => pt.Point_ID != currentTag).ToArray();
                 ACTION_TYPE action = moveArgs.action;
 
                 var taskFeedbackData = moveArgs.Feedback;

@@ -110,6 +110,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (false, ALARMS.Task_Canceled);
                 return (true, ALARMS.NONE);
             }
+            catch (TaskCanceledException ex)
+            {
+                return (false, ALARMS.Task_Canceled);
+            }
             catch (NoPathForNavigatorException ex)
             {
                 return (false, ex.Alarm_Code);
@@ -140,13 +144,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual async Task SendTaskToAGV()
         {
+            if (IsTaskCanceled)
+                return;
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
             await SendTaskToAGV(TaskDonwloadToAGV);
         }
         public virtual async Task SendTaskToAGV(clsTaskDownloadData taskData)
         {
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
-
+            if (IsTaskCanceled)
+                return;
             var agv_response = await _DispatchTaskToAGV(taskData);
             if (agv_response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                 throw new Exceptions.AGVRejectTaskException();
