@@ -9,6 +9,8 @@ using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch.Exceptions;
+using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 
@@ -31,6 +33,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public MapPoint NextCheckPoint { get; set; } = new MapPoint();
 
+        public IEnumerable<IAGV> OtherAGV => VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv);
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {

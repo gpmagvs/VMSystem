@@ -44,522 +44,594 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// 
         /// </summary>
         /// <returns></returns>
+        //public override async Task SendTaskToAGV()
+        //{
+        //    IsTaskCanceled = false;
+        //    PassedTags.Clear();
+
+        //    MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+
+        //    LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, finalMapPoint);
+        //    MapPoint _tempGoal = finalMapPoint;
+
+        //    MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
+        //    finalGoalRegion = finalGoalRegion == null ? new MapRegion { IsNarrowPath = false, Name = "" } : finalGoalRegion;
+        //    DestineTag = finalMapPoint.TagNumber;
+
+
+        //    var optimizePathGolbal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, finalMapPoint);
+
+        //    var regions = optimizePathGolbal.GetRegions(CurrentMap)
+        //                                    .Where(regin => regin != null && regin.Name != null)
+        //                                    .Distinct();
+
+        //    Dictionary<MapPoint, bool> checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>();
+
+        //    if (regions.Any())
+        //    {
+        //        //切成數個小終點
+        //        var AgvCurrentRegion = Agv.currentMapPoint.GetRegion(CurrentMap);
+        //        bool _IsAGVChangeRegion = AgvCurrentRegion != finalGoalRegion;
+        //        if (AgvCurrentRegion != null && AgvCurrentRegion.LeavingTags.Any())
+        //        {
+        //            int currentRegionAGVNum = AgvCurrentRegion.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
+        //            bool _isAllAgvInCurrentRegion = currentRegionAGVNum == VMSManager.AllAGV.Count;
+        //            MapPoint leavingPoint = AgvCurrentRegion.GetNearLeavingPoint(CurrentMap, Agv.currentMapPoint);
+        //            if (!_isAllAgvInCurrentRegion && _IsAGVChangeRegion && leavingPoint != null)
+        //                checkPointIsRegionEntryOrLeavingPoint.Add(leavingPoint, true);//離開該區域
+        //        }
+        //        foreach (var region in regions.Where(reg => reg != AgvCurrentRegion))
+        //        {
+        //            MapPoint entryPoint = region.GetNearEntryPoint(CurrentMap, Agv.currentMapPoint);
+        //            int NextRegionAGVNum = region.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
+        //            bool _isNextRegionHasAGV = NextRegionAGVNum != 0;
+
+        //            if (_isNextRegionHasAGV && _IsAGVChangeRegion && entryPoint != null)
+        //                checkPointIsRegionEntryOrLeavingPoint.Add(entryPoint, true);
+        //        }
+        //    }
+
+
+        //    if (!checkPointIsRegionEntryOrLeavingPoint.Any())
+        //        checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>()
+        //        {
+        //            {finalMapPoint,false }
+        //        };
+        //    else
+        //    {
+        //        checkPointIsRegionEntryOrLeavingPoint.Add(finalMapPoint, false);
+        //    }
+
+        //    MapRegion GetAGVCurrentRegion()
+        //    {
+        //        return Agv.currentMapPoint.GetRegion(CurrentMap);
+        //    }
+
+        //    int _sequence = 0;
+
+
+        //    foreach (var keypair in checkPointIsRegionEntryOrLeavingPoint)
+        //    {
+        //        var checkPoint = keypair.Key;
+        //        bool _isCurrentGoalIsEntryOrLeavePtOfRegion = keypair.Value;
+        //        //if (_isCurrentGoalIsEntryOrLeavePtOfRegion)
+        //        //{
+        //        //    StaMap.RegistPoint(Agv.Name, checkPoint, out var msg);
+        //        //}
+        //        var _subGaol = _tempGoal = NextCheckPoint = checkPoint;
+        //        bool _isAagvAlreadyThereBegin = Agv.states.Last_Visited_Node == _tempGoal.TagNumber;
+        //        bool _isTurningAngleDoneInNarrow = false;
+
+        //        var _currentRegion = GetAGVCurrentRegion();
+
+
+        //        bool _isCurrentRegionNarrow = _currentRegion != null && _currentRegion.IsNarrowPath;
+        //        Stopwatch _searPathTimer = Stopwatch.StartNew();
+        //        while (_isAagvAlreadyThereBegin || Agv.states.Last_Visited_Node != _subGaol.TagNumber && !IsTaskCanceled) //需考慮AGV已經在目的地
+        //        {
+
+        //            if (IsTaskCanceled)
+        //                throw new TaskCanceledException();
+
+        //            (bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results) result = new(false, null, new clsPathSearchResult());
+        //            IEnumerable<MapPoint> nextOptimizePath = new List<MapPoint>();
+
+        //            if (_isAagvAlreadyThereBegin)
+        //            {
+        //                nextOptimizePath = new List<MapPoint> { Agv.currentMapPoint };
+
+        //            }
+        //            else
+        //            {
+        //                _searPathTimer.Restart();
+
+        //                if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath || _isCurrentGoalIsEntryOrLeavePtOfRegion)
+        //                    _tempGoal = finalMapPoint;
+        //                while (!(result = await _SearchPassablePath(_tempGoal, new List<MapPoint>())).success)
+        //                {
+
+        //                    RealTimeOptimizePathSearchReuslt = result.optimizePath;
+        //                    //if (_searPathTimer.Elapsed.Seconds > 5)
+        //                    //{
+        //                    //    PathConflicRequest.CONFLIC_STATE conflicReason = result.results.IsConflicByNarrowPathDirection ?
+        //                    //        PathConflicRequest.CONFLIC_STATE.NARROW_PATH_CONFLIC : PathConflicRequest.CONFLIC_STATE.REMAIN_PATH_COLLUSION_CONFLIC;
+        //                    //    PathConflicSolveRequestInvoke(new TrafficControlCenter.PathConflicRequest(Agv,
+        //                    //        result.results.ConflicAGVCollection.Distinct(),
+        //                    //        result.optimizePath,
+        //                    //        conflicReason));
+        //                    //    return;
+        //                    //}
+
+        //                    if (IsTaskCanceled || disposedValue)
+        //                        throw new TaskCanceledException();
+
+        //                    //if (result.results.IsConflicByNarrowPathDirection && !_isTurningAngleDoneInNarrow)
+        //                    //{
+        //                    //    _isTurningAngleDoneInNarrow = await HandleAGVAtNarrowPath(_sequence, _isTurningAngleDoneInNarrow, result);
+        //                    //    await Task.Delay(1000);
+        //                    //    continue;
+
+        //                    //}
+
+        //                    TrafficWaitingState.SetDisplayMessage($"(Search Path to Tag-{_tempGoal.TagNumber}...)");
+
+        //                    await Task.Delay(1000);
+        //                    try
+        //                    {
+        //                        //取出下一個停止點
+
+        //                        if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath || _isCurrentGoalIsEntryOrLeavePtOfRegion)
+        //                        {
+        //                            _tempGoal = finalMapPoint;
+        //                            continue;
+        //                        }
+
+        //                        var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv);
+        //                        var otherAGVPoints = othersAGV.Select(agv => agv.currentMapPoint);
+        //                        var filterVirtualPoints = result.optimizePath.Where(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber)
+        //                                                                     .Where(pt => !pt.IsVirtualPoint) //濾除虛擬點
+        //                                                                     .Where(pt => !othersAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(Agv.AGVRotaionGeometry)))
+        //                                                                     .Where(pt => otherAGVPoints.All(agv_pt => agv_pt.CalculateDistance(pt) >= 2));//距離其他車輛2公尺以上
+        //                        filterVirtualPoints = filterVirtualPoints.Reverse();
+        //                        // filterVirtualPoints.Count() < 2;
+        //                        int candicatPointsNum = filterVirtualPoints.Count();
+        //                        _tempGoal = filterVirtualPoints.Skip(candicatPointsNum > 2 ? 2 : candicatPointsNum - 1).First();
+
+        //                    }
+        //                    catch (Exception ex)
+        //                    {
+        //                        _tempGoal = finalMapPoint;
+        //                        continue;
+        //                    }
+
+        //                }
+        //                RealTimeOptimizePathSearchReuslt = nextOptimizePath = result.optimizePath;
+
+        //                //[Loacal Method]Low Level Search
+        //                async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results)> _SearchPassablePath(MapPoint goal, IEnumerable<MapPoint> _constrains)
+        //                {
+        //                    clsPathSearchResult _searchResult = new clsPathSearchResult();
+        //                    bool PassableInNarrowPath(out IEnumerable<IAGV> conflicAGVCollection)
+        //                    {
+        //                        conflicAGVCollection = new List<IAGV>();
+
+        //                        if (!Agv.currentMapPoint.IsNarrowPath)
+        //                            return true;
+        //                        var nonHorizontalAGVs = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv)
+        //                                                .Where(_agv => _agv.currentMapPoint.IsNarrowPath)
+        //                                                .Where(_agv => !_agv.IsDirectionHorizontalTo(Agv));
+        //                        conflicAGVCollection = nonHorizontalAGVs;
+        //                        return !nonHorizontalAGVs.Any();
+        //                    }
+
+        //                    var optimizePath = LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, goal);
+        //                    bool isPathHasPointsBeRegisted = optimizePath.IsPathHasPointsBeRegisted(this.Agv, out var registed);
+        //                    bool isHasAnyYieldPoints = optimizePath.IsPathHasAnyYieldingPoints(out var yieldPoints);
+        //                    _searchResult.isPathConflicByAGVGeometry = optimizePath.IsPathConflicWithOtherAGVBody(this.Agv, out var conflicAGVListOfPathCollsion);
+        //                    _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath(out IEnumerable<IAGV> conflicNarrowPathAGVCollection) && _searchResult.isPathConflicByAGVGeometry;
+
+        //                    List<IAGV> conflicAGVs = new List<IAGV>();
+        //                    conflicAGVs.AddRange(conflicAGVListOfPathCollsion);
+        //                    conflicAGVs.AddRange(conflicNarrowPathAGVCollection);
+        //                    _searchResult.ConflicAGVCollection = conflicAGVs;
+
+        //                    bool HasOtherNewPath = false;
+        //                    bool IsPathPassable = !isPathHasPointsBeRegisted && !_searchResult.isPathConflicByAGVGeometry && !_searchResult.IsConflicByNarrowPathDirection;
+
+        //                    IEnumerable<MapPoint> secondaryPath = new List<MapPoint>();
+        //                    if (!IsPathPassable)
+        //                    {
+        //                        List<MapPoint> constrains = new List<MapPoint>();
+        //                        var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
+        //                        var otherAgvPoints = othersAGV.Select(agv => agv.currentMapPoint);
+        //                        constrains.AddRange(otherAgvPoints);
+
+        //                        IEnumerable<MapPoint> AgvConflicAround(IAGV _agv)
+        //                        {
+        //                            return _agv.currentMapPoint.TargetNormalPoints()
+        //                                                .Where(pt => pt.GetCircleArea(ref _agv)
+        //                                                .IsIntersectionTo(_agv.AGVRotaionGeometry));
+        //                        }
+
+
+
+        //                        constrains.AddRange(othersAGV.Where(agv => agv.currentMapPoint.IsCharge).SelectMany(agv => agv.currentMapPoint.TargetNormalPoints()));
+
+        //                        //constrains.AddRange(othersAGV.SelectMany(agv => AgvConflicAround(agv)));
+        //                        constrains = constrains.Where(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber)
+        //                                               .Where(pt => pt.TagNumber != optimizePath.Last().TagNumber)
+        //                                               .ToList();
+
+        //                        var OtherNewPathFound = LowLevelSearch.TryGetOptimizedMapPointWithConstrains(ref optimizePath, constrains, out secondaryPath);
+        //                        bool isPathconflicOfSecondaryPath = secondaryPath.IsPathConflicWithOtherAGVBody(this.Agv, out conflicAGVListOfPathCollsion);
+        //                        bool isPathPtRegistedOfSecondaryPath = secondaryPath.IsPathHasPointsBeRegisted(this.Agv, out registed);
+        //                        _searchResult.isPathConflicByAGVGeometry = isPathconflicOfSecondaryPath;
+        //                        _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath(out conflicNarrowPathAGVCollection) && _searchResult.isPathConflicByAGVGeometry;
+
+
+        //                        conflicAGVs.Clear();
+        //                        conflicAGVs.AddRange(conflicAGVListOfPathCollsion);
+        //                        conflicAGVs.AddRange(conflicNarrowPathAGVCollection);
+        //                        _searchResult.ConflicAGVCollection = conflicAGVs;
+
+
+        //                        if (OtherNewPathFound && !isPathPtRegistedOfSecondaryPath)
+        //                        {
+
+        //                            return (true, secondaryPath, _searchResult);
+        //                        }
+
+        //                    }
+        //                    return (IsPathPassable && optimizePath.Last() != Agv.currentMapPoint, optimizePath, _searchResult);
+        //                }
+        //            }
+
+        //            _isTurningAngleDoneInNarrow = false;
+        //            var nextPath = GetNextPath(new clsPathInfo
+        //            {
+        //                stations = nextOptimizePath.ToList(),
+        //            }, Agv.states.Last_Visited_Node, out bool IsNexPathHasEqReplcingParts, out int blockByEqPartsReplace, 4);
+
+        //            await NarrowDirectionCheck(nextPath);
+
+        //            var isNextPathGoalIsFinal = nextPath.Last() == _subGaol;
+
+
+        //            double stopAngle = nextPath.GetStopDirectionAngle(OrderData, Agv, Stage, nextPath.Last());
+        //            var pathToAGVSegment = PathFinder.GetTrajectory(StaMap.Map.Name, nextPath.ToList()).ToArray();
+        //            pathToAGVSegment = pathToAGVSegment.SkipWhile(pt => _previsousTrajectorySendToAGV.Any(_pt => _pt.Point_ID == pt.Point_ID)).ToArray();
+        //            int nearGoalTag = 0;
+        //            if (pathToAGVSegment.Count() != 0)
+        //            {
+        //                _previsousTrajectorySendToAGV.AddRange(pathToAGVSegment);
+
+        //                //產生丟給車載的數據模型
+        //                clsTaskDownloadData _taskDownloadData = new clsTaskDownloadData
+        //                {
+        //                    Task_Name = OrderData.TaskName,
+        //                    Task_Sequence = _sequence,
+        //                    Action_Type = ACTION_TYPE.None,
+        //                    Destination = finalMapPoint.TagNumber,
+        //                };
+        //                _taskDownloadData.Trajectory = _previsousTrajectorySendToAGV.ToArray();
+        //                _taskDownloadData.Trajectory.Last().Theta = stopAngle;
+
+        //                MoveTaskEvent = new clsMoveTaskEvent(Agv, nextOptimizePath.GetTagCollection(), nextPath.ToList(), false);
+        //                while (!StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage))
+        //                {
+        //                    var regMsg = string.Join(",", MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList);
+        //                    UpdateMoveStateMessage($"嘗試註冊點位中...{regMsg}");
+        //                    await Task.Delay(1000);
+        //                }
+
+        //                await base._DispatchTaskToAGV(_taskDownloadData);
+        //                _sequence += 1;
+        //                nearGoalTag = nextPath.Reverse()
+        //                                        .Skip(isNextPathGoalIsFinal || nextPath.Count() <= 2 ? 0 : 1)
+        //                                        .FirstOrDefault().TagNumber;
+        //                UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber})");
+        //            }
+        //            else
+        //            {
+        //                nearGoalTag = _previsousTrajectorySendToAGV.Last().Point_ID;
+        //            }
+
+
+        //            while (!PassedTags.Contains(nearGoalTag))
+        //            {
+
+        //                if (IsTaskCanceled)
+        //                    throw new TaskCanceledException();
+
+        //                //if (anyAgvRemainPathWillConflicWhenAgvRotating(nextPath))
+        //                //{
+        //                //    UpdateMoveStateMessage($"Imapcted  State Detected");
+        //                //    continue;
+        //                //}
+
+        //                if (anyAgvInSameNarrowRegionButNotHorizon())
+        //                {
+        //                    UpdateMoveStateMessage($"Non-horizon State Detected");
+        //                    continue;
+        //                }
+        //                else
+        //                {
+        //                    if (_isAagvAlreadyThereBegin)
+        //                        break;
+        //                    if (nearGoalTag == DestineTag)
+        //                    {
+        //                        while (Agv.states.Last_Visited_Node != DestineTag)
+        //                        {
+        //                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(即將抵達終點-{DestineTag})");
+        //                            await Task.Delay(1);
+        //                            if (IsTaskCanceled || disposedValue)
+        //                                throw new TaskCanceledException();
+        //                        }
+        //                        return;
+        //                    }
+        //                    else
+        //                    {
+        //                        if (Agv.states.Last_Visited_Node == nearGoalTag || nextPath.Last().TagNumber == Agv.states.Last_Visited_Node)
+        //                            break;
+        //                    }
+        //                }
+
+
+        //                await Task.Delay(100);
+        //            }
+        //            _isAagvAlreadyThereBegin = false;
+        //            _tempGoal = _subGaol;
+        //            bool reachDesine = checkPoint.TagNumber == DestineTag;
+
+        //            await Task.Delay(1);
+
+
+
+        //        }
+        //        string GetDestineDisplay()
+        //        {
+        //            int _destineTag = 0;
+        //            bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
+        //            _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
+        //            return StaMap.GetStationNameByTag(_destineTag);
+        //        }
+        //    }
+
+        //    bool anyAgvRemainPathWillConflicWhenAgvRotating(IEnumerable<MapPoint> _nexPath)
+        //    {
+        //        if (!_nexPath.Any())
+        //            return false;
+
+        //        List<MapPoint> _NextPath = new List<MapPoint>() { };
+        //        if (_nexPath.Count() == 1)  //原地旋轉
+        //        {
+        //            _NextPath = new List<MapPoint> { Agv.currentMapPoint };
+        //        }
+        //        else
+        //        {
+        //            var strtPt = _nexPath.ToList()[0];
+        //            var nextPt = _nexPath.ToList()[1];
+        //            _NextPath = new List<MapPoint>
+        //            {
+        //                strtPt,nextPt
+        //            };
+        //        }
+        //        var otherExecutingOrderAGv = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
+        //        if (!otherExecutingOrderAGv.Any())
+        //            return false;
+        //        return otherExecutingOrderAGv.Where(agv => agv.CurrentRunningTask().RealTimeOptimizePathSearchReuslt.IsRemainPathConflicWithOtherAGVBody(agv, out var conflicsAgv))
+        //                                     .Any();
+        //    }
+
+        //    bool anyAgvInSameNarrowRegionButNotHorizon()
+        //    {
+        //        var agvRegion = Agv.currentMapPoint.GetRegion(CurrentMap);
+        //        if (agvRegion == null || agvRegion.Name == "" || !agvRegion.IsNarrowPath)
+        //            return false;
+        //        return GetInRegionVehicles().Any(v => !v.IsDirectionHorizontalTo(Agv));
+        //    }
+        //    async Task NarrowDirectionCheck(IEnumerable<MapPoint> _nextPath)
+        //    {
+        //        var currentRegion = GetAGVCurrentRegion();
+        //        if (currentRegion == null || !currentRegion.IsNarrowPath)
+        //            return;
+        //        if (Agv.IsDirectionIsMatchToRegionSetting(out double regionSetting, out double diff) && !_AnyAGVInRegionNotCorrectDirection())
+        //            return;
+
+        //        var _finalStopTheta = optimizePathGolbal.GetStopDirectionAngle(OrderData, Agv, Stage, optimizePathGolbal.Last());
+        //        bool isAGVAtDestine = Agv.states.Coordination.Theta != _finalStopTheta && Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
+        //        if (isAGVAtDestine)
+        //            return;
+
+        //        //計算夾角
+
+
+        //        var nextGaolPt = _nextPath.FirstOrDefault(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber);
+
+
+
+        //        if (nextGaolPt != null)
+        //        {
+
+        //            var distanceToNextGoal = Agv.currentMapPoint.CalculateDistance(nextGaolPt);
+        //            var positionOfOtherAGV = GetInRegionVehicles().ToDictionary(agv => agv, agv => Agv.currentMapPoint.CalculateDistance(agv.currentMapPoint) <= distanceToNextGoal);
+        //            if (positionOfOtherAGV.Values.All(v => v == true))
+        //                return;
+        //        }
+        //        async Task<bool> WaitAGVIDLE()
+        //        {
+        //            while (Agv.main_state != clsEnums.MAIN_STATUS.IDLE)
+        //            {
+        //                await Task.Delay(100);
+        //            }
+        //            return true;
+        //        }
+
+        //        async Task<bool> WaitAGVRUN()
+        //        {
+        //            while (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
+        //            {
+        //                await Task.Delay(100);
+        //            }
+        //            return true;
+        //        }
+
+        //        if (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+        //        {
+        //            await WaitAGVIDLE();
+        //        }
+        //        await SendCancelRequestToAGV();
+
+        //        double stopAngle = regionSetting;
+        //        if (regionSetting == 90)
+        //        {
+        //            if (Agv.states.Coordination.Theta >= 0 && Agv.states.Coordination.Theta <= 180)
+        //            {
+        //                stopAngle = regionSetting;
+        //            }
+        //            else
+        //            {
+
+        //                stopAngle = regionSetting - 180;
+        //            }
+
+        //        }
+        //        else if (regionSetting == 0)
+        //        {
+        //            if (Agv.states.Coordination.Theta >= -90 && Agv.states.Coordination.Theta <= 90)
+        //            {
+        //                stopAngle = regionSetting;
+        //            }
+        //            else
+        //            {
+
+        //                stopAngle = regionSetting - 180;
+        //            }
+        //        }
+
+        //        await _DispatchTaskToAGV(new clsTaskDownloadData
+        //        {
+        //            Task_Name = OrderData.TaskName,
+        //            Task_Sequence = _sequence,
+        //            Action_Type = ACTION_TYPE.None,
+        //            Destination = Agv.currentMapPoint.TagNumber,
+        //            Trajectory = new clsMapPoint[1] { new clsMapPoint{
+        //                                Point_ID = Agv.currentMapPoint.TagNumber,
+        //                                Theta = stopAngle,
+        //                                X = Agv.currentMapPoint.X,
+        //                                Y = Agv.currentMapPoint.Y,
+        //                                Laser =  5
+        //                            } }
+        //        });
+
+        //        while (Agv.main_state == clsEnums.MAIN_STATUS.RUN || !Agv.IsDirectionIsMatchToRegionSetting(out regionSetting, out diff))
+        //        {
+        //            await Task.Delay(1000);
+        //            UpdateMoveStateMessage($"Wait Direction Correct..({regionSetting})");
+        //            if (IsTaskCanceled)
+        //                throw new TaskCanceledException();
+        //        }
+        //        await WaitAGVIDLE();
+        //        _previsousTrajectorySendToAGV.Clear();
+
+
+        //        while (_AnyAGVInRegionNotCorrectDirection())
+        //        {
+        //            if (IsTaskCanceled)
+        //                throw new TaskCanceledException();
+        //            UpdateMoveStateMessage($"Wait Direction Check...");
+        //            await Task.Delay(1000);
+        //        }
+        //    }
+
+        //    IEnumerable<IAGV> GetInRegionVehicles()
+        //    {
+        //        var currentRegion = GetAGVCurrentRegion();
+        //        if (currentRegion == null || currentRegion.Name == null || currentRegion.Name == "")
+        //            return new List<IAGV>();
+        //        return VMSManager.AllAGV.FilterOutAGVFromCollection(Agv)
+        //                               .Where(agv => agv.currentMapPoint.GetRegion(CurrentMap)?.Name == currentRegion.Name);
+        //    }
+
+        //    bool _AnyAGVInRegionNotCorrectDirection()
+        //    {
+        //        return GetInRegionVehicles().Where(agv => !agv.IsDirectionIsMatchToRegionSetting(out _, out _)).Any();
+        //    }
+
+
+        //    //return base.SendTaskToAGV();
+        //}
+
+        public int SeqIndex = 0;
+
         public override async Task SendTaskToAGV()
         {
-            IsTaskCanceled = false;
-            PassedTags.Clear();
-
+            SeqIndex = 0;
             MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-
-            LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, finalMapPoint);
-            MapPoint _tempGoal = finalMapPoint;
-
             MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
-            finalGoalRegion = finalGoalRegion == null ? new MapRegion { IsNarrowPath = false, Name = "" } : finalGoalRegion;
             DestineTag = finalMapPoint.TagNumber;
 
+            IEnumerable<MapPoint> subGoals = GetGoalsOfOptimizePath(finalMapPoint);
 
-            var optimizePathGolbal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, finalMapPoint);
-
-            var regions = optimizePathGolbal.GetRegions(CurrentMap)
-                                            .Where(regin => regin != null && regin.Name != null)
-                                            .Distinct();
-
-            Dictionary<MapPoint, bool> checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>();
-
-            if (regions.Any())
+            foreach (MapPoint subGoal in subGoals)
             {
-                //切成數個小終點
-                var AgvCurrentRegion = Agv.currentMapPoint.GetRegion(CurrentMap);
-                bool _IsAGVChangeRegion = AgvCurrentRegion != finalGoalRegion;
-                if (AgvCurrentRegion != null && AgvCurrentRegion.LeavingTags.Any())
+
+                IEnumerable<MapPoint> subOptizePathPlanToSubGoal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, subGoal);
+
+                while (IsPathMovable(subOptizePathPlanToSubGoal, out List<MapPoint> NotReachablePoints))
                 {
-                    int currentRegionAGVNum = AgvCurrentRegion.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
-                    bool _isAllAgvInCurrentRegion = currentRegionAGVNum == VMSManager.AllAGV.Count;
-                    MapPoint leavingPoint = AgvCurrentRegion.GetNearLeavingPoint(CurrentMap, Agv.currentMapPoint);
-                    if (!_isAllAgvInCurrentRegion && _IsAGVChangeRegion && leavingPoint != null)
-                        checkPointIsRegionEntryOrLeavingPoint.Add(leavingPoint, true);//離開該區域
+                    if (IsTaskCanceled)
+                        throw new TaskCanceledException();
+                    UpdateMoveStateMessage($"Wait {string.Join(",", NotReachablePoints.GetTagCollection())} Passable..");
+                    await Task.Delay(1000);
                 }
-                foreach (var region in regions.Where(reg => reg != AgvCurrentRegion))
+
+                while (!StaMap.RegistPoint(this.Agv.Name, subOptizePathPlanToSubGoal, out var msg))
                 {
-                    MapPoint entryPoint = region.GetNearEntryPoint(CurrentMap, Agv.currentMapPoint);
-                    int NextRegionAGVNum = region.GetCurrentVehicleNum(CurrentMap, VMSManager.AllAGV.Select(v => v.currentMapPoint));
-                    bool _isNextRegionHasAGV = NextRegionAGVNum != 0;
-
-                    if (_isNextRegionHasAGV && _IsAGVChangeRegion && entryPoint != null)
-                        checkPointIsRegionEntryOrLeavingPoint.Add(entryPoint, true);
-                }
-            }
-
-
-            if (!checkPointIsRegionEntryOrLeavingPoint.Any())
-                checkPointIsRegionEntryOrLeavingPoint = new Dictionary<MapPoint, bool>()
-                {
-                    {finalMapPoint,false }
+                    if (IsTaskCanceled)
+                        throw new TaskCanceledException();
+                    UpdateMoveStateMessage($"Wait {string.Join(",", subOptizePathPlanToSubGoal.GetTagCollection())} Registable..");
+                    await Task.Delay(1000);
                 };
-            else
-            {
-                checkPointIsRegionEntryOrLeavingPoint.Add(finalMapPoint, false);
-            }
 
-            MapRegion GetAGVCurrentRegion()
-            {
-                return Agv.currentMapPoint.GetRegion(CurrentMap);
-            }
-
-            int _sequence = 0;
-
-
-            foreach (var keypair in checkPointIsRegionEntryOrLeavingPoint)
-            {
-                var checkPoint = keypair.Key;
-                bool _isCurrentGoalIsEntryOrLeavePtOfRegion = keypair.Value;
-                //if (_isCurrentGoalIsEntryOrLeavePtOfRegion)
-                //{
-                //    StaMap.RegistPoint(Agv.Name, checkPoint, out var msg);
-                //}
-                var _subGaol = _tempGoal = NextCheckPoint = checkPoint;
-                bool _isAagvAlreadyThereBegin = Agv.states.Last_Visited_Node == _tempGoal.TagNumber;
-                bool _isTurningAngleDoneInNarrow = false;
-
-                var _currentRegion = GetAGVCurrentRegion();
-
-
-                bool _isCurrentRegionNarrow = _currentRegion != null && _currentRegion.IsNarrowPath;
-                Stopwatch _searPathTimer = Stopwatch.StartNew();
-                while (_isAagvAlreadyThereBegin || Agv.states.Last_Visited_Node != _subGaol.TagNumber && !IsTaskCanceled) //需考慮AGV已經在目的地
+                clsTaskDownloadData _taskDownloadToVCS = new clsTaskDownloadData
                 {
-
-                    if (IsTaskCanceled)
-                        throw new TaskCanceledException();
-
-                    (bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results) result = new(false, null, new clsPathSearchResult());
-                    IEnumerable<MapPoint> nextOptimizePath = new List<MapPoint>();
-
-                    if (_isAagvAlreadyThereBegin)
-                    {
-                        nextOptimizePath = new List<MapPoint> { Agv.currentMapPoint };
-
-                    }
-                    else
-                    {
-                        _searPathTimer.Restart();
-
-                        if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath || _isCurrentGoalIsEntryOrLeavePtOfRegion)
-                            _tempGoal = finalMapPoint;
-                        while (!(result = await _SearchPassablePath(_tempGoal, new List<MapPoint>())).success)
-                        {
-
-                            RealTimeOptimizePathSearchReuslt = result.optimizePath;
-                            //if (_searPathTimer.Elapsed.Seconds > 5)
-                            //{
-                            //    PathConflicRequest.CONFLIC_STATE conflicReason = result.results.IsConflicByNarrowPathDirection ?
-                            //        PathConflicRequest.CONFLIC_STATE.NARROW_PATH_CONFLIC : PathConflicRequest.CONFLIC_STATE.REMAIN_PATH_COLLUSION_CONFLIC;
-                            //    PathConflicSolveRequestInvoke(new TrafficControlCenter.PathConflicRequest(Agv,
-                            //        result.results.ConflicAGVCollection.Distinct(),
-                            //        result.optimizePath,
-                            //        conflicReason));
-                            //    return;
-                            //}
-
-                            if (IsTaskCanceled || disposedValue)
-                                throw new TaskCanceledException();
-
-                            //if (result.results.IsConflicByNarrowPathDirection && !_isTurningAngleDoneInNarrow)
-                            //{
-                            //    _isTurningAngleDoneInNarrow = await HandleAGVAtNarrowPath(_sequence, _isTurningAngleDoneInNarrow, result);
-                            //    await Task.Delay(1000);
-                            //    continue;
-
-                            //}
-
-                            TrafficWaitingState.SetDisplayMessage($"(Search Path to Tag-{_tempGoal.TagNumber}...)");
-
-                            await Task.Delay(1000);
-                            try
-                            {
-                                //取出下一個停止點
-
-                                if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath || _isCurrentGoalIsEntryOrLeavePtOfRegion)
-                                {
-                                    _tempGoal = finalMapPoint;
-                                    continue;
-                                }
-
-                                var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv);
-                                var otherAGVPoints = othersAGV.Select(agv => agv.currentMapPoint);
-                                var filterVirtualPoints = result.optimizePath.Where(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber)
-                                                                             .Where(pt => !pt.IsVirtualPoint) //濾除虛擬點
-                                                                             .Where(pt => !othersAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(Agv.AGVRotaionGeometry)))
-                                                                             .Where(pt => otherAGVPoints.All(agv_pt => agv_pt.CalculateDistance(pt) >= 2));//距離其他車輛2公尺以上
-                                filterVirtualPoints = filterVirtualPoints.Reverse();
-                                // filterVirtualPoints.Count() < 2;
-                                int candicatPointsNum = filterVirtualPoints.Count();
-                                _tempGoal = filterVirtualPoints.Skip(candicatPointsNum > 2 ? 2 : candicatPointsNum - 1).First();
-
-                            }
-                            catch (Exception ex)
-                            {
-                                _tempGoal = finalMapPoint;
-                                continue;
-                            }
-
-                        }
-                        RealTimeOptimizePathSearchReuslt = nextOptimizePath = result.optimizePath;
-
-                        //[Loacal Method]Low Level Search
-                        async Task<(bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results)> _SearchPassablePath(MapPoint goal, IEnumerable<MapPoint> _constrains)
-                        {
-                            clsPathSearchResult _searchResult = new clsPathSearchResult();
-                            bool PassableInNarrowPath(out IEnumerable<IAGV> conflicAGVCollection)
-                            {
-                                conflicAGVCollection = new List<IAGV>();
-
-                                if (!Agv.currentMapPoint.IsNarrowPath)
-                                    return true;
-                                var nonHorizontalAGVs = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv)
-                                                        .Where(_agv => _agv.currentMapPoint.IsNarrowPath)
-                                                        .Where(_agv => !_agv.IsDirectionHorizontalTo(Agv));
-                                conflicAGVCollection = nonHorizontalAGVs;
-                                return !nonHorizontalAGVs.Any();
-                            }
-
-                            var optimizePath = LowLevelSearch.GetOptimizedMapPoints(this.Agv.currentMapPoint, goal);
-                            bool isPathHasPointsBeRegisted = optimizePath.IsPathHasPointsBeRegisted(this.Agv, out var registed);
-                            bool isHasAnyYieldPoints = optimizePath.IsPathHasAnyYieldingPoints(out var yieldPoints);
-                            _searchResult.isPathConflicByAGVGeometry = optimizePath.IsPathConflicWithOtherAGVBody(this.Agv, out var conflicAGVListOfPathCollsion);
-                            _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath(out IEnumerable<IAGV> conflicNarrowPathAGVCollection) && _searchResult.isPathConflicByAGVGeometry;
-
-                            List<IAGV> conflicAGVs = new List<IAGV>();
-                            conflicAGVs.AddRange(conflicAGVListOfPathCollsion);
-                            conflicAGVs.AddRange(conflicNarrowPathAGVCollection);
-                            _searchResult.ConflicAGVCollection = conflicAGVs;
-
-                            bool HasOtherNewPath = false;
-                            bool IsPathPassable = !isPathHasPointsBeRegisted && !_searchResult.isPathConflicByAGVGeometry && !_searchResult.IsConflicByNarrowPathDirection;
-
-                            IEnumerable<MapPoint> secondaryPath = new List<MapPoint>();
-                            if (!IsPathPassable)
-                            {
-                                List<MapPoint> constrains = new List<MapPoint>();
-                                var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
-                                var otherAgvPoints = othersAGV.Select(agv => agv.currentMapPoint);
-                                constrains.AddRange(otherAgvPoints);
-
-                                IEnumerable<MapPoint> AgvConflicAround(IAGV _agv)
-                                {
-                                    return _agv.currentMapPoint.TargetNormalPoints()
-                                                        .Where(pt => pt.GetCircleArea(ref _agv)
-                                                        .IsIntersectionTo(_agv.AGVRotaionGeometry));
-                                }
-
-
-
-                                constrains.AddRange(othersAGV.Where(agv => agv.currentMapPoint.IsCharge).SelectMany(agv => agv.currentMapPoint.TargetNormalPoints()));
-
-                                //constrains.AddRange(othersAGV.SelectMany(agv => AgvConflicAround(agv)));
-                                constrains = constrains.Where(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber)
-                                                       .Where(pt => pt.TagNumber != optimizePath.Last().TagNumber)
-                                                       .ToList();
-
-                                var OtherNewPathFound = LowLevelSearch.TryGetOptimizedMapPointWithConstrains(ref optimizePath, constrains, out secondaryPath);
-                                bool isPathconflicOfSecondaryPath = secondaryPath.IsPathConflicWithOtherAGVBody(this.Agv, out conflicAGVListOfPathCollsion);
-                                bool isPathPtRegistedOfSecondaryPath = secondaryPath.IsPathHasPointsBeRegisted(this.Agv, out registed);
-                                _searchResult.isPathConflicByAGVGeometry = isPathconflicOfSecondaryPath;
-                                _searchResult.IsConflicByNarrowPathDirection = !PassableInNarrowPath(out conflicNarrowPathAGVCollection) && _searchResult.isPathConflicByAGVGeometry;
-
-
-                                conflicAGVs.Clear();
-                                conflicAGVs.AddRange(conflicAGVListOfPathCollsion);
-                                conflicAGVs.AddRange(conflicNarrowPathAGVCollection);
-                                _searchResult.ConflicAGVCollection = conflicAGVs;
-
-
-                                if (OtherNewPathFound && !isPathPtRegistedOfSecondaryPath)
-                                {
-
-                                    return (true, secondaryPath, _searchResult);
-                                }
-
-                            }
-                            return (IsPathPassable && optimizePath.Last() != Agv.currentMapPoint, optimizePath, _searchResult);
-                        }
-                    }
-
-                    _isTurningAngleDoneInNarrow = false;
-                    var nextPath = GetNextPath(new clsPathInfo
-                    {
-                        stations = nextOptimizePath.ToList(),
-                    }, Agv.states.Last_Visited_Node, out bool IsNexPathHasEqReplcingParts, out int blockByEqPartsReplace, 4);
-
-                    await NarrowDirectionCheck(nextPath);
-
-                    var isNextPathGoalIsFinal = nextPath.Last() == _subGaol;
-
-
-                    double stopAngle = nextPath.GetStopDirectionAngle(OrderData, Agv, Stage, nextPath.Last());
-                    var pathToAGVSegment = PathFinder.GetTrajectory(StaMap.Map.Name, nextPath.ToList()).ToArray();
-                    pathToAGVSegment = pathToAGVSegment.SkipWhile(pt => _previsousTrajectorySendToAGV.Any(_pt => _pt.Point_ID == pt.Point_ID)).ToArray();
-                    int nearGoalTag = 0;
-                    if (pathToAGVSegment.Count() != 0)
-                    {
-                        _previsousTrajectorySendToAGV.AddRange(pathToAGVSegment);
-
-                        //產生丟給車載的數據模型
-                        clsTaskDownloadData _taskDownloadData = new clsTaskDownloadData
-                        {
-                            Task_Name = OrderData.TaskName,
-                            Task_Sequence = _sequence,
-                            Action_Type = ACTION_TYPE.None,
-                            Destination = finalMapPoint.TagNumber,
-                        };
-                        _taskDownloadData.Trajectory = _previsousTrajectorySendToAGV.ToArray();
-                        _taskDownloadData.Trajectory.Last().Theta = stopAngle;
-
-                        MoveTaskEvent = new clsMoveTaskEvent(Agv, nextOptimizePath.GetTagCollection(), nextPath.ToList(), false);
-                        while (!StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage))
-                        {
-                            var regMsg = string.Join(",", MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList);
-                            UpdateMoveStateMessage($"嘗試註冊點位中...{regMsg}");
-                            await Task.Delay(1000);
-                        }
-
-                        await base._DispatchTaskToAGV(_taskDownloadData);
-                        _sequence += 1;
-                        nearGoalTag = nextPath.Reverse()
-                                                .Skip(isNextPathGoalIsFinal || nextPath.Count() <= 2 ? 0 : 1)
-                                                .FirstOrDefault().TagNumber;
-                        UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往 Tag-{nearGoalTag}->{nextPath.Last().TagNumber})");
-                    }
-                    else
-                    {
-                        nearGoalTag = _previsousTrajectorySendToAGV.Last().Point_ID;
-                    }
-
-
-                    while (!PassedTags.Contains(nearGoalTag))
-                    {
-
-                        if (IsTaskCanceled)
-                            throw new TaskCanceledException();
-
-                        //if (anyAgvRemainPathWillConflicWhenAgvRotating(nextPath))
-                        //{
-                        //    UpdateMoveStateMessage($"Imapcted  State Detected");
-                        //    continue;
-                        //}
-
-                        if (anyAgvInSameNarrowRegionButNotHorizon())
-                        {
-                            UpdateMoveStateMessage($"Non-horizon State Detected");
-                            continue;
-                        }
-                        else
-                        {
-                            if (_isAagvAlreadyThereBegin)
-                                break;
-                            if (nearGoalTag == DestineTag)
-                            {
-                                while (Agv.states.Last_Visited_Node != DestineTag)
-                                {
-                                    UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(即將抵達終點-{DestineTag})");
-                                    await Task.Delay(1);
-                                    if (IsTaskCanceled || disposedValue)
-                                        throw new TaskCanceledException();
-                                }
-                                return;
-                            }
-                            else
-                            {
-                                if (Agv.states.Last_Visited_Node == nearGoalTag || nextPath.Last().TagNumber == Agv.states.Last_Visited_Node)
-                                    break;
-                            }
-                        }
-
-
-                        await Task.Delay(100);
-                    }
-                    _isAagvAlreadyThereBegin = false;
-                    _tempGoal = _subGaol;
-                    bool reachDesine = checkPoint.TagNumber == DestineTag;
-
-                    await Task.Delay(1);
-
-
-
-                }
-                string GetDestineDisplay()
-                {
-                    int _destineTag = 0;
-                    bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
-                    _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
-                    return StaMap.GetStationNameByTag(_destineTag);
-                }
-            }
-
-            bool anyAgvRemainPathWillConflicWhenAgvRotating(IEnumerable<MapPoint> _nexPath)
-            {
-                if (!_nexPath.Any())
-                    return false;
-
-                List<MapPoint> _NextPath = new List<MapPoint>() { };
-                if (_nexPath.Count() == 1)  //原地旋轉
-                {
-                    _NextPath = new List<MapPoint> { Agv.currentMapPoint };
-                }
-                else
-                {
-                    var strtPt = _nexPath.ToList()[0];
-                    var nextPt = _nexPath.ToList()[1];
-                    _NextPath = new List<MapPoint>
-                    {
-                        strtPt,nextPt
-                    };
-                }
-                var otherExecutingOrderAGv = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
-                if (!otherExecutingOrderAGv.Any())
-                    return false;
-                return otherExecutingOrderAGv.Where(agv => agv.CurrentRunningTask().RealTimeOptimizePathSearchReuslt.IsRemainPathConflicWithOtherAGVBody(agv, out var conflicsAgv))
-                                             .Any();
-            }
-
-            bool anyAgvInSameNarrowRegionButNotHorizon()
-            {
-                var agvRegion = Agv.currentMapPoint.GetRegion(CurrentMap);
-                if (agvRegion == null || agvRegion.Name == "" || !agvRegion.IsNarrowPath)
-                    return false;
-                return GetInRegionVehicles().Any(v => !v.IsDirectionHorizontalTo(Agv));
-            }
-            async Task NarrowDirectionCheck(IEnumerable<MapPoint> _nextPath)
-            {
-                var currentRegion = GetAGVCurrentRegion();
-                if (currentRegion == null || !currentRegion.IsNarrowPath)
-                    return;
-                if (Agv.IsDirectionIsMatchToRegionSetting(out double regionSetting, out double diff) && !_AnyAGVInRegionNotCorrectDirection())
-                    return;
-
-                var _finalStopTheta = optimizePathGolbal.GetStopDirectionAngle(OrderData, Agv, Stage, optimizePathGolbal.Last());
-                bool isAGVAtDestine = Agv.states.Coordination.Theta != _finalStopTheta && Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
-                if (isAGVAtDestine)
-                    return;
-
-                //計算夾角
-
-
-                var nextGaolPt = _nextPath.FirstOrDefault(pt => pt.TagNumber != Agv.currentMapPoint.TagNumber);
-
-
-
-                if (nextGaolPt != null)
-                {
-
-                    var distanceToNextGoal = Agv.currentMapPoint.CalculateDistance(nextGaolPt);
-                    var positionOfOtherAGV = GetInRegionVehicles().ToDictionary(agv => agv, agv => Agv.currentMapPoint.CalculateDistance(agv.currentMapPoint) <= distanceToNextGoal);
-                    if (positionOfOtherAGV.Values.All(v => v == true))
-                        return;
-                }
-                async Task<bool> WaitAGVIDLE()
-                {
-                    while (Agv.main_state != clsEnums.MAIN_STATUS.IDLE)
-                    {
-                        await Task.Delay(100);
-                    }
-                    return true;
-                }
-
-                async Task<bool> WaitAGVRUN()
-                {
-                    while (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
-                    {
-                        await Task.Delay(100);
-                    }
-                    return true;
-                }
-
-                if (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                {
-                    await WaitAGVIDLE();
-                }
-                await SendCancelRequestToAGV();
-
-                double stopAngle = regionSetting;
-                if (regionSetting == 90)
-                {
-                    if (Agv.states.Coordination.Theta >= 0 && Agv.states.Coordination.Theta <= 180)
-                    {
-                        stopAngle = regionSetting;
-                    }
-                    else
-                    {
-
-                        stopAngle = regionSetting - 180;
-                    }
-
-                }
-                else if (regionSetting == 0)
-                {
-                    if (Agv.states.Coordination.Theta >= -90 && Agv.states.Coordination.Theta <= 90)
-                    {
-                        stopAngle = regionSetting;
-                    }
-                    else
-                    {
-
-                        stopAngle = regionSetting - 180;
-                    }
-                }
-
-                await _DispatchTaskToAGV(new clsTaskDownloadData
-                {
-                    Task_Name = OrderData.TaskName,
-                    Task_Sequence = _sequence,
                     Action_Type = ACTION_TYPE.None,
-                    Destination = Agv.currentMapPoint.TagNumber,
-                    Trajectory = new clsMapPoint[1] { new clsMapPoint{
-                                        Point_ID = Agv.currentMapPoint.TagNumber,
-                                        Theta = stopAngle,
-                                        X = Agv.currentMapPoint.X,
-                                        Y = Agv.currentMapPoint.Y,
-                                        Laser =  5
-                                    } }
-                });
-
-                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN || !Agv.IsDirectionIsMatchToRegionSetting(out regionSetting, out diff))
-                {
-                    await Task.Delay(1000);
-                    UpdateMoveStateMessage($"Wait Direction Correct..({regionSetting})");
-                    if (IsTaskCanceled)
-                        throw new TaskCanceledException();
-                }
-                await WaitAGVIDLE();
-                _previsousTrajectorySendToAGV.Clear();
-
-
-                while (_AnyAGVInRegionNotCorrectDirection())
-                {
-                    if (IsTaskCanceled)
-                        throw new TaskCanceledException();
-                    UpdateMoveStateMessage($"Wait Direction Check...");
-                    await Task.Delay(1000);
-                }
+                    Task_Name = OrderData.TaskName,
+                    Task_Sequence = SeqIndex,
+                    Destination = subGoal.TagNumber,
+                    Trajectory = PathFinder.GetTrajectory(CurrentMap.Name, subOptizePathPlanToSubGoal.ToList())
+                };
+                var stopAngle = subOptizePathPlanToSubGoal.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, subGoal);
+                _taskDownloadToVCS.Trajectory.Last().Theta = stopAngle;
+                await _DispatchTaskToAGV(_taskDownloadToVCS);
+                SeqIndex += 1;
             }
 
-            IEnumerable<IAGV> GetInRegionVehicles()
+
+            bool IsPathMovable(IEnumerable<MapPoint> path, out List<MapPoint> forbidPoints)
             {
-                var currentRegion = GetAGVCurrentRegion();
-                if (currentRegion == null || currentRegion.Name == null || currentRegion.Name == "")
-                    return new List<IAGV>();
-                return VMSManager.AllAGV.FilterOutAGVFromCollection(Agv)
-                                       .Where(agv => agv.currentMapPoint.GetRegion(CurrentMap)?.Name == currentRegion.Name);
+                forbidPoints = new List<MapPoint>();
+                bool isAnyPtRegisted = path.IsPathHasPointsBeRegisted(Agv, out var registedPoints);
+                IAGV thisAGV = this.Agv;
+                IEnumerable<MapPoint> conflicPoints = path.Where(point => OtherAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(point.GetCircleArea(ref thisAGV))));
+                forbidPoints.AddRange(conflicPoints);
+                forbidPoints = forbidPoints.Distinct().ToList();
+                return forbidPoints.Any();
             }
 
-            bool _AnyAGVInRegionNotCorrectDirection()
-            {
-                return GetInRegionVehicles().Where(agv => !agv.IsDirectionIsMatchToRegionSetting(out _, out _)).Any();
-            }
+        }
 
 
-            //return base.SendTaskToAGV();
+        public IEnumerable<MapPoint> GetGoalsOfOptimizePath(MapPoint FinalDestine)
+        {
+            List<MapPoint> goals = new List<MapPoint>();
+            IEnumerable<MapPoint> optimizePathPlan = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, FinalDestine);
+            IEnumerable<MapPoint> checkPoints = optimizePathPlan.Where(pt => pt.IsTrafficCheckPoint);
+
+            goals.AddRange(checkPoints);
+            goals.Add(FinalDestine);
+            return goals.Distinct();
         }
 
         private async Task<bool> HandleAGVAtNarrowPath(int _sequence, bool _isTurningAngleDoneInNarrow, (bool success, IEnumerable<MapPoint> optimizePath, clsPathSearchResult results) result)
