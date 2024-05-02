@@ -155,13 +155,13 @@ namespace VMSystem.VMS
                 current = from = to = "";
                 current = agv.currentMapPoint.Graph.Display;
                 bool isExecuting = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
-                if (!isExecuting)
-                    return;
                 clsTaskDto currentOrder = agv.CurrentRunningTask().OrderData;
                 if (currentOrder == null)
                     return;
+                if (!isExecuting)
+                    return;
                 from = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
-                to = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
+                to = StaMap.GetStationNameByTag(currentOrder.To_Station_Tag);
             }
 
             AGVSDatabase databse = new AGVSDatabase();
