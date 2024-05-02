@@ -55,6 +55,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             MapPoint _tempGoal = finalMapPoint;
 
             MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
+            finalGoalRegion = finalGoalRegion == null ? new MapRegion { IsNarrowPath = false, Name = "" } : finalGoalRegion;
             DestineTag = finalMapPoint.TagNumber;
 
 
@@ -119,10 +120,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 var _subGaol = _tempGoal = NextCheckPoint = checkPoint;
                 bool _isAagvAlreadyThereBegin = Agv.states.Last_Visited_Node == _tempGoal.TagNumber;
-
                 bool _isTurningAngleDoneInNarrow = false;
-                Stopwatch _searPathTimer = Stopwatch.StartNew();
 
+                var _currentRegion = GetAGVCurrentRegion();
+
+
+                bool _isCurrentRegionNarrow = _currentRegion != null && _currentRegion.IsNarrowPath;
+                Stopwatch _searPathTimer = Stopwatch.StartNew();
                 while (_isAagvAlreadyThereBegin || Agv.states.Last_Visited_Node != _subGaol.TagNumber && !IsTaskCanceled) //需考慮AGV已經在目的地
                 {
 
@@ -141,7 +145,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         _searPathTimer.Restart();
 
-
+                        if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath|| _isCurrentGoalIsEntryOrLeavePtOfRegion)
+                            _tempGoal = finalMapPoint;
                         while (!(result = await _SearchPassablePath(_tempGoal, new List<MapPoint>())).success)
                         {
 
@@ -175,7 +180,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 //取出下一個停止點
 
-                                if (finalGoalRegion != null && finalGoalRegion.IsNarrowPath && GetAGVCurrentRegion().IsNarrowPath)
+                                if (_isCurrentRegionNarrow && finalGoalRegion.IsNarrowPath || _isCurrentGoalIsEntryOrLeavePtOfRegion)
                                 {
                                     _tempGoal = finalMapPoint;
                                     continue;
