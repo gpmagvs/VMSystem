@@ -570,32 +570,46 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
-            MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-            DestineTag = finalMapPoint.TagNumber;
-            var nextPath = await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage);
-
-            var nextGoal = nextPath.Last();
-            await _DispatchTaskToAGV(new clsTaskDownloadData
+            try
             {
-                Action_Type = ACTION_TYPE.None,
-                Task_Name = OrderData.TaskName,
-                Destination = DestineTag,
-                Trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList())
-            });
-
-            while (nextGoal != Agv.currentMapPoint)
-            {
-                UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
-                await Task.Delay(100);
-            }
-            Task.Run(async () =>
-            {
-                UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
-                await Task.Delay(1000);
+                MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+                DestineTag = finalMapPoint.TagNumber;
+                var nextPath = await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage);
                 TrafficWaitingState.SetStatusNoWaiting();
-                DispatchCenter.CancelDispatchRequest(Agv);
-            });
-            return;
+                var nextGoal = nextPath.Last();
+                StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
+                var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
+                trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
+
+                await _DispatchTaskToAGV(new clsTaskDownloadData
+                {
+                    Action_Type = ACTION_TYPE.None,
+                    Task_Name = OrderData.TaskName,
+                    Destination = DestineTag,
+                    Trajectory = trajectory
+                });
+
+                while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
+                {
+                    if (IsTaskCanceled)
+                        throw new TaskCanceledException();
+                    UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                    await Task.Delay(100);
+                }
+                Task.Run(async () =>
+                {
+                    UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
+                    await Task.Delay(1000);
+                    TrafficWaitingState.SetStatusNoWaiting();
+                    DispatchCenter.CancelDispatchRequest(Agv);
+                });
+                return;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
             //try
             //{
 
@@ -929,22 +943,51 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             double _narrowPathDirection(MapPoint stopPoint)
             {
-                if (stopPoint == null)
-                    throw new ArgumentNullException(nameof(stopPoint));
-                if (!stopPoint.IsNarrowPath)
-                    throw new Exception("非窄道點位");
-                var nearNarrowPoints = stopPoint.TargetNormalPoints().Where(pt => pt.IsNarrowPath);
-                if (!nearNarrowPoints.Any())
-                    throw new Exception("鄰近位置沒有窄道點位");
-                // 0 1 2 3 4 5
-                int indexOfBeforeStopPoint = path.ToList().FindIndex(pt => pt.TagNumber == nextStopPoint.TagNumber) - 1;
-                if (indexOfBeforeStopPoint < 0)
-                {
-                    //由圖資計算
+                //if (stopPoint == null)
+                //    throw new ArgumentNullException(nameof(stopPoint));
+                //if (!stopPoint.IsNarrowPath)
+                //    throw new Exception("非窄道點位");
+                //var nearNarrowPoints = stopPoint.TargetNormalPoints().Where(pt => pt.IsNarrowPath);
+                //if (!nearNarrowPoints.Any())
+                //    throw new Exception("鄰近位置沒有窄道點位");
+                //// 0 1 2 3 4 5
+                //int indexOfBeforeStopPoint = path.ToList().FindIndex(pt => pt.TagNumber == nextStopPoint.TagNumber) - 1;
+                //if (indexOfBeforeStopPoint < 0)
+                //{
+                //    //由圖資計算
 
-                    return new MapPoint[2] { stopPoint, nearNarrowPoints.First() }.FinalForwardAngle();
+                //    return new MapPoint[2] { stopPoint, nearNarrowPoints.First() }.FinalForwardAngle();
+                //}
+                //return new MapPoint[2] { path.ToList()[indexOfBeforeStopPoint], stopPoint }.FinalForwardAngle();
+                var settingIdleAngle = stopPoint.GetRegion(StaMap.Map).ThetaLimitWhenAGVIdling;
+                double stopAngle = settingIdleAngle;
+                if (settingIdleAngle == 90)
+                {
+                    if (executeAGV.states.Coordination.Theta >= 0 && executeAGV.states.Coordination.Theta <= 180)
+                    {
+                        stopAngle = settingIdleAngle;
+                    }
+                    else
+                    {
+
+                        stopAngle = settingIdleAngle - 180;
+                    }
+
                 }
-                return new MapPoint[2] { path.ToList()[indexOfBeforeStopPoint], stopPoint }.FinalForwardAngle();
+                else if (settingIdleAngle == 0)
+                {
+                    if (executeAGV.states.Coordination.Theta >= -90 && executeAGV.states.Coordination.Theta <= 90)
+                    {
+                        stopAngle = settingIdleAngle;
+                    }
+                    else
+                    {
+
+                        stopAngle = settingIdleAngle - 180;
+                    }
+                }
+                return stopAngle;
+
             }
 
 

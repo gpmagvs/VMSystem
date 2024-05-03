@@ -61,7 +61,7 @@ namespace VMSystem.TrafficControl
         {
             get
             {
-                if (!this.OcuupyPathes.Any())
+                if (!this.NextNavigtionPoints.Any())
                     return new List<MapRectangle>()
                     {
                          Vehicle.AGVGeometery

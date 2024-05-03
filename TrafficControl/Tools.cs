@@ -190,7 +190,13 @@ namespace VMSystem.TrafficControl
             {
                 var startPt = pathPoints[i];
                 var endPt = pathPoints[i + 1];
-                MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth, (float)vehicleLength);
+
+                var startPtRegion = startPt.GetRegion(StaMap.Map);
+                var endPtRegion = startPt.GetRegion(StaMap.Map);
+
+                bool isNarrow = startPtRegion.IsNarrowPath || endPtRegion.IsNarrowPath;
+
+                MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth + (isNarrow ? 0.3f : 0f), (float)vehicleLength);
                 _rectangle.StartPointTag = startPt;
                 _rectangle.EndPointTag = endPt;
                 _PathRectangles.Add(_rectangle);
