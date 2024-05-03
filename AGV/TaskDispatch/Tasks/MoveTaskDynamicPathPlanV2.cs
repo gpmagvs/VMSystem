@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using VMSystem.Dispatch;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -569,160 +570,187 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
-            try
+            MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+            DestineTag = finalMapPoint.TagNumber;
+            var nextPath = await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage);
+
+            var nextGoal = nextPath.Last();
+            await _DispatchTaskToAGV(new clsTaskDownloadData
             {
+                Action_Type = ACTION_TYPE.None,
+                Task_Name = OrderData.TaskName,
+                Destination = DestineTag,
+                Trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList())
+            });
 
-                var _dynamicConstrains = StaMap.RegistDictionary.Where(pair => pair.Value.RegisterAGVName != Agv.Name)
-                                                           .Select(pair => StaMap.GetPointByTagNumber(pair.Key)).ToList();
-                dynamicConstrains.AddRange(_dynamicConstrains);
-                dynamicConstrains = dynamicConstrains.Distinct().ToList();
-                SeqIndex = 0;
-                MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-                MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
-                DestineTag = finalMapPoint.TagNumber;
-
-                IEnumerable<MapPoint> subGoals = GetGoalsOfOptimizePath(finalMapPoint, dynamicConstrains);
-                List<clsMapPoint> _sendTrajectory = new List<clsMapPoint>();
-
-                if (subGoals.Count() == 0)
-                {
-                    Task.Delay(1000);
-                    UpdateMoveStateMessage($"Find Path...");
-                    SendTaskToAGV();
-                    return;
-                }
-
-                foreach (MapPoint subGoal in subGoals)
-                {
-                    IEnumerable<MapPoint> subOptizePathPlanToSubGoal = new List<MapPoint>();
-
-                    try
-                    {
-                        subOptizePathPlanToSubGoal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, subGoal, dynamicConstrains);
-                    }
-                    catch (Exception ex)
-                    {
-                        dynamicConstrains.Add(subGoal);
-                        SendTaskToAGV();
-                        return;
-                    }
-                    while (!IsPathMovable(subOptizePathPlanToSubGoal, out List<MapPoint> NotReachablePoints))
-                    {
-
-                        if (IsTaskCanceled)
-                            throw new TaskCanceledException();
-
-                        //if(subOptizePathPlanToSubGoal.Count()==1 && subOptizePathPlanToSubGoal.Last()== Agv.currentMapPoint)
-                        //{
-                        //    break;
-                        //}
-                        UpdateMoveStateMessage($"Wait {string.Join(",", NotReachablePoints.GetTagCollection())} Passable..");
-                        await Task.Delay(1000);
-                        dynamicConstrains = NotReachablePoints.Where(pt => pt != Agv.currentMapPoint && pt != subGoal).ToList();
-                        var remainPassblePoints = subOptizePathPlanToSubGoal.Where(pt => !pt.IsVirtualPoint && !NotReachablePoints.Contains(pt));
-                        foreach (var remainSubGoal in remainPassblePoints.Reverse())
-                        {
-                            try
-                            {
-                                var _remainOptizePathPlanToNearSubGoal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, subGoal, dynamicConstrains);
-                                if (IsPathMovable(_remainOptizePathPlanToNearSubGoal, out var _))
-                                {
-                                    subOptizePathPlanToSubGoal = _remainOptizePathPlanToNearSubGoal;
-                                    break;
-                                }
-                            }
-                            catch (Exception)
-                            {
-
-                            }
-                        }
-                    }
-
-                    while (!StaMap.RegistPoint(this.Agv.Name, subOptizePathPlanToSubGoal, out var msg))
-                    {
-                        if (IsTaskCanceled)
-                            throw new TaskCanceledException();
-                        UpdateMoveStateMessage($"Wait {string.Join(",", subOptizePathPlanToSubGoal.GetTagCollection())} Registable..");
-                        await Task.Delay(1000);
-                    };
-
-                    clsTaskDownloadData _taskDownloadToVCS = new clsTaskDownloadData
-                    {
-                        Action_Type = ACTION_TYPE.None,
-                        Task_Name = OrderData.TaskName,
-                        Task_Sequence = SeqIndex,
-                        Destination = DestineTag,
-                        //Trajectory = PathFinder.GetTrajectory(CurrentMap.Name, subOptizePathPlanToSubGoal.ToList())
-                    };
-                    var trjactoryFormCurrentPotinToSubGoal = PathFinder.GetTrajectory(CurrentMap.Name, subOptizePathPlanToSubGoal.ToList());
-                    var stopAngle = subOptizePathPlanToSubGoal.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, subGoal);
-                    RealTimeOptimizePathSearchReuslt = subOptizePathPlanToSubGoal;
-                    _sendTrajectory.AddRange(trjactoryFormCurrentPotinToSubGoal.Where(pt => !_sendTrajectory.GetTagList().Contains(pt.Point_ID)));
-                    _taskDownloadToVCS.Trajectory = _sendTrajectory.ToArray();
-                    _taskDownloadToVCS.Trajectory.Last().Theta = stopAngle;
-                    _sendTrajectory = _taskDownloadToVCS.Trajectory.ToList();
-
-                    var taskDownloadResult = await _DispatchTaskToAGV(_taskDownloadToVCS);
-                    if (taskDownloadResult.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                    {
-                        throw new Exception("Task Download to AGV Fail");
-                    }
-                    SeqIndex += 1;
-                    UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往 Tag-{subGoal.TagNumber})");
-                    await WaitReachGoal(subGoal);
-
-                }
-
-
-                bool IsPathMovable(IEnumerable<MapPoint> path, out List<MapPoint> forbidPoints)
-                {
-                    forbidPoints = new List<MapPoint>();
-                    bool isAnyPtRegisted = path.IsPathHasPointsBeRegisted(Agv, out var registedPoints);
-                    IAGV thisAGV = this.Agv;
-                    var currentRegion = this.Agv.currentMapPoint.GetRegion(CurrentMap);
-
-                    bool isInNarrowRegion = currentRegion != null && currentRegion.IsNarrowPath;
-
-                    var pathRegion = path.GetPathRegion(this.Agv, isInNarrowRegion ? 0.3 : 0, 0);
-                    // IEnumerable<MapPoint> conflicPoints = path.Where(point => OtherAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(point.GetCircleArea(ref thisAGV))));
-                    var conflicPathes = pathRegion.Where(rect => OtherAGV.Any(agv => agv.AGVGeometery.IsIntersectionTo(rect)))
-                                                   .Where(rect => rect.StartPointTag == Agv.currentMapPoint);
-                    var conflicPointsWithGeometry = path.Where(pt => conflicPathes.Any(rect => rect.EndPointTag.TagNumber == pt.TagNumber));
-                    forbidPoints.AddRange(conflicPointsWithGeometry);
-                    forbidPoints = forbidPoints.Distinct().ToList();
-                    return forbidPoints.Count == 0;
-                }
-                string GetDestineDisplay()
-                {
-                    int _destineTag = 0;
-                    bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
-                    _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
-                    return StaMap.GetStationNameByTag(_destineTag);
-                }
-
-                async Task WaitReachGoal(MapPoint subGoal)
-                {
-                    while (Agv.currentMapPoint.TagNumber != subGoal.TagNumber)
-                    {
-                        if (IsTaskCanceled)
-                            throw new TaskCanceledException();
-
-                        //if (subGoal != finalMapPoint && subGoal.CalculateDistance(Agv.states.Coordination.X, Agv.states.Coordination.Y) <= 1)
-                        //{
-                        //    break;
-                        //}
-                        await Task.Delay(100);
-                    }
-                    UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(抵達 Tag-{subGoal.TagNumber})");
-                }
-
-            }
-            catch (Exception ex)
+            while (nextGoal != Agv.currentMapPoint)
             {
-                Task.Delay(1000);
-                UpdateMoveStateMessage($"Try Find Path...");
-                SendTaskToAGV();
+                UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                await Task.Delay(100);
             }
+            Task.Run(async () =>
+            {
+                UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
+                await Task.Delay(1000);
+                TrafficWaitingState.SetStatusNoWaiting();
+                DispatchCenter.CancelDispatchRequest(Agv);
+            });
+            return;
+            //try
+            //{
+
+            //    var _dynamicConstrains = StaMap.RegistDictionary.Where(pair => pair.Value.RegisterAGVName != Agv.Name)
+            //                                               .Select(pair => StaMap.GetPointByTagNumber(pair.Key)).ToList();
+            //    dynamicConstrains.AddRange(_dynamicConstrains);
+            //    dynamicConstrains = dynamicConstrains.Distinct().ToList();
+            //    SeqIndex = 0;
+            //    MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+            //    MapRegion finalGoalRegion = finalMapPoint.GetRegion(CurrentMap);
+            //    DestineTag = finalMapPoint.TagNumber;
+
+            //    IEnumerable<MapPoint> subGoals = GetGoalsOfOptimizePath(finalMapPoint, dynamicConstrains);
+            //    List<clsMapPoint> _sendTrajectory = new List<clsMapPoint>();
+
+            //    if (subGoals.Count() == 0)
+            //    {
+            //        return;
+            //    }
+
+            //    foreach (MapPoint subGoal in subGoals)
+            //    {
+            //        IEnumerable<MapPoint> subOptizePathPlanToSubGoal = new List<MapPoint>();
+
+            //        try
+            //        {
+            //            subOptizePathPlanToSubGoal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, subGoal, dynamicConstrains);
+            //        }
+            //        catch (Exception ex)
+            //        {
+            //            dynamicConstrains.Add(subGoal);
+            //            SendTaskToAGV();
+            //            return;
+            //        }
+            //        while (!IsPathMovable(subOptizePathPlanToSubGoal, out List<MapPoint> NotReachablePoints))
+            //        {
+
+            //            if (IsTaskCanceled)
+            //                throw new TaskCanceledException();
+
+            //            //if(subOptizePathPlanToSubGoal.Count()==1 && subOptizePathPlanToSubGoal.Last()== Agv.currentMapPoint)
+            //            //{
+            //            //    break;
+            //            //}
+            //            UpdateMoveStateMessage($"Wait {string.Join(",", NotReachablePoints.GetTagCollection())} Passable..");
+            //            await Task.Delay(1000);
+            //            dynamicConstrains = NotReachablePoints.Where(pt => pt != Agv.currentMapPoint && pt != subGoal).ToList();
+            //            var remainPassblePoints = subOptizePathPlanToSubGoal.Where(pt => !pt.IsVirtualPoint && !NotReachablePoints.Contains(pt));
+            //            foreach (var remainSubGoal in remainPassblePoints.Reverse())
+            //            {
+            //                try
+            //                {
+            //                    var _remainOptizePathPlanToNearSubGoal = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, subGoal, dynamicConstrains);
+            //                    if (IsPathMovable(_remainOptizePathPlanToNearSubGoal, out var _))
+            //                    {
+            //                        subOptizePathPlanToSubGoal = _remainOptizePathPlanToNearSubGoal;
+            //                        break;
+            //                    }
+            //                }
+            //                catch (Exception)
+            //                {
+
+            //                }
+            //            }
+            //        }
+
+            //        while (!StaMap.RegistPoint(this.Agv.Name, subOptizePathPlanToSubGoal, out var msg))
+            //        {
+            //            if (IsTaskCanceled)
+            //                throw new TaskCanceledException();
+            //            UpdateMoveStateMessage($"Wait {string.Join(",", subOptizePathPlanToSubGoal.GetTagCollection())} Registable..");
+            //            await Task.Delay(1000);
+            //        };
+
+            //        clsTaskDownloadData _taskDownloadToVCS = new clsTaskDownloadData
+            //        {
+            //            Action_Type = ACTION_TYPE.None,
+            //            Task_Name = OrderData.TaskName,
+            //            Task_Sequence = SeqIndex,
+            //            Destination = DestineTag,
+            //            //Trajectory = PathFinder.GetTrajectory(CurrentMap.Name, subOptizePathPlanToSubGoal.ToList())
+            //        };
+            //        var trjactoryFormCurrentPotinToSubGoal = PathFinder.GetTrajectory(CurrentMap.Name, subOptizePathPlanToSubGoal.ToList());
+            //        var stopAngle = subOptizePathPlanToSubGoal.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, subGoal);
+            //        RealTimeOptimizePathSearchReuslt = subOptizePathPlanToSubGoal;
+            //        _sendTrajectory.AddRange(trjactoryFormCurrentPotinToSubGoal.Where(pt => !_sendTrajectory.GetTagList().Contains(pt.Point_ID)));
+            //        _taskDownloadToVCS.Trajectory = _sendTrajectory.ToArray();
+            //        _taskDownloadToVCS.Trajectory.Last().Theta = stopAngle;
+            //        _sendTrajectory = _taskDownloadToVCS.Trajectory.ToList();
+
+            //        var taskDownloadResult = await _DispatchTaskToAGV(_taskDownloadToVCS);
+            //        if (taskDownloadResult.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
+            //        {
+            //            throw new Exception("Task Download to AGV Fail");
+            //        }
+            //        SeqIndex += 1;
+            //        UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往 Tag-{subGoal.TagNumber})");
+            //        await WaitReachGoal(subGoal);
+
+            //    }
+
+
+            //    bool IsPathMovable(IEnumerable<MapPoint> path, out List<MapPoint> forbidPoints)
+            //    {
+            //        forbidPoints = new List<MapPoint>();
+            //        bool isAnyPtRegisted = path.IsPathHasPointsBeRegisted(Agv, out var registedPoints);
+            //        IAGV thisAGV = this.Agv;
+            //        var currentRegion = this.Agv.currentMapPoint.GetRegion(CurrentMap);
+
+            //        bool isInNarrowRegion = currentRegion != null && currentRegion.IsNarrowPath;
+
+            //        var pathRegion = path.GetPathRegion(this.Agv, isInNarrowRegion ? 0.3 : 0, 0);
+            //        // IEnumerable<MapPoint> conflicPoints = path.Where(point => OtherAGV.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(point.GetCircleArea(ref thisAGV))));
+            //        var conflicPathes = pathRegion.Where(rect => OtherAGV.Any(agv => agv.AGVGeometery.IsIntersectionTo(rect)))
+            //                                       .Where(rect => rect.StartPointTag == Agv.currentMapPoint);
+            //        var conflicPointsWithGeometry = path.Where(pt => conflicPathes.Any(rect => rect.EndPointTag.TagNumber == pt.TagNumber));
+            //        forbidPoints.AddRange(conflicPointsWithGeometry);
+            //        forbidPoints = forbidPoints.Distinct().ToList();
+            //        return forbidPoints.Count == 0;
+            //    }
+            //    string GetDestineDisplay()
+            //    {
+            //        int _destineTag = 0;
+            //        bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
+            //        _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
+            //        return StaMap.GetStationNameByTag(_destineTag);
+            //    }
+
+            //    async Task WaitReachGoal(MapPoint subGoal)
+            //    {
+            //        while (Agv.currentMapPoint.TagNumber != subGoal.TagNumber)
+            //        {
+            //            if (IsTaskCanceled)
+            //                throw new TaskCanceledException();
+
+            //            //if (subGoal != finalMapPoint && subGoal.CalculateDistance(Agv.states.Coordination.X, Agv.states.Coordination.Y) <= 1)
+            //            //{
+            //            //    break;
+            //            //}
+            //            await Task.Delay(100);
+            //        }
+            //        UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(抵達 Tag-{subGoal.TagNumber})");
+            //    }
+
+            //}
+            //catch (TaskCanceledException ex)
+            //{
+            //    throw ex;
+            //}
+            //catch (Exception ex)
+            //{
+            //    throw ex;
+            //}
+
+
         }
 
 

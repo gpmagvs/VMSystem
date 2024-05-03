@@ -35,9 +35,10 @@ namespace VMSystem.AGV
             this.options = options;
             Name = name;
             LOG.INFO($"AGV {name} Create. MODEL={model} ");
+            NavigationState.Vehicle = this;
         }
 
-
+        public VehicleNavigationState NavigationState { get; set; } = new VehicleNavigationState();
         public virtual clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_FORK;
 
         public bool simulationMode => options.Simulation;
@@ -192,6 +193,7 @@ namespace VMSystem.AGV
                 {
                     IAGV _thisAGV = this;
                     var currentCircleArea = value.GetCircleArea(ref _thisAGV);
+                    NavigationState.CurrentMapPoint = value;
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);

@@ -13,23 +13,34 @@ namespace VMSystem.Controllers
     [ApiController]
     public class TaskController : ControllerBase
     {
+        private AGVSDbContext _dbContent;
+
+        public TaskController(AGVSDbContext dbcontent)
+        {
+            _dbContent = dbcontent;
+        }
 
         [HttpGet("Cancel")]
         public async Task<IActionResult> Cancel(string task_name)
         {
             var taskOwnerAGV = VMSManager.AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.taskList.Any(tk => tk.TaskName == task_name));
 
-            if (taskOwnerAGV == null)
-            {
-                return Ok("");
-            }
+
             bool isTaskExecuting = taskOwnerAGV.taskDispatchModule.OrderHandler.OrderData.TaskName == task_name;
             if (isTaskExecuting)
             {
                 await taskOwnerAGV.taskDispatchModule.OrderHandler.CancelOrder("User Cancel");
             }
             taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
-
+            if (taskOwnerAGV == null || !isTaskExecuting)
+            {
+                var task = _dbContent.Tasks.First(t => t.TaskName == task_name);
+                task.State = TASK_RUN_STATUS.CANCEL;
+                task.FinishTime = DateTime.Now;
+                task.FailureReason = "User Cancel";
+                _dbContent.SaveChanges();
+                return Ok("");
+            }
             return Ok("done");
         }
 

@@ -41,6 +41,7 @@ namespace VMSystem
         {
             Map = MapManager.LoadMapFromFile(false, false);
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
+            PathFinder.defaultMap = Map;
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
         internal static List<MapPoint> GetParkableStations()

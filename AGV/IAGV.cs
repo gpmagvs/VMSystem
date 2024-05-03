@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.MAP.Geometry;
 using static VMSystem.AGV.clsGPMInspectionAGV;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.AGV
 {
@@ -39,6 +40,8 @@ namespace VMSystem.AGV
         ONLINE_STATE online_state { get; set; }
         MAIN_STATUS main_state { get; set; }
         clsRunningStatus states { get; set; }
+
+        VehicleNavigationState NavigationState { get; set; }
         IAGVTaskDispather taskDispatchModule { get; set; }
         Map map { get; set; }
         MapPoint currentMapPoint { get; set; }
@@ -48,8 +51,8 @@ namespace VMSystem.AGV
         bool AGVOnlineFromAGVS(out string message);
         bool AGVOfflineFromAGVS(out string message);
 
-        List<MapPoint> noRegistedByConflicCheck { get;  set; }
-        List<MapPoint> RegistedByConflicCheck { get;  set; }
+        List<MapPoint> noRegistedByConflicCheck { get; set; }
+        List<MapPoint> RegistedByConflicCheck { get; set; }
         MapPoint[] PlanningNavigationMapPoints { get; }
         Task<object> GetAGVStateFromDB();
 

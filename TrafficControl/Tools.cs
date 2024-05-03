@@ -234,6 +234,8 @@ namespace VMSystem.TrafficControl
 
             return new MapRectangle
             {
+                StartPointTag = AGV.currentMapPoint,
+                EndPointTag = AGV.currentMapPoint,
                 Corner1 = corners[0],
                 Corner2 = corners[1],
                 Corner3 = corners[2],
