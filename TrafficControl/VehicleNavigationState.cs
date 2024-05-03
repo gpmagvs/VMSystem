@@ -7,8 +7,15 @@ namespace VMSystem.TrafficControl
 {
     public class VehicleNavigationState
     {
-        public static Map CurrentMap => StaMap.Map;
+        public enum NAV_STATE
+        {
+            WAIT_SOLVING,
+            RUNNING,
+            IDLE
+        }
 
+        public static Map CurrentMap => StaMap.Map;
+        public NAV_STATE State { get; set; } = NAV_STATE.IDLE;
         public IAGV Vehicle { get; set; }
         public MapPoint CurrentMapPoint
         {
@@ -19,10 +26,10 @@ namespace VMSystem.TrafficControl
                 _CurrentMapPoint = value;
                 CurrentRegion = CurrentMapPoint.GetRegion(CurrentMap);
                 var currentPtInNavitaion = NextNavigtionPoints.FirstOrDefault(pt => pt == value);
-                if(currentPtInNavitaion != null )
+                if (currentPtInNavitaion != null)
                 {
-                    var _index= NextNavigtionPoints.ToList().FindIndex(pt => pt == currentPtInNavitaion);
-                    NextNavigtionPoints=NextNavigtionPoints.ToList().Skip(_index).ToList();
+                    var _index = NextNavigtionPoints.ToList().FindIndex(pt => pt == currentPtInNavitaion);
+                    NextNavigtionPoints = NextNavigtionPoints.ToList().Skip(_index).ToList();
                 }
             }
         }
@@ -67,7 +74,10 @@ namespace VMSystem.TrafficControl
                          Vehicle.AGVGeometery
                     };
 
-                var vWidth = Vehicle.options.VehicleWidth / 100.0;
+
+
+                bool containNarrowPath = NextNavigtionPoints.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
+                var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.1 : 0);
                 var vLength = Vehicle.options.VehicleLength / 100.0;
                 List<MapRectangle> output = new List<MapRectangle>() { Vehicle.AGVGeometery };
                 output.AddRange(Tools.GetPathRegionsWithRectangle(NextNavigtionPoints.ToList(), vWidth, vLength));

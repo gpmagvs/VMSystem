@@ -169,7 +169,7 @@ namespace VMSystem.TrafficControl
                 MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
                 _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
-                isInterference = IsPathInterference(_goalTag, _otherAGVList);
+                isInterference = _otherAGVList.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
                 isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo( agv.AGVGeometery));
                 isTagBlocked = IsDestineBlocked();
                 return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;

@@ -234,7 +234,7 @@ namespace VMSystem.AGV
                     var stateNoEqualTasks = taskList.Where(tk => tk.State != taskInDB.First(tk => tk.TaskName == tk.TaskName).State);
                     if (stateNoEqualTasks.Any())
                     {
-                        var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.NAVIGATING);
+                        var navagatings = stateNoEqualTasks.Where(tk =>tk.State== TASK_RUN_STATUS.CANCEL|| tk.State == TASK_RUN_STATUS.NAVIGATING);
                         if (navagatings.Any())
                         {
                             var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName)).ToArray();
@@ -260,11 +260,11 @@ namespace VMSystem.AGV
         }
         public async void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
-            if(tasksCollection.Any(tk=>tk.State == TASK_RUN_STATUS.CANCEL))
+            
+            if (tasksCollection.Any(tk => tk.State == TASK_RUN_STATUS.CANCEL))
             {
 
             }
-            await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
             try
             {
                 var notInQuqueOrders = tasksCollection.FindAll(task => !taskList.Any(tk => tk.TaskName == task.TaskName))
@@ -281,8 +281,7 @@ namespace VMSystem.AGV
             }
             finally
             {
-                _syncTaskQueueFronDBSemaphoreSlim.Release();
-            }
+            } 
         }
 
         public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
@@ -363,7 +362,6 @@ namespace VMSystem.AGV
                     await Task.Delay(1000);
                     try
                     {
-                        await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
                         OrderExecuteState = GetAGVReceiveOrderStatus();
 
                         switch (OrderExecuteState)
@@ -454,7 +452,6 @@ namespace VMSystem.AGV
                     }
                     finally
                     {
-                        _syncTaskQueueFronDBSemaphoreSlim.Release();
                     }
                 }
             });

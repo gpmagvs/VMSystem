@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.Microservices.ResponseModel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 using VMSystem.VMS;
 
@@ -23,25 +24,36 @@ namespace VMSystem.Controllers
         [HttpGet("Cancel")]
         public async Task<IActionResult> Cancel(string task_name)
         {
-            var taskOwnerAGV = VMSManager.AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.taskList.Any(tk => tk.TaskName == task_name));
-
-
-            bool isTaskExecuting = taskOwnerAGV.taskDispatchModule.OrderHandler.OrderData.TaskName == task_name;
-            if (isTaskExecuting)
+            try
             {
-                await taskOwnerAGV.taskDispatchModule.OrderHandler.CancelOrder("User Cancel");
+
+                var taskOwnerAGV = VMSManager.AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.taskList.Any(tk => tk.TaskName == task_name));
+
+                bool isTaskExecuting = taskOwnerAGV.taskDispatchModule.OrderHandler.OrderData.TaskName == task_name;
+                if (isTaskExecuting)
+                {
+                    await taskOwnerAGV.taskDispatchModule.OrderHandler.CancelOrder("User Cancel");
+                }
+
+                taskOwnerAGV.taskDispatchModule.taskList.RemoveAll(tk => tk.TaskName ==task_name);
+
+                taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
+                if (taskOwnerAGV == null || !isTaskExecuting)
+                {
+                    var task = _dbContent.Tasks.AsNoTracking().First(t => t.TaskName == task_name);
+                    task.State = TASK_RUN_STATUS.CANCEL;
+                    task.FinishTime = DateTime.Now;
+                    task.FailureReason = "User Cancel";
+                    VMSManager.HandleTaskDBChangeRequestRaising("", task);
+                    return Ok("");
+                }
+                return Ok("done");
             }
-            taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
-            if (taskOwnerAGV == null || !isTaskExecuting)
+            catch (Exception ex)
             {
-                var task = _dbContent.Tasks.First(t => t.TaskName == task_name);
-                task.State = TASK_RUN_STATUS.CANCEL;
-                task.FinishTime = DateTime.Now;
-                task.FailureReason = "User Cancel";
-                _dbContent.SaveChanges();
-                return Ok("");
+
+                throw ex;
             }
-            return Ok("done");
         }
 
         [HttpGet("CheckOrderExecutableByBatStatus")]

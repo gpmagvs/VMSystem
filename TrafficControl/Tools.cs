@@ -214,9 +214,10 @@ namespace VMSystem.TrafficControl
         }
         public static MapRectangle CreateAGVRectangle(IAGV AGV)
         {
+            bool isInNarrowRegion = AGV.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
             var angleDegrees = (float)AGV.states.Coordination.Theta;
             var length = AGV.options.VehicleLength / 100.0;
-            var width = AGV.options.VehicleWidth / 100.0;
+            var width = AGV.options.VehicleWidth / 100.0 + (isInNarrowRegion ? 0.1 : 0);
             var center = new PointF((float)AGV.currentMapPoint.X, (float)AGV.currentMapPoint.Y);
             // 角度轉換為弧度
             float angleRadians = angleDegrees * (float)Math.PI / 180.0f;

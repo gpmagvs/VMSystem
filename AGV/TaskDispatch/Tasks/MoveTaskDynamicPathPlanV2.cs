@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
+using RosSharp.RosBridgeClient.MessageTypes.Geometry;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
@@ -570,44 +571,70 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
-            try
+            MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+            DestineTag = finalMapPoint.TagNumber;
+            _previsousTrajectorySendToAGV = new List<clsMapPoint>();
+            int _seq = 0;
+            while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
             {
-                MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-                DestineTag = finalMapPoint.TagNumber;
-                var nextPath = await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage);
-                TrafficWaitingState.SetStatusNoWaiting();
-                var nextGoal = nextPath.Last();
-                StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
-                var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
-                trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
-
-                await _DispatchTaskToAGV(new clsTaskDownloadData
+                await Task.Delay(100);
+                if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    throw new TaskCanceledException();
+                try
                 {
-                    Action_Type = ACTION_TYPE.None,
-                    Task_Name = OrderData.TaskName,
-                    Destination = DestineTag,
-                    Trajectory = trajectory
-                });
-
-                while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
-                {
-                    if (IsTaskCanceled)
-                        throw new TaskCanceledException();
-                    UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
-                    await Task.Delay(100);
-                }
-                Task.Run(async () =>
-                {
-                    UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
-                    await Task.Delay(1000);
+                    var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage));
+                    if (dispatchCenterReturnPath == null)
+                    {
+                        UpdateMoveStateMessage("Search Path...");
+                        await Task.Delay(1000);
+                        continue;
+                    }
+                    var nextPath = dispatchCenterReturnPath.ToList();
                     TrafficWaitingState.SetStatusNoWaiting();
-                    DispatchCenter.CancelDispatchRequest(Agv);
-                });
-                return;
-            }
-            catch (Exception ex)
-            {
-                throw ex;
+                    var nextGoal = nextPath.Last();
+                    StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
+                    nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
+                    var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
+                    trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
+                    _previsousTrajectorySendToAGV.AddRange(trajectory);
+                    _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
+                    trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
+
+                    await _DispatchTaskToAGV(new clsTaskDownloadData
+                    {
+                        Action_Type = ACTION_TYPE.None,
+                        Task_Name = OrderData.TaskName,
+                        Destination = DestineTag,
+                        Trajectory = _previsousTrajectorySendToAGV.ToArray(),
+                        Task_Sequence = _seq
+                    });
+                    _seq += 1;
+                    MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
+                    UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                    while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
+                    {
+                        if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                            throw new TaskCanceledException();
+                        UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                        await Task.Delay(100);
+                    }
+                    var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
+
+                    Agv.NavigationState.UpdateNavigationPoints(remainPath);
+
+                    _ = Task.Run(async () =>
+                    {
+                        UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
+                        await Task.Delay(1000);
+                        TrafficWaitingState.SetStatusNoWaiting();
+                        DispatchCenter.CancelDispatchRequest(Agv);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+
             }
 
             //try
