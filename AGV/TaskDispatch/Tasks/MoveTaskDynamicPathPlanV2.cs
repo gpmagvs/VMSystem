@@ -884,7 +884,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (_OrderAction == ACTION_TYPE.Carry) //搬運訂單，要考慮當前是要作取或或是放貨
                 {
                     if (stage == VehicleMovementStage.Traveling_To_Destine)
-                        _workStationTag = orderInfo.To_Station_Tag;
+                    {
+                        if (orderInfo.need_change_agv)
+                            _workStationTag = orderInfo.ChangeAGVMiddleStationTag;
+                        else
+                            _workStationTag = orderInfo.To_Station_Tag;
+                    }
                     else
                         _workStationTag = orderInfo.From_Station_Tag;
                 }
@@ -1004,7 +1009,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else
                 {
-                    MapPoint WorkStation = StaMap.GetPointByTagNumber(stage == VehicleMovementStage.Traveling_To_Destine ? refOrderInfo.To_Station_Tag : refOrderInfo.From_Station_Tag);
+                    MapPoint WorkStation = StaMap.GetPointByTagNumber(refOrderInfo.From_Station_Tag);
+                    if (stage == VehicleMovementStage.Traveling_To_Destine)
+                    {
+                        if (refOrderInfo.need_change_agv)
+                            WorkStation = StaMap.GetPointByTagNumber(refOrderInfo.ChangeAGVMiddleStationTag);
+                        else
+                            WorkStation = StaMap.GetPointByTagNumber(refOrderInfo.To_Station_Tag);
+                    }
                     return (new MapPoint[2] { finalStopPoint, WorkStation }).FinalForwardAngle();
                 }
             }
