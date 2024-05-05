@@ -335,8 +335,9 @@ namespace VMSystem.Dispatch
 
                 constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
                 constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
-
-
+                var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+                constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
+                constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
                 return constrains;
             }
         }
@@ -401,7 +402,26 @@ namespace VMSystem.Dispatch
             DispatingVehicles.Remove(vehicle);
         }
 
-
+        public static async Task<List<int>> TryGetBlockedTagByEQMaintainFromAGVS()
+        {
+            try
+            {
+                var response = await AGVSystemCommonNet6.Microservices.AGVS.AGVSSerivces.TRAFFICS.GetBlockedTagsByEqMaintain();
+                if (response.confirm)
+                {
+                    return response.blockedTags;
+                }
+                else
+                {
+                    return new List<int>();
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex);
+                return new List<int>();
+            }
+        }
 
 
     }
