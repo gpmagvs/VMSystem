@@ -571,72 +571,84 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
-            MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-            DestineTag = finalMapPoint.TagNumber;
-            _previsousTrajectorySendToAGV = new List<clsMapPoint>();
-            int _seq = 0;
-            while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
+            try
             {
-                await Task.Delay(100);
-                if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                    throw new TaskCanceledException();
-                try
+
+                MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+                DestineTag = finalMapPoint.TagNumber;
+                _previsousTrajectorySendToAGV = new List<clsMapPoint>();
+                int _seq = 0;
+                while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
-                    var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage));
-                    if (dispatchCenterReturnPath == null)
+                    await Task.Delay(100);
+                    if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                        throw new TaskCanceledException();
+                    try
                     {
-                        UpdateMoveStateMessage("Search Path...");
-                        await Task.Delay(1000);
-                        continue;
-                    }
-                    var nextPath = dispatchCenterReturnPath.ToList();
-                    TrafficWaitingState.SetStatusNoWaiting();
-                    var nextGoal = nextPath.Last();
-                    StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
-                    nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
-                    var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
-                    trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
-                    _previsousTrajectorySendToAGV.AddRange(trajectory);
-                    _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
-                    trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
-
-                    await _DispatchTaskToAGV(new clsTaskDownloadData
-                    {
-                        Action_Type = ACTION_TYPE.None,
-                        Task_Name = OrderData.TaskName,
-                        Destination = DestineTag,
-                        Trajectory = _previsousTrajectorySendToAGV.ToArray(),
-                        Task_Sequence = _seq
-                    });
-                    _seq += 1;
-                    MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
-                    UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
-                    while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
-                    {
-                        if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                            throw new TaskCanceledException();
-                        UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
-                        await Task.Delay(100);
-                    }
-                    var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
-
-                    Agv.NavigationState.UpdateNavigationPoints(remainPath);
-
-                    _ = Task.Run(async () =>
-                    {
-                        UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
-                        await Task.Delay(1000);
+                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage));
+                        if (dispatchCenterReturnPath == null)
+                        {
+                            Agv.NavigationState.ResetNavigationPoints();
+                            StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            UpdateMoveStateMessage("Search Path...");
+                            await Task.Delay(1000);
+                            continue;
+                        }
+                        var nextPath = dispatchCenterReturnPath.ToList();
                         TrafficWaitingState.SetStatusNoWaiting();
-                        DispatchCenter.CancelDispatchRequest(Agv);
-                    });
-                }
-                catch (Exception ex)
-                {
-                    throw ex;
+                        var nextGoal = nextPath.Last();
+
+                        var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
+                        Agv.NavigationState.UpdateNavigationPoints(remainPath);
+                        StaMap.RegistPoint(Agv.Name, remainPath, out var msg);
+                        
+                        nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
+                        var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
+                        trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
+                        _previsousTrajectorySendToAGV.AddRange(trajectory);
+                        _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
+                        trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
+
+                        await _DispatchTaskToAGV(new clsTaskDownloadData
+                        {
+                            Action_Type = ACTION_TYPE.None,
+                            Task_Name = OrderData.TaskName,
+                            Destination = DestineTag,
+                            Trajectory = _previsousTrajectorySendToAGV.ToArray(),
+                            Task_Sequence = _seq
+                        });
+                        _seq += 1;
+                        MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
+                        UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                        while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
+                        {
+                            if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                                throw new TaskCanceledException();
+                            UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
+                            await Task.Delay(100);
+                        }
+
+                        _ = Task.Run(async () =>
+                        {
+                            UpdateMoveStateMessage($"Reach{nextGoal.TagNumber}!");
+                            await Task.Delay(1000);
+                            TrafficWaitingState.SetStatusNoWaiting();
+                            DispatchCenter.CancelDispatchRequest(Agv);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        throw ex;
+                    }
+
                 }
 
             }
+            catch (Exception ex)
+            {
 
+                throw ex;
+            }
             //try
             //{
 
@@ -957,6 +969,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
                 .Where(pt => StaMap.Map.Points.Values.Contains(pt))
                 .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
+        }
+        public static IEnumerable<MapPoint> TargetWorkSTationsPoints(this MapPoint mapPoint)
+        {
+            return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
+                .Where(pt => StaMap.Map.Points.Values.Contains(pt))
+                .Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal);
         }
         /// <summary>
         /// 

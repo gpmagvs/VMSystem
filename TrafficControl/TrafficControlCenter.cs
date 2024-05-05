@@ -94,6 +94,7 @@ namespace VMSystem.TrafficControl
 
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
+
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
             try
             {
@@ -101,7 +102,6 @@ namespace VMSystem.TrafficControl
                 {
                     args.WaitSignal.Reset();
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-
                     clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
                     bool isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out isTagRegisted, out isTagBlocked, out isInterference, out isInterfercenWhenRotation);
                     args.ActionConfirm = isNeedWait ? clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT : clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
@@ -164,15 +164,27 @@ namespace VMSystem.TrafficControl
 
             bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation)
             {
-
+                isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
                 var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
+
+                bool IsLeaveFromChargeStation = agv.currentMapPoint.IsCharge;
+                int indexOfGoalPoint = StaMap.GetIndexOfPoint(goalPoint);
                 MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
                 _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
-                isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
-                isInterference = _otherAGVList.Any(agv => agv.AGVRotaionGeometry.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
-                isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo( agv.AGVGeometery));
+                isInterference = _otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
+                isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVGeometery));
                 isTagBlocked = IsDestineBlocked();
-                return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
+                if (IsLeaveFromChargeStation)
+                {
+                    IEnumerable<MapPoint> nearChargeStationEntryPoints = StaMap.Map.Points.Values.Where(pt => pt != agv.currentMapPoint && pt.IsCharge)
+                                                                                    .Where(pt => StaMap.GetPointByIndex(pt.Target.Keys.First()).Target.Keys.Contains(indexOfGoalPoint))
+                                                                                    .SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+                    bool anyNearChargeEnteryPtRegisted = nearChargeStationEntryPoints.Any(pt=> StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
+                    return isTagRegisted || anyNearChargeEnteryPtRegisted || isTagBlocked;
+
+                }
+                else
+                    return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
             }
             #endregion
         }

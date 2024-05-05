@@ -2,6 +2,8 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using Microsoft.AspNetCore.Localization;
@@ -46,17 +48,16 @@ namespace VMSystem.Dispatch
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, clsTaskDto order, VehicleMovementStage stage)
         {
+
+
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
-
-            var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != vehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key));
-
             IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, finalMapPoint, new List<MapPoint>());
             IEnumerable<MapPoint> optimizePath_Init = null;
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, finalMapPoint, registedPoints);
+                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, finalMapPoint, GetConstrains());
             }
             catch (Exception)
             {
@@ -66,8 +67,8 @@ namespace VMSystem.Dispatch
 
             IEnumerable<MapPoint> optimizePathFound = null;
             vehicle.NavigationState.UpdateNavigationPoints(optimizePath_Init);
-            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) > 3)
-                                                            .Where(pt => !pt.IsVirtualPoint && !registedPoints.GetTagCollection().Contains(pt.TagNumber))
+            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 2)
+                                                            .Where(pt => !pt.IsVirtualPoint && !GetConstrains().GetTagCollection().Contains(pt.TagNumber))
                                                             .Where(pt => otherAGV.All(agv => !agv.AGVRotaionGeometry.IsIntersectionTo(pt.GetCircleArea(ref vehicle, 1.2))));
 
             usableSubGoals = usableSubGoals.Any() ? usableSubGoals : new List<MapPoint>() { finalMapPoint };
@@ -81,9 +82,18 @@ namespace VMSystem.Dispatch
                 subGoalResults.Add(result);
             }
 
-            if (!subGoalResults.All(path => path == null))
+            if (subGoalResults.Any() && !subGoalResults.All(path => path == null))
             {
-                return subGoalResults.First(path => path != null && !path.IsPathHasPointsBeRegisted(vehicle, out var _registedPoints));
+                try
+                {
+
+                    return subGoalResults.First(path => path != null && !path.IsPathHasPointsBeRegisted(vehicle, out var _registedPoints));
+                }
+                catch (Exception ex)
+                {
+                    LOG.ERROR(ex);
+                    return null;
+                }
             }
             else
             {
@@ -104,7 +114,7 @@ namespace VMSystem.Dispatch
 
             return optimizePathFound;
 
-            static async Task<IEnumerable<MapPoint>> FindPath(IAGV vehicle, IEnumerable<IAGV> otherAGV, MapPoint _finalMapPoint, IEnumerable<MapPoint> oriOptimizePath, bool autoSolve = false)
+            async Task<IEnumerable<MapPoint>> FindPath(IAGV vehicle, IEnumerable<IAGV> otherAGV, MapPoint _finalMapPoint, IEnumerable<MapPoint> oriOptimizePath, bool autoSolve = false)
             {
                 IEnumerable<MapPoint> _optimizePath = null;
                 List<IAGV> otherDispatingVehicle = DispatingVehicles.FilterOutAGVFromCollection(vehicle).ToList();
@@ -198,7 +208,7 @@ namespace VMSystem.Dispatch
                                 if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                                     throw new TaskCanceledException();
                                 await Task.Delay(100);
-                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, otherAGV.Select(agv => agv.currentMapPoint));
+                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, GetConstrains());
                                 var usableSubGoals = _optimizePathTryGet.Skip(1).Where(pt => !pt.IsVirtualPoint && !StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
                                 foreach (var _goal in usableSubGoals)
                                 {
@@ -251,7 +261,7 @@ namespace VMSystem.Dispatch
                                     throw new TaskCanceledException();
 
 
-                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, otherAGV.Select(agv => agv.currentMapPoint));
+                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, GetConstrains());
                                 var usableSubGoals = _optimizePathTryGet.Skip(1).Where(pt => !pt.IsVirtualPoint && !StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
                                 foreach (var _goal in usableSubGoals)
                                 {
@@ -289,7 +299,9 @@ namespace VMSystem.Dispatch
                         bool isConflic = false;
                         foreach (var _otherAGV in otherDispatingVehicle)
                         {
-                            isConflic = _otherAGV.NavigationState.OccupyRegions.Any(reg => reg.IsIntersectionTo(item)) || item.IsIntersectionTo(_otherAGV.AGVGeometery);
+                            bool _geometryConflic = item.IsIntersectionTo(_otherAGV.AGVGeometery);
+                            bool _pathConflic = _otherAGV.NavigationState.OccupyRegions.Any(reg => reg.IsIntersectionTo(item));
+                            isConflic = _pathConflic || _geometryConflic;
                             if (isConflic)
                             {
                                 break;
@@ -304,6 +316,34 @@ namespace VMSystem.Dispatch
 
                     return _conflicRegion != null;
                 }
+            }
+
+            List<MapPoint> GetConstrains()
+            {
+                List<MapPoint> constrains = new List<MapPoint>();
+                var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != vehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key));
+                constrains.AddRange(registedPoints);
+
+                IEnumerable<MapPoint> _GetVehicleEnteredEntryPoint(IAGV _vehicle)
+                {
+                    return _vehicle.currentMapPoint.Target.Keys
+                                                    .Select(index => StaMap.GetPointByIndex(index))
+                                                    .Where(point => point.TargetWorkSTationsPoints()
+                                                    .Any(pt => StaMap.RegistDictionary.ContainsKey(pt.TagNumber)));
+                }
+
+                IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
+                {
+                    return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
+                                                    .Where(pt=>pt.GetCircleArea(ref vehicle,0.5).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
+                }
+
+
+                constrains.AddRange(otherAGV.SelectMany(_vehicle=>_GetVehicleEnteredEntryPoint(_vehicle)));
+                constrains.AddRange(otherAGV.SelectMany(_vehicle=> _GetVehicleOverlapPoint(_vehicle)));
+                
+
+                return constrains;
             }
         }
 

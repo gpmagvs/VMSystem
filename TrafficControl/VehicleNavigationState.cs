@@ -77,7 +77,7 @@ namespace VMSystem.TrafficControl
 
 
                 bool containNarrowPath = NextNavigtionPoints.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
-                var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.1 : 0);
+                var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0 : 0);
                 var vLength = Vehicle.options.VehicleLength / 100.0;
                 List<MapRectangle> output = new List<MapRectangle>() { Vehicle.AGVGeometery };
                 output.AddRange(Tools.GetPathRegionsWithRectangle(NextNavigtionPoints.ToList(), vWidth, vLength));
@@ -88,6 +88,11 @@ namespace VMSystem.TrafficControl
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
             NextNavigtionPoints = pathPoints;
+        }
+
+        public void ResetNavigationPoints()
+        {
+            UpdateNavigationPoints(new List<MapPoint> { this.Vehicle.currentMapPoint });
         }
 
         private void Log(string message)
