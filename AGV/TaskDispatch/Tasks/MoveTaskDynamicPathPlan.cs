@@ -431,7 +431,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else
             {
                 //0 1 2 3 4 
-                var indexOfTagInFrontReplacingEQ = optimzedPathInfo.tags.FindIndex(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
+                var indexOfTagInFrontReplacingEQ = optimzedPathInfo.tags.FindIndex(tag => Dispatch.DispatchCenter.TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
 
                 isNexPathHasEQReplacingParts = indexOfTagInFrontReplacingEQ != -1;
                 TagOfBlockedByPartsReplace = isNexPathHasEQReplacingParts ? optimzedPathInfo.tags[indexOfTagInFrontReplacingEQ] : -1;

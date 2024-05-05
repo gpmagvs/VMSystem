@@ -12,7 +12,8 @@ namespace VMSystem.TrafficControl
             WAIT_SOLVING,
             RUNNING,
             IDLE,
-            WAIT_REGION_ENTERABLE
+            WAIT_REGION_ENTERABLE,
+            WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING
         }
 
         public static Map CurrentMap => StaMap.Map;

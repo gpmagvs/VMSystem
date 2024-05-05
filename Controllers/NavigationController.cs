@@ -17,14 +17,14 @@ namespace VMSystem.Controllers
         [HttpGet("AddPartsReplaceworkstationTag")]
         public async Task<IActionResult> AddPartsReplaceworkstationTag(int workstationTag)
         {
-            MoveTask.AddWorkStationInPartsReplacing(workstationTag);
+            Dispatch.DispatchCenter.AddWorkStationInPartsReplacing(workstationTag);
             return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
         }
 
         [HttpGet("RemovePartsReplaceworkstationTag")]
         public async Task<IActionResult> RemovePartsReplaceworkstationTag(int workstationTag)
         {
-            MoveTask.RemoveWorkStationInPartsReplacing(workstationTag);
+            Dispatch.DispatchCenter.RemoveWorkStationInPartsReplacing(workstationTag);
             return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
         }
     }

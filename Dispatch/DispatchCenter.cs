@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.GPMRosMessageNet.Services;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -22,11 +23,30 @@ namespace VMSystem.Dispatch
 {
     public static class DispatchCenter
     {
+        internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
+        internal static event EventHandler<int> OnWorkStationStartPartsReplace;
+        internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
+        internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
+        {
+            get
+            {
+                lock (TagListOfWorkstationInPartsReplacing)
+                {
+                    return TagListOfWorkstationInPartsReplacing.SelectMany(tag =>
+                                                StaMap.GetPointByTagNumber(tag).Target.Keys.Select(index => StaMap.GetPointByIndex(index).TagNumber)).ToList();
+                }
+            }
+        }
+
         public static Scheduler PathScheduler = new Scheduler();
         public static Dictionary<IAGV, PathPlanner> VehicleOrderStore { get; set; } = new Dictionary<IAGV, PathPlanner>();
 
         public static List<IAGV> DispatingVehicles = new List<IAGV>();
 
+        public static void Initialize()
+        {
+
+        }
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, clsTaskDto taskDto, VehicleMovementStage stage)
         {
 
@@ -81,6 +101,11 @@ namespace VMSystem.Dispatch
                 try
                 {
                     var path = subGoalResults.First(path => path != null && !path.IsPathHasPointsBeRegisted(vehicle, out var _registedPoints));
+                    var pathPlanViaWorkStationPartsReplace = await WorkStationPartsReplacingControl(vehicle, path);
+                    if (pathPlanViaWorkStationPartsReplace != null && !pathPlanViaWorkStationPartsReplace.GetTagCollection().SequenceEqual(path.GetTagCollection()))
+                    {
+                        return pathPlanViaWorkStationPartsReplace;
+                    }
                     return await RegionControl(vehicle, path);
                 }
                 catch (Exception ex)
@@ -341,7 +366,58 @@ namespace VMSystem.Dispatch
                 return constrains;
             }
         }
+        private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
+        {
+            List<int> _temporarilyClosedTags = TagListOfInFrontOfPartsReplacingWorkstation;
+            List<int> _indexOfBlockedTag = _temporarilyClosedTags.Select(tag => path.ToList().FindIndex(pt => pt.TagNumber == tag)).ToList();
 
+            if (_indexOfBlockedTag.All(index => index == -1))
+            {
+                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
+                return path;
+            }
+
+            _indexOfBlockedTag = _indexOfBlockedTag.OrderBy(_index=>_index).ToList();
+            var firstBlockedTagIndex = _indexOfBlockedTag.FirstOrDefault(index => index != -1);
+            var tagBlocked = path.ToList()[firstBlockedTagIndex].TagNumber;
+            var indexOfTagBlockedInList = TagListOfInFrontOfPartsReplacingWorkstation.IndexOf(tagBlocked);
+
+            var workStationTag = TagListOfWorkstationInPartsReplacing[indexOfTagBlockedInList];
+            var blockedWorkStation = StaMap.GetPointByTagNumber(workStationTag);
+
+            if (VehicleToEntry.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING)
+            {
+                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING;
+
+                for (int i = firstBlockedTagIndex; i >= 0; i--)
+                {
+                    var newPath = path.Take(i);
+                    if (!newPath.Last().IsVirtualPoint)
+                        return newPath;
+                }
+                return null;
+                //return path.Take(firstBlockedTagIndex);
+            }
+            else
+            {
+                bool IsBlockedTagClosing()
+                {
+                    return TagListOfInFrontOfPartsReplacingWorkstation.Contains(path.ToList()[firstBlockedTagIndex].TagNumber);
+
+                }
+                while (IsBlockedTagClosing())
+                {
+                    if (VehicleToEntry.CurrentRunningTask().IsTaskCanceled)
+                        return null;
+
+                    (VehicleToEntry.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"等待設備維修-[{blockedWorkStation.Graph.Display}]..");
+                    await Task.Delay(1000);
+                }
+                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
+                return await WorkStationPartsReplacingControl(VehicleToEntry, path);
+                //return path;
+            }
+        }
         private static async Task<IEnumerable<MapPoint>> RegionControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
         {
             IEnumerable<MapRegion> regionsPass = path.GetRegions();
@@ -423,6 +499,28 @@ namespace VMSystem.Dispatch
             }
         }
 
+
+        internal static void AddWorkStationInPartsReplacing(int workstationTag)
+        {
+            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
+            {
+                OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
+                return;
+            }
+            TagListOfWorkstationInPartsReplacing.Add(workstationTag);
+            OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
+        }
+
+        internal static void RemoveWorkStationInPartsReplacing(int workstationTag)
+        {
+            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
+            {
+                OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
+                return;
+            }
+            TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
+            OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
+        }
 
     }
 

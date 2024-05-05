@@ -87,6 +87,7 @@ namespace VMSystem
             StaMap.Download();
             VMSManager.Initialize();
             TrafficControlCenter.Initialize();
+            Dispatch.DispatchCenter.Initialize();
         }
     }
 }

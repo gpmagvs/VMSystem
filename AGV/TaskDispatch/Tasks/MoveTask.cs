@@ -20,43 +20,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-        internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
-        internal static event EventHandler<int> OnWorkStationStartPartsReplace;
-        internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
-        internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
-        {
-            get
-            {
-                lock (TagListOfWorkstationInPartsReplacing)
-                {
-                    return TagListOfWorkstationInPartsReplacing.SelectMany(tag =>
-                                                StaMap.GetPointByTagNumber(tag).Target.Keys.Select(index => StaMap.GetPointByIndex(index).TagNumber)).ToList();
-                }
-            }
-        }
-
-
-        internal static void AddWorkStationInPartsReplacing(int workstationTag)
-        {
-            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
-            {
-                OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
-                return;
-            }
-            TagListOfWorkstationInPartsReplacing.Add(workstationTag);
-            OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
-        }
-
-        internal static void RemoveWorkStationInPartsReplacing(int workstationTag)
-        {
-            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
-            {
-                OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
-                return;
-            }
-            TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
-            OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
-        }
+       
 
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
@@ -72,9 +36,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         protected MoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
-            MoveTask.OnWorkStationStartPartsReplace += HandleWorkStationStartPartsReplace;
-            MoveTask.OnWorkStationFinishPartsReplace += HandleWorkStationFinishPartsReplace;
-
+          
         }
 
         protected void CalculateStopAngle(MapPoint entryPoint)
@@ -100,56 +62,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public bool movePause = false;
         public int tagOfBlockedByPartsReplacing = 0;
 
-        private void HandleWorkStationStartPartsReplace(object? sender, int workStationTag)
-        {
-            if (disposedValue)
-            {
-                MoveTask.OnWorkStationStartPartsReplace -= HandleWorkStationStartPartsReplace;
-                return;
-            }
-
-            var _remainTags = MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList;
-            var firstIndex = _remainTags.FindIndex(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
-            if (firstIndex >= 0)
-            {
-                tagOfBlockedByPartsReplacing = workStationTag;
-                movePause = true;
-                Task.Run(async () =>
-                {
-                    var indexOfSendCancelTag = firstIndex - 2;
-                    if (indexOfSendCancelTag < 0)
-                    {
-                        await SendCancelRequestToAGV();
-                    }
-                    else
-                    {
-                        int sendCancelTag = _remainTags[indexOfSendCancelTag];
-                        //wait agv near in parts replacing workstation 
-
-                        while (Agv.states.Last_Visited_Node != sendCancelTag)
-                        {
-                            TrafficWaitingState.SetDisplayMessage($"Wait Reach Tag {sendCancelTag} will send Cycle Stop.");
-                            await Task.Delay(100);
-                        }
-                        await SendCancelRequestToAGV();
-                    }
-
-                });
-            }
-        }
-
-        private void HandleWorkStationFinishPartsReplace(object? sender, int workStationTag)
-        {
-            if (disposedValue || !movePause)
-            {
-                MoveTask.OnWorkStationFinishPartsReplace -= HandleWorkStationFinishPartsReplace;
-                return;
-            }
-            if (tagOfBlockedByPartsReplacing == workStationTag)
-            {
-                movePause = false;
-            }
-        }
+       
         public override ACTION_TYPE ActionType => ACTION_TYPE.None;
         public override void CreateTaskToAGV()
         {
@@ -250,33 +163,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             constrainTags = constrainTags.Distinct().ToList();
             return PathFind(_destine_point, constrainTags); //遞迴方式
         }
-        protected async Task WaitNextPathPassableByEQPartsReplace(List<MapPoint> nextPath)
-        {
-            while (IsNextPathPassableByEQPartsReplace(nextPath))
-            {
-                TrafficWaitingState.SetDisplayMessage($"暫停動作:等待設備部件更換");
-                await Task.Delay(1000);
-            }
-            TrafficWaitingState.SetStatusNoWaiting();
-        }
+     
 
-        protected bool IsNextPathPassableByEQPartsReplace(List<MapPoint> nextPath)
-        {
-            bool _IsNextPathBlockBypartsReplace(List<int> tags, out List<string> eqNamesOfPartsReplacing)
-            {
-                eqNamesOfPartsReplacing = new List<string>();
-                var _tagsInfrontOfeq = tags.Where(tag => TagListOfInFrontOfPartsReplacingWorkstation.Contains(tag));
-                return _tagsInfrontOfeq.Any();
-            }
-
-            if (nextPath.Count == 1)
-            {
-                return _IsNextPathBlockBypartsReplace(nextPath.Select(pt => pt.TagNumber).ToList(), out List<string> _);
-            }
-
-            var indexOfAGV = nextPath.FindIndex(pt => pt.TagNumber == Agv.currentMapPoint.TagNumber);
-            return _IsNextPathBlockBypartsReplace(nextPath.Skip(indexOfAGV + 1).Select(pt => pt.TagNumber).ToList(), out List<string> _);
-        }
+       
         private List<int> GetConstrainTags(ref clsPathInfo optimized_path_info)
         {
             List<int> tags = new List<int>();
