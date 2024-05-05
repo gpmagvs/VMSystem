@@ -101,10 +101,14 @@ namespace VMSystem.Dispatch
                 try
                 {
                     var path = subGoalResults.First(path => path != null && !path.IsPathHasPointsBeRegisted(vehicle, out var _registedPoints));
-                    var pathPlanViaWorkStationPartsReplace = await WorkStationPartsReplacingControl(vehicle, path);
-                    if (pathPlanViaWorkStationPartsReplace != null && !pathPlanViaWorkStationPartsReplace.GetTagCollection().SequenceEqual(path.GetTagCollection()))
+                    if (vehicle.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE)
                     {
-                        return pathPlanViaWorkStationPartsReplace;
+                        var pathPlanViaWorkStationPartsReplace = await WorkStationPartsReplacingControl(vehicle, path);
+                        if (pathPlanViaWorkStationPartsReplace != null &&
+                            !pathPlanViaWorkStationPartsReplace.GetTagCollection().SequenceEqual(path.GetTagCollection()))
+                        {
+                            return pathPlanViaWorkStationPartsReplace;
+                        }
                     }
                     return await RegionControl(vehicle, path);
                 }
@@ -377,7 +381,7 @@ namespace VMSystem.Dispatch
                 return path;
             }
 
-            _indexOfBlockedTag = _indexOfBlockedTag.OrderBy(_index=>_index).ToList();
+            _indexOfBlockedTag = _indexOfBlockedTag.OrderBy(_index => _index).ToList();
             var firstBlockedTagIndex = _indexOfBlockedTag.FirstOrDefault(index => index != -1);
             var tagBlocked = path.ToList()[firstBlockedTagIndex].TagNumber;
             var indexOfTagBlockedInList = TagListOfInFrontOfPartsReplacingWorkstation.IndexOf(tagBlocked);
@@ -450,12 +454,13 @@ namespace VMSystem.Dispatch
                 var entryTags = RegionManager.GetRegionEntryPoints(nextRegion);
                 var waitPoint = entryTags.OrderBy(pt => pt.CalculateDistance(VehicleToEntry.currentMapPoint)).FirstOrDefault();
                 if (waitPoint == null) return path;
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE;
+
                 var waitPtIndex = path.ToList().FindIndex(pt => pt.TagNumber == waitPoint.TagNumber);
                 if (waitPtIndex < 0)
                 {
                     return path;
                 }
+                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE;
                 return path.Take(waitPtIndex + 1);
             }
             else
@@ -508,6 +513,27 @@ namespace VMSystem.Dispatch
                 return;
             }
             TagListOfWorkstationInPartsReplacing.Add(workstationTag);
+
+            var cycleStopVehicles = VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)));
+
+            if (cycleStopVehicles.Any())
+            {
+                var frontPoints = StaMap.GetPointByTagNumber(workstationTag).TargetNormalPoints();
+                var blockedTag = frontPoints.First().TagNumber;
+                foreach (var _vehicle in cycleStopVehicles)
+                {
+                    Task.Run(() =>
+                    {
+                        bool cycleStopNeed = _vehicle.NavigationState.NextNavigtionPoints.ToList().FindIndex(pt => pt.TagNumber == blockedTag) > 1;
+                        if (cycleStopNeed)
+                        {
+                            _vehicle.CurrentRunningTask().CycleStopRequestAsync();
+                        }
+                    });
+                }
+            }
+
             OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
         }
 

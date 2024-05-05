@@ -77,6 +77,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return Agv.states.Last_Visited_Node == TaskDonwloadToAGV.Destination;
             }
         }
+        public bool cycleStopRequesting { get; protected set; }
+        public async Task CycleStopRequestAsync()
+        {
+            cycleStopRequesting = true;
+            await SendCancelRequestToAGV();
+        }
+
 
         private List<IAGV> _WaitingForAGV = new List<IAGV>();
         public List<IAGV> WaitingForAGV

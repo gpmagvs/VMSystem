@@ -20,8 +20,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-       
-
+        
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
         /// <summary>
@@ -36,7 +35,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         protected MoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
-          
+
         }
 
         protected void CalculateStopAngle(MapPoint entryPoint)
@@ -62,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public bool movePause = false;
         public int tagOfBlockedByPartsReplacing = 0;
 
-       
+
         public override ACTION_TYPE ActionType => ACTION_TYPE.None;
         public override void CreateTaskToAGV()
         {
@@ -163,9 +162,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             constrainTags = constrainTags.Distinct().ToList();
             return PathFind(_destine_point, constrainTags); //遞迴方式
         }
-     
 
-       
+
+
         private List<int> GetConstrainTags(ref clsPathInfo optimized_path_info)
         {
             List<int> tags = new List<int>();
@@ -356,6 +355,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             await _ExecuteSequenceTasks(this.TaskSequenceList);
         }
 
+      
         private bool TryGetOtherBetterPath(clsMoveTaskEvent currentMoveEvent, out clsPathInfo newPathInfo)
         {
             var nextGoal = currentMoveEvent.AGVRequestState.NextSequenceTaskTrajectory.Last();

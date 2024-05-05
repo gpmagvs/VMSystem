@@ -37,6 +37,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override bool IsAGVReachDestine => Agv.states.Last_Visited_Node == DestineTag;
 
+
+
         public class clsPathSearchResult
         {
             public bool IsConflicByNarrowPathDirection { get; set; }
@@ -86,6 +88,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
+                        if (trajectory.Length == 0)
+                            continue;
+
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
                         trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
@@ -101,7 +106,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         _seq += 1;
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
                         //UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
-                        while (nextGoal.TagNumber != Agv.currentMapPoint.TagNumber)
+                        int nextGoalTag = nextGoal.TagNumber;
+                        while (nextGoalTag != Agv.currentMapPoint.TagNumber)
                         {
                             if (IsTaskCanceled)
                             {
@@ -115,9 +121,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                                 throw new TaskCanceledException();
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往-{nextGoal.Graph.Display})");
 
-                            await Task.Delay(100);
+                            if (cycleStopRequesting)
+                            {
+                                cycleStopRequesting = false;
+                                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                                {
+                                    UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Cycle Stoping");
+                                    await Task.Delay(1000);
+                                }
+                                _previsousTrajectorySendToAGV.Clear();
+                                break;
+                            }
+
+                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往-{nextGoal.Graph.Display})");
+                            await Task.Delay(10);
                         }
 
                         _ = Task.Run(async () =>
