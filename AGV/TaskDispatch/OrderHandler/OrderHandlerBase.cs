@@ -33,6 +33,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public event EventHandler OnLoadingAtTransferStationTaskFinish;
 
+        public event EventHandler<OrderHandlerBase> OnTaskCanceled;
 
         public virtual async Task StartOrder(IAGV Agv)
         {
@@ -249,7 +250,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
             RaiseTaskDtoChange(this, OrderData);
-
+            OnTaskCanceled?.Invoke(this, this);
         }
         protected virtual void _SetOrderAsFinishState()
         {

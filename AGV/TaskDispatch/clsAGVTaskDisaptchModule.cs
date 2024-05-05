@@ -234,7 +234,7 @@ namespace VMSystem.AGV
                     var stateNoEqualTasks = taskList.Where(tk => tk.State != taskInDB.First(tk => tk.TaskName == tk.TaskName).State);
                     if (stateNoEqualTasks.Any())
                     {
-                        var navagatings = stateNoEqualTasks.Where(tk =>tk.State== TASK_RUN_STATUS.CANCEL|| tk.State == TASK_RUN_STATUS.NAVIGATING);
+                        var navagatings = stateNoEqualTasks.Where(tk => tk.State == TASK_RUN_STATUS.CANCEL || tk.State == TASK_RUN_STATUS.NAVIGATING);
                         if (navagatings.Any())
                         {
                             var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName)).ToArray();
@@ -260,7 +260,7 @@ namespace VMSystem.AGV
         }
         public async void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
-            
+
             if (tasksCollection.Any(tk => tk.State == TASK_RUN_STATUS.CANCEL))
             {
 
@@ -281,7 +281,7 @@ namespace VMSystem.AGV
             }
             finally
             {
-            } 
+            }
         }
 
         public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
@@ -340,7 +340,7 @@ namespace VMSystem.AGV
                     if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
                         return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
                 }
-                if (!taskList.Any(tk => tk.DesignatedAGVName== agv.Name && tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
+                if (!taskList.Any(tk => tk.DesignatedAGVName == agv.Name && tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
                     return AGV_ORDERABLE_STATUS.NO_ORDER;
                 if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
                     return AGV_ORDERABLE_STATUS.EXECUTING;
@@ -368,7 +368,7 @@ namespace VMSystem.AGV
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
                                 var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
-                                taskOrderedByPriority = taskOrderedByPriority.Where(tk=>tk.DesignatedAGVName ==agv.Name).ToList();
+                                taskOrderedByPriority = taskOrderedByPriority.Where(tk => tk.DesignatedAGVName == agv.Name).ToList();
                                 if (!taskOrderedByPriority.Any())
                                 {
                                     taskList.Clear();
@@ -393,7 +393,7 @@ namespace VMSystem.AGV
                                 OrderHandlerFactory factory = new OrderHandlerFactory();
                                 OrderHandler = factory.CreateHandler(_ExecutingTask);
                                 OrderHandler.StartOrder(agv);
-
+                                OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
                                 if (_ExecutingTask.Action == ACTION_TYPE.Charge)
                                     (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
 
@@ -461,6 +461,12 @@ namespace VMSystem.AGV
                 CheckAutoCharge();
             });
             AutoChargeThread.Start();
+        }
+
+        private void OrderHandler_OnTaskCanceled(object? sender, OrderHandlerBase e)
+        {
+            OrderHandler.OnTaskCanceled -= OrderHandler_OnTaskCanceled;
+            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
         }
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)

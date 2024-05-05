@@ -16,6 +16,7 @@ using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using WebSocketSharp;
@@ -254,6 +255,7 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
+                        RegionManager.UpdateRegion(this);
                     }
                 }
                 catch (Exception ex)
@@ -934,14 +936,14 @@ namespace VMSystem.AGV
                 currentTask.CancelTask();
             else
             {
-                var taskDto = taskDispatchModule.taskList .FirstOrDefault(tk => tk.TaskName == task_name);
+                var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
                 if (taskDto != null)
                 {
                     taskDto.State = TASK_RUN_STATUS.CANCEL;
                     VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
                 }
+                taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
             }
-            taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
         }
     }
 }
