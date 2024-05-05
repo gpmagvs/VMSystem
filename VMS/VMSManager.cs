@@ -33,6 +33,7 @@ namespace VMSystem.VMS
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
+        private static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
         public static List<IAGV> AllAGV
         {
             get
@@ -250,16 +251,31 @@ namespace VMSystem.VMS
                 {
                     await Task.Delay(100);
 
-                    foreach (var _agv in VMSManager.AllAGV)
-                    {
-                        await Task.Delay(10);
-                        if (_agv.taskDispatchModule == null)
-                            continue;
+                    await tasksLock.WaitAsync();
 
-                        var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
-                        _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
-                        // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
+                    try
+                    {
+                        foreach (var _agv in VMSManager.AllAGV)
+                        {
+                            await Task.Delay(10);
+                            if (_agv.taskDispatchModule == null)
+                                continue;
+
+                            var tasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
+                            _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
+                            // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
+                        }
+
                     }
+                    catch (Exception ex)
+                    {
+                        throw ex;
+                    }
+                    finally
+                    {
+                        tasksLock.Release();
+                    }
+
                 }
             });
         }
@@ -270,9 +286,10 @@ namespace VMSystem.VMS
             var database = new AGVSDatabase();
             while (true)
             {
-                await Task.Delay(100);
+                await tasksLock.WaitAsync();
                 try
                 {
+                    await Task.Delay(100);
                     if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
                     {
                         if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
@@ -282,13 +299,19 @@ namespace VMSystem.VMS
                         {
                             entity.Update(dto);
                             int save_cnt = await database.SaveChanges();
-                            LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", false);
+                            LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", true);
                         }
                     }
+
                 }
                 catch (Exception ex)
                 {
                     await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
+                    throw ex;
+                }
+                finally
+                {
+                    tasksLock.Release();
                 }
 
             }
@@ -731,6 +754,43 @@ namespace VMSystem.VMS
                     AGVName = aGVName
                 });
             }
+        }
+
+        internal static bool TaskCancel(ref AGVSDbContext dbContext, string task_name)
+        {
+            clsTaskDto taskDto = null;
+            try
+            {
+                taskDto = dbContext.Tasks.AsNoTracking().FirstOrDefault(tk => tk.TaskName == task_name);
+                if (taskDto == null)
+                    return false;
+
+                string ownerVehicle = taskDto.DesignatedAGVName;
+
+                if (!TryGetAGV(ownerVehicle, out IAGV vehicle))
+                {
+                    taskDto.State = TASK_RUN_STATUS.CANCEL;
+                    WaitingForWriteToTaskDatabaseQueue.Enqueue(taskDto);
+                    return false;
+                }
+
+                vehicle.CancelTask(task_name);
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex);
+                return false;
+            }
+            finally
+            {
+                if (taskDto != null)
+                {
+                    // WaitingForWriteToTaskDatabaseQueue.Enqueue(taskDto);
+                }
+            }
+
         }
     }
 }

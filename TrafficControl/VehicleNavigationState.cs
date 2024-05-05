@@ -29,7 +29,7 @@ namespace VMSystem.TrafficControl
                 if (currentPtInNavitaion != null)
                 {
                     var _index = NextNavigtionPoints.ToList().FindIndex(pt => pt == currentPtInNavitaion);
-                    NextNavigtionPoints = NextNavigtionPoints.ToList().Skip(_index).ToList();
+                    NextNavigtionPoints = NextNavigtionPoints.Skip(_index);
                 }
             }
         }

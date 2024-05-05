@@ -59,6 +59,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
                         {
+                            TaskCancelledFlag = true;
                             bool isTaskFail = await DetermineTaskState();
                             if (isTaskFail)
                             {
@@ -75,7 +76,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     task.Dispose();
                     task.ActionFinishInvoke();
 
-                  
+
                     LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
                     bool _isTaskFail = await DetermineTaskState();
@@ -105,10 +106,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             finally
             {
-                Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
+                //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             }
 
-            async Task<bool>  DetermineTaskState()
+            async Task<bool> DetermineTaskState()
             {
                 bool isTaskFail = false;
                 while (Agv.main_state == MAIN_STATUS.RUN)
@@ -294,7 +295,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected virtual void ActionsWhenOrderCancle()
         {
-            Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
+            //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
                 //0,1,2,3

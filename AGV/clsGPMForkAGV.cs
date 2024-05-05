@@ -15,7 +15,9 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.MapPoint;
@@ -93,7 +95,6 @@ namespace VMSystem.AGV
         public Map map { get; set; }
 
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
-        public List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
         public IAGVTaskDispather taskDispatchModule { get; set; } = new clsAGVTaskDisaptchModule();
         public clsAGVOptions options { get; set; }
 
@@ -158,7 +159,7 @@ namespace VMSystem.AGV
                 {
                     _online_state = value;
 
-                    taskDispatchModule.AsyncTaskQueueFromDatabase();
+                    //taskDispatchModule.AsyncTaskQueueFromDatabase();
                     if (main_state == clsEnums.MAIN_STATUS.IDLE)
                     {
                         availabilityHelper.ResetIDLEStartTime();
@@ -923,6 +924,24 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Direction To {otherAGV.Name} is Horizon(水平) ? {isHorizon} ");
             return isHorizon;
 
+        }
+
+        public void CancelTask(string task_name)
+        {
+            TaskBase currentTask = this.CurrentRunningTask();
+            bool isTaskExecuting = currentTask.TaskName == task_name;
+            if (isTaskExecuting)
+                currentTask.CancelTask();
+            else
+            {
+                var taskDto = taskDispatchModule.taskList .FirstOrDefault(tk => tk.TaskName == task_name);
+                if (taskDto != null)
+                {
+                    taskDto.State = TASK_RUN_STATUS.CANCEL;
+                    VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
+                }
+            }
+            taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
         }
     }
 }

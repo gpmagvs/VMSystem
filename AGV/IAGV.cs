@@ -89,7 +89,7 @@ namespace VMSystem.AGV
         int currentFloor { get; set; }
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
-
+        void CancelTask(string task_name);
     }
 
 }

@@ -578,7 +578,7 @@ namespace VMSystem.AGV
             var task_tracking = taskList.Where(task => task.TaskName == feedbackData.TaskName).FirstOrDefault();
             if (task_tracking == null)
             {
-                AsyncTaskQueueFromDatabase();
+                //AsyncTaskQueueFromDatabase();
                 LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
                 return 0;
             }

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
+using VMSystem.AGV;
 using VMSystem.VMS;
 
 namespace VMSystem.Controllers
@@ -26,27 +27,8 @@ namespace VMSystem.Controllers
         {
             try
             {
-
-                var taskOwnerAGV = VMSManager.AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.taskList.Any(tk => tk.TaskName == task_name));
-
-                bool isTaskExecuting = taskOwnerAGV.taskDispatchModule.OrderHandler.OrderData.TaskName == task_name;
-                if (isTaskExecuting)
-                {
-                    await taskOwnerAGV.taskDispatchModule.OrderHandler.CancelOrder("User Cancel");
-                }
-
-                taskOwnerAGV.taskDispatchModule.taskList.RemoveAll(tk => tk.TaskName ==task_name);
-
-                taskOwnerAGV.taskDispatchModule.AsyncTaskQueueFromDatabase();
-                if (taskOwnerAGV == null || !isTaskExecuting)
-                {
-                    var task = _dbContent.Tasks.AsNoTracking().First(t => t.TaskName == task_name);
-                    task.State = TASK_RUN_STATUS.CANCEL;
-                    task.FinishTime = DateTime.Now;
-                    task.FailureReason = "User Cancel";
-                    VMSManager.HandleTaskDBChangeRequestRaising("", task);
-                    return Ok("");
-                }
+                VMSManager.TaskCancel(ref _dbContent, task_name);
+                //_dbContent.SaveChanges();
                 return Ok("done");
             }
             catch (Exception ex)
