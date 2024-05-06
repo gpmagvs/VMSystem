@@ -17,12 +17,14 @@ using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.MAP.PathFinder;
 using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
 
 namespace VMSystem.Dispatch
 {
     public static class DispatchCenter
     {
+        private static Map map => StaMap.Map;
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
         internal static event EventHandler<int> OnWorkStationStartPartsReplace;
         internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
@@ -47,7 +49,64 @@ namespace VMSystem.Dispatch
         {
 
         }
-        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, clsTaskDto taskDto, VehicleMovementStage stage)
+
+        public static async Task<IEnumerable<MapPoint>> MoveToGoalGetPath(IAGV requestVehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
+        {
+            MapPoint finalGoal = taskDto.GetFinalMapPoint(requestVehicle, stage);
+            PathFinder finder = new PathFinder();
+            List<clsPathInfo> pathes = finder.FindPathes(map, startPoint, finalGoal, new PathFinder.PathFinderOption
+            {
+                OnlyNormalPoint = true,
+                Strategy = PathFinder.PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
+            });
+
+            var orderedPathesInfo = pathes.OrderBy(path => path.total_rotation_angle)
+                                          .OrderBy(path => path.GetRegistPointsNum()).ToList();
+
+            orderedPathesInfo = orderedPathesInfo.Where(_pInfo => !_IsPathContainChargeStationOfVehicleChargingOutPoint(_pInfo))
+                                                .ToList();
+            var pathInfoFind = orderedPathesInfo.FirstOrDefault();
+
+            if (pathInfoFind == null)
+                return null;
+
+            (int num, IEnumerable<MapPoint> registedPoints) = pathInfoFind.GetRegistPoints(requestVehicle);
+
+            //if (num != 0)
+            //{
+            //    var fisrtRegistedPt = registedPoints.First();
+            //    var index= pathInfoFind.stations.FindIndex(pt => pt.TagNumber == fisrtRegistedPt.TagNumber);
+            //    var tempStopPt= pathInfoFind.stations.Take(index).First(pt => pt.CalculateDistance(fisrtRegistedPt) >= 2);
+
+            //    var tempStopPtIndex = pathInfoFind.stations.FindIndex(pt => pt.TagNumber == tempStopPt.TagNumber);
+            //    return pathInfoFind.stations.Take(tempStopPtIndex+1);
+            //}
+
+            return pathInfoFind.stations;
+
+            foreach (var item in orderedPathesInfo)
+            {
+
+            }
+
+            return new List<MapPoint>();
+
+
+            IEnumerable<IAGV> _OthersVehicles()
+            {
+                return VMSManager.AllAGV.FilterOutAGVFromCollection(requestVehicle);
+            }
+
+            bool _IsPathContainChargeStationOfVehicleChargingOutPoint(clsPathInfo _pathInfo)
+            {
+                if (!_OthersVehicles().Any(_vehicle => _vehicle.currentMapPoint.IsCharge))
+                    return false;
+
+                var outpointsOfChargeStation = _OthersVehicles().SelectMany(_vehicle => _vehicle.currentMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+                return _pathInfo.tags.Intersect(outpointsOfChargeStation.GetTagCollection()).Count() != 0;
+            }
+        }
+        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
         {
 
             if (!DispatingVehicles.Contains(vehicle))
@@ -55,24 +114,23 @@ namespace VMSystem.Dispatch
             MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
             RegionManager.RegistRegionToGo(vehicle, finalMapPoint);
 
-            var path = await GenNextNavigationPath(vehicle, taskDto, stage);
-
-            return path;
+            var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
+            return path = path == null ? path : path.Clone();
 
         }
-        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, clsTaskDto order, VehicleMovementStage stage)
+        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
         {
 
             vehicle.NavigationState.ResetNavigationPoints();
 
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
-            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, finalMapPoint, new List<MapPoint>());
+            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>());
             IEnumerable<MapPoint> optimizePath_Init = null;
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, finalMapPoint, GetConstrains());
+                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains());
             }
             catch (Exception)
             {
@@ -83,7 +141,7 @@ namespace VMSystem.Dispatch
             IEnumerable<MapPoint> optimizePathFound = null;
             bool _isInNarrowRegion = vehicle.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
             vehicle.NavigationState.UpdateNavigationPoints(optimizePath_Init);
-            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 2.5)
+            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 3.5)
                                                           .Where(pt => !pt.IsVirtualPoint && !GetConstrains().GetTagCollection().Contains(pt.TagNumber))
                                                           //.Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 2.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
@@ -94,7 +152,8 @@ namespace VMSystem.Dispatch
 
             foreach (var point in usableSubGoals)
             {
-                var optmizePath_init_sub = optimizePath_Init.Where(pt => optimizePath_Init.ToList().IndexOf(pt) <= optimizePath_Init.ToList().IndexOf(point));
+                var goalIndex = optimizePath_Init.ToList().FindIndex(pt => pt.TagNumber == point.TagNumber);
+                var optmizePath_init_sub = optimizePath_Init.Take(goalIndex + 1).ToList();
                 vehicle.NavigationState.UpdateNavigationPoints(optmizePath_init_sub);
                 var result = await FindPath(vehicle, otherAGV, point, optmizePath_init_sub, false);
                 subGoalResults.Add(result);
@@ -365,10 +424,11 @@ namespace VMSystem.Dispatch
 
                 IEnumerable<MapPoint> _GetVehicleEnteredEntryPoint(IAGV _vehicle)
                 {
+                    if (!_vehicle.currentMapPoint.IsCharge)
+                        return new List<MapPoint>();
+
                     return _vehicle.currentMapPoint.Target.Keys
-                                                    .Select(index => StaMap.GetPointByIndex(index))
-                                                    .Where(point => point.TargetWorkSTationsPoints()
-                                                    .Any(pt => StaMap.RegistDictionary.ContainsKey(pt.TagNumber)));
+                                                    .Select(index => StaMap.GetPointByIndex(index));
                 }
 
                 IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
@@ -450,7 +510,7 @@ namespace VMSystem.Dispatch
             bool _isVehicleCapcityOfRegionFull()
             {
                 IEnumerable<IAGV> inThisRegionVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(VehicleToEntry)
-                                                                    .Where(vehicle => vehicle.currentMapPoint.GetRegion(StaMap.Map).Name == nextRegion.Name);
+                                                                    .Where(vehicle => vehicle.states.Coordination.GetRegion(StaMap.Map).Name == nextRegion.Name);
 
                 return inThisRegionVehicle.Count() >= capcityOfRegion;
             }
@@ -568,7 +628,32 @@ namespace VMSystem.Dispatch
 
     }
 
+    public static class Extensions
+    {
+        public static (int num, IEnumerable<MapPoint> registedPoints) GetRegistPoints(this clsPathInfo pathInfo, IAGV PathOwner = null)
+        {
+            if (!pathInfo.stations.Any())
+                return (0, null);
 
+
+            var registedPt = pathInfo.stations.Where(pt => StaMap.RegistDictionary.Keys.Contains(pt.TagNumber))
+                                              .Where(pt => PathOwner == null ? true : StaMap.RegistDictionary[pt.TagNumber].RegisterAGVName != PathOwner.Name);
+
+
+            return (registedPt.Count(), registedPt);
+
+        }
+        public static int GetRegistPointsNum(this clsPathInfo pathInfo)
+        {
+            if (!pathInfo.stations.Any())
+                return 0;
+
+            var registedPt = pathInfo.stations.Where(pt => StaMap.RegistDictionary.Keys.Contains(pt.TagNumber));
+
+            return registedPt.Count();
+
+        }
+    }
     public class PathPlanner
     {
         public readonly IAGV Vehicle;

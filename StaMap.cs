@@ -39,7 +39,7 @@ namespace VMSystem
 
         public static void Download()
         {
-            Map = MapManager.LoadMapFromFile(false, false);
+            Map = MapManager.LoadMapFromFile(false, false).Clone();
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             PathFinder.defaultMap = Map;
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
@@ -104,7 +104,7 @@ namespace VMSystem
                     Name = tagNumber.ToString()
                 };
             }
-            return point;
+            return point.Clone();
         }
 
         internal static List<MapPoint> GetPointByTagNumber(List<int> List_TagNumber)
@@ -114,21 +114,21 @@ namespace VMSystem
                 List_TagNumber = new List<int>();
             }
             var ReturnData = List_TagNumber.Select(item => GetPointByTagNumber(item)).ToList();
-            return ReturnData;
+            return ReturnData.Clone();
         }
 
         internal static MapPoint GetPointByName(string name)
         {
             var point = Map.Points.FirstOrDefault(pt => pt.Value.Graph.Display == name);
             if (point.Value != null)
-                return point.Value;
+                return point.Value.Clone();
             return null;
         }
         internal static MapPoint GetPointByIndex(int index)
         {
             var point = Map.Points.FirstOrDefault(pt => pt.Key == index);
             if (point.Value != null)
-                return point.Value;
+                return point.Value.Clone();
             return null;
         }
 

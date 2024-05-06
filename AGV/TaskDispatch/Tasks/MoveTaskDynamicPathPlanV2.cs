@@ -57,10 +57,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
 
-
                 DestineTag = finalMapPoint.TagNumber;
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
+                MapPoint searchStartPt = Agv.currentMapPoint;
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
                     await Task.Delay(100);
@@ -68,13 +68,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         throw new TaskCanceledException();
                     try
                     {
-                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, OrderData, Stage));
-                        if (dispatchCenterReturnPath == null)
+                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, OrderData, Stage));
+                        //var dispatchCenterReturnPath = (await DispatchCenter.MoveToGoalGetPath(Agv, searchStartPt, OrderData, Stage));
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
+                            searchStartPt = Agv.currentMapPoint;
                             Agv.NavigationState.ResetNavigationPoints();
                             StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
-                            await Task.Delay(1000);
+                            await Task.Delay(200);
                             continue;
                         }
                         var nextPath = dispatchCenterReturnPath.ToList();
@@ -107,6 +109,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
                         //UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
                         int nextGoalTag = nextGoal.TagNumber;
+                        MapPoint lastGoal = nextGoal;
+                        int lastGoalTag = nextGoalTag;
+                        try
+                        {
+                            lastGoal = nextPath[nextPath.Count - 2];
+                            lastGoalTag = lastGoal.TagNumber;
+                        }
+                        catch (Exception)
+                        {
+                        }
+                        searchStartPt = nextGoal;
                         while (nextGoalTag != Agv.currentMapPoint.TagNumber)
                         {
                             if (IsTaskCanceled)
@@ -118,6 +131,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 }
                                 throw new TaskCanceledException();
                             }
+
+                            if (lastGoalTag == Agv.currentMapPoint.TagNumber)
+                            {
+                                searchStartPt = lastGoal;
+                                break;
+                            }
+
 
                             if (Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                                 throw new TaskCanceledException();
@@ -239,7 +259,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 clsPathInfo _pathInfo = _pathFinder.FindShortestPath(_Map, StartPoint, GoalPoint, new PathFinderOption
                 {
                     OnlyNormalPoint = true,
-                    ConstrainTags = constrains.GetTagCollection().ToList()
+                    ConstrainTags = constrains.GetTagCollection().ToList(),
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())
