@@ -22,12 +22,13 @@ namespace VMSystem.AGV
             /// <summary>
             /// 真實走行速度(m/s)
             /// </summary>
-            public double MoveSpeedRatio { get; set; } = 1;
+            public double MoveSpeedRatio { get; set; } = 0.5;
 
             /// <summary>
             /// 色帶速度
             /// </summary>
-            public double TapMoveSpeedRatio { get; set; } = 0.3;
+            public double TapMoveSpeedRatio { get; set; } = 0.15;
+            ///0.085
             /// <summary>
             /// 真實旋轉速度(度/秒)
             /// </summary>
@@ -35,22 +36,14 @@ namespace VMSystem.AGV
 
             public double ForkLifterSpeed { get; set; }
 
-            /// <summary>
-            /// 模擬加速倍率
-            /// </summary>
-            public double SpeedUpRate { get; set; } = 4;
-            /// <summary>
-            /// 充電速度
-            /// </summary>
+            public double SpeedUpRate { get; set; } = 6;
+
             public double BatteryChargeSpeed { get; set; } = 9;
             public double BatteryUsed_Run { get; set; } = 0.1;
 
-            /// <summary>
-            /// 設備作業時間(AGV進入停在設備內後，等待設備作業完成的花費時間)
-            /// </summary>
-            public double EQWorkingTime { get; set; } = 4;//秒
+            public double WorkingTime { get; set; } = 10;//秒
 
-            internal double WorkingTimeAwait => EQWorkingTime / SpeedUpRate;
+            internal double WorkingTimeAwait => WorkingTime / SpeedUpRate;
         }
     }
 }
