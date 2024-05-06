@@ -132,12 +132,12 @@ namespace VMSystem.AGV
                 {
                     Console.WriteLine($"[Emu]-Previous Task Interupted.");
                 }
-                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+                //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                 SemaphoreSlim.Release();
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
                 {
-                    _CargoStateSimulate(_args.action, _args.CSTID);
+                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
