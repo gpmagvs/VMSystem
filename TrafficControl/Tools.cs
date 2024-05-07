@@ -422,7 +422,7 @@ namespace VMSystem.TrafficControl
             var from = agv.currentMapPoint;
 
             PathFinder pathFinder = new PathFinder();
-            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = true });
+            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = false });
             if (result == null)
                 return 9999999999999;
             else
