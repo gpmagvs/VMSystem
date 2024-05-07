@@ -260,6 +260,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     OnlyNormalPoint = true,
                     ConstrainTags = constrains.GetTagCollection().ToList(),
+                    Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())
