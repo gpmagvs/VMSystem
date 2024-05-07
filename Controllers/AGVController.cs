@@ -25,19 +25,20 @@ namespace VMSystem.Controllers
         {
             if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
-                return Ok(new
-                {
-                    ReturnCode = 1,
-                    Message = $"VMS System Not Found AGV With Name ={AGVName} "
-                });
-            }
-            else
-            {
                 agv.states = status;
                 return Ok(new
                 {
                     ReturnCode = 0,
                     Message = ""
+                });
+               
+            }
+            else
+            {
+                return Ok(new
+                {
+                    ReturnCode = 1,
+                    Message = $"VMS System Not Found AGV With Name ={AGVName} "
                 });
             }
         }
