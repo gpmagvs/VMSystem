@@ -210,6 +210,7 @@ namespace VMSystem.VMS
                         };
                         return dto;
                     };
+
                     foreach (var agv in AllAGV)
                     {
                         var entity = CreateDTO(agv);
@@ -220,11 +221,10 @@ namespace VMSystem.VMS
                             var dbentity = databse.tables.AgvStates.FirstOrDefault(ent => ent.AGV_Name == entity.AGV_Name);
                             if (dbentity != null)
                             {
-
+                                //databse.tables.Update(entity);
                                 dbentity.Update(entity);
                                 await databse.SaveChanges();
                             }
-
                         }
                         else
                         {
@@ -316,7 +316,11 @@ namespace VMSystem.VMS
 
             }
         }
-
+        internal static bool GetAGVByName(string AGVName, out IAGV agv)
+        {
+            agv = GetAGVByName(AGVName);
+            return agv != null;
+        }
         internal static IAGV GetAGVByName(string AGVName)
         {
             return AllAGV.FirstOrDefault(agv => agv.Name == AGVName);
