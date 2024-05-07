@@ -323,7 +323,7 @@ namespace VMSystem.AGV
 
         public async Task Run()
         {
-            TaskAssignWorker();
+            await TaskAssignWorker();
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
@@ -359,11 +359,9 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
-
                         switch (OrderExecuteState)
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
@@ -429,7 +427,6 @@ namespace VMSystem.AGV
                                 break;
                         }
                         //int removeNum = _taskListFromAGVS.RemoveAll(task => task.State == TASK_RUN_STATUS.CANCEL || task.State == TASK_RUN_STATUS.FAILURE || task.State == TASK_RUN_STATUS.ACTION_FINISH);
-
                     }
                     catch (NoPathForNavigatorException ex)
                     {
@@ -452,6 +449,7 @@ namespace VMSystem.AGV
                     }
                     finally
                     {
+                        await Task.Delay(1000);
                     }
                 }
             });
