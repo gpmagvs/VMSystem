@@ -118,6 +118,21 @@ namespace VMSystem.AGV
                     if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
+
+                        async Task<clsLeaveFromWorkStationConfirmEventArg> _confirmLeaveWorkStationConfirm()
+                        {
+                            return await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg
+                            {
+                                Agv = agv,
+                                GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID
+                            });
+                        }
+
+                        while ((await _confirmLeaveWorkStationConfirm()).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                        {
+                            await Task.Delay(1000);
+                        }
+
                         await _BackToHome(_currentBarcodeMoveArgs, token);
                     }
 

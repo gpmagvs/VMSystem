@@ -52,6 +52,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
+            Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             try
             {
 
@@ -61,7 +62,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 int _seq = 0;
                 MapPoint searchStartPt = Agv.currentMapPoint;
                 Agv.NavigationState.StateReset();
-                
+
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
                     await Task.Delay(100);
@@ -76,7 +77,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             searchStartPt = Agv.currentMapPoint;
                             Agv.NavigationState.ResetNavigationPoints();
                             StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
+                            //UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
                             await Task.Delay(200);
                             continue;
                         }
@@ -85,8 +86,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var nextGoal = nextPath.Last();
 
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
-                        Agv.NavigationState.UpdateNavigationPoints(remainPath);
-                        StaMap.RegistPoint(Agv.Name, remainPath, out var msg);
+                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
+                        StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
 
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
@@ -121,6 +122,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                         }
                         searchStartPt = nextGoal;
+                        UpdateMoveStateMessage($"前往-{nextGoal.Graph.Display}");
                         while (nextGoalTag != Agv.currentMapPoint.TagNumber)
                         {
                             if (IsTaskCanceled)
@@ -148,20 +150,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 cycleStopRequesting = false;
                                 while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                                 {
-                                    UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Cycle Stoping");
+                                    UpdateMoveStateMessage("Cycle Stoping");
                                     await Task.Delay(1000);
                                 }
                                 _previsousTrajectorySendToAGV.Clear();
                                 break;
                             }
 
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(前往-{nextGoal.Graph.Display})");
                             await Task.Delay(10);
                         }
 
                         _ = Task.Run(async () =>
                         {
-                            UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(抵達-{nextGoal.Graph.Display})");
+                            UpdateMoveStateMessage($"抵達-{nextGoal.Graph.Display}");
                             await Task.Delay(1000);
                             TrafficWaitingState.SetStatusNoWaiting();
                             DispatchCenter.CancelDispatchRequest(Agv);
@@ -188,19 +189,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 throw ex;
             }
-
-            string GetDestineDisplay()
+            finally
             {
-                int _destineTag = 0;
-                bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
-                _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
-                return StaMap.GetStationNameByTag(_destineTag);
+                Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
+                Agv.NavigationState.ResetNavigationPoints();
             }
-
-
-
         }
 
+        private void Agv_OnMapPointChanged(object? sender, int e)
+        {
+            List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
+            UpdateMoveStateMessage($"{string.Join("->", _NavigationTags)}");
+        }
+
+        internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
+        {
+            base.HandleAGVNavigatingFeedback(feedbackData);
+        }
 
         public IEnumerable<MapPoint> GetGoalsOfOptimizePath(MapPoint FinalDestine, List<MapPoint> dynamicConstrains)
         {
@@ -239,7 +244,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public void UpdateMoveStateMessage(string msg)
         {
-            TrafficWaitingState.SetDisplayMessage(msg);
+            if(OrderData==null)
+                return;
+            string GetDestineDisplay()
+            {
+                int _destineTag = 0;
+                bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
+                _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
+                return StaMap.GetStationNameByTag(_destineTag);
+            }
+
+            TrafficWaitingState.SetDisplayMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n({msg})");
         }
 
 
@@ -527,7 +542,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else
                 return false;
         }
-
 
 
         public static bool IsPathConflicWithOtherAGVBody(this IEnumerable<MapPoint> path, IAGV pathOwner, out IEnumerable<IAGV> conflicAGVList)

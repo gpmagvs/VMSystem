@@ -126,7 +126,6 @@ namespace VMSystem.Dispatch
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
         {
-
             vehicle.NavigationState.ResetNavigationPoints();
 
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
@@ -147,7 +146,7 @@ namespace VMSystem.Dispatch
             IEnumerable<MapPoint> optimizePathFound = null;
             bool _isInNarrowRegion = vehicle.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
             vehicle.NavigationState.UpdateNavigationPoints(optimizePath_Init);
-            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 2.5)
+            var usableSubGoals = optimizePath_Init.Skip(1).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= (_isInNarrowRegion ? 3.5 : 2.5))
                                                           .Where(pt => !pt.IsVirtualPoint && !GetConstrains().GetTagCollection().Contains(pt.TagNumber))
                                                           //.Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 2.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
@@ -181,7 +180,15 @@ namespace VMSystem.Dispatch
                     }
 
                     bool _isNowAtEntryPointOfRegion = finalMapPoint.GetRegion(CurrentMap).EnteryTags.Any(tag => vehicle.currentMapPoint.TagNumber == tag);
-                    return await RegionControl(vehicle, path, _isNowAtEntryPointOfRegion);
+                    if (_isNowAtEntryPointOfRegion)
+                    {
+
+                        return await RegionControl(vehicle, path, _isNowAtEntryPointOfRegion, finalMapPoint.GetRegion(CurrentMap), finalMapPoint);
+                    }
+                    else
+                    {
+                        return await RegionControl(vehicle, path, false);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -411,6 +418,8 @@ namespace VMSystem.Dispatch
                             isConflic = _pathConflic || _geometryConflic;
                             if (isConflic)
                             {
+                                (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2)
+                                    .UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndPointTag.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
                                 break;
                             }
                         }

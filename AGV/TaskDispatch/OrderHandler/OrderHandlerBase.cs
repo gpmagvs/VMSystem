@@ -23,6 +23,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public TaskBase RunningTask { get; private set; } = new MoveToDestineTask();
         private ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
+
+
         public bool TaskCancelledFlag { get; private set; } = false;
         public bool TaskAbortedFlag { get; private set; } = false;
 
@@ -34,6 +36,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public event EventHandler OnLoadingAtTransferStationTaskFinish;
 
         public event EventHandler<OrderHandlerBase> OnTaskCanceled;
+        public event EventHandler<OrderHandlerBase> OnOrderFinish;
 
         public virtual async Task StartOrder(IAGV Agv)
         {
@@ -258,7 +261,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
             RaiseTaskDtoChange(this, OrderData);
-
+            OnOrderFinish?.Invoke(this, this);
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
                 PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>()

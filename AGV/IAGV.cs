@@ -90,6 +90,7 @@ namespace VMSystem.AGV
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
         void CancelTask(string task_name);
+        event EventHandler<int> OnMapPointChanged;
     }
 
 }
