@@ -648,7 +648,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             var v_width = (pathOwner.options.VehicleWidth / 100.0) + widthExpand;
             var v_length = (pathOwner.options.VehicleLength / 100.0) + lengthExpand;
-            if (path.Count() == 1)
+            if (path.Count() <= 1)
             {
                 return new List<MapRectangle>() {
                     Tools.CreateAGVRectangle(pathOwner)

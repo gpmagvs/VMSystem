@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using Microsoft.AspNetCore.Localization;
 using RosSharp.RosBridgeClient.MessageTypes.Geometry;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Exceptions;
@@ -43,15 +44,20 @@ namespace VMSystem.Dispatch
         public static Scheduler PathScheduler = new Scheduler();
         public static Dictionary<IAGV, PathPlanner> VehicleOrderStore { get; set; } = new Dictionary<IAGV, PathPlanner>();
 
+        public static Dictionary<IAGV, clsVehicleNavigationController> CurrentNavingPathes = new Dictionary<IAGV, clsVehicleNavigationController>();
+
+
+
         public static List<IAGV> DispatingVehicles = new List<IAGV>();
 
         public static void Initialize()
         {
-
+            CurrentNavingPathes = VMSManager.AllAGV.ToDictionary(vehicle => vehicle, vehicle => new clsVehicleNavigationController(vehicle));
         }
 
         public static async Task<IEnumerable<MapPoint>> MoveToGoalGetPath(IAGV requestVehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
         {
+            clsVehicleNavigationController NavingController = CurrentNavingPathes[requestVehicle];
             MapPoint finalGoal = taskDto.GetFinalMapPoint(requestVehicle, stage);
             PathFinder finder = new PathFinder();
             List<clsPathInfo> pathes = finder.FindPathes(map, startPoint, finalGoal, new PathFinder.PathFinderOption
@@ -63,34 +69,27 @@ namespace VMSystem.Dispatch
             var orderedPathesInfo = pathes.OrderBy(path => path.total_rotation_angle)
                                           .OrderBy(path => path.GetRegistPointsNum()).ToList();
 
-            orderedPathesInfo = orderedPathesInfo.Where(_pInfo => !_IsPathContainChargeStationOfVehicleChargingOutPoint(_pInfo))
-                                                .ToList();
+            NavingController.UpdateNavagionPlan(orderedPathesInfo.First().stations.ToList());
+
             var pathInfoFind = orderedPathesInfo.FirstOrDefault();
 
-            if (pathInfoFind == null)
-                return null;
+            await Task.Delay(500);
 
-            (int num, IEnumerable<MapPoint> registedPoints) = pathInfoFind.GetRegistPoints(requestVehicle);
+            var conflics = NavingController.GetConflics();
 
-            //if (num != 0)
-            //{
-            //    var fisrtRegistedPt = registedPoints.First();
-            //    var index= pathInfoFind.stations.FindIndex(pt => pt.TagNumber == fisrtRegistedPt.TagNumber);
-            //    var tempStopPt= pathInfoFind.stations.Take(index).First(pt => pt.CalculateDistance(fisrtRegistedPt) >= 2);
-
-            //    var tempStopPtIndex = pathInfoFind.stations.FindIndex(pt => pt.TagNumber == tempStopPt.TagNumber);
-            //    return pathInfoFind.stations.Take(tempStopPtIndex+1);
-            //}
-
-            return pathInfoFind.stations;
-
-            foreach (var item in orderedPathesInfo)
+            if (conflics != null && conflics.Values.Any())
             {
-
+                return NavingController.GetNextPath();
+                //while (true)
+                //{
+                //    await Task.Delay(1000);
+                //}
+                return NavingController.currentNavigationPlan.ToList();
             }
-
-            return new List<MapPoint>();
-
+            else
+            {
+                return NavingController.currentNavigationPlan.ToList();
+            }
 
             IEnumerable<IAGV> _OthersVehicles()
             {
@@ -397,6 +396,7 @@ namespace VMSystem.Dispatch
                         bool isConflic = false;
                         foreach (var _otherAGV in otherDispatingVehicle)
                         {
+                            bool _isAtChargeStation = _otherAGV.currentMapPoint.IsCharge;
                             bool _geometryConflic = item.IsIntersectionTo(_otherAGV.AGVGeometery);
                             bool _pathConflic = _otherAGV.NavigationState.OccupyRegions.Any(reg => reg.IsIntersectionTo(item));
                             isConflic = _pathConflic || _geometryConflic;
@@ -654,6 +654,150 @@ namespace VMSystem.Dispatch
 
         }
     }
+
+    public class clsVehicleNavigationController
+    {
+
+        public Dictionary<IAGV, clsVehicleNavigationController> OtherVehicleNavStateControllers
+
+        {
+            get
+            {
+                return DispatchCenter.CurrentNavingPathes.Where(v => v.Key.Name != vehicle.Name)
+                                                         .ToDictionary(v => v.Key, v => v.Value);
+            }
+
+        }
+
+        public readonly IAGV vehicle;
+        public List<MapPoint> currentNavigationPlan { get; private set; } = new List<MapPoint>();
+
+        public MapPoint NextStopablePoint { get; private set; } = new MapPoint();
+
+        public Dictionary<MapRectangle, clsConflicState> currentConflics { get; private set; } = new Dictionary<MapRectangle, clsConflicState>();
+
+        public clsVehicleNavigationController(IAGV vehicle)
+        {
+            this.vehicle = vehicle;
+            //ConflicMonitorWorker();
+
+        }
+
+
+        public void Reset()
+        {
+            currentConflics.Clear();
+            currentNavigationPlan.Clear();
+        }
+
+        public void UpdateNavagionPlan(List<MapPoint> _currentNavigationPlan)
+        {
+            Reset();
+            currentNavigationPlan = _currentNavigationPlan;
+            var conflics = GetConflics();
+            var conflicsRegions = conflics.Where(kp => kp.Value.Any()).SelectMany(kp => kp.Value).ToList();
+
+            if (conflicsRegions.Any())
+            {
+                foreach (var region in conflicsRegions)
+                {
+                    if (currentConflics.Keys.All(reg => reg.StartPointTag.TagNumber != region.StartPointTag.TagNumber && reg.EndPointTag.TagNumber != region.EndPointTag.TagNumber))
+                    {
+                        currentConflics.Add(region, new clsConflicState());
+                        ConflicRegionManager.AddWaitingRegion(vehicle, region);
+                    }
+                }
+            }
+        }
+
+        private async Task ConflicMonitorWorker()
+        {
+            await Task.Delay(1);
+
+            while (true)
+            {
+                await Task.Delay(1);
+                var conflics = GetConflics();
+
+
+            }
+        }
+
+        public Dictionary<IAGV, List<MapRectangle>> GetConflics()
+        {
+            var othersStates = OtherVehicleNavStateControllers;
+
+            var comflics = othersStates.ToDictionary(kp => kp.Key, kp => _GetConflicPathSegments(kp.Key, kp.Key.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING ?
+                                                                                                                        new List<MapPoint>() : kp.Value.currentNavigationPlan));
+
+            return comflics;
+            List<MapRectangle> _GetConflicPathSegments(IAGV _pathOwner, List<MapPoint> _pathComparing)
+            {
+                List<MapPoint> _path = _pathComparing.ToList();
+                if (!_path.Any())
+                {
+                    _path.Add(_pathOwner.currentMapPoint);
+                }
+                var _indexOfVehicleLoc = _path.FindIndex(pt => pt.TagNumber == _pathOwner.currentMapPoint.TagNumber);
+                _path = _path.Skip(_indexOfVehicleLoc).ToList();
+
+                return currentNavigationPlan.GetPathRegion(vehicle)
+                                    .ToList()
+                                     .Where(rect => _path.GetPathRegion(_pathOwner).ToList()
+                                                                  .Any(_rect => _rect.IsIntersectionTo(rect)))
+                                     .ToList();
+            }
+        }
+
+        internal List<MapPoint> GetNextPath()
+        {
+            if (currentConflics.Any())
+            {
+                var notTogGoTag = currentConflics.First().Key.StartPointTag.TagNumber;
+                var notTogGoEndTag = currentConflics.First().Key.EndPointTag.TagNumber;
+                int ntTogoIndex = currentNavigationPlan.FindIndex(pt => pt.TagNumber == notTogGoTag);
+
+
+                List<IAGV> waitingForVehicles = OtherVehicleNavStateControllers.Keys.Where(vehicle => vehicle.currentMapPoint.TagNumber == notTogGoTag
+                                                                      || vehicle.currentMapPoint.TagNumber == notTogGoEndTag).ToList();
+
+                List<MapPoint> _constrainPoints = new List<MapPoint>();
+                _constrainPoints.AddRange(OtherVehicleNavStateControllers.Keys.Select(v => v.currentMapPoint));
+                _constrainPoints.Add(StaMap.GetPointByTagNumber(notTogGoTag));
+                _constrainPoints.Add(StaMap.GetPointByTagNumber(notTogGoEndTag));
+                PathFinder _finder = new PathFinder();
+                var pathesConsiderConstrains = _finder.FindPathes(StaMap.Map, vehicle.currentMapPoint, currentNavigationPlan.Last(), new PathFinderOption
+                {
+                    Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
+                    ConstrainTags = _constrainPoints.GetTagCollection().ToList()
+                });
+                pathesConsiderConstrains = pathesConsiderConstrains.OrderBy(info => info.total_rotation_angle).ToList();
+                if (pathesConsiderConstrains.Any())
+                {
+                    Reset();
+                    currentNavigationPlan = pathesConsiderConstrains.First().stations;
+                    return GetNextPath();
+                }
+                var pathToGo= currentNavigationPlan.Take(ntTogoIndex).ToList();
+                int notVirtualPtIndex=  pathToGo.FindLastIndex(pt => !pt.IsVirtualPoint);
+
+                currentNavigationPlan = pathToGo.Take(notVirtualPtIndex + 1).ToList();
+                return currentNavigationPlan;
+
+            }
+            else
+            {
+                return currentNavigationPlan;
+            }
+
+        }
+    }
+
+    public class clsConflicState
+    {
+        public DateTime ReachConflicRegionPredictTime;
+    }
+
     public class PathPlanner
     {
         public readonly IAGV Vehicle;

@@ -85,9 +85,10 @@ namespace VMSystem
         internal static void VMSInit()
         {
             StaMap.Download();
-            VMSManager.Initialize();
+            VMSManager.Initialize().ContinueWith(tk=> {
+                Dispatch.DispatchCenter.Initialize();
+            });
             TrafficControlCenter.Initialize();
-            Dispatch.DispatchCenter.Initialize();
         }
     }
 }
