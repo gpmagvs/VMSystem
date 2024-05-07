@@ -412,7 +412,7 @@ namespace VMSystem.AGV
             //AutoParkWorker();
             AliveCheck();
             Console.WriteLine($"[{Name}] Alive Check Process Start");
-            PingCheck();
+            //PingCheck();
             Console.WriteLine($"[{Name}] Ping Process Start");
 
             if (options.Simulation)
@@ -464,7 +464,6 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
                     pingSuccess = await PingServer();
                 }
             });

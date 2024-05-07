@@ -264,6 +264,8 @@ namespace VMSystem
         {
             await _unregistSemaphore.WaitAsync();
             IAGV agv = VMSManager.GetAGVByName(Name);
+            if (agv == null)
+                return (false, "AGV Entity NULL");
             var registedPointsByConflic = agv.RegistedByConflicCheck;
             try
             {

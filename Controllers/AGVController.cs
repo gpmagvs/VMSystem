@@ -23,7 +23,7 @@ namespace VMSystem.Controllers
         [HttpPost("AGVStatus")]
         public async Task<IActionResult> AGVStatus(string AGVName, AGV_TYPE Model, clsRunningStatus status)
         {
-            if (!VMSManager.TryGetAGV(AGVName, out IAGV agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 return Ok(new
                 {
@@ -48,7 +48,7 @@ namespace VMSystem.Controllers
             try
             {
 
-                if (VMSManager.TryGetAGV(AGVName, out var agv))
+                if (VMSManager.GetAGVByName(AGVName, out var agv))
                 {
                     int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
                     return Ok(new { ReturnCode = confirmed_code, Message = "" });
@@ -69,7 +69,7 @@ namespace VMSystem.Controllers
         [HttpPost("ReportMeasure")]
         public async Task<IActionResult> ReportMeasure(string AGVName, AGV_TYPE Model, [FromBody] clsMeasureResult measureResult)
         {
-            if (VMSManager.TryGetAGV(AGVName, out var agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 (agv.taskDispatchModule.OrderHandler as MeasureOrderHandler).MeasureResultFeedback(measureResult);
                 return Ok(new { ReturnCode = 0, Message = "" });
@@ -84,7 +84,7 @@ namespace VMSystem.Controllers
         {
             string errMsg = "";
             ALARMS aramCode = ALARMS.NONE;
-            if (VMSManager.TryGetAGV(AGVName, out var agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 if (agv.model == AGV_TYPE.INSPECTION_AGV)
                 {
@@ -128,7 +128,7 @@ namespace VMSystem.Controllers
         [HttpPost("OfflineReq")]
         public async Task<IActionResult> OfflineRequest(string AGVName)
         {
-            if (VMSManager.TryGetAGV(AGVName, out var agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 agv.online_state = ONLINE_STATE.OFFLINE;
                 return Ok(new { ReturnCode = 0, Message = "" });
@@ -145,7 +145,7 @@ namespace VMSystem.Controllers
         [HttpGet("OnlineMode")]
         public async Task<IActionResult> OnlineStatusQuery(string AGVName, AGV_TYPE Model = AGV_TYPE.Any)
         {
-            if (VMSManager.TryGetAGV(AGVName, out var agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 OnlineModeQueryResponse response = new OnlineModeQueryResponse()
                 {
@@ -176,7 +176,7 @@ namespace VMSystem.Controllers
         public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_TYPE Model = AGV_TYPE.Any)
         {
             LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
-            if (VMSManager.TryGetAGV(AGVName, out var agv))
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 var virtual_id = $"UN{DateTime.Now.ToString("yyMMddHHmmssfff")}";
                 LOG.TRACE($"{AGVName} Query Carrier Virtual ID.={virtual_id}");
