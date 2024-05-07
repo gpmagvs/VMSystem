@@ -7,6 +7,14 @@ namespace VMSystem.TrafficControl
 {
     public class VehicleNavigationState
     {
+
+        public enum REGION_CONTROL_STATE
+        {
+            WAIT_AGV_CYCLE_STOP,
+            WAIT_AGV_REACH_ENTRY_POINT,
+            NONE
+        }
+
         public enum NAV_STATE
         {
             WAIT_SOLVING,
@@ -18,6 +26,7 @@ namespace VMSystem.TrafficControl
 
         public static Map CurrentMap => StaMap.Map;
         public NAV_STATE State { get; set; } = NAV_STATE.IDLE;
+        public REGION_CONTROL_STATE RegionControlState { get; set; } = REGION_CONTROL_STATE.NONE;
         public IAGV Vehicle { get; set; }
         public MapPoint CurrentMapPoint
         {
@@ -70,7 +79,7 @@ namespace VMSystem.TrafficControl
         {
             get
             {
-                var _nexNavPts= this.NextNavigtionPoints.ToList();
+                var _nexNavPts = this.NextNavigtionPoints.ToList();
                 if (!_nexNavPts.Any())
                     return new List<MapRectangle>()
                     {
@@ -101,6 +110,12 @@ namespace VMSystem.TrafficControl
         private void Log(string message)
         {
             LOG.INFO($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
+        }
+
+        internal void StateReset()
+        {
+            State = VehicleNavigationState.NAV_STATE.IDLE;
+            RegionControlState = REGION_CONTROL_STATE.NONE;
         }
     }
 }

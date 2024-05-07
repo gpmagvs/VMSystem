@@ -56,11 +56,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
 
                 MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
-
                 DestineTag = finalMapPoint.TagNumber;
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
                 MapPoint searchStartPt = Agv.currentMapPoint;
+                Agv.NavigationState.StateReset();
+                
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
                     await Task.Delay(100);
@@ -101,7 +102,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             Action_Type = ACTION_TYPE.None,
                             Task_Name = OrderData.TaskName,
-                            Destination = DestineTag,
+                            Destination = Agv.NavigationState.RegionControlState == VehicleNavigationState.REGION_CONTROL_STATE.WAIT_AGV_REACH_ENTRY_POINT ? nextGoal.TagNumber : DestineTag,
                             Trajectory = _previsousTrajectorySendToAGV.ToArray(),
                             Task_Sequence = _seq
                         });

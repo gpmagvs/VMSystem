@@ -20,6 +20,7 @@ using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
+using static VMSystem.TrafficControl.VehicleNavigationState;
 
 namespace VMSystem.Dispatch
 {
@@ -113,6 +114,12 @@ namespace VMSystem.Dispatch
             MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
             RegionManager.RegistRegionToGo(vehicle, finalMapPoint);
 
+            MapRegion finalMapRegion = finalMapPoint.GetRegion(CurrentMap);
+            if (finalMapRegion.EnteryTags.Any(tag => vehicle.currentMapPoint.TagNumber == tag))
+            {
+                return await RegionControl(vehicle, vehicle.NavigationState.NextNavigtionPoints, true, finalMapRegion, finalMapPoint);
+            }
+
             var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
             return path = path == null ? path : path.Clone();
 
@@ -172,7 +179,9 @@ namespace VMSystem.Dispatch
                             return pathPlanViaWorkStationPartsReplace;
                         }
                     }
-                    return await RegionControl(vehicle, path);
+
+                    bool _isNowAtEntryPointOfRegion = finalMapPoint.GetRegion(CurrentMap).EnteryTags.Any(tag => vehicle.currentMapPoint.TagNumber == tag);
+                    return await RegionControl(vehicle, path, _isNowAtEntryPointOfRegion);
                 }
                 catch (Exception ex)
                 {
@@ -201,7 +210,7 @@ namespace VMSystem.Dispatch
 
             while ((optimizePathFound = await FindPath(vehicle, otherAGV, finalMapPoint, optimizePath_Init, true)) == null)
             {
-                vehicle.NavigationState.UpdateNavigationPoints(new List<MapPoint>() { vehicle.currentMapPoint });
+                vehicle.NavigationState.ResetNavigationPoints();
                 if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                     throw new TaskCanceledException();
                 await Task.Delay(1000);
@@ -221,7 +230,7 @@ namespace VMSystem.Dispatch
 
                     foreach (var item in otherDispatingVehicle)
                     {
-                        item.NavigationState.UpdateNavigationPoints(new List<MapPoint> { item.currentMapPoint });
+                        item.NavigationState.ResetNavigationPoints();
                     }
                 }
 
@@ -284,7 +293,7 @@ namespace VMSystem.Dispatch
 
                         if (_DispatchOtherAGVsTask.Any())
                         {
-                            vehicle.NavigationState.UpdateNavigationPoints(new List<MapPoint> { vehicle.currentMapPoint });
+                            vehicle.NavigationState.ResetNavigationPoints();
                             vehicle.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_SOLVING;
                         }
 
@@ -317,7 +326,7 @@ namespace VMSystem.Dispatch
                                         return true;
                                     }
                                 }
-                                vehicle.NavigationState.UpdateNavigationPoints(new List<MapPoint>() { vehicle.currentMapPoint });
+                                vehicle.NavigationState.ResetNavigationPoints();
 
                             }
                             return false;
@@ -370,7 +379,7 @@ namespace VMSystem.Dispatch
                                         return true;
                                     }
                                 }
-                                vehicle.NavigationState.UpdateNavigationPoints(new List<MapPoint>() { vehicle.currentMapPoint });
+                                vehicle.NavigationState.ResetNavigationPoints();
 
                             }
                             return true;
@@ -500,12 +509,20 @@ namespace VMSystem.Dispatch
                 //return path;
             }
         }
-        private static async Task<IEnumerable<MapPoint>> RegionControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
+        private static async Task<IEnumerable<MapPoint>> RegionControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path, bool isVehicleAtEntryPointNow, MapRegion regionToGo = null, MapPoint finalGoal = null)
         {
+            IEnumerable<MapPoint> finalPathUseWhenRegionCleared = null;
+            if (isVehicleAtEntryPointNow)
+            {
+                finalPathUseWhenRegionCleared = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(VehicleToEntry.currentMapPoint, finalGoal, new List<MapPoint>());
+            }
+
             IEnumerable<MapRegion> regionsPass = path.GetRegions();
-            var nextRegion = regionsPass.Skip(1).FirstOrDefault(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN);
-            if (nextRegion == null || nextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN) return path;
-            if (nextRegion.Name == VehicleToEntry.currentMapPoint.GetRegion(StaMap.Map).Name) return path;
+            var nextRegion = isVehicleAtEntryPointNow ? regionToGo : regionsPass.Skip(1).FirstOrDefault(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN);
+            if (!isVehicleAtEntryPointNow && (nextRegion == null || nextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN))
+                return path;
+            if (!isVehicleAtEntryPointNow && nextRegion.Name == VehicleToEntry.currentMapPoint.GetRegion(StaMap.Map).Name)
+                return path;
             int capcityOfRegion = nextRegion.MaxVehicleCapacity;
             bool _isVehicleCapcityOfRegionFull()
             {
@@ -516,8 +533,18 @@ namespace VMSystem.Dispatch
             }
             if (_isVehicleCapcityOfRegionFull())
             {
+                var entryTags = RegionManager.GetRegionEntryPoints(nextRegion);
+
+                MapPoint entryPoint = entryTags.First();
                 if (VehicleToEntry.NavigationState.State == VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE)
                 {
+                    REGION_CONTROL_STATE currentRegionControlState = VehicleToEntry.NavigationState.RegionControlState;
+                    if (currentRegionControlState == VehicleNavigationState.REGION_CONTROL_STATE.WAIT_AGV_CYCLE_STOP)
+                    {
+                        VehicleToEntry.NavigationState.RegionControlState = REGION_CONTROL_STATE.WAIT_AGV_REACH_ENTRY_POINT;
+                        return MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(VehicleToEntry.currentMapPoint, entryPoint, new List<MapPoint>());
+                    }
+
                     VehicleToEntry.NavigationState.ResetNavigationPoints();
                     while (_isVehicleCapcityOfRegionFull())
                     {
@@ -527,19 +554,38 @@ namespace VMSystem.Dispatch
                         (VehicleToEntry.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"等待區域-[{nextRegion.Name}]可進入");
                         await Task.Delay(100);
                     }
-                    return path;
+                    VehicleToEntry.NavigationState.RegionControlState = REGION_CONTROL_STATE.NONE;
+                    VehicleToEntry.NavigationState.State = NAV_STATE.RUNNING;
+                    await VehicleToEntry.CurrentRunningTask().CycleStopRequestAsync();
+                    return finalPathUseWhenRegionCleared;
                 }
-                var entryTags = RegionManager.GetRegionEntryPoints(nextRegion);
-                var waitPoint = entryTags.OrderBy(pt => pt.CalculateDistance(VehicleToEntry.currentMapPoint)).FirstOrDefault();
-                if (waitPoint == null) return path;
+                if (!entryTags.Any())
+                    throw new NoPathForNavigatorException();
 
-                var waitPtIndex = path.ToList().FindIndex(pt => pt.TagNumber == waitPoint.TagNumber);
-                if (waitPtIndex < 0)
-                {
-                    return path;
-                }
+
                 VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE;
-                return path.Take(waitPtIndex + 1);
+                bool _isRemainPathContainEntryPoint = VehicleToEntry.NavigationState.NextNavigtionPoints.Any(pt => pt.TagNumber == entryPoint.TagNumber);
+                if (!_isRemainPathContainEntryPoint)
+                {
+
+                    VehicleToEntry.NavigationState.RegionControlState = VehicleNavigationState.REGION_CONTROL_STATE.WAIT_AGV_CYCLE_STOP;
+                    await VehicleToEntry.CurrentRunningTask().CycleStopRequestAsync();
+                    await Task.Delay(1000);
+                    return null;
+                }
+                else
+                {
+
+                    var waitPtIndex = path.ToList().FindIndex(pt => pt.TagNumber == entryPoint.TagNumber);
+                    VehicleToEntry.NavigationState.RegionControlState = VehicleNavigationState.REGION_CONTROL_STATE.WAIT_AGV_REACH_ENTRY_POINT;
+                    return path.Take(waitPtIndex + 1);
+                }
+
+
+            }
+            else if (isVehicleAtEntryPointNow)
+            {
+                return finalPathUseWhenRegionCleared;
             }
             else
             {
@@ -778,8 +824,8 @@ namespace VMSystem.Dispatch
                     currentNavigationPlan = pathesConsiderConstrains.First().stations;
                     return GetNextPath();
                 }
-                var pathToGo= currentNavigationPlan.Take(ntTogoIndex).ToList();
-                int notVirtualPtIndex=  pathToGo.FindLastIndex(pt => !pt.IsVirtualPoint);
+                var pathToGo = currentNavigationPlan.Take(ntTogoIndex).ToList();
+                int notVirtualPtIndex = pathToGo.FindLastIndex(pt => !pt.IsVirtualPoint);
 
                 currentNavigationPlan = pathToGo.Take(notVirtualPtIndex + 1).ToList();
                 return currentNavigationPlan;
