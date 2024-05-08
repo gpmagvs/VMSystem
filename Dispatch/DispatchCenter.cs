@@ -197,7 +197,8 @@ namespace VMSystem.Dispatch
                                                     .ToList();
                         bool is_destine_conflic = confliAGVList.Any();
 
-                        (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
+                        if (is_destine_conflic)
+                            (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
 
                         return is_destine_conflic ? null : path;
                     }
@@ -491,7 +492,7 @@ namespace VMSystem.Dispatch
 
                 constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
                 constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
-                //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
+                constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
                 var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
                 constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
                 constrains = constrains.DistinctBy(st => st.TagNumber).ToList();

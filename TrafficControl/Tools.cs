@@ -219,7 +219,7 @@ namespace VMSystem.TrafficControl
 
             bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;
 
-            var length = AGV.options.VehicleLength / 100.0 + (isInWorkStation ? 0.5 : 0);
+            var length = AGV.options.VehicleLength / 100.0 + (isInWorkStation ? 0.15 : 0);
             var width = AGV.options.VehicleWidth / 100.0;
             var center = new PointF((float)AGV.states.Coordination.X, (float)AGV.states.Coordination.Y);
             // 角度轉換為弧度

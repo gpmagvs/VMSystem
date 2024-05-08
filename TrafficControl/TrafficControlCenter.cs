@@ -37,6 +37,9 @@ namespace VMSystem.TrafficControl
     {
         public static ConcurrentQueue<clsTrafficInterLockSolver> InterLockTrafficSituations { get; set; } = new ConcurrentQueue<clsTrafficInterLockSolver>();
         public static List<clsWaitingInfo> AGVWaitingQueue = new List<clsWaitingInfo>();
+
+        private static SemaphoreSlim _leaveWorkStaitonReqSemaphore = new SemaphoreSlim(1, 1);
+
         internal static void Initialize()
         {
             SystemModes.OnRunModeON += HandleRunModeOn;
@@ -94,7 +97,7 @@ namespace VMSystem.TrafficControl
 
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
-
+            await _leaveWorkStaitonReqSemaphore.WaitAsync();
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
             try
             {
@@ -103,7 +106,6 @@ namespace VMSystem.TrafficControl
                     args.WaitSignal.Reset();
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
                     clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
-                    await Task.Delay(500);
                     bool isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out isTagRegisted, out isTagBlocked, out isInterference, out isInterfercenWhenRotation);
                     args.ActionConfirm = isNeedWait ? clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT : clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
                     args.Message = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
@@ -112,8 +114,8 @@ namespace VMSystem.TrafficControl
                 else
                 {
                     var goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
-                    var double_radius = args.Agv.AGVRotaionGeometry.RotationRadius * 2;
-                    var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(goalPoint) <= double_radius * 1.1);
+                    var radius = args.Agv.AGVRotaionGeometry.RotationRadius ;
+                    var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(goalPoint) <= radius);
                     List<MapPoint> _navingPointsForbid = new List<MapPoint>();
                     _navingPointsForbid.AddRange(new List<MapPoint> { args.Agv.currentMapPoint, goalPoint });
                     _navingPointsForbid.AddRange(forbidPoints.SelectMany(pt => new List<MapPoint>() { goalPoint, pt }));
@@ -129,7 +131,10 @@ namespace VMSystem.TrafficControl
                 args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.CANCEL;
                 return args;
             }
-
+            finally
+            {
+                _leaveWorkStaitonReqSemaphore.Release();
+            }
 
             #region region method
             string CreateWaitingInfoDisplayMessage(clsLeaveFromWorkStationConfirmEventArg args, bool isTagRegisted, bool isTagBlocked, bool isInterfercenWhenRotation)
@@ -197,7 +202,7 @@ namespace VMSystem.TrafficControl
                     return conflics.Any();
                 }
 
-                isInterference = is_destine_conflic|| IsOtherVehicleFeturePathConlic || _otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
+                isInterference = is_destine_conflic || IsOtherVehicleFeturePathConlic || _otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
                 isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVGeometery));
                 isTagBlocked = IsDestineBlocked();
                 if (IsLeaveFromChargeStation)

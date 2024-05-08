@@ -107,22 +107,37 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (trajectory.Length == 0)
                             continue;
 
-
+                        trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
-                        trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
 
 
-                        //await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                        while (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
+                        if (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
                         {
+                            await SendCancelRequestToAGV();
+                            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                            {
+                                if (IsTaskCanceled)
+                                    throw new TaskCanceledException();
+                                await Task.Delay(500);
+                            }
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             Agv.NavigationState.ResetNavigationPoints();
-                            UpdateMoveStateMessage($"Wait Regist Points Done...");
-                            if (IsTaskCanceled)
-                                throw new TaskCanceledException();
-                            await Task.Delay(1000);
+                            _previsousTrajectorySendToAGV.Clear();
+                            searchStartPt = Agv.currentMapPoint;
+                            continue;
                         }
+
+                        //await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                        //while (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
+                        //{
+                        //    await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                        //    Agv.NavigationState.ResetNavigationPoints();
+                        //    UpdateMoveStateMessage($"Wait Regist Points Done...");
+                        //    if (IsTaskCanceled)
+                        //        throw new TaskCanceledException();
+                        //    await Task.Delay(1000);
+                        //}
 
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
@@ -224,7 +239,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private void Agv_OnMapPointChanged(object? sender, int e)
         {
             List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
-            UpdateMoveStateMessage($"{string.Join("->", _NavigationTags)}");
+            UpdateMoveStateMessage($"當前路徑:{string.Join("->", _NavigationTags)}");
         }
 
         internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)

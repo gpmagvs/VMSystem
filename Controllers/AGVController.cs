@@ -217,7 +217,7 @@ namespace VMSystem.Controllers
             else
             {
                 response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
-                await Task.Delay(1000);
+                await Task.Delay(200);
                 response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
 
             }
