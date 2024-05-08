@@ -50,6 +50,7 @@ namespace VMSystem.AGV
         private bool _connected = false;
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
 
+        public event EventHandler<int> OnMapPointChanged;
         public IAGV.BATTERY_STATUS batteryStatus
         {
             get
@@ -220,17 +221,6 @@ namespace VMSystem.AGV
 
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
 
-
-                        //var tooNearUnregistedPoints = StaMap.Map.Points.Values.Where(pt => !StaMap.RegistDictionary.ContainsKey(pt.TagNumber))
-                        //                        .Where(pt => pt.GetCircleArea(ref _thisAGV, 0.5).IsIntersectionTo(currentCircleArea));
-
-                        //if (tooNearUnregistedPoints.Any())
-                        //{
-                        //    RegistedByConflicCheck.AddRange(tooNearUnregistedPoints);
-                        //    StaMap.RegistPoint(Name, tooNearUnregistedPoints, out var msg);
-                        //}
-
-
                         TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>() { value.Graph.Display });
 
 
@@ -255,7 +245,9 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
+
                         RegionManager.UpdateRegion(this);
+                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                     }
                 }
                 catch (Exception ex)
@@ -334,6 +326,8 @@ namespace VMSystem.AGV
         public HttpHelper AGVHttp { get; set; }
 
         private bool _IsTrafficTaskExecuting = false;
+
+
         public bool IsTrafficTaskExecuting
         {
             get => _IsTrafficTaskExecuting;
@@ -412,7 +406,7 @@ namespace VMSystem.AGV
             //AutoParkWorker();
             AliveCheck();
             Console.WriteLine($"[{Name}] Alive Check Process Start");
-            PingCheck();
+            //PingCheck();
             Console.WriteLine($"[{Name}] Ping Process Start");
 
             if (options.Simulation)
@@ -464,7 +458,6 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
                     pingSuccess = await PingServer();
                 }
             });

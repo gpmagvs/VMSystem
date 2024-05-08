@@ -33,16 +33,7 @@ namespace VMSystem
         {
             try
             {
-                using (IServiceScope scope = app.Services.CreateScope())
-                {
-                    using (AGVSDbContext dbContext = scope.ServiceProvider.GetRequiredService<AGVSDbContext>())
-                    {
-                        dbContext.Database.EnsureCreated();
-                        dbContext.SaveChanges();
-                    }
-                }
-
-                AGVSDatabase.Initialize().GetAwaiter().GetResult();
+                //AGVSDatabase.Initialize().GetAwaiter().GetResult();
                 TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
                 dbheper.SetRunningTaskWait();
             }
@@ -85,9 +76,10 @@ namespace VMSystem
         internal static void VMSInit()
         {
             StaMap.Download();
-            VMSManager.Initialize();
+            VMSManager.Initialize().ContinueWith(tk=> {
+                Dispatch.DispatchCenter.Initialize();
+            });
             TrafficControlCenter.Initialize();
-            Dispatch.DispatchCenter.Initialize();
         }
     }
 }

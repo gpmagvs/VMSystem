@@ -437,7 +437,7 @@ namespace VMSystem.TrafficControl
                 return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
-            var result = pathFinder.FindShortestPath(StaMap.Map, from, entryPoints.FirstOrDefault(), new PathFinder.PathFinderOption { OnlyNormalPoint = true });
+            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = false });
             if (result == null)
                 return double.MaxValue;
             else

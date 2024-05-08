@@ -118,6 +118,21 @@ namespace VMSystem.AGV
                     if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
+
+                        async Task<clsLeaveFromWorkStationConfirmEventArg> _confirmLeaveWorkStationConfirm()
+                        {
+                            return await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg
+                            {
+                                Agv = agv,
+                                GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID
+                            });
+                        }
+
+                        while ((await _confirmLeaveWorkStationConfirm()).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                        {
+                            await Task.Delay(1000);
+                        }
+
                         await _BackToHome(_currentBarcodeMoveArgs, token);
                     }
 
@@ -132,12 +147,12 @@ namespace VMSystem.AGV
                 {
                     Console.WriteLine($"[Emu]-Previous Task Interupted.");
                 }
-                runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+                //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
                 SemaphoreSlim.Release();
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
                 {
-                    _CargoStateSimulate(_args.action, _args.CSTID);
+                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態

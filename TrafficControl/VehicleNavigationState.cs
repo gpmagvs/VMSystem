@@ -1,12 +1,22 @@
 ﻿using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using SQLitePCL;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.Tasks;
 
 namespace VMSystem.TrafficControl
 {
     public class VehicleNavigationState
     {
+
+        public enum REGION_CONTROL_STATE
+        {
+            WAIT_AGV_CYCLE_STOP,
+            WAIT_AGV_REACH_ENTRY_POINT,
+            NONE
+        }
+
         public enum NAV_STATE
         {
             WAIT_SOLVING,
@@ -18,20 +28,26 @@ namespace VMSystem.TrafficControl
 
         public static Map CurrentMap => StaMap.Map;
         public NAV_STATE State { get; set; } = NAV_STATE.IDLE;
+        public REGION_CONTROL_STATE RegionControlState { get; set; } = REGION_CONTROL_STATE.NONE;
         public IAGV Vehicle { get; set; }
         public MapPoint CurrentMapPoint
         {
             get => _CurrentMapPoint;
             set
             {
-                if (_CurrentMapPoint == value) return;
+                if (_CurrentMapPoint == value)
+                    return;
                 _CurrentMapPoint = value;
                 CurrentRegion = CurrentMapPoint.GetRegion(CurrentMap);
-                var currentPtInNavitaion = NextNavigtionPoints.FirstOrDefault(pt => pt == value);
+                var currentPtInNavitaion = NextNavigtionPoints.FirstOrDefault(pt => pt.TagNumber == value.TagNumber);
                 if (currentPtInNavitaion != null)
                 {
                     var _index = NextNavigtionPoints.ToList().FindIndex(pt => pt == currentPtInNavitaion);
                     NextNavigtionPoints = NextNavigtionPoints.Skip(_index);
+                }
+                else
+                {
+                    ResetNavigationPoints();
                 }
             }
         }
@@ -70,8 +86,8 @@ namespace VMSystem.TrafficControl
         {
             get
             {
-                var _nexNavPts= this.NextNavigtionPoints.ToList();
-                if (!_nexNavPts.Any())
+                var _nexNavPts = this.NextNavigtionPoints.ToList();
+                if (!_nexNavPts.Any() || Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
                     return new List<MapRectangle>()
                     {
                          Vehicle.AGVGeometery
@@ -95,12 +111,30 @@ namespace VMSystem.TrafficControl
 
         public void ResetNavigationPoints()
         {
+            if (Vehicle.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
+                return;
+            try
+            {
+                var currentTask = Vehicle.CurrentRunningTask();
+                if (currentTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
+                    (currentTask as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"Reset Nav Pts at {this.Vehicle.currentMapPoint.TagNumber}");
+
+            }
+            catch (Exception ex)
+            {
+            }
             UpdateNavigationPoints(new List<MapPoint> { this.Vehicle.currentMapPoint });
         }
 
         private void Log(string message)
         {
             LOG.INFO($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
+        }
+
+        internal void StateReset()
+        {
+            State = VehicleNavigationState.NAV_STATE.IDLE;
+            RegionControlState = REGION_CONTROL_STATE.NONE;
         }
     }
 }

@@ -90,6 +90,10 @@ namespace VMSystem.AGV
             {
                 if (previous_OrderExecuteState != value)
                 {
+                    if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
+                    {
+                        agv.NavigationState.ResetNavigationPoints();
+                    }
                     previous_OrderExecuteState = value;
                     LOG.INFO($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode}", color: ConsoleColor.Green);
 
@@ -319,7 +323,7 @@ namespace VMSystem.AGV
 
         public async Task Run()
         {
-            TaskAssignWorker();
+            await TaskAssignWorker();
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
@@ -355,11 +359,9 @@ namespace VMSystem.AGV
             {
                 while (true)
                 {
-                    await Task.Delay(1000);
                     try
                     {
                         OrderExecuteState = GetAGVReceiveOrderStatus();
-
                         switch (OrderExecuteState)
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
@@ -390,6 +392,7 @@ namespace VMSystem.AGV
                                 OrderHandler = factory.CreateHandler(_ExecutingTask);
                                 OrderHandler.StartOrder(agv);
                                 OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
+                                OrderHandler.OnOrderFinish += OrderHandler_OnOrderFinish;
                                 if (_ExecutingTask.Action == ACTION_TYPE.Charge)
                                     (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
 
@@ -425,7 +428,6 @@ namespace VMSystem.AGV
                                 break;
                         }
                         //int removeNum = _taskListFromAGVS.RemoveAll(task => task.State == TASK_RUN_STATUS.CANCEL || task.State == TASK_RUN_STATUS.FAILURE || task.State == TASK_RUN_STATUS.ACTION_FINISH);
-
                     }
                     catch (NoPathForNavigatorException ex)
                     {
@@ -448,6 +450,7 @@ namespace VMSystem.AGV
                     }
                     finally
                     {
+                        await Task.Delay(1000);
                     }
                 }
             });
@@ -457,6 +460,12 @@ namespace VMSystem.AGV
                 CheckAutoCharge();
             });
             AutoChargeThread.Start();
+        }
+
+        private void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
+        {
+            OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
+            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
         }
 
         private void OrderHandler_OnTaskCanceled(object? sender, OrderHandlerBase e)

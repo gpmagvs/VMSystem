@@ -171,7 +171,16 @@ namespace VMSystem.TrafficControl
                 int indexOfGoalPoint = StaMap.GetIndexOfPoint(goalPoint);
                 MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
                 _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
-                isInterference = _otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
+
+                bool IsOtherVehicleFeturePathConlic = _otherAGVList.Any(veh => CalculatePathConflicOfVehicle(veh, out var _));
+
+                bool CalculatePathConflicOfVehicle(IAGV vehicle, out List<MapRectangle> conflics)
+                {
+                    conflics = vehicle.NavigationState.OccupyRegions.Where(rect => rect.IsIntersectionTo(agv.AGVRotaionGeometry)).ToList();
+                    return conflics.Any();
+                }
+
+                isInterference = IsOtherVehicleFeturePathConlic||_otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
                 isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVGeometery));
                 isTagBlocked = IsDestineBlocked();
                 if (IsLeaveFromChargeStation)
@@ -179,7 +188,7 @@ namespace VMSystem.TrafficControl
                     IEnumerable<MapPoint> nearChargeStationEntryPoints = StaMap.Map.Points.Values.Where(pt => pt != agv.currentMapPoint && pt.IsCharge)
                                                                                     .Where(pt => StaMap.GetPointByIndex(pt.Target.Keys.First()).Target.Keys.Contains(indexOfGoalPoint))
                                                                                     .SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-                    bool anyNearChargeEnteryPtRegisted = nearChargeStationEntryPoints.Any(pt=> StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
+                    bool anyNearChargeEnteryPtRegisted = nearChargeStationEntryPoints.Any(pt => StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
                     return isTagRegisted || anyNearChargeEnteryPtRegisted || isTagBlocked;
 
                 }
