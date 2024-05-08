@@ -17,6 +17,7 @@ using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using static VMSystem.AGV.clsGPMInspectionAGV;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using VMSystem.BackgroundServices;
 
 namespace VMSystem.Controllers
 {
@@ -28,7 +29,7 @@ namespace VMSystem.Controllers
         [HttpGet("AGVStatus")]
         public async Task<IActionResult> GetAGVStatus()
         {
-            return Ok(VMSManager.AGVStatueDtoStored.Values.ToArray());
+            return Ok(VehicleStateService.AGVStatueDtoStored.Values.ToArray());
         }
 
         [HttpPost("ExecuteTask")]
@@ -59,7 +60,7 @@ namespace VMSystem.Controllers
                 try
                 {
                     online_success = agv.AGVOnlineFromAGVS(out msg);
-                    
+
                     return Ok(new { ReturnCode = online_success ? 0 : 404, Message = msg });
                 }
                 catch (Exception ex)
@@ -113,10 +114,10 @@ namespace VMSystem.Controllers
             return Ok(new { confirm = result.confirm, message = result.message });
         }
         [HttpPost("EditVehicle")]
-        public async Task<IActionResult> EditVehicle([FromBody] clsAGVStateDto dto,string oriAGVID)
+        public async Task<IActionResult> EditVehicle([FromBody] clsAGVStateDto dto, string oriAGVID)
         {
             var result = await VMSManager.EditVehicle(dto, oriAGVID);
-            return Ok(new {confirm =result.confirm, message=result.message});
+            return Ok(new { confirm = result.confirm, message = result.message });
         }
         [HttpDelete("DeleteVehicle")]
         public async Task<IActionResult> DeleteVehicle(string AGV_Name)

@@ -265,7 +265,12 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                throw ex;
+                int indexOfCurrentTagInTraj = moveArgs.nextMoveTrajectory.ToList().FindIndex(pt => pt.Point_ID == runningSTatus.Last_Visited_Node);
+                bool iscurrentEnd = indexOfCurrentTagInTraj + 1 > moveArgs.nextMoveTrajectory.Count();
+                var pointToSet = iscurrentEnd ? moveArgs.nextMoveTrajectory.Last() : moveArgs.nextMoveTrajectory.ToList()[(indexOfCurrentTagInTraj + 1)];
+                runningSTatus.Coordination.X = pointToSet.X;
+                runningSTatus.Coordination.Y = pointToSet.Y;
+                runningSTatus.Last_Visited_Node = pointToSet.Point_ID;
             }
         }
 

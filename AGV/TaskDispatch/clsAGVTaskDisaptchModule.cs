@@ -284,7 +284,17 @@ namespace VMSystem.AGV
             { }
         }
 
-        public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
+        //public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
+        public virtual List<clsTaskDto> taskList
+        {
+            get
+            {
+                List<clsTaskDto> _tasks = new List<clsTaskDto>();
+                _tasks.AddRange(DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(task => task.DesignatedAGVName == this.agv.Name).ToList());
+                _tasks.AddRange(DatabaseCaches.TaskCaches.RunningTasks.Where(task => task.DesignatedAGVName == this.agv.Name).ToList());
+                return _tasks;
+            }
+        }
         public MapPoint[] CurrentTrajectory
         {
             get

@@ -6,6 +6,7 @@ using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.HttpTools;
+using VMSystem.BackgroundServices;
 
 namespace VMSystem.Controllers
 {
@@ -37,7 +38,7 @@ namespace VMSystem.Controllers
                     //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
                     AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
                     OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
-                    VMSStatus = VMSManager.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
+                    VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
                 };
             }
             catch (Exception ex)

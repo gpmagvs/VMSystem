@@ -1,11 +1,12 @@
-﻿
-using AGVSystemCommonNet6.Configuration;
+﻿using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using VMSystem;
+using VMSystem.BackgroundServices;
 using VMSystem.Controllers;
 
 
@@ -16,7 +17,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = null);
-
+builder.Services.AddHostedService<DatabaseBackgroundService>();
+builder.Services.AddHostedService<VehicleStateService>();
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;
@@ -25,7 +27,10 @@ builder.Services.Configure<JsonOptions>(options =>
 });
 
 string DBConnection = AGVSConfigulator.SysConfigs.DBConnection;
-builder.Services.AddDbContext<AGVSDbContext>(options => options.UseSqlServer(DBConnection));
+builder.Services.AddDbContext<AGVSDbContext>(options =>
+{
+    options.UseSqlServer(DBConnection);
+});
 
 var app = builder.Build();
 

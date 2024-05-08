@@ -177,7 +177,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (lastGoalTag == Agv.currentMapPoint.TagNumber)
                             {
-                                searchStartPt = lastGoal;
                                 break;
                             }
 

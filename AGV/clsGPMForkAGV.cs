@@ -925,9 +925,14 @@ namespace VMSystem.AGV
         {
             TaskBase currentTask = this.CurrentRunningTask();
             bool isTaskExecuting = currentTask.TaskName == task_name;
-            if (isTaskExecuting)
+            if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
                 currentTask.CancelTask();
             else
+            {
+                RemoveTask(task_name);
+            }
+
+            void RemoveTask(string task_name)
             {
                 var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
                 if (taskDto != null)
