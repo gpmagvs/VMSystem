@@ -537,7 +537,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             switch (agv.model)
             {
                 case AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD:
-                    tags = StaMap.Map.TagNoStopOfForkAGV;
+                    tags = StaMap.Map.TagNoStopOfSubmarineAGV;
                     break;
                 case AGVSystemCommonNet6.clsEnums.AGV_TYPE.FORK:
                     tags = StaMap.Map.TagNoStopOfForkAGV;

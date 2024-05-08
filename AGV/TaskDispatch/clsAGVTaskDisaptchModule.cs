@@ -264,11 +264,8 @@ namespace VMSystem.AGV
         }
         public async void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection)
         {
-
             if (tasksCollection.Any(tk => tk.State == TASK_RUN_STATUS.CANCEL))
-            {
-
-            }
+            { }
             try
             {
                 var notInQuqueOrders = tasksCollection.FindAll(task => !taskList.Any(tk => tk.TaskName == task.TaskName))
@@ -284,8 +281,7 @@ namespace VMSystem.AGV
                 throw ex;
             }
             finally
-            {
-            }
+            { }
         }
 
         public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
