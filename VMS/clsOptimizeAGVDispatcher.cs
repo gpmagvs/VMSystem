@@ -32,7 +32,7 @@ namespace VMSystem.VMS
 
         protected override async Task TaskAssignWorker()
         {
-            Thread AssignThred = new Thread(async () =>
+            _ = Task.Run(async () =>
             {
                 var database = new AGVSDatabase();
                 while (true)
@@ -72,7 +72,7 @@ namespace VMSystem.VMS
                 }
 
             });
-            AssignThred.Start();
+           
         }
         /// <summary>
         /// 尋找最佳的AGV
