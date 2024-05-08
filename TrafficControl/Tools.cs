@@ -15,6 +15,8 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using AGVSystemCommonNet6.Microservices.AGVS;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.TrafficControl
 {
@@ -416,20 +418,30 @@ namespace VMSystem.TrafficControl
 
             return interferenceMapPoints.Count > 0;
         }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="goal"></param>
+        /// <param name="agv"></param>
+        /// <returns>回傳直如果為double.MaxValue視為找不到路徑或是目標站點不予許車種</returns>
         public static double ElevateDistanceToGoalStation(MapPoint goal, IAGV agv)
         {
             var from = agv.currentMapPoint;
+            MapPoint _workStationPoint = goal;
+            var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+            var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+            Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
+            AcceptAGVInfoOfEQTags.Wait();
+            var v = AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
+            if ((AGV_TYPE)v != agv.model)
+                return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
-            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = true });
+            var result = pathFinder.FindShortestPath(StaMap.Map, from, entryPoints.FirstOrDefault(), new PathFinder.PathFinderOption { OnlyNormalPoint = true });
             if (result == null)
-                return 9999999999999;
+                return double.MaxValue;
             else
-            {
                 return result.total_travel_distance;
-            }
-
         }
 
         #region Private Methods
