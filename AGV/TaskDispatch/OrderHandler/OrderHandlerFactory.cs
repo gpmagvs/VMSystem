@@ -36,11 +36,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         private void HandleOnLoadingAtTransferStationTaskFinish(object? sender, EventArgs e)
         {
+            OrderHandlerBase order = (OrderHandlerBase)sender;
+            order.OnLoadingAtTransferStationTaskFinish-= HandleOnLoadingAtTransferStationTaskFinish;
+
             Task.Factory.StartNew(async () =>
             {
                 await Task.Delay(1000);
                 //generate carry task from [transfer station] to [order destine station]
-                OrderHandlerBase order = (OrderHandlerBase)sender;
+                //OrderHandlerBase order = (OrderHandlerBase)sender;
                 int transferStationTag = order.OrderData.TransferFromTag;
 
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
