@@ -43,9 +43,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 await Task.Delay(1000);
                 //generate carry task from [transfer station] to [order destine station]
-                //OrderHandlerBase order = (OrderHandlerBase)sender;
-                int transferStationTag = order.OrderData.TransferFromTag;
 
+                string strPreviousAGV = order.OrderData.DesignatedAGVName;
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
                 order.OrderData.From_Station = order.OrderData.ChangeAGVMiddleStationTag.ToString();
                 order.OrderData.From_Station_AGV_Type = AGV_TYPE.SUBMERGED_SHIELD;
@@ -54,6 +53,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 order.OrderData.State = TASK_RUN_STATUS.WAIT;
                 //nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
                 VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
+                clsTaskDto charge = new clsTaskDto();
+                charge.DesignatedAGVName=order.OrderData.DesignatedAGVName;
+                charge.Action = ACTION_TYPE.Charge;
+                charge.To_Station = "-1";
+                VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
+                AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
             });
         }
 
