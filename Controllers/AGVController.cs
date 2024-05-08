@@ -199,11 +199,16 @@ namespace VMSystem.Controllers
 
             var EQPoint = StaMap.GetPointByTagNumber(EQTag);
             var EntryPointOfEQ = StaMap.GetPointByIndex(EQPoint.Target.Keys.First());
+
+
+
             var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg()
             {
                 Agv = VMSManager.GetAGVByName(AGVName),
                 GoalTag = EntryPointOfEQ.TagNumber,
             });
+            response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
+            await Task.Delay(1000);
             bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
             if (!allowLeve)
             {
@@ -211,6 +216,8 @@ namespace VMSystem.Controllers
             }
             else
             {
+                response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
+                await Task.Delay(1000);
                 response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
 
             }

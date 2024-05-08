@@ -43,7 +43,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             };
             MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { sourceMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
         }
-
+        public override async Task SendTaskToAGV()
+        {
+            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+            await base.SendTaskToAGV();
+        }
         protected abstract int GetSlotHeight();
         internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {

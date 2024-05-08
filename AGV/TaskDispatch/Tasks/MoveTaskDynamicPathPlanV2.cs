@@ -65,7 +65,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(500);
                     if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         throw new TaskCanceledException();
                     try
@@ -75,10 +75,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
                             searchStartPt = Agv.currentMapPoint;
-                            Agv.NavigationState.ResetNavigationPoints();
-                            StaMap.UnRegistPointsOfAGVRegisted(Agv);
+
                             //UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
-                            await Task.Delay(200);
+                            await Task.Delay(500);
+                            //if (_previsousTrajectorySendToAGV.Count > 0 && Agv.currentMapPoint.TagNumber != DestineTag)
+                            //{
+                            //    await SendCancelRequestToAGV();
+                            //    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                            //    {
+                            //        UpdateMoveStateMessage($"Wait Cycle Stop Done..");
+                            //        if (IsTaskCanceled)
+                            //            throw new TaskCanceledException();
+                            //        await Task.Delay(1000);
+                            //    }
+                            //    _previsousTrajectorySendToAGV.Clear();
+                            //}
+                            Agv.NavigationState.ResetNavigationPoints();
+                            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             continue;
                         }
                         var nextPath = dispatchCenterReturnPath.ToList();
@@ -87,7 +100,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
                         Agv.NavigationState.UpdateNavigationPoints(nextPath);
-                        StaMap.RegistPoint(Agv.Name, nextPath, out var msg);
 
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
@@ -95,9 +107,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (trajectory.Length == 0)
                             continue;
 
+
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
                         trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextPath.Last());
+
+
+                        //await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                        while (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
+                        {
+                            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            Agv.NavigationState.ResetNavigationPoints();
+                            UpdateMoveStateMessage($"Wait Regist Points Done...");
+                            if (IsTaskCanceled)
+                                throw new TaskCanceledException();
+                            await Task.Delay(1000);
+                        }
 
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
@@ -244,7 +269,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public void UpdateMoveStateMessage(string msg)
         {
-            if(OrderData==null)
+            if (OrderData == null)
                 return;
             string GetDestineDisplay()
             {

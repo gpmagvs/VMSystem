@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -177,7 +178,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected virtual void HandleAGVActionStartFeedback()
         {
+            var destineTag = RunningTask.DestineTag;
 
+            if (RunningTask.ActionType != ACTION_TYPE.None)
+            {
+                Agv.NavigationState.ResetNavigationPoints();
+                MapPoint destineMapPoint= StaMap.GetPointByTagNumber(destineTag);
+                StaMap.RegistPoint(Agv.Name, destineMapPoint, out var _);
+            }
         }
 
         protected virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
@@ -320,6 +328,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private void UnRegistPoints()
         {
             StaMap.UnRegistPointsOfAGVRegisted(this.Agv);
+            Agv.NavigationState.ResetNavigationPoints();
         }
         internal void StartTrafficControl()
         {

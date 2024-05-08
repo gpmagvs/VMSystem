@@ -146,7 +146,10 @@ namespace VMSystem
             error_message = string.Empty;
             foreach (var item in mapPoints)
             {
-                RegistPoint(Name, item, out error_message);
+                if (!RegistPoint(Name, item, out error_message))
+                {
+                    return false;
+                }
 
             }
             return true;

@@ -43,7 +43,7 @@ namespace VMSystem.TrafficControl
                 if (currentPtInNavitaion != null)
                 {
                     var _index = NextNavigtionPoints.ToList().FindIndex(pt => pt == currentPtInNavitaion);
-                    NextNavigtionPoints = NextNavigtionPoints.Skip(_index);
+                    UpdateNavigationPoints(NextNavigtionPoints.Skip(_index).ToList());
                 }
                 else
                 {
@@ -87,7 +87,7 @@ namespace VMSystem.TrafficControl
             get
             {
                 var _nexNavPts = this.NextNavigtionPoints.ToList();
-                if (!_nexNavPts.Any() || Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
+                if (!_nexNavPts.Any())
                     return new List<MapRectangle>()
                     {
                          Vehicle.AGVGeometery
@@ -100,6 +100,7 @@ namespace VMSystem.TrafficControl
                 var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0); ;
                 List<MapRectangle> output = new List<MapRectangle>() { Vehicle.AGVGeometery };
                 output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLength));
+                output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { output.Last().EndPointTag }, vLength, vLength));
                 return output;
             }
         }
@@ -111,19 +112,18 @@ namespace VMSystem.TrafficControl
 
         public void ResetNavigationPoints()
         {
-            if (Vehicle.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
-                return;
+          
             try
             {
-                var currentTask = Vehicle.CurrentRunningTask();
-                if (currentTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
-                    (currentTask as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"Reset Nav Pts at {this.Vehicle.currentMapPoint.TagNumber}");
+                //var currentTask = Vehicle.CurrentRunningTask();
+                //if (currentTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
+                //    (currentTask as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"Reset Nav Pts at {this.Vehicle.currentMapPoint.TagNumber}");
 
             }
             catch (Exception ex)
             {
             }
-            UpdateNavigationPoints(new List<MapPoint> { this.Vehicle.currentMapPoint });
+            UpdateNavigationPoints(new List<MapPoint> { _CurrentMapPoint });
         }
 
         private void Log(string message)

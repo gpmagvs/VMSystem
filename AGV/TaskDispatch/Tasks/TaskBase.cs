@@ -155,6 +155,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual async Task SendTaskToAGV()
         {
+
             if (IsTaskCanceled)
                 return;
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
