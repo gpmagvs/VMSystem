@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using SQLitePCL;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Dispatch;
 
 namespace VMSystem.TrafficControl
 {
@@ -105,14 +106,18 @@ namespace VMSystem.TrafficControl
             }
         }
 
+        public ConflicSolveResult.CONFLIC_ACTION ConflicAction { get; internal set; } = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
+
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
-            NextNavigtionPoints = pathPoints.ToList();
+            List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
+            output.AddRange(pathPoints);
+            NextNavigtionPoints = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
         }
 
         public void ResetNavigationPoints()
         {
-          
+
             try
             {
                 //var currentTask = Vehicle.CurrentRunningTask();
@@ -123,7 +128,7 @@ namespace VMSystem.TrafficControl
             catch (Exception ex)
             {
             }
-            UpdateNavigationPoints(new List<MapPoint> { _CurrentMapPoint });
+            UpdateNavigationPoints(new List<MapPoint> { Vehicle.currentMapPoint });
         }
 
         private void Log(string message)

@@ -8,6 +8,7 @@ using Microsoft.Extensions.FileProviders;
 using VMSystem;
 using VMSystem.BackgroundServices;
 using VMSystem.Controllers;
+using VMSystem.Services;
 
 
 Startup.ConfigurationInit();
@@ -19,6 +20,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = null);
 builder.Services.AddHostedService<DatabaseBackgroundService>();
 builder.Services.AddHostedService<VehicleStateService>();
+
+builder.Services.AddScoped<VehicleOnlineRequestByAGVService>();
+builder.Services.AddScoped<VehicleOnlineBySystemService>();
+
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;

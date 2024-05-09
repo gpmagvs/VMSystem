@@ -72,6 +72,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, OrderData, Stage));
                         //var dispatchCenterReturnPath = (await DispatchCenter.MoveToGoalGetPath(Agv, searchStartPt, OrderData, Stage));
+
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
                             searchStartPt = Agv.currentMapPoint;
@@ -417,7 +418,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public static IEnumerable<MapPoint> TargetNormalPoints(this MapPoint mapPoint)
         {
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                .Where(pt => StaMap.Map.Points.Values.Contains(pt))
+                .Where(pt => StaMap.Map.Points.Values.Any(_pt => _pt.TagNumber == pt.TagNumber))
                 .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
         }
         public static IEnumerable<MapPoint> TargetWorkSTationsPoints(this MapPoint mapPoint)

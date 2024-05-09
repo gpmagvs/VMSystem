@@ -114,7 +114,7 @@ namespace VMSystem.TrafficControl
                 else
                 {
                     var goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
-                    var radius = args.Agv.AGVRotaionGeometry.RotationRadius ;
+                    var radius = args.Agv.AGVRotaionGeometry.RotationRadius;
                     var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(goalPoint) <= radius);
                     List<MapPoint> _navingPointsForbid = new List<MapPoint>();
                     _navingPointsForbid.AddRange(new List<MapPoint> { args.Agv.currentMapPoint, goalPoint });
@@ -180,6 +180,7 @@ namespace VMSystem.TrafficControl
 
             bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation)
             {
+                Thread.Sleep(100);
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
                 var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
 
@@ -190,7 +191,7 @@ namespace VMSystem.TrafficControl
 
 
 
-                var confliAGVList = _otherAGVList.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref agv, 1.5).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.5))))
+                var confliAGVList = _otherAGVList.Where(_agv => _agv.NavigationState.ConflicAction != Dispatch.ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT && _agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && _agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref _agv, 1.5).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.5))))
                                             .ToList();
                 bool is_destine_conflic = confliAGVList.Any();
 

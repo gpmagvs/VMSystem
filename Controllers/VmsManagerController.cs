@@ -18,6 +18,8 @@ using AGVSystemCommonNet6.AGVDispatch;
 using static VMSystem.AGV.clsGPMInspectionAGV;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using VMSystem.BackgroundServices;
+using VMSystem.Services;
+using AGVSystemCommonNet6.Alarm;
 
 namespace VMSystem.Controllers
 {
@@ -25,6 +27,12 @@ namespace VMSystem.Controllers
     [ApiController]
     public class VmsManagerController : ControllerBase
     {
+        private VehicleOnlineBySystemService _onlineService;
+
+        public VmsManagerController(VehicleOnlineBySystemService onlineService)
+        {
+            _onlineService = onlineService;
+        }
 
         [HttpGet("AGVStatus")]
         public async Task<IActionResult> GetAGVStatus()
@@ -51,6 +59,9 @@ namespace VMSystem.Controllers
         [HttpGet("OnlineRequet")]
         public async Task<IActionResult> OnlineRequet(string agv_name, clsEnums.AGV_TYPE model = clsEnums.AGV_TYPE.FORK)
         {
+            (ALARMS alarmCode, string message) check_result = _onlineService.OnlineRequest(agv_name, out _);
+            return Ok(new { ReturnCode = check_result.alarmCode, Message = check_result.message });
+
             Console.WriteLine($"要求 {agv_name}上線 ");
             bool online_success = false;
             string msg = string.Empty;

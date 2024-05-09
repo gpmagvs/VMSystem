@@ -32,78 +32,86 @@ namespace VMSystem.BackgroundServices
             while (true)
             {
                 await Task.Delay(150);
-                clsAGVStateDto CreateDTO(IAGV agv)
+                try
                 {
-                    GetStationsName(agv, out string currentLocDisplay, out string sourceDisplay, out string destineDisplay);
-                    var dto = new clsAGVStateDto
+
+                    clsAGVStateDto CreateDTO(IAGV agv)
                     {
-                        AGV_Name = agv.Name,
-                        Enabled = agv.options.Enabled,
-                        BatteryLevel_1 = agv.states.Electric_Volume.Length >= 1 ? agv.states.Electric_Volume[0] : -1,
-                        BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
-                        OnlineStatus = agv.online_state,
-                        MainStatus = agv.states.AGV_Status,
-                        CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
-                        CurrentLocation = agv.states.Last_Visited_Node.ToString(),
-                        Theta = agv.states.Coordination.Theta,
-                        Connected = agv.connected,
-                        Group = agv.VMSGroup,
-                        Model = agv.model,
-                        TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.OrderHandler.OrderData.TaskName : "",
-                        //TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
-                        TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
-                        CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
-                        TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
-                        TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
-                        IsCharging = agv.states.IsCharging,
-                        IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
-                        VehicleWidth = agv.options.VehicleWidth,
-                        VehicleLength = agv.options.VehicleLength,
-                        Protocol = agv.options.Protocol,
-                        IP = agv.options.HostIP,
-                        Port = agv.options.HostPort,
-                        Simulation = agv.options.Simulation,
-                        LowBatLvThreshold = agv.options.BatteryOptions.LowLevel,
-                        MiddleBatLvThreshold = agv.options.BatteryOptions.MiddleLevel,
-                        HighBatLvThreshold = agv.options.BatteryOptions.HightLevel,
-                        TaskSourceStationName = sourceDisplay,
-                        TaskDestineStationName = destineDisplay,
-                        StationName = currentLocDisplay
+                        GetStationsName(agv, out string currentLocDisplay, out string sourceDisplay, out string destineDisplay);
+                        var dto = new clsAGVStateDto
+                        {
+                            AGV_Name = agv.Name,
+                            Enabled = agv.options.Enabled,
+                            BatteryLevel_1 = agv.states.Electric_Volume.Length >= 1 ? agv.states.Electric_Volume[0] : -1,
+                            BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
+                            OnlineStatus = agv.online_state,
+                            MainStatus = agv.states.AGV_Status,
+                            CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
+                            CurrentLocation = agv.states.Last_Visited_Node.ToString(),
+                            Theta = agv.states.Coordination.Theta,
+                            Connected = agv.connected,
+                            Group = agv.VMSGroup,
+                            Model = agv.model,
+                            TaskName = agv.main_state == MAIN_STATUS.RUN ? agv.taskDispatchModule.OrderHandler.OrderData.TaskName : "",
+                            //TaskRunStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus,
+                            TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
+                            CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
+                            TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
+                            TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
+                            IsCharging = agv.states.IsCharging,
+                            IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
+                            VehicleWidth = agv.options.VehicleWidth,
+                            VehicleLength = agv.options.VehicleLength,
+                            Protocol = agv.options.Protocol,
+                            IP = agv.options.HostIP,
+                            Port = agv.options.HostPort,
+                            Simulation = agv.options.Simulation,
+                            LowBatLvThreshold = agv.options.BatteryOptions.LowLevel,
+                            MiddleBatLvThreshold = agv.options.BatteryOptions.MiddleLevel,
+                            HighBatLvThreshold = agv.options.BatteryOptions.HightLevel,
+                            TaskSourceStationName = sourceDisplay,
+                            TaskDestineStationName = destineDisplay,
+                            StationName = currentLocDisplay
+                        };
+                        return dto;
                     };
-                    return dto;
-                };
-                bool haschanaged = false;
-                foreach (var agv in VMSManager.AllAGV)
-                {
-                    var entity = CreateDTO(agv);
-                    var statesCache = DatabaseCaches.Vehicle.VehicleStates.FirstOrDefault(v => v.AGV_Name == entity.AGV_Name);
-                    if (statesCache == null)
-                        continue;
-                    if (statesCache.HasChanged(entity))
+                    bool haschanaged = false;
+                    foreach (var agv in VMSManager.AllAGV)
                     {
-                        context.AgvStates.First(v => v.AGV_Name == entity.AGV_Name).Update(entity);
-                        haschanaged = true;
+                        var entity = CreateDTO(agv);
+                        var statesCache = DatabaseCaches.Vehicle.VehicleStates.FirstOrDefault(v => v.AGV_Name == entity.AGV_Name);
+                        if (statesCache == null)
+                            continue;
+                        if (statesCache.HasChanged(entity))
+                        {
+                            context.AgvStates.First(v => v.AGV_Name == entity.AGV_Name).Update(entity);
+                            haschanaged = true;
 
+                        }
                     }
-                }
-                if (haschanaged)
-                {
-                    await context.SaveChangesAsync();
-                }
-                void GetStationsName(IAGV agv, out string current, out string from, out string to)
-                {
-                    current = from = to = "";
-                    current = agv.currentMapPoint.Graph.Display;
-                    bool isExecuting = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
-                    clsTaskDto currentOrder = agv.CurrentRunningTask().OrderData;
-                    if (currentOrder == null)
-                        return;
-                    if (!isExecuting)
-                        return;
-                    from = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
-                    to = StaMap.GetStationNameByTag(currentOrder.To_Station_Tag);
-                }
+                    if (haschanaged)
+                    {
+                        await context.SaveChangesAsync();
+                    }
+                    void GetStationsName(IAGV agv, out string current, out string from, out string to)
+                    {
+                        current = from = to = "";
+                        current = agv.currentMapPoint.Graph.Display;
+                        bool isExecuting = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+                        clsTaskDto currentOrder = agv.CurrentRunningTask().OrderData;
+                        if (currentOrder == null)
+                            return;
+                        if (!isExecuting)
+                            return;
+                        from = StaMap.GetStationNameByTag(currentOrder.From_Station_Tag);
+                        to = StaMap.GetStationNameByTag(currentOrder.To_Station_Tag);
+                    }
 
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message+ex.StackTrace);
+                }
             }
         }
 
