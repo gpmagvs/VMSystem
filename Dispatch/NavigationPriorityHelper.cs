@@ -103,7 +103,10 @@ namespace VMSystem.Dispatch
 
         private bool IsVehicleReadyToUDULD(IAGV vehicle)
         {
+            
             var orderInfo = vehicle.CurrentRunningTask().OrderData;
+            if(orderInfo==null)
+                return false;
             var currentOrderAction = orderInfo.Action;
             return currentOrderAction != ACTION_TYPE.None && currentOrderAction != ACTION_TYPE.Charge;
         }

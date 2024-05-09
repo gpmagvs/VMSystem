@@ -180,7 +180,6 @@ namespace VMSystem.TrafficControl
 
             bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation)
             {
-                Thread.Sleep(100);
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
                 var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
 

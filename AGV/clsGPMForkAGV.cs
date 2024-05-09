@@ -177,8 +177,8 @@ namespace VMSystem.AGV
             {
                 if (value != _main_state)
                 {
-                    availabilityHelper.UpdateAGVMainState(value);
-                    StopRegionHelper.UpdateStopRegionData(value, states.Last_Visited_Node.ToString());
+                    availabilityHelper?.UpdateAGVMainState(value);
+                    StopRegionHelper?.UpdateStopRegionData(value, states.Last_Visited_Node.ToString());
                     _main_state = value;
                 }
             }

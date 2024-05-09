@@ -192,7 +192,7 @@ namespace VMSystem.Dispatch
                     var path = subGoalResults.First(path => path != null);
                     if (vehicle.currentMapPoint.TagNumber != finalMapPoint.TagNumber && path.Last().TagNumber == finalMapPoint.TagNumber)//前往終點(如果已經在終點則不考慮)
                     {
-                        var confliAGVList = otherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 1.2).IsIntersectionTo(finalMapPoint.GetCircleArea(ref vehicle, 1.2))))
+                        var confliAGVList = otherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 1.5).IsIntersectionTo(finalMapPoint.GetCircleArea(ref vehicle, 1.5))))
                                                     .ToList();
                         bool is_destine_conflic = confliAGVList.Any();
 
@@ -201,18 +201,7 @@ namespace VMSystem.Dispatch
                             (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
                             NavigationPriorityHelper priorityHelper = new NavigationPriorityHelper();
                             ConflicSolveResult solveResult = await priorityHelper.GetPriorityByBecauseDestineConflicAsync(vehicle, confliAGVList, finalMapPoint);
-
-                            switch (solveResult.NextAction)
-                            {
-                                case ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT:
-                                    return null;
-                                case ConflicSolveResult.CONFLIC_ACTION.REPLAN:
-                                    return null;
-                                case ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO:
-                                    return path;
-                                default:
-                                    break;
-                            }
+                            return solveResult.NextAction != ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO ? null : path;
                         }
                         else
                             return path;
@@ -220,7 +209,7 @@ namespace VMSystem.Dispatch
                     return path;
                     //if (vehicle.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE)
                     //{
-                    //    var pathPlanViaWorkStationPartsReplace = await WorkStationPartsReplacingControl(vehicle, path);
+                    ////    var pathPlanViaWorkStationPartsReplace = await WorkStationPartsReplacingControl(vehicle, path);
                     //    if (pathPlanViaWorkStationPartsReplace != null &&
                     //        !pathPlanViaWorkStationPartsReplace.GetTagCollection().SequenceEqual(path.GetTagCollection()))
                     //    {
