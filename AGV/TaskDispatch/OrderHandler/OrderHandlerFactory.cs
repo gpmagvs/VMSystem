@@ -5,6 +5,7 @@ using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.VMS;
 using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.clsEnums;
@@ -54,11 +55,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 //nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
                 VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
                 clsTaskDto charge = new clsTaskDto();
-                charge.DesignatedAGVName=order.OrderData.DesignatedAGVName;
+                charge.TaskName = $"ACharge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
+                charge.DesignatedAGVName = strPreviousAGV;
                 charge.Action = ACTION_TYPE.Charge;
+                charge.Carrier_ID = "-1";
                 charge.To_Station = "-1";
-                VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
-                AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
+                charge.State = TASK_RUN_STATUS.WAIT;
+                VMSManager.HandleTaskDBChangeRequestRaising(this, charge);
+                LOG.INFO($"AUTO Charge task added {charge}");
+                //AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
             });
         }
 
