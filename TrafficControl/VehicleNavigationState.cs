@@ -106,7 +106,7 @@ namespace VMSystem.TrafficControl
                 output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLength, vLength));
 
 
-                if (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN)
+                if (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
                 {
                     MapRectangle finalStopRectangle = Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength);
                     output.Add(finalStopRectangle);
