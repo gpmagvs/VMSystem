@@ -5,6 +5,7 @@ using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.VMS;
 using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.clsEnums;
@@ -37,7 +38,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private void HandleOnLoadingAtTransferStationTaskFinish(object? sender, EventArgs e)
         {
             OrderHandlerBase order = (OrderHandlerBase)sender;
-            order.OnLoadingAtTransferStationTaskFinish-= HandleOnLoadingAtTransferStationTaskFinish;
+            order.OnLoadingAtTransferStationTaskFinish -= HandleOnLoadingAtTransferStationTaskFinish;
 
             Task.Factory.StartNew(async () =>
             {
@@ -46,19 +47,23 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 string strPreviousAGV = order.OrderData.DesignatedAGVName;
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
-                order.OrderData.From_Station = order.OrderData.ChangeAGVMiddleStationTag.ToString();
-                order.OrderData.From_Station_AGV_Type = AGV_TYPE.SUBMERGED_SHIELD;
+                order.OrderData.From_Station = order.OrderData.TransferFromTag.ToString();
+                //order.OrderData.From_Station_AGV_Type = AGV_TYPE.SUBMERGED_SHIELD;
                 order.OrderData.need_change_agv = false;
                 order.OrderData.DesignatedAGVName = "";
                 order.OrderData.State = TASK_RUN_STATUS.WAIT;
                 //nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
                 VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
                 clsTaskDto charge = new clsTaskDto();
-                charge.DesignatedAGVName=order.OrderData.DesignatedAGVName;
+                charge.TaskName = $"ACharge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
+                charge.DesignatedAGVName = strPreviousAGV;
                 charge.Action = ACTION_TYPE.Charge;
+                charge.Carrier_ID = "-1";
                 charge.To_Station = "-1";
-                VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
-                AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
+                charge.State = TASK_RUN_STATUS.WAIT;
+                VMSManager.HandleTaskDBChangeRequestRaising(this, charge);
+                LOG.INFO($"AUTO Charge task added {charge}");
+                //AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
             });
         }
 
@@ -207,26 +212,36 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public static async Task<(int transferToTag, int transferFromTag)> GetTransferStationTag(clsTaskDto orderData)
         {
-            int tagOfMiddleStation = orderData.ChangeAGVMiddleStationTag;
-            MapPoint stationMapPoint = StaMap.GetPointByTagNumber(tagOfMiddleStation);
-            bool isTwoEntryPoints = stationMapPoint.Target.Keys.Count > 1;
+            // 取得From Station可去的轉換站
+            List<int> TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetTransferStationTag(orderData.From_Station_Tag);
+            if (TransferStationTags.Count() <= 0)
+                return (-1, -1);        
 
-            if (isTwoEntryPoints)
-                return (tagOfMiddleStation, tagOfMiddleStation);
-
-            var entryPoints = stationMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+            MapPoint TransferToMapPoint = StaMap.GetPointByTagNumber(TransferStationTags.FirstOrDefault());
+            var entryPoints = TransferToMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
             Dictionary<int, int> AcceptAGVInfoOfEQTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
             IAGV toSourceAGV = VMSManager.GetAGVByName(orderData.DesignatedAGVName);
             int toSourceModel = (int)toSourceAGV.model;
             int _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toSourceModel).Key;
+            AcceptAGVInfoOfEQTags.Remove(_transferToTag);
             int _transferFromTag = -1;
-            if (orderData.TransferToDestineAGVName != "")
+            if (orderData.TransferToDestineAGVName == "")
+            {
+                _transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault().Key;
+            }
+            else
             {
                 IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
                 int toDestineModel = (int)toDestineAGV.model;
                 _transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toDestineModel).Key;
             }
+
+            // 待確認功能
+            //bool isTwoEntryPoints = TransferFromMapPoint.Target.Keys.Count > 1;
+
+            //if (isTwoEntryPoints)
+            //    return (orderData.TransferToTag, orderData.TransferFromTag);
             return (_transferToTag, _transferFromTag);
         }
 
