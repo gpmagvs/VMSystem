@@ -327,6 +327,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         private void UnRegistPoints()
         {
+            if (Agv == null)
+                return;
             StaMap.UnRegistPointsOfAGVRegisted(this.Agv);
             Agv.NavigationState.ResetNavigationPoints();
         }

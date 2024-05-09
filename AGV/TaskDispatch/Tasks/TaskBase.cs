@@ -112,6 +112,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();

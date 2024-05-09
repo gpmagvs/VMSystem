@@ -200,8 +200,7 @@ namespace VMSystem.Dispatch
                         {
                             (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
                             NavigationPriorityHelper priorityHelper = new NavigationPriorityHelper();
-                            ConflicSolveResult solveResult = priorityHelper.GetPriorityByBecauseDestineConflic(vehicle, confliAGVList, finalMapPoint);
-                            vehicle.NavigationState.ConflicAction = solveResult.NextAction;
+                            ConflicSolveResult solveResult = await priorityHelper.GetPriorityByBecauseDestineConflicAsync(vehicle, confliAGVList, finalMapPoint);
 
                             switch (solveResult.NextAction)
                             {

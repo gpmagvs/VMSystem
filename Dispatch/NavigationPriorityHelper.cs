@@ -4,6 +4,7 @@ using System.Linq;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
+using static VMSystem.TrafficControl.Solvers.clsSolverResult;
 
 namespace VMSystem.Dispatch
 {
@@ -34,7 +35,7 @@ namespace VMSystem.Dispatch
         /// <param name="vehicle"></param>
         /// <param name="confliAGVList"></param>
         /// <param name="finalMapPoint"></param>
-        internal ConflicSolveResult GetPriorityByBecauseDestineConflic(IAGV vehicle, List<IAGV> confliAGVList, MapPoint finalMapPoint)
+        internal async Task<ConflicSolveResult> GetPriorityByBecauseDestineConflicAsync(IAGV vehicle, List<IAGV> confliAGVList, MapPoint finalMapPoint)
         {
             Dictionary<IAGV, ACTION_TYPE> conflicAGVCurrentActions = confliAGVList.ToDictionary(agv => agv, agv => agv.CurrentRunningTask().ActionType);
             Dictionary<IAGV, ACTION_TYPE> lduldActionRunningsVehicles = conflicAGVCurrentActions.Where(pair => IsVehicleReadyToUDULD(pair.Key))
@@ -46,14 +47,55 @@ namespace VMSystem.Dispatch
                 IEnumerable<MapPoint> WorkStations = lduldActionRunningsVehicles.Keys.Select(agv => StaMap.GetPointByTagNumber(agv.CurrentRunningTask().OrderData.To_Station_Tag));
                 IEnumerable<MapPoint> entryPointsOfWorkStations = WorkStations.SelectMany(pt => pt.TargetNormalPoints());
 
-                bool isAllVehicleReadyInWorkStations = lduldActionRunningsVehicles.Keys.All(v => _isVehicleInWorkStation(v));
+                bool isAllVehicleReadyToWork = lduldActionRunningsVehicles.Keys.All(v => _isVehicleReadyToEntryWorkStation(v, out _));
 
-                return new ConflicSolveResult(isAllVehicleReadyInWorkStations ? ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT : ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO);
+                if (isAllVehicleReadyToWork)
+                {
+                    vehicle.NavigationState.ConflicAction = ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT;
 
-                bool _isVehicleInWorkStation(IAGV vehicleDoLDULD)
+                    List<Task<bool>> AllWaitLeaveWorkStationTasks = new List<Task<bool>>();
+
+                    AllWaitLeaveWorkStationTasks = lduldActionRunningsVehicles.Select(async v => await WaitLeaveWorkStationRegion(v.Key)).ToList();
+
+                    var results = await Task.WhenAll(AllWaitLeaveWorkStationTasks);
+                    vehicle.NavigationState.ConflicAction = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
+
+                    return new ConflicSolveResult(results.All(v => v) ? ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO : ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT);
+
+                    async Task<bool> WaitLeaveWorkStationRegion(IAGV waitingForVehicle)
+                    {
+                        _isVehicleReadyToEntryWorkStation(waitingForVehicle, out IEnumerable<MapPoint> entryPoints);
+                        var _entryPoints = entryPoints.ToList();
+                        var workStationTag = waitingForVehicle.CurrentRunningTask().OrderData.To_Station_Tag;
+                        while (!_isVehicleLeaveWorkStationRegion(waitingForVehicle, workStationTag, _entryPoints))
+                        {
+                            await Task.Delay(10);
+                            vehicle.NavigationState.ResetNavigationPoints();
+                            await StaMap.UnRegistPointsOfAGVRegisted(vehicle);
+                            if (vehicle.CurrentRunningTask().IsTaskCanceled)
+                                throw new TaskCanceledException();
+
+                        }
+                        return true;
+
+                    }
+
+                }
+
+                return new ConflicSolveResult(isAllVehicleReadyToWork ? ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT : ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO);
+
+
+                bool _isVehicleReadyToEntryWorkStation(IAGV vehicleDoLDULD, out IEnumerable<MapPoint> entryPoints)
                 {
                     int workStationTag = vehicleDoLDULD.CurrentRunningTask().OrderData.To_Station_Tag;
-                    return vehicleDoLDULD.states.Last_Visited_Node == workStationTag;
+                    entryPoints = StaMap.GetPointByTagNumber(workStationTag).TargetNormalPoints();
+                    return workStationTag== vehicleDoLDULD.states.Last_Visited_Node || entryPoints.GetTagCollection().Contains(vehicleDoLDULD.states.Last_Visited_Node);
+                }
+
+                bool _isVehicleLeaveWorkStationRegion(IAGV vehicleDoLDULD, int workStationTag, List<MapPoint> entryPoints)
+                {
+                    int currentTag = vehicleDoLDULD.states.Last_Visited_Node;
+                    return workStationTag != currentTag && !entryPoints.GetTagCollection().Contains(currentTag);
                 }
             }
             return new ConflicSolveResult(ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT);
@@ -63,7 +105,7 @@ namespace VMSystem.Dispatch
         {
             var orderInfo = vehicle.CurrentRunningTask().OrderData;
             var currentOrderAction = orderInfo.Action;
-            return currentOrderAction != ACTION_TYPE.None || currentOrderAction != ACTION_TYPE.Charge;
+            return currentOrderAction != ACTION_TYPE.None && currentOrderAction != ACTION_TYPE.Charge;
         }
     }
 }
