@@ -120,8 +120,9 @@ namespace VMSystem.Controllers
             }
             if (aramCode != ALARMS.NONE)
             {
-                agv.AGVOfflineFromAGVS(out string msg);
                 await AlarmManagerCenter.AddAlarmAsync(aramCode, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
+                return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg }); ;
+                agv.AGVOfflineFromAGVS(out string msg);
             }
             return Ok(new { ReturnCode = errMsg == "" && aramCode == ALARMS.NONE ? 0 : 1, Message = errMsg });
         }

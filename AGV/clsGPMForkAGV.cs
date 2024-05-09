@@ -641,7 +641,7 @@ namespace VMSystem.AGV
         public bool AGVOfflineFromAGVS(out string message)
         {
             message = string.Empty;
-
+            online_mode_req = ONLINE_STATE.OFFLINE;
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
