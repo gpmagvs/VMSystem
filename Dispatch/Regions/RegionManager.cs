@@ -14,7 +14,9 @@ namespace VMSystem.Dispatch.Regions
         {
             var agvReservedRegions = GetRegions().Where(region => region.ReserveRegionVehicles.Contains(vehicle.Name));
             foreach (var _region in agvReservedRegions)
+            {
                 _region.ReserveRegionVehicles.Remove(vehicle.Name);
+            }
             var regionToGo = finalMapPoint.GetRegion(StaMap.Map);
             regionToGo.ReserveRegionVehicles.Add(vehicle.Name);
         }
@@ -34,7 +36,7 @@ namespace VMSystem.Dispatch.Regions
             MaxVehicleCapacity = goalPoint.GetRegion(StaMap.Map).MaxVehicleCapacity;
             return MaxVehicleCapacity != -1;
         }
-        
+
         internal static bool TryGetRegionEntryPoints(MapPoint goalPoint, out IEnumerable<MapPoint> entryPoints)
         {
             entryPoints = goalPoint.GetRegion(StaMap.Map).EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag));

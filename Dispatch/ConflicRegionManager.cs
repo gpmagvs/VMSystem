@@ -31,7 +31,7 @@ namespace VMSystem.Dispatch
         public static bool IsSameRegion(this MapRectangle region1, MapRectangle region2)
         {
             return region1.StartPointTag.TagNumber == region2.StartPointTag.TagNumber
-                && region1.EndPointTag.TagNumber == region2.EndPointTag.TagNumber;
+                && region1.EndMapPoint.TagNumber == region2.EndMapPoint.TagNumber;
         }
     }
 }

@@ -76,21 +76,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
                             searchStartPt = Agv.currentMapPoint;
-
                             //UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
                             await Task.Delay(500);
-                            //if (_previsousTrajectorySendToAGV.Count > 0 && Agv.currentMapPoint.TagNumber != DestineTag)
-                            //{
-                            //    await SendCancelRequestToAGV();
-                            //    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                            //    {
-                            //        UpdateMoveStateMessage($"Wait Cycle Stop Done..");
-                            //        if (IsTaskCanceled)
-                            //            throw new TaskCanceledException();
-                            //        await Task.Delay(1000);
-                            //    }
-                            //    _previsousTrajectorySendToAGV.Clear();
-                            //}
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             continue;
@@ -100,15 +87,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var nextGoal = nextPath.Last();
 
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
-                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
 
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
+                        nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
+                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
+
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
-                        if (trajectory.Length == 0)
-                            continue;
 
-                        trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
+                        if (trajectory.Length == 0)
+                        {
+
+                            continue;
+                        }
+
+                        //trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
 
@@ -129,16 +122,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        //await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                        //while (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
-                        //{
-                        //    await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                        //    Agv.NavigationState.ResetNavigationPoints();
-                        //    UpdateMoveStateMessage($"Wait Regist Points Done...");
-                        //    if (IsTaskCanceled)
-                        //        throw new TaskCanceledException();
-                        //    await Task.Delay(1000);
-                        //}
 
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
@@ -164,6 +147,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         searchStartPt = nextGoal;
                         UpdateMoveStateMessage($"前往-{nextGoal.Graph.Display}");
+
+
                         while (nextGoalTag != Agv.currentMapPoint.TagNumber)
                         {
                             if (IsTaskCanceled)
@@ -176,7 +161,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 throw new TaskCanceledException();
                             }
 
-                            if (lastGoalTag == Agv.currentMapPoint.TagNumber)
+                            if (lastGoalTag == Agv.currentMapPoint.TagNumber && nextGoalTag != finalMapPoint.TagNumber)
                             {
                                 break;
                             }

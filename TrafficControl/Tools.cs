@@ -200,7 +200,7 @@ namespace VMSystem.TrafficControl
 
                 MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth + (isNarrow ? 0.1f : 0f), (float)vehicleLength);
                 _rectangle.StartPointTag = startPt;
-                _rectangle.EndPointTag = endPt;
+                _rectangle.EndMapPoint = endPt;
                 _PathRectangles.Add(_rectangle);
             }
 
@@ -214,18 +214,13 @@ namespace VMSystem.TrafficControl
         {
             return CalculatePathInterference(_Path, _UsePathAGV, _OthersAGV, out _, IsAGVBackward);
         }
-        public static MapRectangle CreateAGVRectangle(IAGV AGV)
+
+        public static MapRectangle CreateRectangle(double x, double y, double theta, double width, double length)
         {
-            bool isInNarrowRegion = AGV.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
-            var angleDegrees = (float)AGV.states.Coordination.Theta;
 
-            bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;
-
-            var length = AGV.options.VehicleLength / 100.0 + (isInWorkStation ? 0.15 : 0);
-            var width = AGV.options.VehicleWidth / 100.0;
-            var center = new PointF((float)AGV.states.Coordination.X, (float)AGV.states.Coordination.Y);
+            var center = new PointF((float)x, (float)y);
             // 角度轉換為弧度
-            float angleRadians = angleDegrees * (float)Math.PI / 180.0f;
+            float angleRadians = (float)theta * (float)Math.PI / 180.0f;
             // 長度和寬度的一半
             float halfLength = (float)(length / 2);
             float halfWidth = (float)(width / 2);
@@ -246,13 +241,28 @@ namespace VMSystem.TrafficControl
 
             return new MapRectangle
             {
-                StartPointTag = AGV.currentMapPoint,
-                EndPointTag = AGV.currentMapPoint,
                 Corner1 = corners[0],
                 Corner2 = corners[1],
                 Corner3 = corners[2],
                 Corner4 = corners[3]
             };
+        }
+
+        public static MapRectangle CreateAGVRectangle(IAGV AGV)
+        {
+            bool isInNarrowRegion = AGV.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
+            var angleDegrees = (float)AGV.states.Coordination.Theta;
+
+            bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;
+
+            var length = AGV.options.VehicleLength / 100.0 + (isInWorkStation ? 0.15 : 0);
+            var width = AGV.options.VehicleWidth / 100.0;
+
+            MapRectangle _rectangle = CreateRectangle(AGV.states.Coordination.X, AGV.states.Coordination.Y, AGV.states.Coordination.Theta, width, length);
+
+            _rectangle.StartPointTag = AGV.currentMapPoint;
+            _rectangle.EndMapPoint = AGV.currentMapPoint;
+            return _rectangle;
         }
 
         public static PointF RotatePoint(PointF point, PointF center, double angleDegrees)

@@ -58,7 +58,7 @@ catch (Exception ex)
 
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(1) });
+app.UseWebSockets();
 app.UseCors(c => c.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
 app.UseAuthorization();
 app.MapControllers();

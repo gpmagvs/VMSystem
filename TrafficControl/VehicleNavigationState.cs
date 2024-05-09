@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.Log;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using SQLitePCL;
@@ -100,14 +101,36 @@ namespace VMSystem.TrafficControl
                 var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
                 var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0); ;
                 List<MapRectangle> output = new List<MapRectangle>() { Vehicle.AGVGeometery };
+                MapPoint endPoint = _nexNavPts.Last();
                 output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLength));
-                output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { output.Last().EndPointTag }, vLength, vLength));
+                output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLength, vLength));
+
+
+                if (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    MapRectangle finalStopRectangle = Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength);
+                    output.Add(finalStopRectangle);
+                }
+
+                LOG.WARN($"停車點角度=>{output.Last().Theta}");
                 return output;
             }
         }
 
         public ConflicSolveResult.CONFLIC_ACTION ConflicAction { get; internal set; } = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
-
+        private double _FinalTheta = 0;
+        public double FinalTheta
+        {
+            get => _FinalTheta;
+            set
+            {
+                if (_FinalTheta != value)
+                {
+                    _FinalTheta = value;
+                    LOG.WARN($"停車角度更新: {value}");
+                }
+            }
+        }
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
             List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
@@ -128,7 +151,9 @@ namespace VMSystem.TrafficControl
             catch (Exception ex)
             {
             }
-            UpdateNavigationPoints(new List<MapPoint> { Vehicle.currentMapPoint });
+
+            var currentMpt = Vehicle.currentMapPoint;
+            UpdateNavigationPoints(new List<MapPoint> { currentMpt });
         }
 
         private void Log(string message)

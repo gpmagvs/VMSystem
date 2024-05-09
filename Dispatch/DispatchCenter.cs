@@ -113,7 +113,7 @@ namespace VMSystem.Dispatch
             if (!DispatingVehicles.Contains(vehicle))
                 DispatingVehicles.Add(vehicle);
             MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
-            RegionManager.RegistRegionToGo(vehicle, finalMapPoint);
+            //RegionManager.RegistRegionToGo(vehicle, finalMapPoint);
 
             MapRegion finalMapRegion = finalMapPoint.GetRegion(CurrentMap);
             //if (finalMapRegion.EnteryTags.Any(tag => vehicle.currentMapPoint.TagNumber == tag))
@@ -195,7 +195,7 @@ namespace VMSystem.Dispatch
                         var confliAGVList = otherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 1.5).IsIntersectionTo(finalMapPoint.GetCircleArea(ref vehicle, 1.5))))
                                                     .ToList();
                         bool is_destine_conflic = confliAGVList.Any();
-
+                        return is_destine_conflic ? null : path;
                         if (is_destine_conflic)
                         {
                             (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
@@ -284,11 +284,11 @@ namespace VMSystem.Dispatch
                 {
                     bool willConflicRegionReleaseFuture = false;
                     MapPoint conflicRegionStartPt = StaMap.GetPointByTagNumber(conflicRegion.StartPointTag.TagNumber);
-                    MapPoint conflicRegionEndPt = StaMap.GetPointByTagNumber(conflicRegion.EndPointTag.TagNumber);
+                    MapPoint conflicRegionEndPt = StaMap.GetPointByTagNumber(conflicRegion.EndMapPoint.TagNumber);
                     //var conflicRegionOwners = otherDispatingVehicle.Where(agv => agv.currentMapPoint == conflicRegionStartPt || agv.currentMapPoint == conflicRegionEndPt);
 
                     var conflicRegionOwners = otherDispatingVehicle.Where(agv => agv.NavigationState.OccupyRegions.Any(reg => reg.StartPointTag.TagNumber == conflicRegion.StartPointTag.TagNumber
-                                                                            || reg.EndPointTag.TagNumber == conflicRegion.EndPointTag.TagNumber) || agv.AGVGeometery.IsIntersectionTo(conflicRegion));
+                                                                            || reg.EndMapPoint.TagNumber == conflicRegion.EndMapPoint.TagNumber) || agv.AGVGeometery.IsIntersectionTo(conflicRegion));
 
                     if (conflicRegionOwners.Any() && autoSolve)
                     {
@@ -457,7 +457,7 @@ namespace VMSystem.Dispatch
                             if (isConflic)
                             {
                                 (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2)
-                                    .UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndPointTag.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
+                                    .UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
                                 break;
                             }
                         }
@@ -804,7 +804,7 @@ namespace VMSystem.Dispatch
             {
                 foreach (var region in conflicsRegions)
                 {
-                    if (currentConflics.Keys.All(reg => reg.StartPointTag.TagNumber != region.StartPointTag.TagNumber && reg.EndPointTag.TagNumber != region.EndPointTag.TagNumber))
+                    if (currentConflics.Keys.All(reg => reg.StartPointTag.TagNumber != region.StartPointTag.TagNumber && reg.EndMapPoint.TagNumber != region.EndMapPoint.TagNumber))
                     {
                         currentConflics.Add(region, new clsConflicState());
                         ConflicRegionManager.AddWaitingRegion(vehicle, region);
@@ -857,7 +857,7 @@ namespace VMSystem.Dispatch
             if (currentConflics.Any())
             {
                 var notTogGoTag = currentConflics.First().Key.StartPointTag.TagNumber;
-                var notTogGoEndTag = currentConflics.First().Key.EndPointTag.TagNumber;
+                var notTogGoEndTag = currentConflics.First().Key.EndMapPoint.TagNumber;
                 int ntTogoIndex = currentNavigationPlan.FindIndex(pt => pt.TagNumber == notTogGoTag);
 
 
