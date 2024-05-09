@@ -265,13 +265,13 @@ namespace VMSystem
         private static SemaphoreSlim _registSemaphore = new SemaphoreSlim(1, 1);
         internal static async Task<(bool success, string error_message)> UnRegistPoint(string Name, int TagNumber, bool IsBySystem = false)
         {
-            await _unregistSemaphore.WaitAsync();
-            IAGV agv = VMSManager.GetAGVByName(Name);
-            if (agv == null)
-                return (false, "AGV Entity NULL");
-            var registedPointsByConflic = agv.RegistedByConflicCheck;
             try
             {
+                await _unregistSemaphore.WaitAsync();
+                IAGV agv = VMSManager.GetAGVByName(Name);
+                if (agv == null)
+                    return (false, "AGV Entity NULL");
+                var registedPointsByConflic = agv.RegistedByConflicCheck;
                 var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
                 if (IsBySystem)
                 {
@@ -335,7 +335,9 @@ namespace VMSystem
                 LOG.WARN($"{Name} UnRegist Tag {TagNumber} Fail : {error_message}");
                 return (false, error_message);
             }
-            finally { _unregistSemaphore.Release(); }
+            finally {
+                _unregistSemaphore.Release();
+            }
 
         }
 
