@@ -110,7 +110,9 @@ namespace VMSystem.TrafficControl
 
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
-            NextNavigtionPoints = pathPoints.ToList();
+            List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
+            output.AddRange(pathPoints);
+            NextNavigtionPoints = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
         }
 
         public void ResetNavigationPoints()
@@ -126,7 +128,7 @@ namespace VMSystem.TrafficControl
             catch (Exception ex)
             {
             }
-            UpdateNavigationPoints(new List<MapPoint> { _CurrentMapPoint });
+            UpdateNavigationPoints(new List<MapPoint> { Vehicle.currentMapPoint });
         }
 
         private void Log(string message)
