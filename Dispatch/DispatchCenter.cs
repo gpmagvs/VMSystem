@@ -120,7 +120,6 @@ namespace VMSystem.Dispatch
             //{
             //    return await RegionControl(vehicle, vehicle.NavigationState.NextNavigtionPoints, true, finalMapRegion, finalMapPoint);
             //}
-
             var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
             return path = path == null ? path : path.Clone();
 
@@ -198,9 +197,26 @@ namespace VMSystem.Dispatch
                         bool is_destine_conflic = confliAGVList.Any();
 
                         if (is_destine_conflic)
+                        {
                             (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"終點與其他車輛衝突");
+                            NavigationPriorityHelper priorityHelper = new NavigationPriorityHelper();
+                            ConflicSolveResult solveResult = priorityHelper.GetPriorityByBecauseDestineConflic(vehicle, confliAGVList, finalMapPoint);
+                            vehicle.NavigationState.ConflicAction = solveResult.NextAction;
 
-                        return is_destine_conflic ? null : path;
+                            switch (solveResult.NextAction)
+                            {
+                                case ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT:
+                                    return null;
+                                case ConflicSolveResult.CONFLIC_ACTION.REPLAN:
+                                    return null;
+                                case ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO:
+                                    return path;
+                                default:
+                                    break;
+                            }
+                        }
+                        else
+                            return path;
                     }
                     return path;
                     //if (vehicle.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_REGION_ENTERABLE)
