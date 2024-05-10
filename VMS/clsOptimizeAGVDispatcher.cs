@@ -12,19 +12,7 @@ using VMSystem.TrafficControl;
 namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
-    {
-        /// <summary>
-        /// 取得沒有指定AGV的任務
-        /// </summary>
-        public override List<clsTaskDto> taskList
-        {
-            get
-            {
-                return TaskDBHelper.GetALLInCompletedTask(true).FindAll(f => f.State == TASK_RUN_STATUS.WAIT && f.DesignatedAGVName == "");
-            }
-        }
-
-
+    {   
         public void Run()
         {
             TaskAssignWorker();
@@ -34,24 +22,28 @@ namespace VMSystem.VMS
         {
             _ = Task.Run(async () =>
             {
-                var database = new AGVSDatabase();
                 while (true)
                 {
                     try
                     {
                         await Task.Delay(100);
+                        
                         List<string> List_TaskAGV = new List<string>();
-                        var _taskList = database.tables.Tasks.AsNoTracking().Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                        //TryAppendTasksToQueue(_taskList);
-                        List_TaskAGV = database.tables.Tasks.AsNoTracking().Where(task => task.State == TASK_RUN_STATUS.NAVIGATING || task.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+
+                        var _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                        List<string> _taskList_for_waiting_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                        List<string> _taskList_for_navigation_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.NAVIGATING).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                        List_TaskAGV.AddRange(_taskList_for_waiting_agv);
+                        List_TaskAGV.AddRange(_taskList_for_navigation_agv);
+
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                         List_TaskAGV.AddRange(List_idlecarryAGV);
 
-                        if (taskList.Count == 0)
+                        if (_taskList_waiting_and_no_DesignatedAGV.Count == 0)
                             continue;
 
                         //將任務依照優先度排序
-                        var taskOrderedByPriority = taskList.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority);
+                        var taskOrderedByPriority = _taskList_waiting_and_no_DesignatedAGV.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority);
                         var _taskDto = taskOrderedByPriority.First();
                         if (_taskDto.DesignatedAGVName != "")
                             continue;
@@ -139,9 +131,6 @@ namespace VMSystem.VMS
             if ((taskDto.Action == ACTION_TYPE.Unload || taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.Carry) && taskDto.To_Station_AGV_Type != clsEnums.AGV_TYPE.Any)
             {
                 AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.model == taskDto.To_Station_AGV_Type);
-            }
-            if (AGVListRemoveTaskAGV.Any())
-            {
             }
             AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(taskDto.Action, out string _));
 

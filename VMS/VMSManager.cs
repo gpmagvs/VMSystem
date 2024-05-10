@@ -206,6 +206,12 @@ namespace VMSystem.VMS
                             int save_cnt = await database.SaveChanges();
                             LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", true);
                         }
+                        else
+                        {
+                            database.tables.Tasks.Add(dto);
+                            int save=await database.SaveChanges();
+                            LOG.TRACE($"Database-Task Table Added-Num={save}\r\n{dto.ToJson()}", true);
+                        }
                     }
 
                 }
