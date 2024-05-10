@@ -1,8 +1,10 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using SQLitePCL;
+using System.Drawing;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
@@ -50,6 +52,7 @@ namespace VMSystem.TrafficControl
                 else
                 {
                     ResetNavigationPoints();
+                    ResetNavigationPointsOfPathCalculation();
                 }
             }
         }
@@ -67,6 +70,7 @@ namespace VMSystem.TrafficControl
             }
         }
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
+        public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         /// <summary>
         /// 當前與剩餘路徑佔據的道路
         /// </summary>
@@ -84,37 +88,104 @@ namespace VMSystem.TrafficControl
             }
         }
 
-        public List<MapRectangle> OccupyRegions
+        public List<MapRectangle> NextPathOccupyRegionsForPathCalculation
         {
             get
             {
-                var _nexNavPts = this.NextNavigtionPoints.ToList();
-                if (!_nexNavPts.Any())
-                    return new List<MapRectangle>()
-                    {
-                         Vehicle.AGVGeometery
-                    };
-
-
-
-                bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
-                var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
-                var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0); ;
-                List<MapRectangle> output = new List<MapRectangle>() { Vehicle.AGVGeometery };
-                MapPoint endPoint = _nexNavPts.Last();
-                output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLength));
-                output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLength, vLength));
-
-
-                if (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                {
-                    MapRectangle finalStopRectangle = Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength);
-                    output.Add(finalStopRectangle);
-                }
-
-                LOG.WARN($"停車點角度=>{output.Last().Theta}");
+                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPointsForPathCalculation.ToList());
                 return output;
             }
+        }
+
+        public List<MapRectangle> NextPathOccupyRegions
+        {
+            get
+            {
+                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPoints.ToList());
+                return output;
+            }
+        }
+
+        private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts)
+        {
+            var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
+
+            if (!_nexNavPts.Any())
+                return new List<MapRectangle>()
+                    {
+                         Vehicle.AGVRealTimeGeometery,
+                         Vehicle.AGVCurrentPointGeometery
+                    };
+
+            bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
+            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() ? 1.0 : 1.2;
+            
+            var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
+            var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
+            vLength = vLength * _GeometryExpandRatio;
+
+            MapPoint endPoint = _nexNavPts.Last();
+            var pathForCalulate = _nexNavPts.Skip(1).ToList();
+            if (pathForCalulate.Count > 1)
+            {
+                double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
+                if (Math.Abs(Vehicle.states.Coordination.Theta - lastAngle) > 10)
+                {
+                    output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLength ));
+                }
+
+                for (int i = 1; i < pathForCalulate.Count - 1; i++) //0 1 2 3 4 5 
+                {
+                    var _startPt = pathForCalulate[i];
+                    var _endPt = pathForCalulate[i + 1];
+                    double forwardAngle = _GetForwardAngle(_startPt, _endPt);
+
+                    if (Math.Abs(forwardAngle - lastAngle) > 10)
+                    {
+                        output.Add(Tools.CreateSquare(_startPt, vLength));
+                    }
+                    lastAngle = forwardAngle;
+                }
+
+            }
+
+
+            output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLength).Where(p => !double.IsNaN(p.Theta)).ToList());
+            output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLength, vLength));
+
+            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+            {
+                MapRectangle finalStopRectangle = Tools.CreateSquare(endPoint, vLength );
+                finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
+                output.Add(finalStopRectangle);
+            }
+            double finalStopAngle = output.Last().Theta;
+
+            LOG.WARN($"停車點角度=>{output.Last().Theta}");
+            return output;
+
+
+            double _GetForwardAngle(MapPoint start, MapPoint end)
+            {
+                var startPtf = new PointF((float)start.X, (float)start.Y);
+                var endPtf = new PointF((float)end.X, (float)end.Y);
+                return Tools.CalculationForwardAngle(startPtf, endPtf);
+            }
+
+            bool IsCurrentPointIsLeavePointOfChargeStation()
+            {
+                var _previousTask = Vehicle.PreviousSegmentTask();
+                if (_previousTask == null)
+                    return false;
+                if (!_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.Any())
+                    return false;
+                var _previoseTaskStartPoint = StaMap.GetPointByTagNumber(_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID);
+                bool isLeaveFromCharge = _previousTask.ActionType == ACTION_TYPE.Discharge && _previoseTaskStartPoint.IsCharge;
+                if (!isLeaveFromCharge)
+                    return false;
+                return _previoseTaskStartPoint.TargetNormalPoints().GetTagCollection().Any(tag => tag == Vehicle.currentMapPoint.TagNumber);
+            }
+
         }
 
         public ConflicSolveResult.CONFLIC_ACTION ConflicAction { get; internal set; } = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
@@ -131,30 +202,37 @@ namespace VMSystem.TrafficControl
                 }
             }
         }
+
+        public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
+        {
+            var _pathPoints = pathPoints.ToList();
+            var runningTask = Vehicle.CurrentRunningTask();
+            var orderData = runningTask.OrderData;
+            _pathPoints.Last().Direction = _pathPoints.GetStopDirectionAngle(orderData, Vehicle, runningTask.Stage, _pathPoints.Last());
+            List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
+            output.AddRange(_pathPoints);
+            NextNavigtionPointsForPathCalculation = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
+            LOG.TRACE($"[{Vehicle.Name}] Update NavigationPointsForPathCalculation: {string.Join("->", NextNavigtionPointsForPathCalculation.Select(pt => pt.TagNumber))} ");
+        }
+
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
             List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
             output.AddRange(pathPoints);
-            NextNavigtionPoints = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
+            NextNavigtionPointsForPathCalculation = NextNavigtionPoints = output.Distinct().ToList();
         }
 
         public void ResetNavigationPoints()
         {
-
-            try
-            {
-                //var currentTask = Vehicle.CurrentRunningTask();
-                //if (currentTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
-                //    (currentTask as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"Reset Nav Pts at {this.Vehicle.currentMapPoint.TagNumber}");
-
-            }
-            catch (Exception ex)
-            {
-            }
-
             var currentMpt = Vehicle.currentMapPoint;
             UpdateNavigationPoints(new List<MapPoint> { currentMpt });
         }
+        public void ResetNavigationPointsOfPathCalculation()
+        {
+            var currentMpt = Vehicle.currentMapPoint;
+            UpdateNavigationPointsForPathCalculation(new List<MapPoint> { currentMpt });
+        }
+
 
         private void Log(string message)
         {

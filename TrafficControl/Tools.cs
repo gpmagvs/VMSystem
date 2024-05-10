@@ -101,7 +101,7 @@ namespace VMSystem.TrafficControl
 
             bool TryGetConflicAGVByRotation(MapCircleArea agvRotationRegion, out IEnumerable<IAGV> _ConflicAGVList)
             {
-                _ConflicAGVList = _OthersAGV.Where(agv => agvRotationRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || agvRotationRegion.IsIntersectionTo(agv.AGVGeometery));
+                _ConflicAGVList = _OthersAGV.Where(agv => agvRotationRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || agvRotationRegion.IsIntersectionTo(agv.AGVRealTimeGeometery));
                 return _ConflicAGVList.Count() != 0;
             }
 
@@ -141,12 +141,12 @@ namespace VMSystem.TrafficControl
                 }
 
                 Dictionary<IAGV, List<MapRectangle>> _OthersAGVPathRectangles = NoConsiderOtherAGVRemainPath ?
-                    _OthersAGV.ToDictionary(agv => agv, agv => new List<MapRectangle> { agv.AGVGeometery }) :
+                    _OthersAGV.ToDictionary(agv => agv, agv => new List<MapRectangle> { agv.AGVRealTimeGeometery }) :
                     _OthersAGV.ToDictionary(agv => agv, agv => GetPathRegionsWithRectangle(_GetRemainTagsOfAGV(agv), agv.options.VehicleWidth / 100, agv.options.VehicleLength / 100));
 
                 if (isAgvWillRotation && !IsAGVBackward)
                 {
-                    ConflicAGVList = _OthersAGV.Where(agv => _RotaionRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || _RotaionRegion.IsIntersectionTo(agv.AGVGeometery));
+                    ConflicAGVList = _OthersAGV.Where(agv => _RotaionRegion.IsIntersectionTo(agv.AGVRotaionGeometry) || _RotaionRegion.IsIntersectionTo(agv.AGVRealTimeGeometery));
                     var _pathConflicOtherAGVsRemainPath = _OthersAGVPathRectangles.Values.Select(rectangles => rectangles.Any(rectangle => _RotaionRegion.IsIntersectionTo(rectangle)));
                     int indexOfLastConflicRegion = _pathConflicOtherAGVsRemainPath.ToList().FindLastIndex(r => r == true);
                     bool conflicSoFar = false;
@@ -162,7 +162,7 @@ namespace VMSystem.TrafficControl
                         return true;
                 }
 
-                Dictionary<IAGV, MapRectangle> _OthersAGVRectangles = _OthersAGV.ToDictionary(agv => agv, agv => agv.AGVGeometery);
+                Dictionary<IAGV, MapRectangle> _OthersAGVRectangles = _OthersAGV.ToDictionary(agv => agv, agv => agv.AGVRealTimeGeometery);
 
                 IEnumerable<MapRectangle> allOthersAGVPathRectangles = _OthersAGVPathRectangles.Values.SelectMany(re => re);
 
@@ -213,6 +213,30 @@ namespace VMSystem.TrafficControl
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, IEnumerable<IAGV> _OthersAGV, bool IsAGVBackward)
         {
             return CalculatePathInterference(_Path, _UsePathAGV, _OthersAGV, out _, IsAGVBackward);
+        }
+        internal static MapRectangle CreateSquare(MapPoint mapPoint, double sideLength)
+        {
+            return CreateSquare(new PointF((float)mapPoint.X, (float)mapPoint.Y), sideLength);
+        }
+        public static MapRectangle CreateSquare(PointF center, double sideLength)
+        {
+            // 創建正方形的四個角點
+            PointF corner1 = new PointF((float)(center.X - sideLength / 2), (float)(center.Y - sideLength / 2));
+            PointF corner2 = new PointF((float)(center.X + sideLength / 2), (float)(center.Y - sideLength / 2));
+            PointF corner3 = new PointF((float)(center.X + sideLength / 2), (float)(center.Y + sideLength / 2));
+            PointF corner4 = new PointF((float)(center.X - sideLength / 2), (float)(center.Y + sideLength / 2));
+
+            // 創建新的 MapRectangle 對象
+            MapRectangle square = new MapRectangle
+            {
+                Corner1 = corner1,
+                Corner2 = corner2,
+                Corner3 = corner3,
+                Corner4 = corner4,
+                // 可以根據需要設置其他屬性
+            };
+
+            return square;
         }
 
         public static MapRectangle CreateRectangle(double x, double y, double theta, double width, double length)
@@ -276,6 +300,7 @@ namespace VMSystem.TrafficControl
                 center.Y + (float)((point.X - center.X) * sinTheta + (point.Y - center.Y) * cosTheta)
             );
         }
+
 
         public static MapRectangle CreatePathRectangle(PointF start, PointF end, float width, float length)
         {
@@ -471,6 +496,7 @@ namespace VMSystem.TrafficControl
 
             return angle * (180 / MathF.PI);
         }
+
 
         #endregion
 

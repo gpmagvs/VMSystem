@@ -254,7 +254,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
             TrafficWaitingState.SetStatusNoWaiting();
-            LOG.Critical($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
+            LOG.TRACE($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
             {
                 //StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);

@@ -98,6 +98,8 @@ namespace VMSystem.TrafficControl
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
             await _leaveWorkStaitonReqSemaphore.WaitAsync();
+            await Task.Delay(200);
+
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
             try
             {
@@ -109,7 +111,6 @@ namespace VMSystem.TrafficControl
                     bool isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out isTagRegisted, out isTagBlocked, out isInterference, out isInterfercenWhenRotation);
                     args.ActionConfirm = isNeedWait ? clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT : clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
                     args.Message = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
-                    return args;
                 }
                 else
                 {
@@ -122,6 +123,11 @@ namespace VMSystem.TrafficControl
                     _navingPointsForbid = _navingPointsForbid.Distinct().ToList();
                     args.Agv.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                }
+
+                if (args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                {
+
                 }
 
                 return args;
@@ -198,12 +204,12 @@ namespace VMSystem.TrafficControl
 
                 bool CalculatePathConflicOfVehicle(IAGV vehicle, out List<MapRectangle> conflics)
                 {
-                    conflics = vehicle.NavigationState.OccupyRegions.Where(rect => rect.IsIntersectionTo(goalPoint.GetCircleArea(ref vehicle, 1.1))).ToList();
+                    conflics = vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation.Where(rect => rect.IsIntersectionTo(goalPoint.GetCircleArea(ref vehicle, 1.1))).ToList();
                     return conflics.Any();
                 }
 
-                isInterference = is_destine_conflic || IsOtherVehicleFeturePathConlic || _otherAGVList.Any(agv => agv.AGVGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
-                isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVGeometery));
+                isInterference = is_destine_conflic || IsOtherVehicleFeturePathConlic || _otherAGVList.Any(agv => agv.AGVRealTimeGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
+                isInterfercenWhenRotation = _otherAGVList.Any(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVRealTimeGeometery));
                 isTagBlocked = IsDestineBlocked();
                 if (IsLeaveFromChargeStation)
                 {

@@ -2,10 +2,12 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
+using Newtonsoft.Json.Linq;
 using RosSharp.RosBridgeClient.MessageTypes.Geometry;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -65,7 +67,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
-                    await Task.Delay(500);
+                    await Task.Delay(200);
                     if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         throw new TaskCanceledException();
                     try
@@ -76,7 +78,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
                             searchStartPt = Agv.currentMapPoint;
-                            //UpdateMoveStateMessage($"[{OrderData.ActionName}]-終點:{GetDestineDisplay()}\r\n(Search Path...)");
+                            UpdateMoveStateMessage($"Search Path...");
                             await Task.Delay(500);
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -113,7 +115,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 if (IsTaskCanceled)
                                     throw new TaskCanceledException();
-                                await Task.Delay(500);
+                                await Task.Delay(200);
                             }
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             Agv.NavigationState.ResetNavigationPoints();
@@ -189,8 +191,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             UpdateMoveStateMessage($"抵達-{nextGoal.Graph.Display}");
                             await Task.Delay(1000);
-                            TrafficWaitingState.SetStatusNoWaiting();
-                            DispatchCenter.CancelDispatchRequest(Agv);
                         });
                     }
                     catch (TaskCanceledException ex)
@@ -204,6 +204,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
 
                 }
+                UpdateMoveStateMessage($"抵達-{finalMapPoint.Graph.Display}-等待停車完成..");
+                await Task.Delay(500);
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN && !IsTaskCanceled)
+                {
+                    if (IsTaskCanceled)
+                        throw new TaskCanceledException();
+                    await Task.Delay(100);
+                }
+                if (IsTaskCanceled)
+                    throw new TaskCanceledException();
 
             }
             catch (TaskCanceledException ex)
@@ -216,15 +226,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+                TrafficWaitingState.SetStatusNoWaiting();
+                DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
-                Agv.NavigationState.ResetNavigationPoints();
+               // Agv.NavigationState.ResetNavigationPoints();
             }
         }
 
         private void Agv_OnMapPointChanged(object? sender, int e)
         {
-            List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
-            UpdateMoveStateMessage($"當前路徑:{string.Join("->", _NavigationTags)}");
+            var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
+            if (currentPt != null)
+            {
+                Agv.NavigationState.CurrentMapPoint = currentPt;
+                List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
+                UpdateMoveStateMessage($"當前路徑:{string.Join("->", _NavigationTags)}");
+            }
         }
 
         internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
@@ -598,10 +615,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var pathRegion = Tools.GetPathRegionsWithRectangle(path.Skip(agvIndex).ToList(), width, length);
 
             var otherAGVs = VMSManager.AllAGV.FilterOutAGVFromCollection(pathOwner);
-            var conflicAgvs = otherAGVs.Where(agv => pathRegion.Any(segment => segment.IsIntersectionTo(agv.AGVGeometery)));
+            var conflicAgvs = otherAGVs.Where(agv => pathRegion.Any(segment => segment.IsIntersectionTo(agv.AGVRealTimeGeometery)));
 
             //get conflic segments 
-            var conflicPaths = pathRegion.Where(segment => conflicAgvs.Any(agv => segment.IsIntersectionTo(agv.AGVGeometery)));
+            var conflicPaths = pathRegion.Where(segment => conflicAgvs.Any(agv => segment.IsIntersectionTo(agv.AGVRealTimeGeometery)));
             return conflicPaths.Any();
 
         }
