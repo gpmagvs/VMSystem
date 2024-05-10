@@ -196,7 +196,6 @@ namespace VMSystem.AGV
                 {
                     IAGV _thisAGV = this;
                     var currentCircleArea = value.GetCircleArea(ref _thisAGV);
-                    NavigationState.CurrentMapPoint = value;
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
@@ -369,14 +368,25 @@ namespace VMSystem.AGV
             }
         }
 
-        public MapRectangle AGVGeometery
+        public MapRectangle AGVRealTimeGeometery
         {
             get
             {
                 return TrafficControl.Tools.CreateAGVRectangle(this);
             }
         }
-
+        public MapRectangle AGVCurrentPointGeometery
+        {
+            get
+            {
+                double x = currentMapPoint.X;
+                double y = currentMapPoint.Y;
+                double theta = states.Coordination.Theta;
+                double width = options.VehicleWidth / 100.0;
+                double length = options.VehicleLength / 100.0;
+                return Tools.CreateRectangle(x, y, theta, width, length);
+            }
+        }
         public int currentFloor { get; set; } = 1;
 
         public async Task Run()

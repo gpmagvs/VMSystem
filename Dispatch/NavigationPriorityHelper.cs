@@ -70,7 +70,7 @@ namespace VMSystem.Dispatch
                         while (!_isVehicleLeaveWorkStationRegion(waitingForVehicle, workStationTag, _entryPoints))
                         {
                             await Task.Delay(10);
-                            vehicle.NavigationState.ResetNavigationPoints();
+                            vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
                             await StaMap.UnRegistPointsOfAGVRegisted(vehicle);
                             if (vehicle.CurrentRunningTask().IsTaskCanceled)
                                 throw new TaskCanceledException();

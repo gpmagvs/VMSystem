@@ -84,7 +84,8 @@ namespace VMSystem.AGV
         Task<bool> SpeedSlowRequest();
 
         bool CheckOutOrderExecutableByBatteryStatusAndChargingStatus(ACTION_TYPE orderAction, out string message);
-        MapRectangle AGVGeometery { get; }
+        MapRectangle AGVRealTimeGeometery { get; }
+        MapRectangle AGVCurrentPointGeometery { get; }
         MapCircleArea AGVRotaionGeometry { get; }
         int currentFloor { get; set; }
 

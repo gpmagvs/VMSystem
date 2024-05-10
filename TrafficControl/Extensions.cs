@@ -10,6 +10,13 @@ namespace VMSystem.TrafficControl
         {
             return agv.taskDispatchModule.OrderHandler.RunningTask;
         }
+        public static TaskBase PreviousSegmentTask(this IAGV agv)
+        {
+            var completeTaskStack = agv.taskDispatchModule.OrderHandler.CompleteTaskStack;
+            if (!completeTaskStack.Any())
+                return null;
+            return agv.taskDispatchModule.OrderHandler.CompleteTaskStack.ToList().Last();
+        }
         public static IEnumerable<IAGV> FilterOutAGVFromCollection(this IEnumerable<IAGV> AGVLIST, IAGV FilterOutAGV)
         {
             return AGVLIST.Where(agv => agv != FilterOutAGV);

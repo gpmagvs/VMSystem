@@ -210,7 +210,6 @@ namespace VMSystem.Controllers
             });
             var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
             trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
-            await Task.Delay(1000);
             bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
             if (!allowLeve)
             {
