@@ -202,7 +202,7 @@ namespace VMSystem.TrafficControl
             bool IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation()
             {
                 var _runningTask = Vehicle.CurrentRunningTask();
-                if (_runningTask.OrderData.Action != ACTION_TYPE.Charge || _runningTask.ActionType != ACTION_TYPE.None)
+                if (_runningTask.OrderData==null|| _runningTask.OrderData.Action != ACTION_TYPE.Charge || _runningTask.ActionType != ACTION_TYPE.None)
                     return false;
 
                 MapPoint ChargeStationPoint = StaMap.GetPointByTagNumber(_runningTask.OrderData.To_Station_Tag);
@@ -211,7 +211,6 @@ namespace VMSystem.TrafficControl
             }
         }
 
-        public ConflicSolveResult.CONFLIC_ACTION ConflicAction { get; internal set; } = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
         private double _FinalTheta = 0;
         public double FinalTheta
         {

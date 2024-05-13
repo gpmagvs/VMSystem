@@ -196,7 +196,7 @@ namespace VMSystem.TrafficControl
 
 
 
-                var confliAGVList = _otherAGVList.Where(_agv => _agv.NavigationState.ConflicAction != Dispatch.ConflicSolveResult.CONFLIC_ACTION.STOP_AND_WAIT && _agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && _agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref _agv, 1.5).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.5))))
+                var confliAGVList = _otherAGVList.Where(_agv =>  _agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && _agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref _agv, 1.5).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.5))))
                                             .ToList();
                 bool is_destine_conflic = confliAGVList.Any();
 
