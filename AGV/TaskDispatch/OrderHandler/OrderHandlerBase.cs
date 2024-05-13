@@ -122,13 +122,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     await Task.Delay(100);
                 }
                 isTaskFail = false;
-                if (TaskAbortedFlag)
+                if (TaskAbortedFlag || Agv.main_state == MAIN_STATUS.DOWN)
                 {
-                    TaskCancelledFlag=false;
+                    TaskCancelledFlag = false;
                     LOG.WARN($"Task Aborted!.{TaskCancelReason}");
                     _SetOrderAsFaiiureState(TaskAbortReason);
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
+                    await AbortOrder(Agv.states.Alarm_Code);
                     return isTaskFail;
                 }
                 if (TaskCancelledFlag)
@@ -185,7 +186,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (RunningTask.ActionType != ACTION_TYPE.None)
             {
                 Agv.NavigationState.ResetNavigationPoints();
-                MapPoint destineMapPoint= StaMap.GetPointByTagNumber(destineTag);
+                MapPoint destineMapPoint = StaMap.GetPointByTagNumber(destineTag);
                 StaMap.RegistPoint(Agv.Name, destineMapPoint, out var _);
             }
         }
