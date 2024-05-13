@@ -119,19 +119,27 @@ namespace VMSystem.TrafficControl
 
             bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
             double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() ? 1.0 : 1.2;
-            
+
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
-            vLength = vLength * _GeometryExpandRatio;
+
+            var vLengthExpanded = vLength * _GeometryExpandRatio;
+
 
             MapPoint endPoint = _nexNavPts.Last();
             var pathForCalulate = _nexNavPts.Skip(1).ToList();
             if (pathForCalulate.Count > 1)
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
+                bool _infrontOfChargeStation = Vehicle.currentMapPoint.TargetWorkSTationsPoints().ToList().Any(pt => pt.IsCharge);
                 if (Math.Abs(Vehicle.states.Coordination.Theta - lastAngle) > 10)
                 {
-                    output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLength ));
+                    if (_infrontOfChargeStation)
+                    {
+                        output.Add(Vehicle.AGVRealTimeGeometery);
+                    }
+                    else
+                        output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded));
                 }
 
                 for (int i = 1; i < pathForCalulate.Count - 1; i++) //0 1 2 3 4 5 
@@ -142,7 +150,7 @@ namespace VMSystem.TrafficControl
 
                     if (Math.Abs(forwardAngle - lastAngle) > 10)
                     {
-                        output.Add(Tools.CreateSquare(_startPt, vLength));
+                        output.Add(Tools.CreateSquare(_startPt, vLengthExpanded));
                     }
                     lastAngle = forwardAngle;
                 }
@@ -150,12 +158,13 @@ namespace VMSystem.TrafficControl
             }
 
 
-            output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLength).Where(p => !double.IsNaN(p.Theta)).ToList());
-            output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLength, vLength));
+            output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLengthExpanded).Where(p => !double.IsNaN(p.Theta)).ToList());
+            output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLengthExpanded, vLengthExpanded));
 
             if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
             {
-                MapRectangle finalStopRectangle = Tools.CreateSquare(endPoint, vLength );
+                MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
+                                                   Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength) : Tools.CreateSquare(endPoint, vLengthExpanded);
                 finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
                 output.Add(finalStopRectangle);
             }
@@ -176,7 +185,9 @@ namespace VMSystem.TrafficControl
             {
                 var _previousTask = Vehicle.PreviousSegmentTask();
                 if (_previousTask == null)
+                {
                     return false;
+                }
                 if (!_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.Any())
                     return false;
                 var _previoseTaskStartPoint = StaMap.GetPointByTagNumber(_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID);
@@ -186,6 +197,16 @@ namespace VMSystem.TrafficControl
                 return _previoseTaskStartPoint.TargetNormalPoints().GetTagCollection().Any(tag => tag == Vehicle.currentMapPoint.TagNumber);
             }
 
+            bool IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation()
+            {
+                var _runningTask = Vehicle.CurrentRunningTask();
+                if (_runningTask.OrderData.Action != ACTION_TYPE.Charge || _runningTask.ActionType != ACTION_TYPE.None)
+                    return false;
+
+                MapPoint ChargeStationPoint = StaMap.GetPointByTagNumber(_runningTask.OrderData.To_Station_Tag);
+                var tagsOfStationEntry = ChargeStationPoint.TargetNormalPoints().Select(pt => pt.TagNumber).ToList();
+                return tagsOfStationEntry.Any() && tagsOfStationEntry.Contains(_nexNavPts.Last().TagNumber);
+            }
         }
 
         public ConflicSolveResult.CONFLIC_ACTION ConflicAction { get; internal set; } = ConflicSolveResult.CONFLIC_ACTION.ACCEPT_GO;
