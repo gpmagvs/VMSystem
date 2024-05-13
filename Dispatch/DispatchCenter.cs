@@ -274,7 +274,7 @@ namespace VMSystem.Dispatch
 
             {
                 IEnumerable<MapPoint> _optimizePath = null;
-                List<IAGV> otherDispatingVehicle = DispatingVehicles.FilterOutAGVFromCollection(vehicle).ToList();
+                List<IAGV> otherDispatingVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle).ToList();
                 if (otherDispatingVehicle.Count == 0)
                 {
                     otherDispatingVehicle.AddRange(otherAGV);
@@ -493,6 +493,15 @@ namespace VMSystem.Dispatch
                                                     .Select(index => StaMap.GetPointByIndex(index));
                 }
 
+                IEnumerable<MapPoint> _GetOtherVehicleChargeStationEnteredEntryPoint(IAGV _vehicle)
+                {
+                    if (!_vehicle.currentMapPoint.IsCharge)
+                        return new List<MapPoint>();
+
+                    return _vehicle.currentMapPoint.Target.Keys
+                                                    .Select(index => StaMap.GetPointByIndex(index));
+                }
+
                 IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
                 {
                     return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
@@ -501,6 +510,7 @@ namespace VMSystem.Dispatch
 
 
                 //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
+                constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));
                 constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
                 //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
                 var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
