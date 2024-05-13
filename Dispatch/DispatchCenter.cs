@@ -42,7 +42,7 @@ namespace VMSystem.Dispatch
                 }
             }
         }
-
+        public static DeadLockMonitor TrafficDeadLockMonitor = new DeadLockMonitor();
         public static Scheduler PathScheduler = new Scheduler();
         public static Dictionary<IAGV, PathPlanner> VehicleOrderStore { get; set; } = new Dictionary<IAGV, PathPlanner>();
 
@@ -54,7 +54,9 @@ namespace VMSystem.Dispatch
 
         public static void Initialize()
         {
+
             CurrentNavingPathes = VMSManager.AllAGV.ToDictionary(vehicle => vehicle, vehicle => new clsVehicleNavigationController(vehicle));
+            TrafficDeadLockMonitor.StartAsync();
         }
 
         public static async Task<IEnumerable<MapPoint>> MoveToGoalGetPath(IAGV requestVehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
@@ -135,7 +137,7 @@ namespace VMSystem.Dispatch
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains());
+                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint));
             }
             catch (Exception)
             {
@@ -151,8 +153,8 @@ namespace VMSystem.Dispatch
 
             vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optimizePath_Init);
             var usableSubGoals = optimizePath_Init.Skip(0).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= (_isInNarrowRegion ? 2.5 : 2.5))
-                                                          .Where(pt => !pt.IsVirtualPoint && !GetConstrains().GetTagCollection().Contains(pt.TagNumber))
-                                                          //.Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 1.5)))
+                                                          .Where(pt => !pt.IsVirtualPoint && !GetConstrains(vehicle, otherAGV, finalMapPoint).GetTagCollection().Contains(pt.TagNumber))
+                                                          .Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 1.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
                                                           .ToList();
 
@@ -274,7 +276,7 @@ namespace VMSystem.Dispatch
 
             {
                 IEnumerable<MapPoint> _optimizePath = null;
-                List<IAGV> otherDispatingVehicle = DispatingVehicles.FilterOutAGVFromCollection(vehicle).ToList();
+                List<IAGV> otherDispatingVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle).ToList();
                 if (otherDispatingVehicle.Count == 0)
                 {
                     otherDispatingVehicle.AddRange(otherAGV);
@@ -292,157 +294,8 @@ namespace VMSystem.Dispatch
                     MapPoint conflicRegionStartPt = StaMap.GetPointByTagNumber(conflicRegion.StartPointTag.TagNumber);
                     MapPoint conflicRegionEndPt = StaMap.GetPointByTagNumber(conflicRegion.EndMapPoint.TagNumber);
                     //var conflicRegionOwners = otherDispatingVehicle.Where(agv => agv.currentMapPoint == conflicRegionStartPt || agv.currentMapPoint == conflicRegionEndPt);
-
-                    var conflicRegionOwners = otherDispatingVehicle.Where(agv => agv.NavigationState.NextPathOccupyRegions.Any(reg => reg.StartPointTag.TagNumber == conflicRegion.StartPointTag.TagNumber
-                                                                            || reg.EndMapPoint.TagNumber == conflicRegion.EndMapPoint.TagNumber) || agv.AGVRealTimeGeometery.IsIntersectionTo(conflicRegion));
-
-                    if (conflicRegionOwners.Any() && autoSolve)
-                    {
-                        if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                            throw new TaskCanceledException();
-                        await Task.Delay(1000);
-                        List<Task<bool>> _DispatchOtherAGVsTask = new List<Task<bool>>();
-                        string msg = "";
-                        List<MapPoint> usedMoveDestinePoints = new List<MapPoint>();
-                        foreach (var _agv in conflicRegionOwners)
-                        {
-                            var orderState = _agv.taskDispatchModule.OrderExecuteState;
-                            if (orderState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                            {
-                                //任務進行中
-                                var currentTask = _agv.CurrentRunningTask();
-                                _DispatchOtherAGVsTask.Add(WaitingAGVFinishOrder(_agv));
-                                msg += $"- Wait {_agv.Name} Order done\r\n";
-                            }
-                            else
-                            {
-                                IAGV agvFuckupAway = _agv;
-                                IEnumerable<MapPoint> moveAwayPath = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_agv.currentMapPoint, _finalMapPoint, new List<MapPoint>());
-                                bool narrowPathDirction = _agv.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath && oriOptimizePath.Any(pt => pt.TagNumber != _agv.currentMapPoint.TagNumber);
-                                var usablePoints = StaMap.Map.Points.Values
-                                                        .Where(pt => !pt.IsVirtualPoint && pt.StationType == MapPoint.STATION_TYPE.Normal)
-                                                        .Where(pt => !pt.GetCircleArea(ref agvFuckupAway, 1.2).IsIntersectionTo(vehicle.AGVRealTimeGeometery))
-                                                        .Where(pt => !pt.GetCircleArea(ref agvFuckupAway, 1.2).IsIntersectionTo(oriOptimizePath.Last().GetCircleArea(ref vehicle, 1.2)))
-                                                        .Where(pt => oriOptimizePath.Where(_p => _p.TagNumber == pt.TagNumber).Count() == 0)
-                                                        .Where(pt => !StaMap.RegistDictionary.ContainsKey(pt.TagNumber))
-                                                        .Where(pt => !usedMoveDestinePoints.Contains(pt))
-                                                        .OrderBy(pt => pt.CalculateDistance(_agv.currentMapPoint));
-
-                                //var moveDestine = narrowPathDirction ? _agv.currentMapPoint : usablePoints.FirstOrDefault();
-                                var moveDestine = usablePoints.FirstOrDefault();
-
-                                if (moveDestine != null)
-                                {
-                                    usedMoveDestinePoints.Add(moveDestine);
-                                    _DispatchOtherAGVsTask.Add(MoveAGVFuckupAway(_agv, moveDestine));
-                                    msg += $"- Wait {_agv.Name} Fuck up away to {moveDestine.TagNumber}\r\n";
-                                }
-                            }
-                        }
-
-                        vehicle.CurrentRunningTask().TrafficWaitingState.SetDisplayMessage($"{msg}");
-
-                        if (_DispatchOtherAGVsTask.Any())
-                        {
-                            vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
-                            vehicle.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_SOLVING;
-                        }
-
-                        var results = await Task.WhenAll(_DispatchOtherAGVsTask);
-
-                        if (results.Any(ret => ret == false))
-                            return null;
-
-                        await Task.Delay(1000);
-                        _optimizePath = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, otherAGV.Select(agv => agv.currentMapPoint));
-                        vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(_optimizePath);
-
-                        //local methods 
-                        async Task<bool> WaitingAGVFinishOrder(IAGV agv)
-                        {
-                            while (agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                            {
-                                if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                                    throw new TaskCanceledException();
-                                await Task.Delay(100);
-                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, GetConstrains());
-                                var usableSubGoals = _optimizePathTryGet.Skip(1).Where(pt => !pt.IsVirtualPoint && !StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
-                                foreach (var _goal in usableSubGoals)
-                                {
-                                    var _optmizePath_init_sub = _optimizePathTryGet.Where(pt => _optimizePathTryGet.ToList().IndexOf(pt) <= _optimizePathTryGet.ToList().IndexOf(_goal));
-                                    vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(_optmizePath_init_sub);
-                                    if (!FindConflicRegion(vehicle, otherDispatingVehicle, out var _region))
-                                    {
-                                        _optimizePath = _optmizePath_init_sub;
-                                        return true;
-                                    }
-                                }
-                                vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
-
-                            }
-                            return false;
-                        }
-
-                        async Task<bool> MoveAGVFuckupAway(IAGV agv, MapPoint destinPoint)
-                        {
-
-                            using (var agvsDb = new AGVSDatabase())
-                            {
-                                agvsDb.tables.Tasks.Add(new clsTaskDto
-                                {
-                                    DesignatedAGVName = agv.Name,
-                                    Action = AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None,
-                                    To_Station = destinPoint.TagNumber + "",
-                                    TaskName = $"TAF-{DateTime.Now.ToString("yyMMddHHmmssfff")}",
-                                    RecieveTime = DateTime.Now,
-                                    DispatcherName = "交管-移車"
-                                });
-                                await agvsDb.SaveChanges();
-                            }
-                            while (agv.main_state != clsEnums.MAIN_STATUS.RUN)
-                            {
-                                if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                                    throw new TaskCanceledException();
-                                await Task.Delay(1);
-
-                            }
-                            await Task.Delay(100);
-
-
-                            while (agv.currentMapPoint.TagNumber != destinPoint.TagNumber
-                                    || agv.main_state == clsEnums.MAIN_STATUS.RUN
-                                    || agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                            {
-                                await Task.Delay(100);
-                                if (vehicle.CurrentRunningTask().IsTaskCanceled || vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                                    throw new TaskCanceledException();
-
-
-                                var _optimizePathTryGet = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(vehicle.currentMapPoint, _finalMapPoint, GetConstrains());
-                                var usableSubGoals = _optimizePathTryGet.Skip(1).Where(pt => !pt.IsVirtualPoint && !StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
-                                foreach (var _goal in usableSubGoals)
-                                {
-                                    var _optmizePath_init_sub = _optimizePathTryGet.Where(pt => _optimizePathTryGet.ToList().IndexOf(pt) <= _optimizePathTryGet.ToList().IndexOf(_goal));
-                                    vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(_optmizePath_init_sub);
-                                    if (!FindConflicRegion(vehicle, otherDispatingVehicle, out var _region))
-                                    {
-                                        _optimizePath = _optmizePath_init_sub;
-                                        return true;
-                                    }
-                                }
-                                vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
-
-                            }
-                            return true;
-                        }
-                        await Task.Delay(1000);
-                    }
-                    //while (otherDispatingVehicle.Where(agv => agv.NavigationState.OccupyRegions.Any(reg => reg.StartPointTag.TagNumber == conflicRegion.StartPointTag.TagNumber
-                    //                                                        || reg.EndPointTag.TagNumber == conflicRegion.EndPointTag.TagNumber)).Any())
-                    //{
-
-
-                    //}
+                    await Task.Delay(1000);
+                    (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"000");
                 }
                 else
                     _optimizePath = oriOptimizePath;
@@ -477,38 +330,48 @@ namespace VMSystem.Dispatch
                     return _conflicRegion != null;
                 }
             }
+        }
 
-            List<MapPoint> GetConstrains()
+        public static List<MapPoint> GetConstrains( IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint)
+        {
+            List<MapPoint> constrains = new List<MapPoint>();
+            var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != MainVehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key)).ToList();
+            constrains.AddRange(registedPoints);
+
+            IEnumerable<MapPoint> _GetVehicleEnteredEntryPoint(IAGV _vehicle)
             {
-                List<MapPoint> constrains = new List<MapPoint>();
-                var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != vehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key)).ToList();
-                constrains.AddRange(registedPoints);
+                if (!_vehicle.currentMapPoint.IsCharge)
+                    return new List<MapPoint>();
 
-                IEnumerable<MapPoint> _GetVehicleEnteredEntryPoint(IAGV _vehicle)
-                {
-                    if (!_vehicle.currentMapPoint.IsCharge)
-                        return new List<MapPoint>();
-
-                    return _vehicle.currentMapPoint.Target.Keys
-                                                    .Select(index => StaMap.GetPointByIndex(index));
-                }
-
-                IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
-                {
-                    return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
-                                                    .Where(pt => pt.GetCircleArea(ref vehicle, 0.5).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
-                }
-
-
-                //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
-                constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
-                //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
-                var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
-                constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
-                constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
-                constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber).ToList();
-                return constrains;
+                return _vehicle.currentMapPoint.Target.Keys
+                                                .Select(index => StaMap.GetPointByIndex(index));
             }
+
+            IEnumerable<MapPoint> _GetOtherVehicleChargeStationEnteredEntryPoint(IAGV _vehicle)
+            {
+                if (!_vehicle.currentMapPoint.IsCharge)
+                    return new List<MapPoint>();
+
+                return _vehicle.currentMapPoint.Target.Keys
+                                                .Select(index => StaMap.GetPointByIndex(index));
+            }
+
+            IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
+            {
+                return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
+                                                .Where(pt => pt.GetCircleArea(ref MainVehicle, 0.5).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
+            }
+
+
+            //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
+            //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
+            var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+            constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
+            constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
+            constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber).ToList();
+            return constrains;
         }
         private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
         {

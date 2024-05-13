@@ -4,15 +4,17 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
 using VMSystem.TrafficControl;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
-    {   
+    {
         public void Run()
         {
             TaskAssignWorker();
@@ -27,7 +29,7 @@ namespace VMSystem.VMS
                     try
                     {
                         await Task.Delay(100);
-                        
+
                         List<string> List_TaskAGV = new List<string>();
 
                         var _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
@@ -50,6 +52,8 @@ namespace VMSystem.VMS
                         IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
                         if (AGV == null)
                             continue;
+                        else
+                            _taskDto = await ChechGenerateTransferTaskOrNot(AGV, _taskDto);
 
                         agv = AGV;
                         _taskDto.DesignatedAGVName = AGV.Name;
@@ -64,7 +68,7 @@ namespace VMSystem.VMS
                 }
 
             });
-           
+
         }
         /// <summary>
         /// 尋找最佳的AGV
@@ -146,6 +150,21 @@ namespace VMSystem.VMS
                 }
             }
             return AGVListRemoveTaskAGV.First();
+        }
+
+
+        private async Task<clsTaskDto> ChechGenerateTransferTaskOrNot(IAGV AGV, clsTaskDto _taskDto)
+        {
+            Dictionary<int, int> dict_AGVs = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(new List<int>() { _taskDto.To_Station_Tag });
+            AGV_TYPE to_station_agv_model = (AGV_TYPE)dict_AGVs[_taskDto.To_Station_Tag];
+            _taskDto.To_Station_AGV_Type = to_station_agv_model;
+
+            if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry)
+                if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
+                    _taskDto.need_change_agv = false;
+                else
+                    _taskDto.need_change_agv = true;
+            return _taskDto;
         }
 
     }

@@ -209,7 +209,7 @@ namespace VMSystem.VMS
                         else
                         {
                             database.tables.Tasks.Add(dto);
-                            int save=await database.SaveChanges();
+                            int save = await database.SaveChanges();
                             LOG.TRACE($"Database-Task Table Added-Num={save}\r\n{dto.ToJson()}", true);
                         }
                     }

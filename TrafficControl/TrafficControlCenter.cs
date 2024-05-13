@@ -125,9 +125,9 @@ namespace VMSystem.TrafficControl
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
                 }
 
-                if (args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                if (args.ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
                 {
-
+                    args.Agv.NavigationState.ResetNavigationPoints();
                 }
 
                 return args;
