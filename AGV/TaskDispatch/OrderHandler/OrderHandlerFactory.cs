@@ -29,7 +29,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public OrderHandlerBase CreateHandler(clsTaskDto orderData)
         {
             OrderHandlerBase hander = _OrderHandlerMap[orderData.Action];
-            hander.OnLoadingAtTransferStationTaskFinish += HandleOnLoadingAtTransferStationTaskFinish;
+            if (orderData.need_change_agv)
+                hander.OnLoadingAtTransferStationTaskFinish += HandleOnLoadingAtTransferStationTaskFinish;
             hander.OrderData = orderData;
             hander.SequenceTaskQueue = _CreateSequenceTasks(orderData);
             return hander;
@@ -48,14 +49,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 string strPreviousAGV = order.OrderData.DesignatedAGVName;
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
                 order.OrderData.From_Station = order.OrderData.TransferFromTag.ToString();
-                //order.OrderData.From_Station_AGV_Type = AGV_TYPE.SUBMERGED_SHIELD;
                 order.OrderData.need_change_agv = false;
                 order.OrderData.DesignatedAGVName = "";
                 order.OrderData.State = TASK_RUN_STATUS.WAIT;
-                //nextAGV.taskDispatchModule.TryAppendTasksToQueue(new List<clsTaskDto>() { order.OrderData });
+                order.OrderData.need_change_agv = false;
+                if (order.OrderData.Action == ACTION_TYPE.Load)
+                    order.OrderData.Action = ACTION_TYPE.Carry;
+
                 VMSManager.HandleTaskDBChangeRequestRaising(this, order.OrderData);
                 clsTaskDto charge = new clsTaskDto();
                 charge.TaskName = $"ACharge_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
+                charge.RecieveTime = DateTime.Now;
                 charge.DesignatedAGVName = strPreviousAGV;
                 charge.Action = ACTION_TYPE.Charge;
                 charge.Carrier_ID = "-1";
@@ -63,7 +67,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 charge.State = TASK_RUN_STATUS.WAIT;
                 VMSManager.HandleTaskDBChangeRequestRaising(this, charge);
                 LOG.INFO($"AUTO Charge task added {charge}");
-                //AGVSSerivces.TRANSFER_TASK.AfterTransferTaskAutoCharge(strPreviousAGV);
             });
         }
 
@@ -105,13 +108,28 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
             }
-            if (orderData.Action == ACTION_TYPE.Load)
+            if (orderData.Action == ACTION_TYPE.Load) 
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                if (orderData.need_change_agv == true)// 如果下放貨任務，但目標EQAGV_TYPE不符則是將貨放到轉運站，此筆任務結束觸發生成Carry任務
                 {
-                    NextAction = ACTION_TYPE.Load
-                });
-                _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Load,
+                        TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
+                    });
+                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    orderData.TransferToTag = _transferTo;
+                    orderData.TransferFromTag = _transferFrom;
+                    _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
+                }
+                else
+                {
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Load
+                    });
+                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                }
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Charge)
@@ -156,12 +174,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.Carry)
             {
-                if (orderData.need_change_agv)
-                {
-                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
-                    orderData.TransferToTag = _transferTo;
-                    orderData.TransferFromTag = _transferFrom;
-                }
+                //if (orderData.need_change_agv)
+                //{
+                //    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                //    orderData.TransferToTag = _transferTo;
+                //    orderData.TransferFromTag = _transferFrom;
+                //}
                 _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
                 {
                     NextAction = ACTION_TYPE.Unload
@@ -179,6 +197,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 });
                 if (orderData.need_change_agv)
                 {
+                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    orderData.TransferToTag = _transferTo;
+                    orderData.TransferFromTag = _transferFrom;
                     _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
                 }
                 else
@@ -212,10 +233,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public static async Task<(int transferToTag, int transferFromTag)> GetTransferStationTag(clsTaskDto orderData)
         {
+            List<int> TransferStationTags = new List<int>();
             // 取得From Station可去的轉換站
-            List<int> TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetTransferStationTag(orderData.From_Station_Tag);
+            if (orderData.From_Station_Tag == -1)
+            {
+                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.To_Station_Tag);
+            }
+            else
+            {
+                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.From_Station_Tag);
+            }
             if (TransferStationTags.Count() <= 0)
-                return (-1, -1);        
+                return (-1, -1);
 
             MapPoint TransferToMapPoint = StaMap.GetPointByTagNumber(TransferStationTags.FirstOrDefault());
             var entryPoints = TransferToMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
