@@ -229,7 +229,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 TrafficWaitingState.SetStatusNoWaiting();
                 DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
-               // Agv.NavigationState.ResetNavigationPoints();
+                // Agv.NavigationState.ResetNavigationPoints();
             }
         }
 
@@ -373,7 +373,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else //工作站訂單
             {
                 int _workStationTag = 0;
-                if (_OrderAction == ACTION_TYPE.Carry) //搬運訂單，要考慮當前是要作取或或是放貨
+                if (_OrderAction == ACTION_TYPE.Load || _OrderAction == ACTION_TYPE.Carry) //搬運訂單，要考慮當前是要作取或或是放貨
                 {
                     if (stage == VehicleMovementStage.Traveling_To_Destine)
                     {
