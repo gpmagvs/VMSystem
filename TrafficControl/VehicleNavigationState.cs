@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using Microsoft.VisualBasic;
 using SQLitePCL;
 using System.Drawing;
 using VMSystem.AGV;
@@ -27,7 +28,8 @@ namespace VMSystem.TrafficControl
             RUNNING,
             IDLE,
             WAIT_REGION_ENTERABLE,
-            WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING
+            WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING,
+            AVOIDING_PATH
         }
 
         public static Map CurrentMap => StaMap.Map;
@@ -163,14 +165,14 @@ namespace VMSystem.TrafficControl
 
             if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
             {
-                MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
+                MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() || State == NAV_STATE.AVOIDING_PATH ?
                                                    Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength) : Tools.CreateSquare(endPoint, vLengthExpanded);
                 finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
                 output.Add(finalStopRectangle);
             }
             double finalStopAngle = output.Last().Theta;
 
-            LOG.WARN($"停車點角度=>{output.Last().Theta}");
+            //LOG.WARN($"停車點角度=>{output.Last().Theta}");
             return output;
 
 
@@ -224,22 +226,46 @@ namespace VMSystem.TrafficControl
             }
         }
 
+        private bool _IsWaitingConflicSolve = false;
+
+        public DateTime StartWaitConflicSolveTime = DateTime.MinValue;
+
+        public bool IsWaitingConflicSolve
+        {
+            get => _IsWaitingConflicSolve;
+            set
+            {
+                if (_IsWaitingConflicSolve != value)
+                {
+                    _IsWaitingConflicSolve = value;
+                    if (_IsWaitingConflicSolve)
+                        StartWaitConflicSolveTime = DateTime.Now;
+                    else
+                        StartWaitConflicSolveTime = DateTime.MinValue;
+                }
+            }
+        }
+        public bool IsConflicSolving { get; set; } = false;
+        public MapPoint AvoidPt { get; internal set; }
+        public bool IsAvoidRaising { get; internal set; } = false;
+        public IAGV AvoidToVehicle { get; internal set; }
+
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {
-            var _pathPoints = pathPoints.ToList();
+            var _pathPoints = pathPoints.Clone().ToList();
             var runningTask = Vehicle.CurrentRunningTask();
             var orderData = runningTask.OrderData;
             _pathPoints.Last().Direction = _pathPoints.GetStopDirectionAngle(orderData, Vehicle, runningTask.Stage, _pathPoints.Last());
             List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
             output.AddRange(_pathPoints);
             NextNavigtionPointsForPathCalculation = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
-            LOG.TRACE($"[{Vehicle.Name}] Update NavigationPointsForPathCalculation: {string.Join("->", NextNavigtionPointsForPathCalculation.Select(pt => pt.TagNumber))} ");
+            //LOG.TRACE($"[{Vehicle.Name}] Update NavigationPointsForPathCalculation: {string.Join("->", NextNavigtionPointsForPathCalculation.Select(pt => pt.TagNumber))} ");
         }
 
         public void UpdateNavigationPoints(IEnumerable<MapPoint> pathPoints)
         {
             List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
-            output.AddRange(pathPoints);
+            output.AddRange(pathPoints.Clone());
             NextNavigtionPointsForPathCalculation = NextNavigtionPoints = output.Distinct().ToList();
         }
 
@@ -264,6 +290,8 @@ namespace VMSystem.TrafficControl
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState = REGION_CONTROL_STATE.NONE;
+            IsConflicSolving = IsWaitingConflicSolve = false;
+            IsAvoidRaising = false;
         }
     }
 }

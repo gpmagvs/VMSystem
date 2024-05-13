@@ -335,7 +335,8 @@ namespace VMSystem
                 LOG.WARN($"{Name} UnRegist Tag {TagNumber} Fail : {error_message}");
                 return (false, error_message);
             }
-            finally {
+            finally
+            {
                 _unregistSemaphore.Release();
             }
 
