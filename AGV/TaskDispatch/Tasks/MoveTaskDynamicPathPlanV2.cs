@@ -229,7 +229,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 TrafficWaitingState.SetStatusNoWaiting();
                 DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
-               // Agv.NavigationState.ResetNavigationPoints();
+                // Agv.NavigationState.ResetNavigationPoints();
             }
         }
 
@@ -426,7 +426,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public static IEnumerable<MapPoint> TargetWorkSTationsPoints(this MapPoint mapPoint)
         {
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                .Where(pt => StaMap.Map.Points.Values.Contains(pt))
+                .Where(pt => StaMap.Map.Points.Values.Any(_p => _p.TagNumber == pt.TagNumber))
                 .Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal);
         }
         /// <summary>

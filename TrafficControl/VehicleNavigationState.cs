@@ -131,9 +131,15 @@ namespace VMSystem.TrafficControl
             if (pathForCalulate.Count > 1)
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
+                bool _infrontOfChargeStation = Vehicle.currentMapPoint.TargetWorkSTationsPoints().ToList().Any(pt => pt.IsCharge);
                 if (Math.Abs(Vehicle.states.Coordination.Theta - lastAngle) > 10)
                 {
-                    output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded));
+                    if (_infrontOfChargeStation)
+                    {
+                        output.Add(Vehicle.AGVRealTimeGeometery);
+                    }
+                    else
+                        output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded));
                 }
 
                 for (int i = 1; i < pathForCalulate.Count - 1; i++) //0 1 2 3 4 5 
@@ -179,7 +185,9 @@ namespace VMSystem.TrafficControl
             {
                 var _previousTask = Vehicle.PreviousSegmentTask();
                 if (_previousTask == null)
+                {
                     return false;
+                }
                 if (!_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.Any())
                     return false;
                 var _previoseTaskStartPoint = StaMap.GetPointByTagNumber(_previousTask.TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID);
