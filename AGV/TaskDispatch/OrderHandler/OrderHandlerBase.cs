@@ -124,10 +124,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 isTaskFail = false;
                 if (TaskAbortedFlag)
                 {
+                    TaskCancelledFlag=false;
                     LOG.WARN($"Task Aborted!.{TaskCancelReason}");
                     _SetOrderAsFaiiureState(TaskAbortReason);
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
+                    return isTaskFail;
                 }
                 if (TaskCancelledFlag)
                 {
