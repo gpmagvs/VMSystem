@@ -416,7 +416,7 @@ namespace VMSystem.AGV
             //AutoParkWorker();
             AliveCheck();
             Console.WriteLine($"[{Name}] Alive Check Process Start");
-            //PingCheck();
+            PingCheck();
             Console.WriteLine($"[{Name}] Ping Process Start");
 
             if (options.Simulation)
