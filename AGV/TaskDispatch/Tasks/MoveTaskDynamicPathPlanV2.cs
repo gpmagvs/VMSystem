@@ -17,6 +17,7 @@ using System.Runtime.CompilerServices;
 using VMSystem.Dispatch;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 
@@ -27,6 +28,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class MoveTaskDynamicPathPlanV2 : MoveTaskDynamicPathPlan
     {
+        public MapPoint finalMapPoint { get; private set; }
         public MoveTaskDynamicPathPlanV2() : base()
         {
         }
@@ -54,21 +56,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
+            Agv.NavigationState.IsWaitingConflicSolve = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             try
             {
 
-                MapPoint finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
+                finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
                 DestineTag = finalMapPoint.TagNumber;
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
-                MapPoint searchStartPt = Agv.currentMapPoint;
+                MapPoint searchStartPt = Agv.currentMapPoint.Clone();
                 Agv.NavigationState.StateReset();
-
+                Stopwatch pathConflicStopWatch = new Stopwatch();
+                pathConflicStopWatch.Start();
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
-                    await Task.Delay(200);
-                    if (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    await Task.Delay(10);
+                    if (IsTaskAborted())
                         throw new TaskCanceledException();
                     try
                     {
@@ -77,23 +81,82 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
+                            pathConflicStopWatch.Start();
                             searchStartPt = Agv.currentMapPoint;
                             UpdateMoveStateMessage($"Search Path...");
-                            await Task.Delay(500);
+                            await Task.Delay(10);
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            bool _isConflicSolved = false;
+
+                            if (pathConflicStopWatch.Elapsed.Seconds > 1 && !Agv.NavigationState.IsAvoidRaising)
+                            {
+                                Agv.NavigationState.IsWaitingConflicSolve = true;
+                            }
+                            if (Agv.NavigationState.IsAvoidRaising)
+                            {
+                                await SendCancelRequestToAGV();
+                                _previsousTrajectorySendToAGV.Clear();
+                                var trafficAvoidTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                                {
+                                    Action = ACTION_TYPE.None,
+                                    To_Station = Agv.NavigationState.AvoidPt.TagNumber + "",
+                                    TaskName = OrderData.TaskName,
+                                    DesignatedAGVName = Agv.Name,
+                                })
+                                {
+                                    Stage = VehicleMovementStage.AvoidPath
+                                };
+                                Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
+                                UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
+                                await trafficAvoidTask.SendTaskToAGV();
+                                pathConflicStopWatch.Stop();
+                                pathConflicStopWatch.Reset();
+                                searchStartPt = Agv.currentMapPoint;
+                                Agv.NavigationState.ResetNavigationPoints();
+                                Agv.NavigationState.StateReset();
+                                Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;
+                                await Task.Delay(100);
+                                var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
+                                while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
+                                {
+                                    await Task.Delay(10);
+                                    if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
+                                        break;
+                                    UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass My Path...");
+                                }
+
+                                Agv.NavigationState.StateReset();
+                                bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
+                                {
+                                    optimizePathToDestine = null;
+                                    try
+                                    {
+                                        optimizePathToDestine = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint.Clone(), finalMapPoint, DispatchCenter.GetConstrains(Agv, OtherAGV, finalMapPoint)).ToList();
+                                    }
+                                    catch (Exception)
+                                    {
+                                    }
+                                    return optimizePathToDestine != null;
+
+                                }
+                                await Task.Delay(1000);
+                                Agv.OnMapPointChanged += Agv_OnMapPointChanged;
+                            }
+
                             continue;
                         }
+                        Agv.NavigationState.IsWaitingConflicSolve = false;
+                        pathConflicStopWatch.Stop();
+                        pathConflicStopWatch.Reset();
                         var nextPath = dispatchCenterReturnPath.ToList();
                         TrafficWaitingState.SetStatusNoWaiting();
                         var nextGoal = nextPath.Last();
-
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
-
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
                         Agv.NavigationState.UpdateNavigationPoints(nextPath);
-
+                        Agv.NavigationState.IsWaitingConflicSolve = false;
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
@@ -229,8 +292,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 TrafficWaitingState.SetStatusNoWaiting();
                 DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
-                // Agv.NavigationState.ResetNavigationPoints();
+                Agv.NavigationState.StateReset();
             }
+        }
+
+        private bool IsTaskAborted()
+        {
+            return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
+
+
         }
 
         private void Agv_OnMapPointChanged(object? sender, int e)
@@ -446,22 +516,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             double _narrowPathDirection(MapPoint stopPoint)
             {
-                //if (stopPoint == null)
-                //    throw new ArgumentNullException(nameof(stopPoint));
-                //if (!stopPoint.IsNarrowPath)
-                //    throw new Exception("非窄道點位");
-                //var nearNarrowPoints = stopPoint.TargetNormalPoints().Where(pt => pt.IsNarrowPath);
-                //if (!nearNarrowPoints.Any())
-                //    throw new Exception("鄰近位置沒有窄道點位");
-                //// 0 1 2 3 4 5
-                //int indexOfBeforeStopPoint = path.ToList().FindIndex(pt => pt.TagNumber == nextStopPoint.TagNumber) - 1;
-                //if (indexOfBeforeStopPoint < 0)
-                //{
-                //    //由圖資計算
-
-                //    return new MapPoint[2] { stopPoint, nearNarrowPoints.First() }.FinalForwardAngle();
-                //}
-                //return new MapPoint[2] { path.ToList()[indexOfBeforeStopPoint], stopPoint }.FinalForwardAngle();
                 var settingIdleAngle = stopPoint.GetRegion(StaMap.Map).ThetaLimitWhenAGVIdling;
                 double stopAngle = settingIdleAngle;
                 if (settingIdleAngle == 90)
@@ -501,9 +555,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (refOrderInfo.Action == ACTION_TYPE.None)
                 {
-                    if (nextStopPoint.IsNarrowPath)
-                        return _narrowPathDirection(nextStopPoint);
-                    return finalStopPoint.Direction;
+                    if (!nextStopPoint.IsNarrowPath || executeAGV.NavigationState.State == VehicleNavigationState.NAV_STATE.AVOIDING_PATH)
+                    {
+                        if (executeAGV.NavigationState.State == VehicleNavigationState.NAV_STATE.AVOIDING_PATH)
+                        {
+                            return new List<MapPoint>() { path.Last(), path.Reverse().Skip(1).First() }.FinalForwardAngle();
+                        }
+                        else
+                            return StaMap.GetPointByTagNumber(finalStopPoint.TagNumber).Direction;
+                    }
+                    return _narrowPathDirection(nextStopPoint);
                 }
                 else
                 {
