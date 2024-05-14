@@ -112,7 +112,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
-                
+
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
@@ -144,13 +144,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual void CreateTaskToAGV()
         {
-
             TaskDonwloadToAGV.Task_Name = this.TaskName;
             TaskDonwloadToAGV.Task_Sequence = this.TaskSequence;
             TaskDonwloadToAGV.Task_Simplex = this.TaskSimple;
             TaskDonwloadToAGV.CST = new clsCST[]
             {
-                 new clsCST(){CST_ID = OrderData.Carrier_ID }
+                 new clsCST(){
+                    CST_ID = OrderData.Carrier_ID,
+                    CST_Type = (CST_TYPE)this.OrderData.CST_TYPE
+                 }
             };
         }
 
