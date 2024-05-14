@@ -1,4 +1,6 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -68,14 +70,33 @@ namespace VMSystem.Dispatch
 
         private (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
-            //var ordered = DeadLockVehicles.OrderBy(vehicle => CalculateWeights(vehicle));
-            var ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
+            var ordered = DeadLockVehicles.OrderBy(vehicle => CalculateWeights(vehicle));
+            //var ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
             return (ordered.First(), ordered.Last());
         }
 
         private int CalculateWeights(IAGV vehicle)
         {
-            return 0;
+            int weights = 1;
+            var currentOrderHandler = vehicle.CurrentOrderHandler();
+            var runningTask = currentOrderHandler.RunningTask;
+            var runningStage = runningTask.Stage;
+            var orderInfo = currentOrderHandler.OrderData;
+            var orderAction = orderInfo.Action;
+
+            if (orderAction == ACTION_TYPE.Carry)
+            {
+                weights = weights * 100;
+
+                if (runningStage == VehicleMovementStage.Traveling_To_Source)
+                {
+                    weights += 50;
+                }
+                else
+                    weights += 40;
+
+            }
+            return weights;
         }
 
 
@@ -202,7 +223,7 @@ namespace VMSystem.Dispatch
                         var hpv = _HightPriorityVehicle;
                         pathes = pathes.Where(path => path != null)
                                        .OrderBy(path => path.Last().CalculateDistance(Vehicle.currentMapPoint))
-                                       .Where(path => !path.Last().GetCircleArea(ref hpv).IsIntersectionTo(hpv.AGVRotaionGeometry)).ToList();
+                                       .Where(path => !path.IsRemainPathConflicWithOtherAGVBody(Vehicle, out var c)).ToList();
                         pathToStopPoint = pathes.FirstOrDefault();
                         if (pathToStopPoint == null)
                             throw new Exception();

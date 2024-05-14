@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
 
 namespace VMSystem.TrafficControl
@@ -9,6 +10,10 @@ namespace VMSystem.TrafficControl
         public static TaskBase CurrentRunningTask(this IAGV agv)
         {
             return agv.taskDispatchModule.OrderHandler.RunningTask;
+        }
+        public static OrderHandlerBase CurrentOrderHandler(this IAGV agv)
+        {
+            return agv.taskDispatchModule.OrderHandler;
         }
         public static TaskBase PreviousSegmentTask(this IAGV agv)
         {

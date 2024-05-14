@@ -62,8 +62,8 @@ namespace VMSystem.Dispatch
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
         {
-            vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
 
+            vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
             IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>());
@@ -119,8 +119,10 @@ namespace VMSystem.Dispatch
             {
                 try
                 {
-                    var path = subGoalResults.First(path => path != null).ToList();
-                    return path;
+                    if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
+                        return subGoalResults.Last(path => path != null).ToList();
+                    else
+                        return subGoalResults.First(path => path != null).ToList();
                 }
                 catch (Exception ex)
                 {
@@ -189,7 +191,15 @@ namespace VMSystem.Dispatch
                 }
             }
         }
-
+        private static void GetAllPathToDestine(MapPoint startPt, MapPoint destinePt)
+        {
+            PathFinder _pf = new PathFinder();
+            _pf.FindPathes(CurrentMap, startPt, destinePt, new PathFinderOption
+            {
+                Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
+                OnlyNormalPoint = true,
+            });
+        }
         public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint)
         {
             List<MapPoint> constrains = new List<MapPoint>();
@@ -283,7 +293,7 @@ namespace VMSystem.Dispatch
                 //return path;
             }
         }
-       
+
         public static void CancelDispatchRequest(IAGV vehicle)
         {
             DispatingVehicles.Remove(vehicle);

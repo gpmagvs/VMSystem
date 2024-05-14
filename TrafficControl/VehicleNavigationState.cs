@@ -94,7 +94,7 @@ namespace VMSystem.TrafficControl
         {
             get
             {
-                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPointsForPathCalculation.ToList());
+                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPointsForPathCalculation.ToList(), isUseForCalculate: true);
                 return output;
             }
         }
@@ -103,16 +103,16 @@ namespace VMSystem.TrafficControl
         {
             get
             {
-                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPoints.ToList());
+                List<MapRectangle> output = _CreatePathOcuupyRegions(NextNavigtionPoints.ToList(), isUseForCalculate: false);
                 return output;
             }
         }
 
-        private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts)
+        private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts, bool isUseForCalculate)
         {
             var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
 
-            if (!_nexNavPts.Any())
+            if (!_nexNavPts.Any() || (!isUseForCalculate && IsWaitingConflicSolve))
                 return new List<MapRectangle>()
                     {
                          Vehicle.AGVRealTimeGeometery,
@@ -120,8 +120,9 @@ namespace VMSystem.TrafficControl
                     };
 
             bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
-            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() ? 1.0 : 1.2;
-
+            bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidPt?.TagNumber;
+            bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
+            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.2;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
 
@@ -293,6 +294,7 @@ namespace VMSystem.TrafficControl
             RegionControlState = REGION_CONTROL_STATE.NONE;
             IsConflicSolving = IsWaitingConflicSolve = false;
             IsAvoidRaising = false;
+            AvoidPt = null;
         }
     }
 }

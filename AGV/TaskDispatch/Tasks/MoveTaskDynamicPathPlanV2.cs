@@ -66,7 +66,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
-                Agv.NavigationState.StateReset();
+                if (Stage != VehicleMovementStage.AvoidPath)
+                    Agv.NavigationState.StateReset();
                 Stopwatch pathConflicStopWatch = new Stopwatch();
                 pathConflicStopWatch.Start();
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
@@ -109,30 +110,31 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 };
                                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                                 UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
-                                await trafficAvoidTask.SendTaskToAGV();
-
                                 Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
+                                await trafficAvoidTask.SendTaskToAGV();
                                 pathConflicStopWatch.Stop();
                                 pathConflicStopWatch.Reset();
-                                searchStartPt = Agv.currentMapPoint;
 
-                                Agv.NavigationState.ResetNavigationPoints();
-                                Agv.NavigationState.StateReset();
                                 Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;
                                 var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
 
                                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                                trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
+                                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+                                UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
                                 await Task.Delay(1000);
                                 while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
                                 {
                                     await Task.Delay(10);
                                     if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                                         break;
-                                    trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
+                                    UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
                                 }
-                                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+
+
+                                Agv.NavigationState.ResetNavigationPoints();
                                 Agv.NavigationState.StateReset();
+                                searchStartPt = Agv.currentMapPoint;
+
                                 bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
                                 {
                                     optimizePathToDestine = null;
@@ -143,7 +145,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     catch (Exception)
                                     {
                                     }
-                                    return optimizePathToDestine != null;
+                                    return optimizePathToDestine != null && !Agv.AGVRotaionGeometry.IsIntersectionTo(_avoidToAgv.AGVRealTimeGeometery);
 
                                 }
                                 await Task.Delay(1000);
