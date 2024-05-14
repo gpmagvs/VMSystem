@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using VMSystem;
@@ -18,12 +19,19 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = null);
-builder.Services.AddHostedService<DatabaseBackgroundService>();
-builder.Services.AddHostedService<VehicleStateService>();
-
-builder.Services.AddScoped<VehicleOnlineRequestByAGVService>();
-builder.Services.AddScoped<VehicleOnlineBySystemService>();
-
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+builder.Services.AddWebSockets(options =>
+{
+    options.KeepAliveInterval = TimeSpan.FromSeconds(600);
+});
 builder.Services.Configure<JsonOptions>(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;
@@ -36,6 +44,11 @@ builder.Services.AddDbContext<AGVSDbContext>(options =>
 {
     options.UseSqlServer(DBConnection);
 });
+builder.Services.AddHostedService<DatabaseBackgroundService>();
+builder.Services.AddHostedService<VehicleStateService>();
+builder.Services.AddScoped<VehicleOnlineRequestByAGVService>();
+builder.Services.AddScoped<VehicleOnlineBySystemService>();
+
 
 var app = builder.Build();
 
@@ -58,9 +71,11 @@ catch (Exception ex)
 
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseRouting();
+app.UseCors(c => c.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 app.UseWebSockets();
-app.UseCors(c => c.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
+app.UseHttpsRedirection();
 app.UseAuthorization();
+app.UseAuthentication();
 app.MapControllers();
-
 app.Run();
