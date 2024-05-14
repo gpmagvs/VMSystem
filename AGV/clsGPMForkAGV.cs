@@ -440,7 +440,7 @@ namespace VMSystem.AGV
 
         public async Task<bool> PingServer()
         {
-            Ping pingSender = new Ping();
+            using Ping pingSender = new Ping();
             // 設定要 ping 的主機或 IP
             string address = options.HostIP;
             try
@@ -469,6 +469,7 @@ namespace VMSystem.AGV
                 while (true)
                 {
                     pingSuccess = await PingServer();
+                    await Task.Delay(1000);
                 }
             });
         }
