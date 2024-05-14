@@ -18,8 +18,8 @@ namespace VMSystem.Dispatch
             { ACTION_TYPE.Carry , 1000 },
             { ACTION_TYPE.Unload , 900 },
             { ACTION_TYPE.Load, 800 },
-            { ACTION_TYPE.Charge, 500 },
-            { ACTION_TYPE.None, 400 },
+            { ACTION_TYPE.None, 500 },
+            { ACTION_TYPE.Charge, 400 },
         };
         private IEnumerable<IAGV> WaitingConflicReleaseVehicles
         {
@@ -102,14 +102,20 @@ namespace VMSystem.Dispatch
 
             if (orderAction == ACTION_TYPE.Carry || orderAction == ACTION_TYPE.Load || orderAction == ACTION_TYPE.Unload)
             {
-
-                int workStationTag = 0;
-                if (orderAction == ACTION_TYPE.Load || orderAction == ACTION_TYPE.Unload || (orderAction == ACTION_TYPE.Carry && runningTask.NextAction == ACTION_TYPE.Load))
+                if (orderAction != ACTION_TYPE.Carry)
+                {
+                    int workStationTag = 0;
                     workStationTag = orderInfo.To_Station_Tag;
+                    MapPoint workStationPt = StaMap.GetPointByTagNumber(workStationTag);
+                    weights = weights * workStationPt.PriorityOfTask;
+                }
                 else
-                    workStationTag = orderInfo.From_Station_Tag;
-                MapPoint workStationPt = StaMap.GetPointByTagNumber(workStationTag);
-                weights = weights * workStationPt.PriorityOfTask;
+                {
+                    MapPoint sourcePt = StaMap.GetPointByTagNumber(orderInfo.From_Station_Tag);
+                    MapPoint destinePt = StaMap.GetPointByTagNumber(orderInfo.To_Station_Tag);
+                    weights = weights * sourcePt.PriorityOfTask * destinePt.PriorityOfTask;
+
+                }
             }
 
             return weights;
@@ -172,8 +178,9 @@ namespace VMSystem.Dispatch
                     {
                         var hpv = _HightPriorityVehicle;
                         pathes = pathes.Where(path => path != null)
+                                       .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
                                        .OrderBy(path => path.Last().CalculateDistance(Vehicle.currentMapPoint))
-                                       .Where(path => !path.IsRemainPathConflicWithOtherAGVBody(Vehicle, out var c)).ToList();
+                                       .Where(path => !path.IsPathConflicWithOtherAGVBody(Vehicle, out var c)).ToList();
                         pathToStopPoint = pathes.FirstOrDefault();
                         if (pathToStopPoint == null)
                             throw new Exception();

@@ -132,7 +132,7 @@ namespace VMSystem.Dispatch
                         path = subGoalResults.First(path => path != null).ToList();
                     if (path != null)
                     {
-                        bool willConflicMaybe = otherAGV.Any(_vehicle => _vehicle.AGVRotaionGeometry.IsIntersectionTo(path.Last().GetCircleArea(ref vehicle, 1.1)));
+                        bool willConflicMaybe = otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(path.Last().GetCircleArea(ref vehicle, 1.1)));
 
                         return willConflicMaybe ? null : path;
 
