@@ -110,22 +110,28 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                                 UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
                                 await trafficAvoidTask.SendTaskToAGV();
+
+                                Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
                                 pathConflicStopWatch.Stop();
                                 pathConflicStopWatch.Reset();
                                 searchStartPt = Agv.currentMapPoint;
+
                                 Agv.NavigationState.ResetNavigationPoints();
                                 Agv.NavigationState.StateReset();
                                 Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;
-                                await Task.Delay(100);
                                 var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
+
+                                await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                                trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
+                                await Task.Delay(1000);
                                 while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
                                 {
                                     await Task.Delay(10);
                                     if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                                         break;
-                                    UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass My Path...");
+                                    trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
                                 }
-
+                                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
                                 Agv.NavigationState.StateReset();
                                 bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
                                 {
@@ -555,14 +561,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (refOrderInfo.Action == ACTION_TYPE.None)
                 {
-                    if (!nextStopPoint.IsNarrowPath || executeAGV.NavigationState.State == VehicleNavigationState.NAV_STATE.AVOIDING_PATH)
+                    var fintailStopPt = StaMap.GetPointByTagNumber(finalStopPoint.TagNumber).Clone();
+                    if (!nextStopPoint.IsNarrowPath || stage == VehicleMovementStage.AvoidPath)
                     {
-                        if (executeAGV.NavigationState.State == VehicleNavigationState.NAV_STATE.AVOIDING_PATH)
+                        if (stage == VehicleMovementStage.AvoidPath)
                         {
-                            return new List<MapPoint>() { path.Last(), path.Reverse().Skip(1).First() }.FinalForwardAngle();
+                            return fintailStopPt.Direction_Avoid;
                         }
                         else
-                            return StaMap.GetPointByTagNumber(finalStopPoint.TagNumber).Direction;
+                            return fintailStopPt.Direction;
                     }
                     return _narrowPathDirection(nextStopPoint);
                 }

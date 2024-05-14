@@ -163,9 +163,10 @@ namespace VMSystem.TrafficControl
             output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLengthExpanded).Where(p => !double.IsNaN(p.Theta)).ToList());
             output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLengthExpanded, vLengthExpanded));
 
-            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && Vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+            bool _isAvoidPath = Vehicle.CurrentRunningTask().Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.AvoidPath;
+            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath)
             {
-                MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() || State == NAV_STATE.AVOIDING_PATH ?
+                MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
                                                    Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength) : Tools.CreateSquare(endPoint, vLengthExpanded);
                 finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
                 output.Add(finalStopRectangle);
@@ -202,7 +203,7 @@ namespace VMSystem.TrafficControl
             bool IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation()
             {
                 var _runningTask = Vehicle.CurrentRunningTask();
-                if (_runningTask.OrderData==null|| _runningTask.OrderData.Action != ACTION_TYPE.Charge || _runningTask.ActionType != ACTION_TYPE.None)
+                if (_runningTask.OrderData == null || _runningTask.OrderData.Action != ACTION_TYPE.Charge || _runningTask.ActionType != ACTION_TYPE.None)
                     return false;
 
                 MapPoint ChargeStationPoint = StaMap.GetPointByTagNumber(_runningTask.OrderData.To_Station_Tag);
@@ -248,6 +249,7 @@ namespace VMSystem.TrafficControl
         public MapPoint AvoidPt { get; internal set; }
         public bool IsAvoidRaising { get; internal set; } = false;
         public IAGV AvoidToVehicle { get; internal set; }
+        public MoveTaskDynamicPathPlanV2 CurrentAvoidMoveTask { get; internal set; }
 
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {

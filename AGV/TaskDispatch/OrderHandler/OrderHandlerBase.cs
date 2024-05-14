@@ -21,7 +21,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public Queue<TaskBase> SequenceTaskQueue { get; set; } = new Queue<TaskBase>();
         public Stack<TaskBase> CompleteTaskStack { get; set; } = new Stack<TaskBase>();
         public clsTaskDto OrderData { get; internal set; } = new clsTaskDto();
-        public TaskBase RunningTask { get; private set; } = new MoveToDestineTask();
+        public TaskBase RunningTask { get; internal set; } = new MoveToDestineTask();
         private ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
 
