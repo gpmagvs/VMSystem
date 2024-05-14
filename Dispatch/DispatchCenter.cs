@@ -251,8 +251,9 @@ namespace VMSystem.Dispatch
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
-            var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
-            constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
+            //var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
+            constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));
+            //constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber).ToList();
             return constrains;
