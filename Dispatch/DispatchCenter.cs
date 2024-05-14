@@ -63,6 +63,7 @@ namespace VMSystem.Dispatch
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
         {
 
+
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
@@ -78,20 +79,25 @@ namespace VMSystem.Dispatch
                 optimizePath_Init = optimizePath_Init_No_constrain;
             }
 
-
+            Dictionary<MapPoint, bool> wayStates = optimizePath_Init.ToDictionary(pt => pt, pt => pt.IsSingleWay());
             IEnumerable<MapPoint> optimizePathFound = null;
             MapRegion vehicleCurrentRegion = vehicle.currentMapPoint.GetRegion(CurrentMap);
             MapRegion finalPointRegion = finalMapPoint.GetRegion(CurrentMap);
 
-            bool _isInNarrowRegion = vehicleCurrentRegion.IsNarrowPath;
+            var outPtOfSingleWay = optimizePath_Init.GetOutPointOfPathWithSingleWay();
 
+            bool _isInNarrowRegion = vehicleCurrentRegion.IsNarrowPath;
             vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optimizePath_Init);
             var usableSubGoals = optimizePath_Init.Skip(0).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= (_isInNarrowRegion ? 2.5 : 2.5))
                                                           .Where(pt => !pt.IsVirtualPoint && !GetConstrains(vehicle, otherAGV, finalMapPoint).GetTagCollection().Contains(pt.TagNumber))
                                                           .Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 1.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
                                                           .ToList();
-
+            if (outPtOfSingleWay != null)
+            {
+                usableSubGoals.Add(outPtOfSingleWay);
+                usableSubGoals = usableSubGoals.DistinctBy(pt => pt.TagNumber).OrderBy(pt => pt.CalculateDistance(vehicle.currentMapPoint)).ToList();
+            }
             bool _isAnyVehicleInWorkStationOfNarrowRegion(MapRegion refRegion)
             {
                 if (!refRegion.IsNarrowPath)
@@ -119,10 +125,20 @@ namespace VMSystem.Dispatch
             {
                 try
                 {
+                    var path = new List<MapPoint>();
                     if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
-                        return subGoalResults.Last(path => path != null).ToList();
+                        path = subGoalResults.Last(path => path != null).ToList();
                     else
-                        return subGoalResults.First(path => path != null).ToList();
+                        path = subGoalResults.First(path => path != null).ToList();
+                    if (path != null)
+                    {
+                        bool willConflicMaybe = otherAGV.Any(_vehicle => _vehicle.AGVRotaionGeometry.IsIntersectionTo(path.Last().GetCircleArea(ref vehicle, 1.1)));
+
+                        return willConflicMaybe ? null : path;
+
+
+                    }
+                    return path;
                 }
                 catch (Exception ex)
                 {

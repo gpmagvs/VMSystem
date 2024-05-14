@@ -279,7 +279,7 @@ namespace VMSystem.TrafficControl
 
             bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;
             bool isInChargeStation = AGV.currentMapPoint.IsCharge;
-            var length = AGV.options.VehicleLength / 100.0 + (isInWorkStation && !isInChargeStation ? 0.15 : 0);
+            var length = AGV.options.VehicleLength / 100.0;
             var width = AGV.options.VehicleWidth / 100.0;
 
             MapRectangle _rectangle = CreateRectangle(AGV.states.Coordination.X, AGV.states.Coordination.Y, AGV.states.Coordination.Theta, width, length);

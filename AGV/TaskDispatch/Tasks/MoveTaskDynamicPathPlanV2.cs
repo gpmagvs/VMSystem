@@ -119,9 +119,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
 
                                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                                Agv.NavigationState.ResetNavigationPoints();
                                 Agv.taskDispatchModule.OrderHandler.RunningTask = this;
                                 UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
                                 await Task.Delay(1000);
+                                Stopwatch sw = Stopwatch.StartNew();
+                                while (_avoidToAgv.main_state == clsEnums.MAIN_STATUS.IDLE)
+                                {
+                                    if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
+                                        break;
+                                    UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path..{sw.Elapsed.ToString()}");
+                                    await Task.Delay(1000);
+                                }
                                 while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
                                 {
                                     await Task.Delay(10);
@@ -138,6 +147,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
                                 {
                                     optimizePathToDestine = null;
+
                                     try
                                     {
                                         optimizePathToDestine = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint.Clone(), finalMapPoint, DispatchCenter.GetConstrains(Agv, OtherAGV, finalMapPoint)).ToList();

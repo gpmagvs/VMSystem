@@ -13,6 +13,14 @@ namespace VMSystem.Dispatch
     public class DeadLockMonitor
     {
 
+        public static Dictionary<ACTION_TYPE, int> OrderActionWeightsMap = new Dictionary<ACTION_TYPE, int>
+        {
+            { ACTION_TYPE.Carry , 1000 },
+            { ACTION_TYPE.Unload , 900 },
+            { ACTION_TYPE.Load, 800 },
+            { ACTION_TYPE.Charge, 500 },
+            { ACTION_TYPE.None, 400 },
+        };
         private IEnumerable<IAGV> WaitingConflicReleaseVehicles
         {
             get
@@ -74,28 +82,36 @@ namespace VMSystem.Dispatch
             //var ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
             return (ordered.First(), ordered.Last());
         }
-
         private int CalculateWeights(IAGV vehicle)
         {
-            int weights = 1;
             var currentOrderHandler = vehicle.CurrentOrderHandler();
             var runningTask = currentOrderHandler.RunningTask;
             var runningStage = runningTask.Stage;
             var orderInfo = currentOrderHandler.OrderData;
             var orderAction = orderInfo.Action;
 
+            int weights = OrderActionWeightsMap[orderAction];
+
             if (orderAction == ACTION_TYPE.Carry)
             {
-                weights = weights * 100;
-
                 if (runningStage == VehicleMovementStage.Traveling_To_Source)
-                {
                     weights += 50;
-                }
                 else
                     weights += 40;
-
             }
+
+            if (orderAction == ACTION_TYPE.Carry || orderAction == ACTION_TYPE.Load || orderAction == ACTION_TYPE.Unload)
+            {
+
+                int workStationTag = 0;
+                if (orderAction == ACTION_TYPE.Load || orderAction == ACTION_TYPE.Unload || (orderAction == ACTION_TYPE.Carry && runningTask.NextAction == ACTION_TYPE.Load))
+                    workStationTag = orderInfo.To_Station_Tag;
+                else
+                    workStationTag = orderInfo.From_Station_Tag;
+                MapPoint workStationPt = StaMap.GetPointByTagNumber(workStationTag);
+                weights = weights * workStationPt.PriorityOfTask;
+            }
+
             return weights;
         }
 
@@ -125,72 +141,6 @@ namespace VMSystem.Dispatch
                 Vehicle.NavigationState.IsConflicSolving = false;
                 Vehicle.NavigationState.IsWaitingConflicSolve = false;
                 Vehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
-
-
-
-                return;
-
-
-                //await Vehicle.CurrentRunningTask().SendCancelRequestToAGV();
-                //while (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN)
-                //{
-                //    if (Vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE || Vehicle.CurrentRunningTask().IsTaskCanceled)
-                //        return;
-                //    await Task.Delay(20);
-                //}
-                //await StaMap.UnRegistPointsOfAGVRegisted(_HightPriorityVehicle);
-                //StaMap.RegistPoint(Vehicle.Name, pathToStopPoint, out string msg);
-                //await Vehicle.CurrentRunningTask().SendTaskToAGV(new AGVSystemCommonNet6.AGVDispatch.Messages.clsTaskDownloadData
-                //{
-                //    Action_Type = AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None,
-                //    Destination = StopMapPoint.TagNumber,
-                //    Task_Name = "TAF",
-                //    Task_Sequence = 0,
-                //    Trajectory = PathFinder.GetTrajectory(StaMap.Map.Name, pathToStopPoint.ToList())
-                //});
-
-                //Vehicle.NavigationState.UpdateNavigationPoints(pathToStopPoint);
-                //while (Vehicle.main_state != clsEnums.MAIN_STATUS.RUN)
-                //{
-                //    if (Vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE || Vehicle.CurrentRunningTask().IsTaskCanceled)
-                //        return;
-                //    await Task.Delay(200);
-                //}
-                //while (Vehicle.main_state == clsEnums.MAIN_STATUS.RUN || Vehicle.currentMapPoint.TagNumber != StopMapPoint.TagNumber)
-                //{
-                //    if (Vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE || Vehicle.CurrentRunningTask().IsTaskCanceled)
-                //        return;
-                //    await Task.Delay(220);
-                //}
-
-                //Vehicle.NavigationState.ResetNavigationPoints();
-                //await StaMap.UnRegistPointsOfAGVRegisted(Vehicle);
-                //await Task.Delay(200);
-                //await _HightPriorityVehicle.CurrentRunningTask().SendCancelRequestToAGV();
-
-
-                //while (_HightPriorityVehicle.main_state == clsEnums.MAIN_STATUS.RUN)
-                //{
-                //    if (_HightPriorityVehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE || _HightPriorityVehicle.CurrentRunningTask().IsTaskCanceled)
-                //        return;
-                //    await Task.Delay(20);
-                //}
-
-
-                //_HightPriorityVehicle.NavigationState.IsConflicSolving = false;
-
-                //while (_HightPriorityVehicle.main_state != clsEnums.MAIN_STATUS.RUN)
-                //{
-                //    Vehicle.NavigationState.ResetNavigationPoints();
-                //    if (Vehicle.online_state == clsEnums.ONLINE_STATE.OFFLINE || Vehicle.CurrentRunningTask().IsTaskCanceled)
-                //        return;
-                //    await Task.Delay(200);
-                //    (Vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"Wait {_HightPriorityVehicle.Name} Start Move");
-
-                //}
-
-                //await Task.Delay(200);
-                //Vehicle.NavigationState.IsConflicSolving = false;
             }
 
             private MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
