@@ -34,6 +34,7 @@ using static VMSystem.AGV.TaskDispatch.IAGVTaskDispather;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using static AGVSystemCommonNet6.clsEnums;
+using AGVSystemCommonNet6.Notify;
 
 namespace VMSystem.AGV
 {
@@ -476,12 +477,14 @@ namespace VMSystem.AGV
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
+            NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
         private void OrderHandler_OnTaskCanceled(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnTaskCanceled -= OrderHandler_OnTaskCanceled;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
+            NotifyServiceHelper.INFO($"任務-{e.OrderData.TaskName} 已取消.");
         }
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)
