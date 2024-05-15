@@ -74,7 +74,7 @@ app.UseSwaggerUI();
 app.UseRouting();
 app.UseCors(c => c.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 app.UseWebSockets();
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseAuthorization();
 app.UseAuthentication();
 app.MapControllers();
