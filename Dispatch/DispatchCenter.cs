@@ -126,10 +126,19 @@ namespace VMSystem.Dispatch
                 try
                 {
                     var path = new List<MapPoint>();
-                    if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
-                        path = subGoalResults.Last(path => path != null).ToList();
+
+                    var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path.Last().TagNumber == finalMapPoint.TagNumber);
+
+                    if (_noConflicPathToDestine != null)
+                        path = _noConflicPathToDestine.ToList();
                     else
-                        path = subGoalResults.First(path => path != null).ToList();
+                    {
+                        if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
+                            path = subGoalResults.Last(path => path != null).ToList();
+                        else
+                            path = subGoalResults.First(path => path != null).ToList();
+                    }
+
                     if (path != null)
                     {
                         bool willConflicMaybe = otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(path.Last().GetCircleArea(ref vehicle, 1.1)));

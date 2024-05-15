@@ -188,7 +188,6 @@ namespace VMSystem.VMS
         private static async Task TaskDatabaseChangeWorker()
         {
             await Task.Delay(100);
-            var database = new AGVSDatabase();
             while (true)
             {
                 await tasksLock.WaitAsync();
@@ -199,6 +198,7 @@ namespace VMSystem.VMS
                     {
                         if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
                             continue;
+                        using var database = new AGVSDatabase();
                         var entity = database.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
                         if (entity != null)
                         {
@@ -218,7 +218,6 @@ namespace VMSystem.VMS
                 catch (Exception ex)
                 {
                     await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
-                    throw ex;
                 }
                 finally
                 {

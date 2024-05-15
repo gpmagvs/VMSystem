@@ -78,8 +78,12 @@ namespace VMSystem.Dispatch
 
         private (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
-            var ordered = DeadLockVehicles.OrderBy(vehicle => CalculateWeights(vehicle));
-            //var ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
+            Dictionary<IAGV, int> orderedByWeight = DeadLockVehicles.ToDictionary(v => v, v => CalculateWeights(v));
+            IEnumerable<IAGV> ordered = new List<IAGV>();
+            if (orderedByWeight.First().Value == orderedByWeight.Last().Value) //權重相同,先等待者為高優先權車輛
+                ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
+            else
+                ordered = orderedByWeight.OrderBy(kp => kp.Value).Select(kp => kp.Key);
             return (ordered.First(), ordered.Last());
         }
         private int CalculateWeights(IAGV vehicle)
