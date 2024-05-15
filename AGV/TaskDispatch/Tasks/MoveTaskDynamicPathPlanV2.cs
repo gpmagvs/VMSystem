@@ -135,7 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (trajectory.Length == 0)
                         {
-
+                            searchStartPt = Agv.currentMapPoint;
                             continue;
                         }
 

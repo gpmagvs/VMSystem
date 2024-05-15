@@ -99,22 +99,22 @@ namespace VMSystem.TrafficControl
         {
             await _leaveWorkStaitonReqSemaphore.WaitAsync();
 
-            Task _CycleStopOtherVehicle = null;
+            Task _CycleStopTaskOfOtherVehicle = null;
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
             try
             {
-                var goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
+                var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool _isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles);
                 if (_isNeedWait)
                 {
 
                     if (isInterference && conflicVehicles.Any())//干涉
                     {
-                        bool _isOtherConflicVehicleFar = conflicVehicles.All(v => goalPoint.CalculateDistance(v.states.Coordination) >= 3.0);
+                        bool _isOtherConflicVehicleFar = conflicVehicles.All(_vehicle => IsCycleStopAllow(_vehicle, entryPointOfWorkStation));
                         if (_isOtherConflicVehicleFar)
                         {
 
-                            _CycleStopOtherVehicle = new Task(async () =>
+                            _CycleStopTaskOfOtherVehicle = new Task(async () =>
                             {
                                 foreach (var conflic_vehicle in conflicVehicles)
                                 {
@@ -141,10 +141,10 @@ namespace VMSystem.TrafficControl
                 {
 
                     var radius = args.Agv.AGVRotaionGeometry.RotationRadius;
-                    var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(goalPoint) <= radius);
+                    var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(entryPointOfWorkStation) <= radius);
                     List<MapPoint> _navingPointsForbid = new List<MapPoint>();
-                    _navingPointsForbid.AddRange(new List<MapPoint> { args.Agv.currentMapPoint, goalPoint });
-                    _navingPointsForbid.AddRange(forbidPoints.SelectMany(pt => new List<MapPoint>() { goalPoint, pt }));
+                    _navingPointsForbid.AddRange(new List<MapPoint> { args.Agv.currentMapPoint, entryPointOfWorkStation });
+                    _navingPointsForbid.AddRange(forbidPoints.SelectMany(pt => new List<MapPoint>() { entryPointOfWorkStation, pt }));
                     _navingPointsForbid = _navingPointsForbid.Distinct().ToList();
                     args.Agv.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
@@ -155,9 +155,9 @@ namespace VMSystem.TrafficControl
                     args.Agv.NavigationState.ResetNavigationPoints();
                     await Task.Delay(200);
                 }
-                else if (_CycleStopOtherVehicle != null)
+                else if (_CycleStopTaskOfOtherVehicle != null)
                 {
-                    _CycleStopOtherVehicle.Start();
+                    _CycleStopTaskOfOtherVehicle.Start();
                 }
 
                 return args;
@@ -213,7 +213,25 @@ namespace VMSystem.TrafficControl
 
                 return result.RegisterAGVName != AgvName;
             }
+            bool IsCycleStopAllow(IAGV vehicle, MapPoint _entryPointOfWorkStation)
+            {
+                //判斷未經過進入點
+                var pathRemain = vehicle.NavigationState.NextNavigtionPoints.DistinctBy(pt => pt.TagNumber).ToList();
 
+                bool isAlreadyPassEntryPt = pathRemain.Skip(1).All(pt => pt.TagNumber != _entryPointOfWorkStation.TagNumber);
+
+                if (isAlreadyPassEntryPt)
+                    return false;
+
+                bool IsDistanceFarwayEntryPoint = _entryPointOfWorkStation.CalculateDistance(vehicle.states.Coordination) >= 3.0;
+                int indexOfPtOfCurrent = pathRemain.FindIndex(pt => pt.TagNumber == vehicle.currentMapPoint.TagNumber); //當前點的index 0.1.2.3
+                int indexofCycleStopPoint = indexOfPtOfCurrent + 1;
+                if (indexofCycleStopPoint == pathRemain.Count)
+                    return false;
+                var cycleStopPoint = pathRemain[indexofCycleStopPoint];
+                double distanceToEntryPointOfCycleStopPt = cycleStopPoint.CalculateDistance(_entryPointOfWorkStation);
+                return IsDistanceFarwayEntryPoint && distanceToEntryPointOfCycleStopPt > 2.0;
+            }
             bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles)
             {
                 isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
