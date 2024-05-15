@@ -46,6 +46,7 @@ namespace VMSystem.BackgroundServices
                             BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1,
                             OnlineStatus = agv.online_state,
                             MainStatus = agv.states.AGV_Status,
+                            CargoStatus = agv.states.Cargo_Status,
                             CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
                             CurrentLocation = agv.states.Last_Visited_Node.ToString(),
                             Theta = agv.states.Coordination.Theta,
@@ -110,7 +111,7 @@ namespace VMSystem.BackgroundServices
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message+ex.StackTrace);
+                    Console.WriteLine(ex.Message + ex.StackTrace);
                 }
             }
         }
