@@ -158,8 +158,13 @@ namespace VMSystem.Dispatch
                 pathToStopPoint = new List<MapPoint>();
                 //HPV=> High Priority Vehicle
                 MoveTaskDynamicPathPlanV2 currentTaskOfHPV = _HightPriorityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
+                MoveTaskDynamicPathPlanV2 currentTaskOfLPV = (Vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
+
                 var orderOfHPV = currentTaskOfHPV.OrderData;
+                var orderOfLPV = currentTaskOfLPV.OrderData;
                 MapPoint finalPtOfHPV = currentTaskOfHPV.finalMapPoint;
+                MapPoint finalPtOfLPV = currentTaskOfLPV.finalMapPoint;
+
                 MapPoint pointOfHPV = currentTaskOfHPV.AGVCurrentMapPoint;
                 List<MapPoint> cannotStopPoints = new List<MapPoint>();
 
@@ -183,7 +188,7 @@ namespace VMSystem.Dispatch
                         var hpv = _HightPriorityVehicle;
                         pathes = pathes.Where(path => path != null)
                                        .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
-                                       .OrderBy(path => path.Last().CalculateDistance(Vehicle.currentMapPoint))
+                                       .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
                                        .Where(path => !path.IsPathConflicWithOtherAGVBody(Vehicle, out var c)).ToList();
                         pathToStopPoint = pathes.FirstOrDefault();
                         if (pathToStopPoint == null)

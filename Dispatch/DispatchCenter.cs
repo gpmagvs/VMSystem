@@ -62,8 +62,6 @@ namespace VMSystem.Dispatch
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
         {
-
-
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
@@ -123,13 +121,15 @@ namespace VMSystem.Dispatch
 
             if (subGoalResults.Any() && !subGoalResults.All(path => path == null))
             {
+
                 try
                 {
+
                     var path = new List<MapPoint>();
 
-                    var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path.Last().TagNumber == finalMapPoint.TagNumber);
+                    var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
 
-                    if (_noConflicPathToDestine != null)
+                    if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
                         path = _noConflicPathToDestine.ToList();
                     else
                     {
@@ -141,13 +141,18 @@ namespace VMSystem.Dispatch
 
                     if (path != null)
                     {
-                        bool willConflicMaybe = otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(path.Last().GetCircleArea(ref vehicle, 1.1)));
-
+                        bool willConflicMaybe = _WillFinalStopPointConflicMaybe(path);
                         return willConflicMaybe ? null : path;
 
 
                     }
                     return path;
+
+
+                    bool _WillFinalStopPointConflicMaybe(IEnumerable<MapPoint> _path)
+                    {
+                        return otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -255,7 +260,7 @@ namespace VMSystem.Dispatch
                                                 .Where(pt => pt.GetCircleArea(ref MainVehicle, 0.5).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
             }
 
-
+            var disabledPoints = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable);
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
@@ -264,7 +269,7 @@ namespace VMSystem.Dispatch
             constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));
             //constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
-            constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber).ToList();
+            constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
             return constrains;
         }
         private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)

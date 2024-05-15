@@ -34,7 +34,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
+            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
         }
+
+
         public override void CreateTaskToAGV()
         {
             //base.CreateTaskToAGV();
@@ -54,6 +57,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         List<MapPoint> dynamicConstrains = new List<MapPoint>();
 
+        private async void HandlePointsChangeToDisabled(object? sender, List<MapPoint> disabledPoints)
+        {
+            await Task.Delay(1);
+            var disabledTags = disabledPoints.GetTagCollection();
+            var blockedPointInRemainPath = Agv.NavigationState.NextNavigtionPoints.Where(pt => disabledTags.Contains(pt.TagNumber)).ToList();
+            bool IsRemainPathBeDisable = blockedPointInRemainPath.Any();
+            if (!IsRemainPathBeDisable)
+                return;
+            await CycleStopRequestAsync();
+        }
         public override async Task SendTaskToAGV()
         {
             Agv.NavigationState.IsWaitingConflicSolve = false;
@@ -263,6 +276,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     await Task.Delay(1000);
                                 }
                                 _previsousTrajectorySendToAGV.Clear();
+                                searchStartPt = Agv.currentMapPoint;
                                 break;
                             }
 
@@ -329,7 +343,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 Agv.NavigationState.CurrentMapPoint = currentPt;
                 List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
-                UpdateMoveStateMessage($"當前路徑:{string.Join("->", _NavigationTags)}");
+                UpdateMoveStateMessage($"當前路徑終點:{_NavigationTags.Last()}");
             }
         }
 
