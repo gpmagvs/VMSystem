@@ -14,7 +14,7 @@ namespace VMSystem.TrafficControl
 {
     public class VehicleNavigationState
     {
-
+        public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
         public enum REGION_CONTROL_STATE
         {
             WAIT_AGV_CYCLE_STOP,
@@ -123,15 +123,17 @@ namespace VMSystem.TrafficControl
             bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidPt?.TagNumber;
             bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
             double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.2;
+            double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
-            var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
 
+            var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLengthExpanded = vLength * _GeometryExpandRatio;
+            vWidth = vWidth * _WidthExpandRatio;
 
 
             MapPoint endPoint = _nexNavPts.Last();
             var pathForCalulate = _nexNavPts.Skip(1).ToList();
-            if (pathForCalulate.Count > 1)
+            if (!isAtWorkStation && pathForCalulate.Count > 1)
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
                 bool _infrontOfChargeStation = Vehicle.currentMapPoint.TargetWorkSTationsPoints().ToList().Any(pt => pt.IsCharge);
@@ -165,7 +167,7 @@ namespace VMSystem.TrafficControl
             output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLengthExpanded, vLengthExpanded));
 
             bool _isAvoidPath = Vehicle.CurrentRunningTask().Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.AvoidPath;
-            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath)
+            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath && !isAtWorkStation)
             {
                 MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
                                                    Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength) : Tools.CreateSquare(endPoint, vLengthExpanded);
@@ -177,6 +179,7 @@ namespace VMSystem.TrafficControl
             //LOG.WARN($"停車點角度=>{output.Last().Theta}");
             return output;
 
+            #region local methods
 
             double _GetForwardAngle(MapPoint start, MapPoint end)
             {
@@ -211,6 +214,8 @@ namespace VMSystem.TrafficControl
                 var tagsOfStationEntry = ChargeStationPoint.TargetNormalPoints().Select(pt => pt.TagNumber).ToList();
                 return tagsOfStationEntry.Any() && tagsOfStationEntry.Contains(_nexNavPts.Last().TagNumber);
             }
+
+            #endregion
         }
 
         private double _FinalTheta = 0;
@@ -240,7 +245,10 @@ namespace VMSystem.TrafficControl
                 {
                     _IsWaitingConflicSolve = value;
                     if (_IsWaitingConflicSolve)
+                    {
                         StartWaitConflicSolveTime = DateTime.Now;
+                        OnAGVStartWaitConflicSolve?.Invoke(Vehicle, Vehicle);
+                    }
                     else
                         StartWaitConflicSolveTime = DateTime.MinValue;
                 }

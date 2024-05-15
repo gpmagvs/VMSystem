@@ -59,9 +59,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), result.Message);
                 await Task.Delay(1000);
-                if (IsTaskCanceled)
+                if (IsTaskCanceled || disposedValue || args.Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                 {
-                    break;
+                    throw new TaskCanceledException();
                 }
             }
             TrafficWaitingState.SetStatusNoWaiting();

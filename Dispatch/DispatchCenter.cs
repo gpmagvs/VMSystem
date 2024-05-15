@@ -1,26 +1,13 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using AGVSystemCommonNet6.AGVDispatch.Model;
-using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.GPMRosMessageNet.Services;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
-using Microsoft.AspNetCore.Localization;
-using RosSharp.RosBridgeClient.MessageTypes.Geometry;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Reflection.Metadata.Ecma335;
 using VMSystem.AGV;
-using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.AGV.TaskDispatch.Tasks;
-using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
-using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
 using static VMSystem.TrafficControl.VehicleNavigationState;
 
 namespace VMSystem.Dispatch
@@ -48,6 +35,7 @@ namespace VMSystem.Dispatch
         public static void Initialize()
         {
             TrafficDeadLockMonitor.StartAsync();
+            VehicleNavigationState.OnAGVStartWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleStartWaitConflicSolve;
         }
 
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
@@ -86,7 +74,7 @@ namespace VMSystem.Dispatch
 
             bool _isInNarrowRegion = vehicleCurrentRegion.IsNarrowPath;
             vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optimizePath_Init);
-            var usableSubGoals = optimizePath_Init.Skip(0).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= (_isInNarrowRegion ? 2.5 : 2.5))
+            var usableSubGoals = optimizePath_Init.Skip(0).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 1.5)
                                                           .Where(pt => !pt.IsVirtualPoint && !GetConstrains(vehicle, otherAGV, finalMapPoint).GetTagCollection().Contains(pt.TagNumber))
                                                           .Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 1.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
@@ -130,7 +118,28 @@ namespace VMSystem.Dispatch
                     var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
 
                     if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
-                        path = _noConflicPathToDestine.ToList();
+                    {
+                        int pathLength = _noConflicPathToDestine.Count();
+                        if (pathLength > 2)
+                        {
+                            var ptToTempStop = _noConflicPathToDestine.Skip(1).LastOrDefault(pt => pt.TagNumber != finalMapPoint.TagNumber && !pt.IsVirtualPoint);
+                            if (ptToTempStop != null)
+                            {
+                                var takeLen = _noConflicPathToDestine.ToList().IndexOf(ptToTempStop) + 1; //0 1 2
+                                path = _noConflicPathToDestine.Take(takeLen).ToList(); //先移動到終點前一點(非虛擬點)
+                            }
+                            else
+                            {
+                                path = _noConflicPathToDestine.ToList();
+                            }
+                        }
+                        else
+                        {
+                            path = _noConflicPathToDestine.ToList();
+                        }
+
+
+                    }
                     else
                     {
                         if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
