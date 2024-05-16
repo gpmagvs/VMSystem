@@ -1,39 +1,24 @@
-﻿using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpTools;
-using AGVSystemCommonNet6.MAP;
-using System.Collections.Generic;
-using System.Diagnostics;
-using static AGVSystemCommonNet6.AGVDispatch.clsTaskDto;
-using static VMSystem.TrafficControl.TrafficControlCenter;
-using AGVSystemCommonNet6.AGVDispatch.Messages;
-using Newtonsoft.Json;
-using AGVSystemCommonNet6.Log;
-using AGVSystemCommonNet6.Configuration;
-using AGVSystemCommonNet6.Exceptions;
-using RosSharp.RosBridgeClient.MessageTypes.Sensor;
-using System.Threading.Tasks;
-using VMSystem.VMS;
-using Microsoft.AspNetCore.Builder.Extensions;
-using Microsoft.Win32;
-using AGVSystemCommonNet6.AGVDispatch.Model;
-using System.Timers;
-using AGVSystemCommonNet6.DATABASE.Helpers;
-using static AGVSystemCommonNet6.MAP.PathFinder;
-using VMSystem.AGV.TaskDispatch;
-using AGVSystemCommonNet6.DATABASE;
-using Microsoft.EntityFrameworkCore;
-using AGVSystemCommonNet6.AGVDispatch.RunMode;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ObjectiveC;
+﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using System.Drawing;
-using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.RunMode;
+using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.DATABASE.Helpers;
+using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Notify;
+using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
+using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
-using static VMSystem.AGV.TaskDispatch.IAGVTaskDispather;
-using VMSystem.TrafficControl.Solvers;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl.Solvers;
+using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.TaskDispatch.IAGVTaskDispather;
 
 namespace VMSystem.AGV
 {
@@ -476,12 +461,14 @@ namespace VMSystem.AGV
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
+            NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
         private void OrderHandler_OnTaskCanceled(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnTaskCanceled -= OrderHandler_OnTaskCanceled;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
+            NotifyServiceHelper.INFO($"任務-{e.OrderData.TaskName} 已取消.");
         }
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)

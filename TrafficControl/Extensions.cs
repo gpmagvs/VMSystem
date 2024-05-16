@@ -10,6 +10,8 @@ namespace VMSystem.TrafficControl
     {
         public static TaskBase CurrentRunningTask(this IAGV agv)
         {
+            if (agv == null)
+                return null;
             return agv.taskDispatchModule.OrderHandler.RunningTask;
         }
         public static OrderHandlerBase CurrentOrderHandler(this IAGV agv)

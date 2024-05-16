@@ -36,14 +36,42 @@ namespace VMSystem
         internal static event EventHandler<int> OnTagUnregisted;
         public static Dictionary<int, clsPointRegistInfo> RegistDictionary = new Dictionary<int, clsPointRegistInfo>();
         public static Dictionary<int, Dictionary<int, double>> Dict_AllPointDistance = new Dictionary<int, Dictionary<int, double>>();
+        public static event EventHandler<List<MapPoint>> OnPointsDisabled;
+
+
 
         public static void Download()
         {
+
+            var _oriPoints = Map?.Points.Values.Clone().ToList();
+
             Map = MapManager.LoadMapFromFile(false, false).Clone();
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             PathFinder.defaultMap = Map;
+            DisablePointsChangedDetecter(_oriPoints);
             Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
+
+        private static async Task DisablePointsChangedDetecter(List<MapPoint> oriPoints)
+        {
+            if (oriPoints == null)
+                return;
+            await Task.Delay(1);
+            var _newPoints = Map.Points.Values.Clone().ToList();
+
+            var oriPtEnableStatus = oriPoints.ToDictionary(pt => pt, pt => pt.Enable);
+            var newPtEnableStatus = _newPoints.ToDictionary(pt => pt, pt => pt.Enable);
+
+            var changeToDisablePoints = newPtEnableStatus.Where(pt => pt.Value == false && oriPtEnableStatus.First(_pt => _pt.Key.TagNumber == pt.Key.TagNumber).Value == true)
+                                                            .Select(pt => pt.Key); ;
+
+            if (changeToDisablePoints.Any())
+            {
+                LOG.TRACE($" Detect Tags: {string.Join(",", changeToDisablePoints.Select(pt => pt.TagNumber))} changed to DISABLE");
+                OnPointsDisabled?.Invoke("", changeToDisablePoints.ToList());
+            }
+        }
+
         internal static List<MapPoint> GetParkableStations()
         {
             if (Map == null)

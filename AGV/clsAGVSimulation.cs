@@ -196,7 +196,7 @@ namespace VMSystem.AGV
                 //轉向第一個點
                 if (moveArgs.action == ACTION_TYPE.None)
                 {
-                    TurnToNextPoint(Trajectory);
+                    await TurnToNextPoint(Trajectory);
                 }
                 if (Trajectory[0].Point_ID == runningSTatus.Last_Visited_Node)
                 {
@@ -239,7 +239,7 @@ namespace VMSystem.AGV
                         }
                         if (Trajectory.Last() != station)
                         {
-                            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle, token);
+                            await SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle, token);
                             runningSTatus.Coordination.Theta = targetAngle;
                         }
                     }
@@ -260,7 +260,7 @@ namespace VMSystem.AGV
                 }
 
                 if (action == ACTION_TYPE.None && Trajectory.Length > 0)
-                    SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
+                    await SimulationThetaChange(runningSTatus.Coordination.Theta, Trajectory.Last().Theta, token);
 
             }
             catch (Exception ex)
@@ -352,7 +352,7 @@ namespace VMSystem.AGV
         }
 
 
-        private void TurnToNextPoint(clsMapPoint[] Trajectory)
+        private async Task TurnToNextPoint(clsMapPoint[] Trajectory)
         {
             double targetAngle = 0;
             double currentAngle = runningSTatus.Coordination.Theta;
@@ -371,7 +371,7 @@ namespace VMSystem.AGV
                 targetAngle = Math.Atan2(deltaY, deltaX) * 180 / Math.PI;
 
             }
-            SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
+            await SimulationThetaChange(runningSTatus.Coordination.Theta, targetAngle);
             runningSTatus.Coordination.Theta = targetAngle;
         }
 
@@ -442,7 +442,7 @@ namespace VMSystem.AGV
             runningSTatus.Odometry += O_Distance_All;
         }
 
-        private void SimulationThetaChange(double currentAngle, double targetAngle, CancellationToken token = default)
+        private async Task SimulationThetaChange(double currentAngle, double targetAngle, CancellationToken token = default)
         {
             bool clockwise = false;
             double shortestRotationAngle = (targetAngle - currentAngle + 360) % 360;
@@ -455,9 +455,9 @@ namespace VMSystem.AGV
             //Console.WriteLine($"Start Angle: {currentAngle} degree");
             //Console.WriteLine($"Target Angle: {targetAngle} degree");
             //Console.WriteLine($"Shortest Rotation Angle: {shortestRotationAngle} degree");
-            Rotation(clockwise, shortestRotationAngle);
+            await Rotation(clockwise, shortestRotationAngle);
 
-            void Rotation(bool clockWise, double thetaToRotate)
+            async Task Rotation(bool clockWise, double thetaToRotate)
             {
 
                 double deltaTheta = parameters.RotationSpeed * parameters.SpeedUpRate / 10.0;
@@ -467,7 +467,7 @@ namespace VMSystem.AGV
                 Stopwatch _timer = Stopwatch.StartNew();
                 while (_timer.ElapsedMilliseconds <= _time_spend * 1000)
                 {
-                    Thread.Sleep(100);
+                    await Task.Delay(100);
                     if (token.IsCancellationRequested)
                         token.ThrowIfCancellationRequested();
                     if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
