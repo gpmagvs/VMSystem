@@ -2,6 +2,8 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Notify;
+using System.Diagnostics;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
@@ -130,7 +132,39 @@ namespace VMSystem.Dispatch
 
         internal async void HandleVehicleStartWaitConflicSolve(object? sender, IAGV waitingVehicle)
         {
-            //
+            var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(waitingVehicle);
+
+
+
+
+
+            //是否與停在設備中的車輛互相停等
+            bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
+            {
+                vehiclesAtWorkStation = otherVehicles.Where(v => v.CurrentRunningTask().ActionType != ACTION_TYPE.None)
+                                                         .Where(v => v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
+                                                         .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
+                return vehiclesAtWorkStation.Any();
+                //waitingVehicle.currentMapPoint.TargetNormalPoints().Where(pt => pt.TagNumber == )
+            }
+
+
+
+            if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
+            {
+                var AvoidToVehicle = vehiclesAtWorkStation.First();
+                //clsYieldPathForWorkstationVehicle _helper = new clsYieldPathForWorkstationVehicle(waitingVehicle, AvoidToVehicle);
+                //MapPoint avoidPoint = _helper.DetermineStopMapPoint(out var pathOfGoToAvoidPoint);
+                //if (avoidPoint != null)
+                //{
+                //    waitingVehicle.NavigationState.AvoidPt = avoidPoint;
+                //    waitingVehicle.NavigationState.AvoidToVehicle = AvoidToVehicle;
+
+                //    waitingVehicle.NavigationState.IsAvoidRaising = true;
+                //}
+                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 等待與在設備中的車輛({AvoidToVehicle.Name})互相等待!");
+            }
+
 
             return;
             var executingOrderVehicles = VMSManager.AllAGV.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
@@ -179,7 +213,7 @@ namespace VMSystem.Dispatch
                 return Vehicle;
             }
 
-            private MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
+            internal MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
             {
                 try
                 {
@@ -216,10 +250,13 @@ namespace VMSystem.Dispatch
                         else
                         {
                             var hpv = _HightPriorityVehicle;
+                            var lpv = Vehicle;
                             pathes = pathes.Where(path => path != null)
                                            .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
-                                           .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
-                                           .Where(path => !path.IsPathConflicWithOtherAGVBody(Vehicle, out var c)).ToList();
+                                           .Where(path => !path.Last().GetCircleArea(ref lpv, 1.5).IsIntersectionTo(hpv.AGVRotaionGeometry))
+                                           //.OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
+                                           .OrderBy(path => path.Last().CalculateDistance(lpv.currentMapPoint))
+                                           .Where(path => !path.IsPathConflicWithOtherAGVBody(lpv, out var c)).ToList();
                             pathToStopPoint = pathes.FirstOrDefault();
                             if (pathToStopPoint == null)
                                 throw new Exception();
@@ -278,5 +315,13 @@ namespace VMSystem.Dispatch
             }
 
         }
+
+        public class clsYieldPathForWorkstationVehicle : clsLowPriorityVehicleMove
+        {
+            public clsYieldPathForWorkstationVehicle(IAGV _Vehicle, IAGV HightPriorityVehicle) : base(_Vehicle, HightPriorityVehicle)
+            {
+            }
+        }
+
     }
 }

@@ -137,8 +137,11 @@ namespace VMSystem.TrafficControl
                     args.Agv.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
                 }
+                bool _isAcceptAction = args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
 
-                if (args.ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                args.Agv.NavigationState.IsWaitingForLeaveWorkStation = _isAcceptAction;
+
+                if (!_isAcceptAction)
                 {
                     args.Agv.NavigationState.ResetNavigationPoints();
                     await Task.Delay(200);

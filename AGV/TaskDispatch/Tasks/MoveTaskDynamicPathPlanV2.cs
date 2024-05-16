@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.Dispatch;
@@ -282,18 +283,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 Stage = VehicleMovementStage.AvoidPath
             };
+            var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
+            UpdateMoveStateMessage($"Before Avoid Path Check...");
+
+            Stopwatch _cancelAvoidTimer = Stopwatch.StartNew();
+            while (_cancelAvoidTimer.Elapsed.TotalSeconds < 3)
+            {
+                await Task.Delay(1);
+                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve)
+                {
+                    UpdateMoveStateMessage($"避車動作取消-因避讓車輛已有新路徑");
+                    NotifyServiceHelper.INFO($"{Agv.Name}避車動作取消-因避讓車輛已有新路徑!");
+                    await Task.Delay(500);
+                    return;
+                }
+            }
+
             Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
             Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
             trafficAvoidTask.UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
             await trafficAvoidTask.SendTaskToAGV();
-
-
             Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;
-            var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
+
 
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             Agv.NavigationState.ResetNavigationPoints();
-            UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
+            //UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path...");
             await Task.Delay(1000);
             Stopwatch sw = Stopwatch.StartNew();
             while (_avoidToAgv.main_state == clsEnums.MAIN_STATUS.IDLE)
@@ -306,15 +321,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(1000);
             }
             sw.Restart();
-            while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
-            {
-                await Task.Delay(10);
-                if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
-                    throw new TaskCanceledException();
-                if (sw.Elapsed.TotalSeconds > 5 && _avoidToAgv.NavigationState.IsWaitingConflicSolve)
-                    break;
-                trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path..{sw.Elapsed.ToString()}");
-            }
+            //while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
+            //{
+            //    await Task.Delay(10);
+            //    if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
+            //        throw new TaskCanceledException();
+            //    if (sw.Elapsed.TotalSeconds > 5 && _avoidToAgv.NavigationState.IsWaitingConflicSolve)
+            //        break;
+            //    trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path..{sw.Elapsed.ToString()}");
+            //}
 
 
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
@@ -506,7 +521,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
                 var forbidTags = executeAGV.GetForbidPassTagByAGVModel();
                 var validPoints = entryPoints.Where(points => !forbidTags.Contains(points.TagNumber));
-                return validPoints.FirstOrDefault();
+                var pt = validPoints.FirstOrDefault();
+                if (pt == null)
+                {
+
+                }
+                return pt;
 
             }
             return StaMap.GetPointByTagNumber(tagOfFinalGoal);

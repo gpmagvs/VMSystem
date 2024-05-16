@@ -259,6 +259,7 @@ namespace VMSystem.TrafficControl
         public bool IsAvoidRaising { get; internal set; } = false;
         public IAGV AvoidToVehicle { get; internal set; }
         public MoveTaskDynamicPathPlanV2 CurrentAvoidMoveTask { get; internal set; }
+        public bool IsWaitingForLeaveWorkStation { get; internal set; }
 
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {
