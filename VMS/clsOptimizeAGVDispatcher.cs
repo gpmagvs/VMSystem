@@ -28,7 +28,7 @@ namespace VMSystem.VMS
                 {
                     try
                     {
-                        await Task.Delay(100);
+                        await Task.Delay(1000);
 
                         List<string> List_TaskAGV = new List<string>();
 
@@ -112,7 +112,9 @@ namespace VMSystem.VMS
                         distance = Tools.ElevateDistanceToGoalStation(goalStation, agv);
                     }
                     catch (Exception e)
-                    { continue; }
+                    {
+                        continue;
+                    }
                     if (distance == double.MaxValue)
                         continue;
                     object[] obj = new object[2];
@@ -159,7 +161,7 @@ namespace VMSystem.VMS
             AGV_TYPE to_station_agv_model = (AGV_TYPE)dict_AGVs[_taskDto.To_Station_Tag];
             _taskDto.To_Station_AGV_Type = to_station_agv_model;
 
-            if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry)
+            if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry || _taskDto.Action == ACTION_TYPE.LoadAndPark)
                 if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
                     _taskDto.need_change_agv = false;
                 else

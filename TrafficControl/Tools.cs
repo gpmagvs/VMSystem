@@ -471,7 +471,8 @@ namespace VMSystem.TrafficControl
             Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
             AcceptAGVInfoOfEQTags.Wait();
             var v = AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
-            if ((AGV_TYPE)v != agv.model)
+            var acceptTypeOfEq = (AGV_TYPE)v;
+            if (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model)
                 return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
