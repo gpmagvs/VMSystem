@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.Notify;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.Dispatch;
+using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -65,14 +66,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             try
             {
-
                 finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
                 DestineTag = finalMapPoint.TagNumber;
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
-                MapPoint searchStartPt = Agv.currentMapPoint.Clone();
                 if (Stage != VehicleMovementStage.AvoidPath)
                     Agv.NavigationState.StateReset();
+
+                if (Stage != VehicleMovementStage.Traveling_To_Region_Wait_Point && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> regions))
+                {
+                    await RegionPathNavigation(regions);
+                }
+
+                MapPoint searchStartPt = Agv.currentMapPoint.Clone();
                 Stopwatch pathConflicStopWatch = new Stopwatch();
                 pathConflicStopWatch.Start();
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
@@ -269,6 +275,50 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        private async Task RegionPathNavigation(List<MapRegion> regions)
+        {
+            for (int i = 1; i < regions.Count; i++)
+            {
+                MapRegion? _Region = regions[i];
+
+                int tagOfWaitingForEntryRegion = _Region.EnteryTags.FirstOrDefault();
+
+                bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
+
+                MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                {
+                    Action = ACTION_TYPE.None,
+                    To_Station = NoWaitingPointSetting ? finalMapPoint.TagNumber + "" : tagOfWaitingForEntryRegion + "",
+                    TaskName = OrderData.TaskName,
+                    DesignatedAGVName = Agv.Name,
+                })
+                {
+                    Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
+                };
+                NotifyServiceHelper.INFO($"{Agv.Name}即將前往 {_Region.Name} 等待點。");
+                Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
+                await _moveToRegionWaitPointsTask.SendTaskToAGV();
+                await Task.Delay(1000);
+                while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
+                {
+                    Agv.NavigationState.ResetNavigationPoints();
+                    await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                    _moveToRegionWaitPointsTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
+                    await Task.Delay(1000);
+                }
+
+            }
+
+            Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+            #region local methods
+
+            bool IsNeedToStayAtWaitPoint(MapRegion region, out List<string> inRegionVehicles)
+            {
+                return !RegionManager.IsRegionEnterable(Agv, region, out inRegionVehicles);
+            }
+            #endregion
+        }
+
         private async Task AvoidPathProcess()
         {
             await SendCancelRequestToAGV();
@@ -352,11 +402,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        private bool IsPathPassMuiltRegions(MapPoint finalMapPoint, out List<MapRegion> regions)
+        {
+            var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, finalMapPoint, null);
+            regions = _optimizedPath.GetRegions().ToList();
+            return regions.Count > 1;
+        }
+
         private bool IsTaskAborted()
         {
             return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
-
-
         }
 
         private void Agv_OnMapPointChanged(object? sender, int e)
@@ -437,13 +492,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             /// <param name="GoalPoint"></param>
             /// <returns></returns>
             /// <exception cref="Exceptions.NotFoundAGVException"></exception>
-            public static IEnumerable<MapPoint> GetOptimizedMapPoints(MapPoint StartPoint, MapPoint GoalPoint, IEnumerable<MapPoint> constrains)
+            public static IEnumerable<MapPoint> GetOptimizedMapPoints(MapPoint StartPoint, MapPoint GoalPoint, IEnumerable<MapPoint>? constrains)
             {
                 PathFinder _pathFinder = new PathFinder();
                 clsPathInfo _pathInfo = _pathFinder.FindShortestPath(_Map, StartPoint, GoalPoint, new PathFinderOption
                 {
                     OnlyNormalPoint = true,
-                    ConstrainTags = constrains.GetTagCollection().ToList(),
+                    ConstrainTags = constrains == null ? new List<int>() : constrains.GetTagCollection().ToList(),
                     Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
                 });
 

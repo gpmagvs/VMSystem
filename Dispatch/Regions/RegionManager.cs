@@ -57,6 +57,17 @@ namespace VMSystem.Dispatch.Regions
             return nextRegion.EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag));
 
         }
+
+        internal static bool IsRegionEnterable(IAGV WannaEntryRegionVehicle, MapRegion regionQuery, out List<string> inRegionVehicles)
+        {
+            inRegionVehicles = new List<string>();
+            MapRegion _Region = StaMap.Map.Regions.FirstOrDefault(reg => reg.Name == regionQuery.Name);
+            if (_Region == null)
+                return true;
+            inRegionVehicles = _Region.InRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name).ToList();
+            var currentWillEntryRegionVehicleNames = _Region.ReserveRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name);
+            return inRegionVehicles.Count() < _Region.MaxVehicleCapacity && currentWillEntryRegionVehicleNames.Count() < _Region.MaxVehicleCapacity;
+        }
     }
 
     public static class Extensions
