@@ -14,7 +14,6 @@ namespace VMSystem.Dispatch
 {
     public static class DispatchCenter
     {
-        private static Map map => StaMap.Map;
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
         internal static event EventHandler<int> OnWorkStationStartPartsReplace;
         internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
@@ -239,15 +238,6 @@ namespace VMSystem.Dispatch
                 }
             }
         }
-        private static void GetAllPathToDestine(MapPoint startPt, MapPoint destinePt)
-        {
-            PathFinder _pf = new PathFinder();
-            _pf.FindPathes(CurrentMap, startPt, destinePt, new PathFinderOption
-            {
-                Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
-                OnlyNormalPoint = true,
-            });
-        }
         public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint)
         {
             List<MapPoint> constrains = new List<MapPoint>();
@@ -347,28 +337,6 @@ namespace VMSystem.Dispatch
         {
             DispatingVehicles.Remove(vehicle);
         }
-
-        public static async Task<List<int>> TryGetBlockedTagByEQMaintainFromAGVS()
-        {
-            try
-            {
-                var response = await AGVSystemCommonNet6.Microservices.AGVS.AGVSSerivces.TRAFFICS.GetBlockedTagsByEqMaintain();
-                if (response.confirm)
-                {
-                    return response.blockedTags;
-                }
-                else
-                {
-                    return new List<int>();
-                }
-            }
-            catch (Exception ex)
-            {
-                LOG.ERROR(ex);
-                return new List<int>();
-            }
-        }
-
 
         internal static void AddWorkStationInPartsReplacing(int workstationTag)
         {
