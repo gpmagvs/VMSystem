@@ -315,7 +315,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                     throw new TaskCanceledException();
-                if (sw.Elapsed.TotalSeconds > 5 && _avoidToAgv.NavigationState.IsWaitingConflicSolve)
+                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
                     break;
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);

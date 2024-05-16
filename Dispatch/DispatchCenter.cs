@@ -150,7 +150,7 @@ namespace VMSystem.Dispatch
 
                     if (path != null)
                     {
-                        bool willConflicMaybe = _WillFinalStopPointConflicMaybe(path);
+                        bool willConflicMaybe = _noConflicPathToDestine == null && _WillFinalStopPointConflicMaybe(path);
                         return willConflicMaybe ? null : path;
 
 
