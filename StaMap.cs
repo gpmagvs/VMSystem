@@ -297,9 +297,9 @@ namespace VMSystem
             {
                 await _unregistSemaphore.WaitAsync();
                 IAGV agv = VMSManager.GetAGVByName(Name);
-                if (agv == null)
+                if (agv == null && !IsBySystem)
                     return (false, "AGV Entity NULL");
-                var registedPointsByConflic = agv.RegistedByConflicCheck;
+                var registedPointsByConflic = agv?.RegistedByConflicCheck;
                 var mapPoint = StaMap.GetPointByTagNumber(TagNumber);
                 if (IsBySystem)
                 {
