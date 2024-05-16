@@ -281,7 +281,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 MapRegion? _Region = regions[i];
 
-                int tagOfWaitingForEntryRegion = _Region.EnteryTags.FirstOrDefault();
+                int tagOfWaitingForEntryRegion = _Region.EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag))
+                                                                   .OrderBy(pt => pt.CalculateDistance(Agv.currentMapPoint))
+                                                                   .GetTagCollection().FirstOrDefault();
 
                 bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
 
