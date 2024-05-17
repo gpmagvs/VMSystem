@@ -13,6 +13,7 @@ using System.Data;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
@@ -91,6 +92,11 @@ namespace VMSystem.TrafficControl
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
             try
             {
+                MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
+
+                LeaveWorkstationConflicDetection Detector = new LeaveWorkstationConflicDetection(goalPoint, args.Agv.states.Coordination.Theta, args.Agv);
+                clsConflicDetectResultWrapper _result = Detector.Detect();
+
                 var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool _isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles);
                 if (_isNeedWait)
