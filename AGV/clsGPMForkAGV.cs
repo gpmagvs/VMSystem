@@ -464,14 +464,11 @@ namespace VMSystem.AGV
 
         private async Task PingCheck()
         {
-            _ = Task.Run(async () =>
+            while (true)
             {
-                while (true)
-                {
-                    pingSuccess = await PingServer();
-                    await Task.Delay(1000);
-                }
-            });
+                pingSuccess = await PingServer();
+                await Task.Delay(1000);
+            }
         }
 
         private void AliveCheck()
