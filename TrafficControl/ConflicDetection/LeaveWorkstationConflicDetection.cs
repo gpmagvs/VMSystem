@@ -9,6 +9,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
     {
         public LeaveWorkstationConflicDetection(MapPoint DetectPoint, double ThetaOfPridiction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPridiction, AGVToDetect)
         {
+            AGVLengthExpandRatio = 1.2;
         }
 
         public override clsConflicDetectResultWrapper Detect()

@@ -87,22 +87,32 @@ namespace VMSystem.TrafficControl
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
             await _leaveWorkStaitonReqSemaphore.WaitAsync();
-
+            IAGV _RaiseReqAGV = args.Agv;
             Task _CycleStopTaskOfOtherVehicle = null;
-            var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(args.Agv);
+            var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
             try
             {
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
+                bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
 
-                LeaveWorkstationConflicDetection Detector = new LeaveWorkstationConflicDetection(goalPoint, args.Agv.states.Coordination.Theta, args.Agv);
-                clsConflicDetectResultWrapper _result = Detector.Detect();
-
+                clsConflicDetectResultWrapper _result = new(DETECTION_RESULT.NG, "");
+                if (isLeaveFromChargeStation)
+                {
+                    LeaveChargeStationConflicDetection _LeaveChargeDetector = new LeaveChargeStationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
+                    _result = _LeaveChargeDetector.Detect();
+                }
+                else
+                {
+                    LeaveWorkstationConflicDetection _LeaveMainEQDetector = new LeaveWorkstationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
+                    _result = _LeaveMainEQDetector.Detect();
+                }
                 var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
-                bool _isNeedWait = IsNeedWait(args.GoalTag, args.Agv, otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles);
+                bool _isNeedWait = _result.Result == DETECTION_RESULT.NG;
+                CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;
                 if (_isNeedWait)
                 {
-
-                    if (isInterference && conflicVehicles.Any())//干涉
+                    List<IAGV> conflicVehicles = _result.ConflicToAGVList;
+                    if (conflicStatus == CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH)//干涉
                     {
                         bool _isOtherConflicVehicleFar = conflicVehicles.All(_vehicle => IsCycleStopAllow(_vehicle, entryPointOfWorkStation));
                         if (_isOtherConflicVehicleFar)
@@ -120,7 +130,7 @@ namespace VMSystem.TrafficControl
                         else
                         {
                             args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                            args.Message = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
+                            args.Message = _result.Message;
                         }
                     }
                     else
@@ -128,7 +138,7 @@ namespace VMSystem.TrafficControl
                         args.WaitSignal.Reset();
                         clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                        args.Message = CreateWaitingInfoDisplayMessage(args, isTagRegisted, isTagBlocked, isInterfercenWhenRotation);
+                        args.Message = _result.Message;
                     }
                 }
                 else
@@ -193,23 +203,8 @@ namespace VMSystem.TrafficControl
                     return $"{baseMessage}-與其他車輛干涉";
                 }
             }
-            bool IsPathInterference(int goal, IEnumerable<IAGV> _otherAGVList)
-            {
-                MapPoint[] path = new MapPoint[2] { args.Agv.currentMapPoint, StaMap.GetPointByTagNumber(goal) };
-                return TrafficControl.Tools.CalculatePathInterference(path, args.Agv, _otherAGVList, true);
-            }
 
-            bool IsDestineBlocked()
-            {
-                return otherAGVList.Any(agv => agv.states.Last_Visited_Node == args.GoalTag);
-            }
-            bool IsDestineRegisted(int goal, string AgvName)
-            {
-                if (!StaMap.RegistDictionary.TryGetValue(goal, out var result))
-                    return false;
 
-                return result.RegisterAGVName != AgvName;
-            }
             bool IsCycleStopAllow(IAGV vehicle, MapPoint _entryPointOfWorkStation)
             {
                 //判斷未經過進入點
@@ -229,56 +224,56 @@ namespace VMSystem.TrafficControl
                 double distanceToEntryPointOfCycleStopPt = cycleStopPoint.CalculateDistance(_entryPointOfWorkStation);
                 return IsDistanceFarwayEntryPoint && distanceToEntryPointOfCycleStopPt > 2.0;
             }
-            bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles)
-            {
-                isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
-                var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
+            //bool IsNeedWait(int _goalTag, IAGV agv, IEnumerable<IAGV> _otherAGVList, out bool isTagRegisted, out bool isTagBlocked, out bool isInterference, out bool isInterfercenWhenRotation, out List<IAGV> conflicVehicles)
+            //{
+            //    isTagRegisted = IsDestineRegisted(_goalTag, agv.Name);
+            //    var goalPoint = StaMap.GetPointByTagNumber(_goalTag);
 
-                bool IsLeaveFromChargeStation = agv.currentMapPoint.IsCharge;
-                int indexOfGoalPoint = StaMap.GetIndexOfPoint(goalPoint);
-                MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
-                _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
+            //    bool IsLeaveFromChargeStation = agv.currentMapPoint.IsCharge;
+            //    int indexOfGoalPoint = StaMap.GetIndexOfPoint(goalPoint);
+            //    MapCircleArea _agvCircleAreaWhenReachGoal = agv.AGVRotaionGeometry.Clone();
+            //    _agvCircleAreaWhenReachGoal.SetCenter(goalPoint.X, goalPoint.Y);
 
-                conflicVehicles = new List<IAGV>();
+            //    conflicVehicles = new List<IAGV>();
 
-                //var conflicByNavigationPathAGVList = _otherAGVList.Where(_agv => _agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && _agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref _agv, 1.2).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.2))))
-                //                            .ToList();
+            //    //var conflicByNavigationPathAGVList = _otherAGVList.Where(_agv => _agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal && _agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref _agv, 1.2).IsIntersectionTo(goalPoint.GetCircleArea(ref agv, 1.2))))
+            //    //                            .ToList();
 
-                var conflicByNavigationPathAGVList = _otherAGVList.Where(veh => CalculatePathConflicOfVehicle(veh, out var _));
-                var conflicByGeometryAGVList = _otherAGVList.Where(agv => agv.AGVRealTimeGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
-                var conflicByRotationAGVList = _otherAGVList.Where(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVRealTimeGeometery));
-                conflicVehicles.AddRange(conflicByNavigationPathAGVList);
-                conflicVehicles.AddRange(conflicByGeometryAGVList);
-                conflicVehicles.AddRange(conflicByRotationAGVList);
-                conflicVehicles = conflicVehicles.DistinctBy(vehi => vehi.Name).ToList();
+            //    var conflicByNavigationPathAGVList = _otherAGVList.Where(veh => CalculatePathConflicOfVehicle(veh, out var _));
+            //    var conflicByGeometryAGVList = _otherAGVList.Where(agv => agv.AGVRealTimeGeometery.IsIntersectionTo(goalPoint.GetCircleArea(ref agv)));
+            //    var conflicByRotationAGVList = _otherAGVList.Where(agv => _agvCircleAreaWhenReachGoal.IsIntersectionTo(agv.AGVRealTimeGeometery));
+            //    conflicVehicles.AddRange(conflicByNavigationPathAGVList);
+            //    conflicVehicles.AddRange(conflicByGeometryAGVList);
+            //    conflicVehicles.AddRange(conflicByRotationAGVList);
+            //    conflicVehicles = conflicVehicles.DistinctBy(vehi => vehi.Name).ToList();
 
-                bool is_destine_conflic = conflicVehicles.Any();
-                bool IsOtherVehicleFeturePathConlic = _otherAGVList.Any(veh => CalculatePathConflicOfVehicle(veh, out var _));
+            //    bool is_destine_conflic = conflicVehicles.Any();
+            //    bool IsOtherVehicleFeturePathConlic = _otherAGVList.Any(veh => CalculatePathConflicOfVehicle(veh, out var _));
 
-                isInterference = is_destine_conflic || IsOtherVehicleFeturePathConlic || conflicByGeometryAGVList.Any();
-                isInterfercenWhenRotation = conflicByRotationAGVList.Any();
+            //    isInterference = is_destine_conflic || IsOtherVehicleFeturePathConlic || conflicByGeometryAGVList.Any();
+            //    isInterfercenWhenRotation = conflicByRotationAGVList.Any();
 
-                isTagBlocked = IsDestineBlocked();
-                if (IsLeaveFromChargeStation)
-                {
-                    IEnumerable<MapPoint> nearChargeStationEntryPoints = StaMap.Map.Points.Values.Where(pt => pt != agv.currentMapPoint && pt.IsCharge)
-                                                                                    .Where(pt => StaMap.GetPointByIndex(pt.Target.Keys.First()).Target.Keys.Contains(indexOfGoalPoint))
-                                                                                    .SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-                    bool anyNearChargeEnteryPtRegisted = nearChargeStationEntryPoints.Any(pt => StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
-                    return isTagRegisted || anyNearChargeEnteryPtRegisted || isTagBlocked;
+            //    isTagBlocked = IsDestineBlocked();
+            //    if (IsLeaveFromChargeStation)
+            //    {
+            //        IEnumerable<MapPoint> nearChargeStationEntryPoints = StaMap.Map.Points.Values.Where(pt => pt != agv.currentMapPoint && pt.IsCharge)
+            //                                                                        .Where(pt => StaMap.GetPointByIndex(pt.Target.Keys.First()).Target.Keys.Contains(indexOfGoalPoint))
+            //                                                                        .SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+            //        bool anyNearChargeEnteryPtRegisted = nearChargeStationEntryPoints.Any(pt => StaMap.RegistDictionary.ContainsKey(pt.TagNumber));
+            //        return isTagRegisted || anyNearChargeEnteryPtRegisted || isTagBlocked;
 
-                }
-                else
-                    return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
+            //    }
+            //    else
+            //        return isTagRegisted || isInterference || isTagBlocked || isInterfercenWhenRotation;
 
 
-                bool CalculatePathConflicOfVehicle(IAGV vehicle, out List<MapRectangle> conflics)
-                {
-                    conflics = vehicle.NavigationState.NextPathOccupyRegions.Where(rect => rect.IsIntersectionTo(goalPoint.GetCircleArea(ref vehicle, 1.1))).ToList();
-                    return conflics.Any();
-                }
+            //    bool CalculatePathConflicOfVehicle(IAGV vehicle, out List<MapRectangle> conflics)
+            //    {
+            //        conflics = vehicle.NavigationState.NextPathOccupyRegions.Where(rect => rect.IsIntersectionTo(goalPoint.GetCircleArea(ref vehicle, 1.1))).ToList();
+            //        return conflics.Any();
+            //    }
 
-            }
+            //}
             #endregion
         }
         private static void ClsSubTask_OnPathClosedByAGVImpactDetecting(object? sender, List<MapPoint> path_points)
