@@ -48,7 +48,7 @@ namespace VMSystem.BackgroundServices
                             OnlineStatus = agv.online_state,
                             MainStatus = agv.states.AGV_Status,
                             CargoStatus = agv.states.Cargo_Status,
-                            CargoType = (CST_TYPE)agv.states.CargoType,
+                            CargoType = agv.states.CargoType,
                             CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
                             CurrentLocation = agv.states.Last_Visited_Node.ToString(),
                             Theta = agv.states.Coordination.Theta,
