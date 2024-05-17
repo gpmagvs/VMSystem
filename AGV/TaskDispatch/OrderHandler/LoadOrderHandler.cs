@@ -28,5 +28,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
 
         }
+
     }
 }

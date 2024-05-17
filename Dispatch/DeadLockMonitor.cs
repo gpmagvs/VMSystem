@@ -238,14 +238,16 @@ namespace VMSystem.Dispatch
             {
             }
 
-            public override Task<IAGV> StartSolve()
+            public override async Task<IAGV> StartSolve()
             {
+                await Task.Delay(1000);
+                if (!_LowProrityVehicle.NavigationState.IsWaitingForLeaveWorkStation)
+                    return _LowProrityVehicle;
+
                 _HightPriorityVehicle.NavigationState.LeaveWorkStationHighPriority = true;
                 _HightPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStation = false;
-
                 NotifyServiceHelper.SUCCESS($"{_HightPriorityVehicle.Name}(優先) 與 {_LowProrityVehicle.Name} 車輛在設備內相互等待衝突已解決!");
-
-                return base.StartSolve();
+                return _HightPriorityVehicle;
             }
         }
 

@@ -144,7 +144,16 @@ namespace VMSystem.Dispatch
                         if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
                             path = subGoalResults.Last(path => path != null).ToList();
                         else
-                            path = subGoalResults.First(path => path != null).ToList();
+                        {
+                            var pathCandicates = subGoalResults.Where(_p => _p != null);
+
+                            if (pathCandicates.Count() > 1)
+                            {
+                                path = pathCandicates.ToList()[1].ToList();
+                            }
+                            else
+                                path = subGoalResults.First(path => path != null).ToList();
+                        }
                     }
 
                     if (path != null)
