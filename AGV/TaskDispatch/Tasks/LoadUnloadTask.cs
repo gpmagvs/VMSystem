@@ -1,6 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Notify;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -47,6 +49,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+            if (AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
+            {
+                int currentTag = Agv.currentMapPoint.TagNumber;
+                await StaMap.UnRegistPoint(Agv.Name, currentTag);
+                NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
+            }
             await base.SendTaskToAGV();
         }
         protected abstract int GetSlotHeight();

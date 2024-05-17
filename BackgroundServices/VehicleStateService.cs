@@ -6,6 +6,7 @@ using VMSystem.AGV;
 using AGVSystemCommonNet6.AGVDispatch;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using AGVSystemCommonNet6.AGVDispatch.Messages;
 
 namespace VMSystem.BackgroundServices
 {
@@ -47,6 +48,7 @@ namespace VMSystem.BackgroundServices
                             OnlineStatus = agv.online_state,
                             MainStatus = agv.states.AGV_Status,
                             CargoStatus = agv.states.Cargo_Status,
+                            CargoType = agv.states.CargoType,
                             CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
                             CurrentLocation = agv.states.Last_Visited_Node.ToString(),
                             Theta = agv.states.Coordination.Theta,

@@ -241,7 +241,7 @@ namespace VMSystem.AGV.TaskDispatch
                     await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(AGV.Name, TaskOrder.From_Station_Tag, TaskOrder.To_Station_Tag);
                 }
 
- 
+
 
                 SubTaskTracking = _task;
                 UpdateTransferProcess(TaskOrder.Action, SubTaskTracking.Action);

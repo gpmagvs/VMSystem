@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
 using Microsoft.VisualBasic;
 using SQLitePCL;
 using System.Diagnostics;
@@ -284,8 +285,14 @@ namespace VMSystem.TrafficControl
                     }
                     else
                     {
-                        MapPoint entryPoint = GetEntryPoint();
-                        entryPoint.Enable = true;
+                        IsWaitingForLeaveWorkStationTimeout = false;
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(1000);
+                            MapPoint entryPoint = GetEntryPoint();
+                            entryPoint.Enable = true;
+                            NotifyServiceHelper.SUCCESS($"動態鎖定點位-{entryPoint.TagNumber} 已解除.");
+                        });
                         _LeaveWorkStationWaitTimer.Reset();
                     }
                 }
@@ -302,11 +309,11 @@ namespace VMSystem.TrafficControl
             {
                 await Task.Delay(1);
 
-                if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 5)
+                if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 5 && !IsWaitingForLeaveWorkStationTimeout)
                 {
                     MapPoint entryPoint = GetEntryPoint();
                     entryPoint.Enable = false;
-
+                    NotifyServiceHelper.WARNING($"動態鎖定點位-{entryPoint.TagNumber}");
                     IsWaitingForLeaveWorkStationTimeout = true;
                     return;
                 }

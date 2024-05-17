@@ -63,6 +63,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
+            StartRecordTrjectory();
             Agv.NavigationState.IsWaitingConflicSolve = false;
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
@@ -271,6 +272,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+                EndReocrdTrajectory();
                 TrafficWaitingState.SetStatusNoWaiting();
                 DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;

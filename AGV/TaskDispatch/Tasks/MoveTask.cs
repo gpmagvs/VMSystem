@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using System.Diagnostics.Tracing;
 using System.Net;
-
+using System.Timers;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -20,7 +21,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-        
+
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
         /// <summary>
@@ -355,7 +356,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             await _ExecuteSequenceTasks(this.TaskSequenceList);
         }
 
-      
+
         private bool TryGetOtherBetterPath(clsMoveTaskEvent currentMoveEvent, out clsPathInfo newPathInfo)
         {
             var nextGoal = currentMoveEvent.AGVRequestState.NextSequenceTaskTrajectory.Last();
@@ -684,6 +685,54 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 LOG.ERROR(ex);
                 return new List<int>();
+            }
+        }
+
+        System.Timers.Timer? TrajectoryStoreTimer;
+
+        protected void StartRecordTrjectory()
+        {
+            TrajectoryStoreTimer = new System.Timers.Timer()
+            {
+                Interval = 1000
+            };
+            TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
+            TrajectoryStoreTimer.Enabled = true;
+        }
+        public void EndReocrdTrajectory()
+        {
+            TrajectoryStoreTimer?.Stop();
+            TrajectoryStoreTimer?.Dispose();
+            LOG.WARN($"{Agv.Name} End Store trajectory of Task-{OrderData.TaskName}");
+        }
+
+        /// <summary>
+        /// 儲存軌跡到資料庫
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
+        {
+            await StoreTrajectory();
+        }
+        private async Task StoreTrajectory()
+        {
+            if (IsTaskCanceled)
+            {
+                EndReocrdTrajectory();
+                return;
+            }
+            string taskID = OrderData.TaskName;
+            string agvName = Agv.Name;
+            double x = Agv.states.Coordination.X;
+            double y = Agv.states.Coordination.Y;
+            double theta = Agv.states.Coordination.Theta;
+
+            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
+            var result = await helper.StoreTrajectory(taskID, agvName, x, y, theta);
+            if (!result.success)
+            {
+                LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
             }
         }
 
