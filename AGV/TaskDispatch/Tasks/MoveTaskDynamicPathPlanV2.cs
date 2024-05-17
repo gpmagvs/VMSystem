@@ -64,6 +64,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override async Task SendTaskToAGV()
         {
             Agv.NavigationState.IsWaitingConflicSolve = false;
+            Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             bool IsRegionNavigationEnabled = AGVSConfigulator.SysConfigs.TaskControlConfigs.MultiRegionNavigation;
             try
@@ -323,6 +324,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             #endregion
         }
 
+        /// <summary>
+        /// 避車動作
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="TaskCanceledException"></exception>
         private async Task AvoidPathProcess()
         {
             await SendCancelRequestToAGV();
@@ -387,8 +393,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
 
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
-            Agv.NavigationState.ResetNavigationPoints();
-            Agv.NavigationState.StateReset();
+            //Agv.NavigationState.ResetNavigationPoints();
+            //Agv.NavigationState.StateReset();
 
             bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
             {

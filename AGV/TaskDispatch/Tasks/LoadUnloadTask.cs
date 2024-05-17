@@ -45,7 +45,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
-            Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
+            Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             await base.SendTaskToAGV();
         }

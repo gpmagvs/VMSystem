@@ -31,13 +31,27 @@ namespace VMSystem.Dispatch
             }
         }
 
+        private IEnumerable<IAGV> WaitingLeaveWorkStationVehicles
+        {
+            get
+            {
+                return VMSManager.AllAGV.Where(vehicle => vehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout);
+            }
+        }
+
         public async Task StartAsync()
+        {
+            Task.Run(() => StartNavigationConflicMonitor());
+            Task.Run(() => StartLeaveWorkStationDeadLockMonitor());
+        }
+
+        private async void StartNavigationConflicMonitor()
         {
             await Task.Delay(1);
 
             while (true)
             {
-                await Task.Delay(1);
+                await Task.Delay(100);
                 try
                 {
                     if (WaitingConflicReleaseVehicles.Count() > 1)
@@ -59,7 +73,36 @@ namespace VMSystem.Dispatch
                 }
 
             }
+        }
 
+        private async void StartLeaveWorkStationDeadLockMonitor()
+        {
+            await Task.Delay(1);
+
+            while (true)
+            {
+                await Task.Delay(100);
+                try
+                {
+                    if (WaitingLeaveWorkStationVehicles.Count() > 1)
+                    {
+                        (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeterminPriorityOfVehicles(WaitingLeaveWorkStationVehicles.ToList());
+                        lowPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout =
+                            highPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
+
+                        clsLowPriorityVehicleWaitAtWorkStation _solver = new clsLowPriorityVehicleWaitAtWorkStation(lowPriorityVehicle, highPriorityVehicle);
+                        await _solver.StartSolve();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    foreach (var item in WaitingConflicReleaseVehicles)
+                    {
+                        item.NavigationState.IsConflicSolving = false;
+                    }
+                }
+
+            }
         }
 
         private bool IsWaitingConflicRegionRelease(IAGV vehicle)
@@ -185,32 +228,53 @@ namespace VMSystem.Dispatch
             }
         }
 
+
+        /// <summary>
+        /// 解決在EQ內互相等待
+        /// </summary>
+        public class clsLowPriorityVehicleWaitAtWorkStation : clsLowPriorityVehicleMove
+        {
+            public clsLowPriorityVehicleWaitAtWorkStation(IAGV _Vehicle, IAGV HightPriorityVehicle) : base(_Vehicle, HightPriorityVehicle)
+            {
+            }
+
+            public override Task<IAGV> StartSolve()
+            {
+                _HightPriorityVehicle.NavigationState.LeaveWorkStationHighPriority = true;
+                _HightPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStation = false;
+
+                NotifyServiceHelper.SUCCESS($"{_HightPriorityVehicle.Name}(優先) 與 {_LowProrityVehicle.Name} 車輛在設備內相互等待衝突已解決!");
+
+                return base.StartSolve();
+            }
+        }
+
         public class clsLowPriorityVehicleMove
         {
-            public IAGV Vehicle { get; private set; }
+            public IAGV _LowProrityVehicle { get; private set; }
 
             public IAGV _HightPriorityVehicle { get; private set; }
 
             public clsLowPriorityVehicleMove(IAGV _Vehicle, IAGV HightPriorityVehicle)
             {
-                Vehicle = _Vehicle;
+                _LowProrityVehicle = _Vehicle;
                 _HightPriorityVehicle = HightPriorityVehicle;
             }
 
-            public async Task<IAGV> StartSolve()
+            public virtual async Task<IAGV> StartSolve()
             {
                 MapPoint StopMapPoint = DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint);
 
                 if (StopMapPoint == null)
                     return null;
 
-                Vehicle.NavigationState.AvoidPt = StopMapPoint;
-                Vehicle.NavigationState.IsAvoidRaising = true;
-                Vehicle.NavigationState.IsConflicSolving = false;
-                Vehicle.NavigationState.IsWaitingConflicSolve = false;
-                Vehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
+                _LowProrityVehicle.NavigationState.AvoidPt = StopMapPoint;
+                _LowProrityVehicle.NavigationState.IsAvoidRaising = true;
+                _LowProrityVehicle.NavigationState.IsConflicSolving = false;
+                _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
+                _LowProrityVehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
 
-                return Vehicle;
+                return _LowProrityVehicle;
             }
 
             internal MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
@@ -220,7 +284,7 @@ namespace VMSystem.Dispatch
                     pathToStopPoint = new List<MapPoint>();
                     //HPV=> High Priority Vehicle
                     MoveTaskDynamicPathPlanV2 currentTaskOfHPV = _HightPriorityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
-                    MoveTaskDynamicPathPlanV2 currentTaskOfLPV = (Vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
+                    MoveTaskDynamicPathPlanV2 currentTaskOfLPV = (_LowProrityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
 
                     if (currentTaskOfHPV == null)
                         return null;
@@ -250,7 +314,7 @@ namespace VMSystem.Dispatch
                         else
                         {
                             var hpv = _HightPriorityVehicle;
-                            var lpv = Vehicle;
+                            var lpv = _LowProrityVehicle;
                             pathes = pathes.Where(path => path != null)
                                            .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
                                            .Where(path => !path.Last().GetCircleArea(ref lpv, 1.5).IsIntersectionTo(hpv.AGVRotaionGeometry))
@@ -267,8 +331,8 @@ namespace VMSystem.Dispatch
                             try
                             {
                                 var constrains = _GetConstrainsOfLPVStopPoint();
-                                constrains.RemoveAll(pt => pt.TagNumber == Vehicle.currentMapPoint.TagNumber);
-                                var pathToStopPt = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(Vehicle.currentMapPoint, stopPoint, constrains);
+                                constrains.RemoveAll(pt => pt.TagNumber == _LowProrityVehicle.currentMapPoint.TagNumber);
+                                var pathToStopPt = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_LowProrityVehicle.currentMapPoint, stopPoint, constrains);
                                 return pathToStopPt;
                             }
                             catch (Exception ex)
@@ -281,9 +345,9 @@ namespace VMSystem.Dispatch
                     catch (Exception ex)
                     {
                         var _oriHPV = _HightPriorityVehicle;
-                        var _oriLPV = Vehicle;
+                        var _oriLPV = _LowProrityVehicle;
 
-                        Vehicle = _oriHPV;
+                        _LowProrityVehicle = _oriHPV;
                         _HightPriorityVehicle = _oriLPV;
                         return DetermineStopMapPoint(out pathToStopPoint);
                     }
@@ -291,15 +355,15 @@ namespace VMSystem.Dispatch
                     List<MapPoint> _GetConstrainsOfHPVFuturePath()
                     {
                         var constrains = DispatchCenter.GetConstrains(_HightPriorityVehicle, VMSManager.AllAGV.FilterOutAGVFromCollection(this._HightPriorityVehicle), finalPtOfHPV);
-                        constrains.RemoveAll(pt => pt.TagNumber == this.Vehicle.currentMapPoint.TagNumber);
+                        constrains.RemoveAll(pt => pt.TagNumber == this._LowProrityVehicle.currentMapPoint.TagNumber);
                         constrains.RemoveAll(pt => pt.TagNumber == this._HightPriorityVehicle.currentMapPoint.TagNumber);
                         return constrains;
                     }
 
                     List<MapPoint> _GetConstrainsOfLPVStopPoint()
                     {
-                        var constrains = DispatchCenter.GetConstrains(Vehicle, VMSManager.AllAGV.FilterOutAGVFromCollection(this.Vehicle), finalPtOfHPV);
-                        constrains.Add(Vehicle.currentMapPoint);
+                        var constrains = DispatchCenter.GetConstrains(_LowProrityVehicle, VMSManager.AllAGV.FilterOutAGVFromCollection(this._LowProrityVehicle), finalPtOfHPV);
+                        constrains.Add(_LowProrityVehicle.currentMapPoint);
                         constrains.AddRange(StaMap.Map.Points.Values.Where(pt => !pt.Enable));
                         return constrains;
 

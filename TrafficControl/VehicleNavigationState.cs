@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using Microsoft.VisualBasic;
 using SQLitePCL;
+using System.Diagnostics;
 using System.Drawing;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -15,6 +16,7 @@ namespace VMSystem.TrafficControl
     public class VehicleNavigationState
     {
         public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
+        public static event EventHandler<IAGV> OnAGVStartWaitLeavingWorkStation;
         public enum REGION_CONTROL_STATE
         {
             WAIT_AGV_CYCLE_STOP,
@@ -259,7 +261,64 @@ namespace VMSystem.TrafficControl
         public bool IsAvoidRaising { get; internal set; } = false;
         public IAGV AvoidToVehicle { get; internal set; }
         public MoveTaskDynamicPathPlanV2 CurrentAvoidMoveTask { get; internal set; }
-        public bool IsWaitingForLeaveWorkStation { get; internal set; }
+
+        public bool _IsWaitingForLeaveWorkStation = false;
+
+        internal bool IsWaitingForLeaveWorkStationTimeout = false;
+
+        private Stopwatch _LeaveWorkStationWaitTimer = new Stopwatch();
+        public bool IsWaitingForLeaveWorkStation
+        {
+            get => _IsWaitingForLeaveWorkStation;
+            set
+            {
+                if (_IsWaitingForLeaveWorkStation != value)
+                {
+                    _IsWaitingForLeaveWorkStation = value;
+                    if (_IsWaitingForLeaveWorkStation)
+                    {
+                        IsWaitingForLeaveWorkStationTimeout = false;
+                        _WaitLeaveWorkStationTimeToolongDetection();
+                        OnAGVStartWaitLeavingWorkStation?.Invoke(Vehicle, Vehicle);
+
+                    }
+                    else
+                    {
+                        MapPoint entryPoint = GetEntryPoint();
+                        entryPoint.Enable = true;
+                        _LeaveWorkStationWaitTimer.Reset();
+                    }
+                }
+            }
+        }
+
+        public bool LeaveWorkStationHighPriority { get; internal set; }
+
+        private async Task _WaitLeaveWorkStationTimeToolongDetection()
+        {
+
+            _LeaveWorkStationWaitTimer.Restart();
+            while (_IsWaitingForLeaveWorkStation)
+            {
+                await Task.Delay(1);
+
+                if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 5)
+                {
+                    MapPoint entryPoint = GetEntryPoint();
+                    entryPoint.Enable = false;
+
+                    IsWaitingForLeaveWorkStationTimeout = true;
+                    return;
+                }
+
+            }
+        }
+
+        private MapPoint GetEntryPoint()
+        {
+            int entryPointTag = Vehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
+            return StaMap.Map.Points.Values.First(pt => pt.TagNumber == entryPointTag);
+        }
 
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {

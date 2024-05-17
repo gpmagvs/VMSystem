@@ -107,8 +107,13 @@ namespace VMSystem.TrafficControl
                     _result = _LeaveMainEQDetector.Detect();
                 }
                 var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
-                bool _isNeedWait = _result.Result == DETECTION_RESULT.NG;
+
+                bool _isAllowLeaveByDeadLockDetection = _RaiseReqAGV.NavigationState.LeaveWorkStationHighPriority;
+                bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false : _result.Result == DETECTION_RESULT.NG;
+
                 CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;
+                args.Agv.NavigationState.IsWaitingForLeaveWorkStation = _isNeedWait;
+
                 if (_isNeedWait)
                 {
                     List<IAGV> conflicVehicles = _result.ConflicToAGVList;
@@ -136,14 +141,12 @@ namespace VMSystem.TrafficControl
                     else
                     {
                         args.WaitSignal.Reset();
-                        clsWaitingInfo TrafficWaittingInfo = args.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
                         args.Message = _result.Message;
                     }
                 }
                 else
                 {
-
                     var radius = args.Agv.AGVRotaionGeometry.RotationRadius;
                     var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(entryPointOfWorkStation) <= radius);
                     List<MapPoint> _navingPointsForbid = new List<MapPoint>();
@@ -155,7 +158,6 @@ namespace VMSystem.TrafficControl
                 }
                 bool _isAcceptAction = args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
 
-                args.Agv.NavigationState.IsWaitingForLeaveWorkStation = _isAcceptAction;
 
                 if (!_isAcceptAction)
                 {
