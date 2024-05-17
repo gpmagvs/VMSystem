@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -64,6 +65,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             Agv.NavigationState.IsWaitingConflicSolve = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
+            bool IsRegionNavigationEnabled = AGVSConfigulator.SysConfigs.TaskControlConfigs.MultiRegionNavigation;
             try
             {
                 finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
@@ -73,7 +75,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (Stage != VehicleMovementStage.AvoidPath)
                     Agv.NavigationState.StateReset();
 
-                if (Stage != VehicleMovementStage.Traveling_To_Region_Wait_Point && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> regions))
+                if (IsRegionNavigationEnabled && Stage != VehicleMovementStage.Traveling_To_Region_Wait_Point && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> regions))
                 {
                     await RegionPathNavigation(regions);
                 }
