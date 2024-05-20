@@ -108,7 +108,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
             }
-            if (orderData.Action == ACTION_TYPE.Load) 
+            if (orderData.Action == ACTION_TYPE.Load)
             {
                 if (orderData.need_change_agv == true)// 如果下放貨任務，但目標EQAGV_TYPE不符則是將貨放到轉運站，此筆任務結束觸發生成Carry任務
                 {
@@ -117,10 +117,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         NextAction = ACTION_TYPE.Load,
                         TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
                     });
-                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    (int _transferTo, List<int> _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
+                    task.listTransferStation = _transferFrom;
                     orderData.TransferToTag = _transferTo;
-                    orderData.TransferFromTag = _transferFrom;
-                    _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
+                    orderData.TransferFromTag = _transferFrom.FirstOrDefault(); // TODO 可能有多個轉運站需再調整
+                    _queue.Enqueue(task);
                 }
                 else
                 {
@@ -197,10 +199,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 });
                 if (orderData.need_change_agv)
                 {
-                    (int _transferTo, int _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    (int _transferTo, List<int> _transferFrom) = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
+                    task.listTransferStation= _transferFrom;
                     orderData.TransferToTag = _transferTo;
-                    orderData.TransferFromTag = _transferFrom;
-                    _queue.Enqueue(new LoadAtTransferStationTask(_agv, orderData));
+                    orderData.TransferFromTag = _transferFrom.FirstOrDefault(); // TODO 可能有多個轉運站需再調整
+                    _queue.Enqueue(task);
                 }
                 else
                 {
@@ -231,20 +235,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             return _queue;
         }
 
-        public static async Task<(int transferToTag, int transferFromTag)> GetTransferStationTag(clsTaskDto orderData)
+        public static async Task<(int transferToTag, List< int> transferFromTag)> GetTransferStationTag(clsTaskDto orderData)
         {
             List<int> TransferStationTags = new List<int>();
             // 取得From Station可去的轉換站
-            if (orderData.From_Station_Tag == -1)
-            {
+            if (orderData.From_Station_Tag == -1) // 放貨任務
                 TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.To_Station_Tag);
-            }
             else
-            {
                 TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.From_Station_Tag);
-            }
+
             if (TransferStationTags.Count() <= 0)
-                return (-1, -1);
+            {
+                TransferStationTags.Add(-1);
+                return (-1, TransferStationTags);
+            }
 
             MapPoint TransferToMapPoint = StaMap.GetPointByTagNumber(TransferStationTags.FirstOrDefault());
             var entryPoints = TransferToMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
@@ -252,26 +256,31 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             Dictionary<int, int> AcceptAGVInfoOfEQTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
             IAGV toSourceAGV = VMSManager.GetAGVByName(orderData.DesignatedAGVName);
             int toSourceModel = (int)toSourceAGV.model;
-            int _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toSourceModel).Key;
+            int _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toSourceModel || kp.Value == (int)AGV_TYPE.Any).Key;
+            
+            // 如果平對平只有一張tag
+            bool isTwoEntryPoints = TransferToMapPoint.Target.Keys.Count > 1;
+            if (isTwoEntryPoints)
+            {
+                TransferStationTags.Add(_transferToTag);
+                return (_transferToTag, TransferStationTags);
+            }
             AcceptAGVInfoOfEQTags.Remove(_transferToTag);
+            
             int _transferFromTag = -1;
             if (orderData.TransferToDestineAGVName == "")
             {
-                _transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault().Key;
+                //_transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault().Key;
+                TransferStationTags.AddRange(AcceptAGVInfoOfEQTags.Where(x=>x.Value!=toSourceModel).Select(x=>x.Key).ToList());
             }
             else
             {
                 IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
                 int toDestineModel = (int)toDestineAGV.model;
                 _transferFromTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toDestineModel).Key;
+                TransferStationTags.AddRange(AcceptAGVInfoOfEQTags.Where(x => x.Value == toSourceModel).Select(x => x.Key).ToList());
             }
-
-            // 待確認功能
-            //bool isTwoEntryPoints = TransferFromMapPoint.Target.Keys.Count > 1;
-
-            //if (isTwoEntryPoints)
-            //    return (orderData.TransferToTag, orderData.TransferFromTag);
-            return (_transferToTag, _transferFromTag);
+            return (_transferToTag, TransferStationTags);
         }
 
         IAGV GetIAGVByName(string agvName)

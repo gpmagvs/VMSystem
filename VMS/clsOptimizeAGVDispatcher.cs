@@ -156,7 +156,12 @@ namespace VMSystem.VMS
             return AGVListRemoveTaskAGV.First();
         }
 
-
+        /// <summary>
+        ///  類似 EQTransferTaskManager.CheckEQAcceptAGVType
+        /// </summary>
+        /// <param name="AGV"></param>
+        /// <param name="_taskDto"></param>
+        /// <returns></returns>
         private async Task<clsTaskDto> ChechGenerateTransferTaskOrNot(IAGV AGV, clsTaskDto _taskDto)
         {
             Dictionary<int, int> dict_AGVs = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(new List<int>() { _taskDto.To_Station_Tag });
@@ -170,6 +175,5 @@ namespace VMSystem.VMS
                     _taskDto.need_change_agv = true;
             return _taskDto;
         }
-
     }
 }

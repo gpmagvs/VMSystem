@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.ResponseModel;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -40,7 +41,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+            clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+            if (response == null || response.confirm == false)
+                return (response.confirm, response.AlarmCode);
             return await base.DistpatchToAGV();
         }
     }
