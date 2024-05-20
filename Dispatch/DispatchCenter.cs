@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -105,15 +106,22 @@ namespace VMSystem.Dispatch
                 var optmizePath_init_sub = optimizePath_Init.Take(goalIndex + 1).ToList();
                 vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optmizePath_init_sub);
                 var result = await FindPath(vehicle, otherAGV, point, optmizePath_init_sub, false);
+
+                //if ((vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).IsWaitingSomeone)
+                //{
+                //    NotifyServiceHelper.WARNING("跨區依任務優先權交管!");
+                //    return null;
+                //}
                 subGoalResults.Add(result);
             }
+
+
 
             if (subGoalResults.Any() && !subGoalResults.All(path => path == null))
             {
 
                 try
                 {
-
                     var path = new List<MapPoint>();
 
                     var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
@@ -208,7 +216,7 @@ namespace VMSystem.Dispatch
                 {
                     double forwardAngleToNextPoint = Tools.CalculationForwardAngle(optimizePath_Init.First(), optimizePath_Init.ToList()[1]);
 
-                    if (Math.Abs(vehicle.states.Coordination.Theta - forwardAngleToNextPoint) >= 5 && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
+                    if (!CalculateThetaError(forwardAngleToNextPoint, out _) && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
                     {
                         SpinOnPointDetection spinDetection = new SpinOnPointDetection(vehicle.currentMapPoint, forwardAngleToNextPoint, vehicle);
                         clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
@@ -224,6 +232,17 @@ namespace VMSystem.Dispatch
                 }
                 vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
                 return null;
+
+                bool CalculateThetaError(double finalThetaCheck, out double error)
+                {
+                    double angleDifference = finalThetaCheck - vehicle.states.Coordination.Theta;
+                    if (angleDifference > 180)
+                        angleDifference -= 360;
+                    else if (angleDifference < -180)
+                        angleDifference += 360;
+                    error = Math.Abs(angleDifference);
+                    return error < 5;
+                }
             }
             async Task<IEnumerable<MapPoint>> FindPath(IAGV vehicle, IEnumerable<IAGV> otherAGV, MapPoint _finalMapPoint, IEnumerable<MapPoint> oriOptimizePath, bool autoSolve = false)
 
@@ -253,6 +272,7 @@ namespace VMSystem.Dispatch
 
                 static bool FindConflicRegion(IAGV vehicle, List<IAGV> otherDispatingVehicle, out MapRectangle _conflicRegion)
                 {
+                    MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
                     _conflicRegion = null;
                     foreach (var item in vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation)
                     {
@@ -263,10 +283,54 @@ namespace VMSystem.Dispatch
                             bool _geometryConflic = item.IsIntersectionTo(_otherAGV.AGVRealTimeGeometery);
                             bool _pathConflic = _otherAGV.NavigationState.NextPathOccupyRegions.Any(reg => reg.IsIntersectionTo(item));
                             isConflic = _pathConflic || _geometryConflic;
+                            MoveTaskDynamicPathPlanV2? _otherAGVRunningTask = null;
+                            try
+                            {
+                                _otherAGVRunningTask = (_otherAGV.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
+                            }
+                            catch (Exception)
+                            {
+                            }
                             if (isConflic)
                             {
-                                (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2)
-                                    .UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
+
+                                //if (_otherAGVRunningTask != null && _otherAGVRunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
+                                //{
+                                //    var otherAGVFinalRegion = _otherAGVRunningTask.finalMapPoint.GetRegion(CurrentMap);
+                                //    var thisAGVFinalRegion = vehicleRunningTask.finalMapPoint.GetRegion(CurrentMap);
+
+                                //    if (!string.IsNullOrEmpty(otherAGVFinalRegion.Name) && (otherAGVFinalRegion.Name != thisAGVFinalRegion.Name))
+                                //    {
+                                //        (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeadLockMonitor.DeterminPriorityOfVehicles(new List<IAGV>() { vehicle, _otherAGV });
+
+                                //        if (highPriorityVehicle.Name == vehicle.Name && !_otherAGV.NavigationState.IsAvoidRaising) //當前車輛有高度優先權
+                                //        {
+                                //            var LPVehicle = _otherAGV;
+                                //            MapPoint avoidPoint = GetNearestAvoidPoint();
+                                //            if (avoidPoint != null)
+                                //            {
+                                //                //vehicleRunningTask.IsWaitingSomeone = true;
+                                //                //vehicle.NavigationState.AvoidToVehicle = _otherAGV;
+                                //                //_otherAGV.NavigationState.IsAvoidRaising = true;
+                                //                //_otherAGV.NavigationState.AvoidToVehicle = vehicle;
+                                //                //_otherAGV.NavigationState.AvoidPt = avoidPoint;
+                                //                _otherAGVRunningTask.CycleStopRequestAsync();
+                                //            }
+                                //            MapPoint GetNearestAvoidPoint()
+                                //            {
+                                //                return CurrentMap.Points.Values.Where(pt => pt.IsAvoid)
+                                //                                 .Where(pt => !pt.GetCircleArea(ref LPVehicle).IsIntersectionTo(vehicle.AGVRotaionGeometry))
+                                //                                 .OrderBy(pt => pt.CalculateDistance(_otherAGV.currentMapPoint))
+                                //                                 .FirstOrDefault();
+                                //            }
+
+                                //        }
+
+                                //    }
+
+                                //}
+                                vehicleRunningTask.UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
+
                                 break;
                             }
                         }
@@ -275,8 +339,11 @@ namespace VMSystem.Dispatch
                             _conflicRegion = item;
                             break;
                         }
+                        else
+                        {
+                            //vehicleRunningTask.IsWaitingSomeone = false;
+                        }
                     }
-
                     return _conflicRegion != null;
                 }
             }
@@ -308,17 +375,15 @@ namespace VMSystem.Dispatch
             IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
             {
                 return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
-                                                .Where(pt => pt.GetCircleArea(ref MainVehicle, 0.5).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
+                                                .Where(pt => pt.GetCircleArea(ref MainVehicle, 1).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
             }
 
             var disabledPoints = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable);
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));//其他車輛當前導航路徑不可用
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
-            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));
-            constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));
-            //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle)));
-            //var blockedTags = TryGetBlockedTagByEQMaintainFromAGVS().GetAwaiter().GetResult();
-            constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));
-            //constrains.AddRange(blockedTags.Select(tag => StaMap.GetPointByTagNumber(tag)));
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
+            constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
             return constrains;

@@ -82,6 +82,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             cycleStopRequesting = true;
             await SendCancelRequestToAGV();
+            cycleStopRequesting = false;
         }
 
 
