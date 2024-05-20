@@ -7,6 +7,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class LoadAtTransferStationTask : LoadAtDestineTask
     {
+        public List<int> listTransferStation=new List<int>();
         public LoadAtTransferStationTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
             DestineTag = order.TransferToTag;

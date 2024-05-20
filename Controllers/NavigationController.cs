@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,14 +19,14 @@ namespace VMSystem.Controllers
         public async Task<IActionResult> AddPartsReplaceworkstationTag(int workstationTag)
         {
             Dispatch.DispatchCenter.AddWorkStationInPartsReplacing(workstationTag);
-            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
+            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase() { confirm = true, AlarmCode = ALARMS.NONE, message = "" });
         }
 
         [HttpGet("RemovePartsReplaceworkstationTag")]
         public async Task<IActionResult> RemovePartsReplaceworkstationTag(int workstationTag)
         {
             Dispatch.DispatchCenter.RemoveWorkStationInPartsReplacing(workstationTag);
-            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase(true, ""));
+            return Ok(new AGVSystemCommonNet6.Microservices.ResponseModel.clsResponseBase() { confirm = true, AlarmCode = ALARMS.NONE, message = "" });
         }
     }
 }

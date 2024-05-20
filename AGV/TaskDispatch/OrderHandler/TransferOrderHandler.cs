@@ -30,7 +30,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
-            int destineTag = OrderData.need_change_agv && RunningTask.TransferStage == TransferStage.MoveToTransferStationLoad ? OrderData.TransferToTag : OrderData.To_Station_Tag;
+            // TODO 把可用的轉換站存在這listTransferStation
+            var loadAtTransferStationTask = SequenceTaskQueue.Where(x => x.GetType() == typeof(VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask)).FirstOrDefault();
+            int destineTag = OrderData.need_change_agv /*&& RunningTask.TransferStage == TransferStage.MoveToTransferStationLoad*/ ? OrderData.TransferToTag : OrderData.To_Station_Tag;
             clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, destineTag, ACTION_TYPE.Carry);
             if (result.confirm)
                 await base.StartOrder(Agv);

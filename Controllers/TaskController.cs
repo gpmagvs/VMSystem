@@ -43,10 +43,10 @@ namespace VMSystem.Controllers
         {
             var vehicle = VMSManager.GetAGVByName(agvName);
             if (vehicle == null)
-                return Ok(new clsResponseBase(false, $"{agvName} Not Exist."));
+                return Ok(new clsResponseBase() { confirm = false, message = $"{agvName} Not Exist." });
 
             bool accept = vehicle.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(orderAction, out string message);
-            return Ok(new clsResponseBase(accept, message));
+            return Ok(new clsResponseBase() { confirm = accept, message = message });
         }
     }
 }
