@@ -214,8 +214,8 @@ namespace VMSystem.TrafficControl
 
                 bool isAlreadyPassEntryPt = pathRemain.Skip(1).All(pt => pt.TagNumber != _entryPointOfWorkStation.TagNumber);
 
-                if (isAlreadyPassEntryPt)
-                    return false;
+                //if (isAlreadyPassEntryPt)
+                //    return false;
 
                 bool IsDistanceFarwayEntryPoint = _entryPointOfWorkStation.CalculateDistance(vehicle.states.Coordination) >= 3.0;
                 int indexOfPtOfCurrent = pathRemain.FindIndex(pt => pt.TagNumber == vehicle.currentMapPoint.TagNumber); //當前點的index 0.1.2.3

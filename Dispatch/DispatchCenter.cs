@@ -3,9 +3,11 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using static VMSystem.TrafficControl.VehicleNavigationState;
@@ -177,7 +179,20 @@ namespace VMSystem.Dispatch
                             bool _rotationWillConflicToOtherVehicleCurrentBody = otherAGV.Any(v => v.AGVRotaionGeometry.IsIntersectionTo(vehicle.AGVRotaionGeometry));
                             return rotationDiff > 10 && (_rotationWillConflicToOtherVehiclePath || _rotationWillConflicToOtherVehicleCurrentBody);
                         }
-                        return otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
+                        bool isTooCloseWithVehicleEntryPointOFWorkStation = false;
+                        IEnumerable<IAGV> atWorkStationVehicles = otherAGV.Where(agv => !agv.currentMapPoint.IsCharge && agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
+
+                        try
+                        {
+                            isTooCloseWithVehicleEntryPointOFWorkStation = atWorkStationVehicles.Select(_vehicle => StaMap.GetPointByTagNumber(vehicle.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory.First().Point_ID))
+                                                 .Any(point => point.GetCircleArea(ref vehicle, 1.8).IsIntersectionTo(vehicle.AGVRotaionGeometry));
+                        }
+                        catch (Exception)
+                        {
+
+                        }
+
+                        return isTooCloseWithVehicleEntryPointOFWorkStation || otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.8)));
                     }
                 }
                 catch (Exception ex)
@@ -188,6 +203,25 @@ namespace VMSystem.Dispatch
             }
             else
             {
+
+                if (optimizePath_Init.Count() > 1)
+                {
+                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(optimizePath_Init.First(), optimizePath_Init.ToList()[1]);
+
+                    if (Math.Abs(vehicle.states.Coordination.Theta - forwardAngleToNextPoint) >= 5 && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
+                    {
+                        SpinOnPointDetection spinDetection = new SpinOnPointDetection(vehicle.currentMapPoint, forwardAngleToNextPoint, vehicle);
+                        clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
+                        if (spinDetectResult.Result == DETECTION_RESULT.OK)
+                        {
+                            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint);
+                        }
+                    }
+                    else
+                    {
+                        vehicle.NavigationState.CancelSpinAtPointRequest();
+                    }
+                }
                 vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
                 return null;
             }

@@ -76,23 +76,7 @@ namespace VMSystem.TrafficControl
         }
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
-        /// <summary>
-        /// 當前與剩餘路徑佔據的道路
-        /// </summary>
-        public List<MapPath> OcuupyPathes
-        {
-            get
-            {
-                List<MapPath> output = new List<MapPath>();
-                var map = CurrentMap;
-                var nextNavigtionPointOcuupyPathes = NextNavigtionPoints.SelectMany(point => point.GetPathes(ref map));
-                output.AddRange(nextNavigtionPointOcuupyPathes);
-                output.AddRange(CurrentMapPoint.GetPathes(ref map));
-                output = output.Distinct().ToList();
-                return output;
-            }
-        }
-
+        public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
         public List<MapRectangle> NextPathOccupyRegionsForPathCalculation
         {
             get
@@ -286,13 +270,13 @@ namespace VMSystem.TrafficControl
                     else
                     {
                         IsWaitingForLeaveWorkStationTimeout = false;
-                        Task.Run(async () =>
-                        {
-                            await Task.Delay(1000);
-                            MapPoint entryPoint = GetEntryPoint();
-                            entryPoint.Enable = true;
-                            NotifyServiceHelper.SUCCESS($"動態鎖定點位-{entryPoint.TagNumber} 已解除.");
-                        });
+                        //Task.Run(async () =>
+                        //{
+                        //    await Task.Delay(1000);
+                        //    MapPoint entryPoint = GetEntryPoint();
+                        //    entryPoint.Enable = true;
+                        //    NotifyServiceHelper.SUCCESS($"動態鎖定點位-{entryPoint.TagNumber} 已解除.");
+                        //});
                         _LeaveWorkStationWaitTimer.Reset();
                     }
                 }
@@ -311,9 +295,9 @@ namespace VMSystem.TrafficControl
 
                 if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 5 && !IsWaitingForLeaveWorkStationTimeout)
                 {
-                    MapPoint entryPoint = GetEntryPoint();
-                    entryPoint.Enable = false;
-                    NotifyServiceHelper.WARNING($"動態鎖定點位-{entryPoint.TagNumber}");
+                    //MapPoint entryPoint = GetEntryPoint();
+                    //entryPoint.Enable = false;
+                    //NotifyServiceHelper.WARNING($"動態[Disable]點位-{entryPoint.TagNumber}");
                     IsWaitingForLeaveWorkStationTimeout = true;
                     return;
                 }
@@ -326,7 +310,12 @@ namespace VMSystem.TrafficControl
             int entryPointTag = Vehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
             return StaMap.Map.Points.Values.First(pt => pt.TagNumber == entryPointTag);
         }
+        public void RaiseSpintAtPointRequest(double forwardAngle)
+        {
+            SpinAtPointRequest.ForwardAngle = forwardAngle;
+            SpinAtPointRequest.IsSpinRequesting = true;
 
+        }
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {
             var _pathPoints = pathPoints.Clone().ToList();
@@ -371,5 +360,17 @@ namespace VMSystem.TrafficControl
             IsAvoidRaising = false;
             AvoidPt = null;
         }
+
+        internal void CancelSpinAtPointRequest()
+        {
+            SpinAtPointRequest.IsSpinRequesting = false;
+        }
+    }
+
+
+    public class clsSpinAtPointRequest
+    {
+        public bool IsSpinRequesting { get; set; } = false;
+        public double ForwardAngle { get; set; } = 0;
     }
 }

@@ -13,11 +13,11 @@ namespace VMSystem.TrafficControl.ConflicDetection
         /// <summary>
         /// 計算干涉時車輛[長度]膨脹係數
         /// </summary>
-        public double AGVLengthExpandRatio = 1.0;
+        public virtual double AGVLengthExpandRatio { get; set; } = 1.0;
         /// <summary>
         /// 計算干涉時車輛[寬度]膨脹係數
         /// </summary>
-        public double AGVWidthExpandRatio = 1.0;
+        public virtual double AGVWidthExpandRatio { get; set; } = 1.0;
         public IEnumerable<IAGV> OtherAGV => GetOtherVehicles();
 
         protected virtual IEnumerable<IAGV> GetOtherVehicles()

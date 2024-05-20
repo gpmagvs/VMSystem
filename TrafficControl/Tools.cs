@@ -392,6 +392,12 @@ namespace VMSystem.TrafficControl
             return angleInDegrees;
 
         }
+        public static double CalculationForwardAngle(MapPoint startPoint, MapPoint endPoint)
+        {
+            PointF startPF = new((float)startPoint.X, (float)startPoint.Y);
+            PointF endPF = new((float)endPoint.X, (float)endPoint.Y);
+            return CalculationForwardAngle(startPF, endPF);
+        }
 
         internal static double CalculateWorkStationStopAngle(int workstationTag, int speficEntryTag = -1)
         {
