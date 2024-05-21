@@ -103,6 +103,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.IsAvoidRaising || IsWaitingSomeone)
                         {
+                            if (Stage == VehicleMovementStage.AvoidPath)
+                            {
+                                Agv.NavigationState.AddCannotReachPointWhenAvoiding(finalMapPoint);
+                            }
                             if (IsWaitingSomeone)
                             {
                                 IAGV _avoidTo = Agv.NavigationState.AvoidToVehicle;

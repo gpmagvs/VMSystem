@@ -257,8 +257,12 @@ namespace VMSystem.Dispatch
                 _LowProrityVehicle.NavigationState.IsConflicSolving = false;
                 _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
                 _LowProrityVehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
-
                 return _LowProrityVehicle;
+            }
+
+            private void NavigationState_OnAvoidPointCannotReach(object? sender, MapPoint e)
+            {
+                throw new NotImplementedException();
             }
 
             internal MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
@@ -308,6 +312,7 @@ namespace VMSystem.Dispatch
                             var hpv = _HightPriorityVehicle;
                             var lpv = _LowProrityVehicle;
                             pathes = pathes.Where(path => path != null)
+                                           .Where(path => path.Last().TagNumber != finalPtOfLPV.TagNumber)
                                            .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
                                            .Where(path => !path.Last().GetCircleArea(ref lpv, 1.5).IsIntersectionTo(hpv.AGVRotaionGeometry))
                                            .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
@@ -322,7 +327,9 @@ namespace VMSystem.Dispatch
                         {
                             try
                             {
-                                var constrains = _GetConstrainsOfLPVStopPoint();
+                                //var constrains = _GetConstrainsOfLPVStopPoint();
+                                var constrains = StaMap.Map.Points.Values.Where(pt => !pt.Enable).ToList();
+                                constrains.AddRange(_LowProrityVehicle.NavigationState.AvoidActionState.CannotReachHistoryPoints);
                                 constrains.RemoveAll(pt => pt.TagNumber == _LowProrityVehicle.currentMapPoint.TagNumber);
                                 var pathToStopPt = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_LowProrityVehicle.currentMapPoint, stopPoint, constrains);
                                 return pathToStopPt;

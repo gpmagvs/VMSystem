@@ -78,6 +78,7 @@ namespace VMSystem.TrafficControl
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
+        public clsAvoidActionState AvoidActionState { get; set; } = new();
         public List<MapRectangle> NextPathOccupyRegionsForPathCalculation
         {
             get
@@ -367,6 +368,7 @@ namespace VMSystem.TrafficControl
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState = REGION_CONTROL_STATE.NONE;
             IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = false;
+            AvoidActionState.CannotReachHistoryPoints.Clear();
             IsAvoidRaising = false;
             AvoidPt = null;
         }
@@ -375,6 +377,12 @@ namespace VMSystem.TrafficControl
         {
             SpinAtPointRequest.IsSpinRequesting = false;
         }
+
+        internal void AddCannotReachPointWhenAvoiding(MapPoint avoidDestinePoint)
+        {
+            NotifyServiceHelper.ERROR($"{Vehicle.Name} 避車至 {avoidDestinePoint.Graph.Display} 失敗.");
+            AvoidActionState.CannotReachHistoryPoints.Add(avoidDestinePoint);
+        }
     }
 
 
@@ -382,5 +390,10 @@ namespace VMSystem.TrafficControl
     {
         public bool IsSpinRequesting { get; set; } = false;
         public double ForwardAngle { get; set; } = 0;
+    }
+
+    public class clsAvoidActionState
+    {
+        public List<MapPoint> CannotReachHistoryPoints { get; set; } = new();
     }
 }

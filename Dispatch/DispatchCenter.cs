@@ -20,6 +20,7 @@ namespace VMSystem.Dispatch
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
         internal static event EventHandler<int> OnWorkStationStartPartsReplace;
         internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
         internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
         {
             get
@@ -42,12 +43,23 @@ namespace VMSystem.Dispatch
 
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
         {
-
-            if (!DispatingVehicles.Contains(vehicle))
-                DispatingVehicles.Add(vehicle);
-            MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
-            var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
-            return path = path == null ? path : path.Clone();
+            try
+            {
+                await semaphore.WaitAsync();
+                if (!DispatingVehicles.Contains(vehicle))
+                    DispatingVehicles.Add(vehicle);
+                MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
+                var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
+                return path = path == null ? path : path.Clone();
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+            finally
+            {
+                semaphore.Release();
+            }
 
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
@@ -224,6 +236,11 @@ namespace VMSystem.Dispatch
                         {
                             vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint);
                         }
+                        else
+                        {
+                            vehicle.NavigationState.CancelSpinAtPointRequest();
+                            (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"{spinDetectResult.Message}");
+                        }
                     }
                     else
                     {
@@ -375,7 +392,7 @@ namespace VMSystem.Dispatch
             IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
             {
                 return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
-                                                .Where(pt => pt.GetCircleArea(ref MainVehicle, 1).IsIntersectionTo(_vehicle.AGVRotaionGeometry));
+                                                .Where(pt => pt.CalculateDistance(_vehicle.states.Coordination) <= _vehicle.AGVRotaionGeometry.RotationRadius);
             }
 
             var disabledPoints = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable);
@@ -386,6 +403,12 @@ namespace VMSystem.Dispatch
             constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
+            List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
+            constrains.AddRange(additionRegists);
+            //if (additionRegists.Any())
+            //{
+            //    NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
+            //}
             return constrains;
         }
         private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)

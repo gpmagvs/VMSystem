@@ -124,7 +124,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
 
 
-        private MapRectangle GetRectangleOfDetectPoint()
+        protected MapRectangle GetRectangleOfDetectPoint()
         {
             double x = DetectPoint.X;
             double y = DetectPoint.Y;
