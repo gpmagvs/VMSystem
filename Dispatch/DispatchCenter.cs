@@ -58,6 +58,7 @@ namespace VMSystem.Dispatch
             }
             finally
             {
+                await Task.Delay(10);
                 semaphore.Release();
             }
 
@@ -240,6 +241,7 @@ namespace VMSystem.Dispatch
                         {
                             vehicle.NavigationState.CancelSpinAtPointRequest();
                             (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"{spinDetectResult.Message}");
+                            await Task.Delay(500);
                         }
                     }
                     else

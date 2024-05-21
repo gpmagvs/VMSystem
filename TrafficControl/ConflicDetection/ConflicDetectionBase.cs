@@ -182,7 +182,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
         /// <returns></returns>
         public static string GetNames(this IEnumerable<IAGV> agvList)
         {
-            return string.Join(",", agvList.Where(agv => agv != null).Select(agv => agv.Name));
+            return string.Join(",", agvList.DistinctBy(agv => agv.Name).Where(agv => agv != null).Select(agv => agv.Name));
         }
 
         /// <summary>

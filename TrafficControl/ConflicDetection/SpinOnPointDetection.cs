@@ -39,7 +39,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
             bool _IsFinalDestineTooNear(IAGV agv)
             {
-                double distanceThres = this.AGVToDetect.AGVRotaionGeometry.RotationRadius * 2;
+                double distanceThres = this.AGVToDetect.AGVRotaionGeometry.RotationRadius * 3;
                 return (agv.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).finalMapPoint.CalculateDistance(this.AGVToDetect.states.Coordination) <= distanceThres;
             }
         }
