@@ -3,12 +3,10 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
-using System.Diagnostics;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
-using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 
 namespace VMSystem.Dispatch
 {
@@ -121,7 +119,7 @@ namespace VMSystem.Dispatch
             return toAvoidVehicle;
         }
 
-        private (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
+        public static (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
             Dictionary<IAGV, int> orderedByWeight = DeadLockVehicles.ToDictionary(v => v, v => CalculateWeights(v));
             IEnumerable<IAGV> ordered = new List<IAGV>();
@@ -134,7 +132,7 @@ namespace VMSystem.Dispatch
                 ordered = orderedByWeight.OrderBy(kp => kp.Value).Select(kp => kp.Key);
             return (ordered.First(), ordered.Last());
         }
-        private int CalculateWeights(IAGV vehicle)
+        public static int CalculateWeights(IAGV vehicle)
         {
             var currentOrderHandler = vehicle.CurrentOrderHandler();
             var runningTask = currentOrderHandler.RunningTask;
@@ -176,11 +174,6 @@ namespace VMSystem.Dispatch
         internal async void HandleVehicleStartWaitConflicSolve(object? sender, IAGV waitingVehicle)
         {
             var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(waitingVehicle);
-
-
-
-
-
             //是否與停在設備中的車輛互相停等
             bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
             {
@@ -190,22 +183,11 @@ namespace VMSystem.Dispatch
                 return vehiclesAtWorkStation.Any();
                 //waitingVehicle.currentMapPoint.TargetNormalPoints().Where(pt => pt.TagNumber == )
             }
-
-
-
             if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
                 var AvoidToVehicle = vehiclesAtWorkStation.First();
-                //clsYieldPathForWorkstationVehicle _helper = new clsYieldPathForWorkstationVehicle(waitingVehicle, AvoidToVehicle);
-                //MapPoint avoidPoint = _helper.DetermineStopMapPoint(out var pathOfGoToAvoidPoint);
-                //if (avoidPoint != null)
-                //{
-                //    waitingVehicle.NavigationState.AvoidPt = avoidPoint;
-                //    waitingVehicle.NavigationState.AvoidToVehicle = AvoidToVehicle;
-
-                //    waitingVehicle.NavigationState.IsAvoidRaising = true;
-                //}
-                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 等待與在設備中的車輛({AvoidToVehicle.Name})互相等待!");
+                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待!");
+                waitingVehicle.NavigationState.IsConflicWithVehicleAtWorkStation = true;
             }
 
 
@@ -275,14 +257,25 @@ namespace VMSystem.Dispatch
                 _LowProrityVehicle.NavigationState.IsConflicSolving = false;
                 _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
                 _LowProrityVehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
-
                 return _LowProrityVehicle;
+            }
+
+            private void NavigationState_OnAvoidPointCannotReach(object? sender, MapPoint e)
+            {
+                throw new NotImplementedException();
             }
 
             internal MapPoint DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint)
             {
                 try
                 {
+                    if (this._LowProrityVehicle.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING ||
+                        this._HightPriorityVehicle.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    {
+                        pathToStopPoint = null;
+                        return null;
+                    }
+
                     pathToStopPoint = new List<MapPoint>();
                     //HPV=> High Priority Vehicle
                     MoveTaskDynamicPathPlanV2 currentTaskOfHPV = _HightPriorityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
@@ -300,7 +293,8 @@ namespace VMSystem.Dispatch
 
                     try
                     {
-                        var pathPredictOfHPV = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(pointOfHPV, finalPtOfHPV, _GetConstrainsOfHPVFuturePath());
+                        var constrainsOfHPVPath = StaMap.Map.Points.Values.Where(pt => !pt.Enable).ToList();
+                        var pathPredictOfHPV = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(pointOfHPV, finalPtOfHPV, constrainsOfHPVPath);
                         cannotStopPoints.AddRange(pathPredictOfHPV);
                         cannotStopPoints.AddRange(_GetConstrainsOfLPVStopPoint());
                         cannotStopPoints = cannotStopPoints.DistinctBy(pt => pt.TagNumber).ToList();
@@ -318,10 +312,11 @@ namespace VMSystem.Dispatch
                             var hpv = _HightPriorityVehicle;
                             var lpv = _LowProrityVehicle;
                             pathes = pathes.Where(path => path != null)
+                                           .Where(path => path.Last().TagNumber != finalPtOfLPV.TagNumber)
                                            .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
                                            .Where(path => !path.Last().GetCircleArea(ref lpv, 1.5).IsIntersectionTo(hpv.AGVRotaionGeometry))
-                                           //.OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
-                                           .OrderBy(path => path.Last().CalculateDistance(lpv.currentMapPoint))
+                                           .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
+                                           //.OrderBy(path => path.Last().CalculateDistance(lpv.currentMapPoint))
                                            .Where(path => !path.IsPathConflicWithOtherAGVBody(lpv, out var c)).ToList();
                             pathToStopPoint = pathes.FirstOrDefault();
                             if (pathToStopPoint == null)
@@ -332,7 +327,9 @@ namespace VMSystem.Dispatch
                         {
                             try
                             {
-                                var constrains = _GetConstrainsOfLPVStopPoint();
+                                //var constrains = _GetConstrainsOfLPVStopPoint();
+                                var constrains = StaMap.Map.Points.Values.Where(pt => !pt.Enable).ToList();
+                                constrains.AddRange(_LowProrityVehicle.NavigationState.AvoidActionState.CannotReachHistoryPoints);
                                 constrains.RemoveAll(pt => pt.TagNumber == _LowProrityVehicle.currentMapPoint.TagNumber);
                                 var pathToStopPt = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_LowProrityVehicle.currentMapPoint, stopPoint, constrains);
                                 return pathToStopPt;

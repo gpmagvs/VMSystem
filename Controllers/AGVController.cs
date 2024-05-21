@@ -31,7 +31,7 @@ namespace VMSystem.Controllers
                     ReturnCode = 0,
                     Message = ""
                 });
-               
+
             }
             else
             {
@@ -213,7 +213,8 @@ namespace VMSystem.Controllers
             bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
             if (!allowLeve)
             {
-                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備-等待主幹道可通行..");
+
+                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
             }
             else
             {

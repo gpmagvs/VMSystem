@@ -12,7 +12,9 @@ using System.Drawing;
 using VMSystem.Dispatch;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -38,8 +40,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override bool IsAGVReachDestine => Agv.states.Last_Visited_Node == DestineTag;
 
-
-
+        public bool IsSomeoneWaitingU { get; internal set; } = false;
+        public bool IsWaitingSomeone { get; internal set; } = false;
         public class clsPathSearchResult
         {
             public bool IsConflicByNarrowPathDirection { get; set; }
@@ -65,6 +67,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             StartRecordTrjectory();
             Agv.NavigationState.IsWaitingConflicSolve = false;
+            cycleStopRequesting = false;
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             bool IsRegionNavigationEnabled = AGVSConfigulator.SysConfigs.TaskControlConfigs.MultiRegionNavigation;
@@ -85,6 +88,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
                 Stopwatch pathConflicStopWatch = new Stopwatch();
                 pathConflicStopWatch.Start();
+                bool _IsFinalThetaCorrect = true;
+                double finalThetaCheck = 0;
+
                 while (_seq == 0 || DestineTag != Agv.currentMapPoint.TagNumber)
                 {
                     await Task.Delay(10);
@@ -95,8 +101,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, OrderData, Stage));
                         //var dispatchCenterReturnPath = (await DispatchCenter.MoveToGoalGetPath(Agv, searchStartPt, OrderData, Stage));
 
-                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.IsAvoidRaising || IsWaitingSomeone)
                         {
+                            if (Stage == VehicleMovementStage.AvoidPath)
+                            {
+                                Agv.NavigationState.AddCannotReachPointWhenAvoiding(finalMapPoint);
+                            }
+                            if (IsWaitingSomeone)
+                            {
+                                IAGV _avoidTo = Agv.NavigationState.AvoidToVehicle;
+                                Agv.NavigationState.IsWaitingConflicSolve = true;
+                                await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                                Agv.NavigationState.ResetNavigationPoints();
+                                while (_avoidTo.currentMapPoint.TagNumber != _avoidTo.NavigationState.AvoidPt.TagNumber)
+                                {
+                                    Agv.NavigationState.IsWaitingConflicSolve = true;
+                                    UpdateMoveStateMessage($"Wait {_avoidTo.Name} reach {_avoidTo.NavigationState.AvoidPt.TagNumber}");
+                                    await Task.Delay(1000);
+                                }
+                                Agv.NavigationState.IsWaitingConflicSolve = false;
+                                await SendCancelRequestToAGV();
+                                _previsousTrajectorySendToAGV.Clear();
+                                searchStartPt = Agv.currentMapPoint;
+                                continue;
+
+                            }
+
                             pathConflicStopWatch.Start();
                             searchStartPt = Agv.currentMapPoint;
                             UpdateMoveStateMessage($"Search Path...");
@@ -118,7 +148,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 await Task.Delay(1000);
                                 Agv.OnMapPointChanged += Agv_OnMapPointChanged;
                             }
-
+                            if (Agv.NavigationState.SpinAtPointRequest.IsSpinRequesting)
+                            {
+                                await SpinAtCurrentPointProcess();
+                            }
                             continue;
                         }
                         Agv.NavigationState.IsWaitingConflicSolve = false;
@@ -135,7 +168,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
-                        if (trajectory.Length == 0)
+                        if (trajectory.Length == 0 && _IsFinalThetaCorrect)
                         {
                             searchStartPt = Agv.currentMapPoint;
                             continue;
@@ -210,29 +243,26 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                                 throw new TaskCanceledException();
 
-                            if (cycleStopRequesting)
+                            if (cycleStopRequesting || IsSomeoneWaitingU)
                             {
-                                cycleStopRequesting = false;
                                 while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                                 {
                                     UpdateMoveStateMessage("Cycle Stoping");
                                     await Task.Delay(1000);
                                 }
+                                cycleStopRequesting = false;
                                 _previsousTrajectorySendToAGV.Clear();
                                 searchStartPt = Agv.currentMapPoint;
-                                //if (Agv.NavigationState.IsAvoidRaising)
-                                //{
-                                //    await AvoidPathProcess();
-                                //    searchStartPt = Agv.currentMapPoint;
-                                //}
-
-
                                 break;
                             }
-
                             await Task.Delay(10);
                         }
 
+                        if (nextGoalTag == finalMapPoint.TagNumber)
+                        {
+                            finalThetaCheck = nextPath.Last().Direction;
+
+                        }
                         _ = Task.Run(async () =>
                         {
                             UpdateMoveStateMessage($"抵達-{nextGoal.Graph.Display}");
@@ -261,6 +291,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (IsTaskCanceled)
                     throw new TaskCanceledException();
 
+                UpdateMoveStateMessage($"抵達-{finalMapPoint.Graph.Display}-角度確認({finalThetaCheck})...");
+                await Task.Delay(100);
+
+                while (!CalculateThetaError(finalThetaCheck, out double error))
+                {
+                    await FinalStopThetaAdjuctProcess();
+                }
+
+                UpdateMoveStateMessage($"抵達-{finalMapPoint.Graph.Display}-角度確認({finalThetaCheck}) OK!");
+                await Task.Delay(500);
+
             }
             catch (TaskCanceledException ex)
             {
@@ -277,6 +318,82 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 DispatchCenter.CancelDispatchRequest(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                 Agv.NavigationState.StateReset();
+            }
+
+            bool CalculateThetaError(double finalThetaCheck, out double error)
+            {
+                double angleDifference = finalThetaCheck - Agv.states.Coordination.Theta;
+                if (angleDifference > 180)
+                    angleDifference -= 360;
+                else if (angleDifference < -180)
+                    angleDifference += 360;
+                error = Math.Abs(angleDifference);
+                return error < 5;
+            }
+        }
+
+        private async Task FinalStopThetaAdjuctProcess()
+        {
+            await _DispatchTaskToAGV(new clsTaskDownloadData
+            {
+                Action_Type = ACTION_TYPE.None,
+                Destination = finalMapPoint.TagNumber,
+                Task_Name = OrderData.TaskName,
+                Trajectory = new clsMapPoint[1] { _previsousTrajectorySendToAGV.Last() }
+            });
+            while (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(1);
+                if (IsTaskAborted())
+                    throw new TaskCanceledException();
+            }
+            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(1);
+                if (IsTaskAborted())
+                    throw new TaskCanceledException();
+            }
+        }
+
+        private async Task SpinAtCurrentPointProcess()
+        {
+            double _forwardAngle = Agv.NavigationState.SpinAtPointRequest.ForwardAngle;
+
+            if (CalculateThetaError(_forwardAngle, out _))
+                return;
+
+
+            LOG.TRACE($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
+
+            _previsousTrajectorySendToAGV.Clear();
+            List<MapPoint> _trajPath = new List<MapPoint>() {
+                Agv.currentMapPoint.Clone()
+            };
+            _trajPath.Last().Direction = Agv.NavigationState.SpinAtPointRequest.ForwardAngle;
+            clsMapPoint[] traj = PathFinder.GetTrajectory(CurrentMap.Name, _trajPath);
+            await CycleStopRequestAsync();
+            await _DispatchTaskToAGV(new clsTaskDownloadData
+            {
+                Action_Type = ACTION_TYPE.None,
+                Destination = Agv.currentMapPoint.TagNumber,
+                Trajectory = traj,
+                Task_Name = OrderData.TaskName,
+            });
+
+            while (!CalculateThetaError(_forwardAngle, out _))
+            {
+                await Task.Delay(1000);
+                UpdateMoveStateMessage($"Spin forward to {_forwardAngle}");
+            }
+            bool CalculateThetaError(double finalThetaCheck, out double error)
+            {
+                double angleDifference = finalThetaCheck - Agv.states.Coordination.Theta;
+                if (angleDifference > 180)
+                    angleDifference -= 360;
+                else if (angleDifference < -180)
+                    angleDifference += 360;
+                error = Math.Abs(angleDifference);
+                return error < 5;
             }
         }
 
@@ -346,13 +463,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Stage = VehicleMovementStage.AvoidPath
             };
             var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
+            var runningTaskOfAvoidToVehicle = _avoidToAgv.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
             UpdateMoveStateMessage($"Before Avoid Path Check...");
-
+            bool _isRegionTrafficControl = runningTaskOfAvoidToVehicle.IsWaitingSomeone;
             Stopwatch _cancelAvoidTimer = Stopwatch.StartNew();
-            while (_cancelAvoidTimer.Elapsed.TotalSeconds < 3)
+            while (!_isRegionTrafficControl && _cancelAvoidTimer.Elapsed.TotalSeconds < 2)
             {
                 await Task.Delay(1);
-                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve)
+                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_isRegionTrafficControl)
                 {
                     UpdateMoveStateMessage($"避車動作取消-因避讓車輛已有新路徑");
                     NotifyServiceHelper.INFO($"{Agv.Name}避車動作取消-因避讓車輛已有新路徑!");
@@ -360,13 +478,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return;
                 }
             }
+            SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, Agv.states.Coordination.Theta - 90, Agv);
+            if ((spinDetection.Detect()).Result == DETECTION_RESULT.OK)
+            {
+                await SpinAtCurrentPointProcess();
+            }
+
+            if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve)
+                return;
+
 
             Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
             Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
             trafficAvoidTask.UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
+            Agv.NavigationState.IsAvoidRaising = false;
             await trafficAvoidTask.SendTaskToAGV();
             Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;
-
 
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             Agv.NavigationState.ResetNavigationPoints();
@@ -382,6 +509,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);
             }
+            double forwardAngle = Agv.states.Coordination.Theta - 180;
+            spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, forwardAngle, Agv);
+            while ((spinDetection.Detect()).Result != DETECTION_RESULT.OK)
+            {
+                trafficAvoidTask.UpdateMoveStateMessage($"Wait spin action allowed...");
+                await Task.Delay(1000);
+            }
+
             sw.Restart();
             //while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
             //{
@@ -394,6 +529,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //}
 
 
+            IsSomeoneWaitingU = false;
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
             //Agv.NavigationState.ResetNavigationPoints();
             //Agv.NavigationState.StateReset();

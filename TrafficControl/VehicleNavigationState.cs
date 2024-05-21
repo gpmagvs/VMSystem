@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.VisualBasic;
 using SQLitePCL;
 using System.Diagnostics;
@@ -76,23 +77,8 @@ namespace VMSystem.TrafficControl
         }
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
-        /// <summary>
-        /// 當前與剩餘路徑佔據的道路
-        /// </summary>
-        public List<MapPath> OcuupyPathes
-        {
-            get
-            {
-                List<MapPath> output = new List<MapPath>();
-                var map = CurrentMap;
-                var nextNavigtionPointOcuupyPathes = NextNavigtionPoints.SelectMany(point => point.GetPathes(ref map));
-                output.AddRange(nextNavigtionPointOcuupyPathes);
-                output.AddRange(CurrentMapPoint.GetPathes(ref map));
-                output = output.Distinct().ToList();
-                return output;
-            }
-        }
-
+        public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
+        public clsAvoidActionState AvoidActionState { get; set; } = new();
         public List<MapRectangle> NextPathOccupyRegionsForPathCalculation
         {
             get
@@ -128,11 +114,14 @@ namespace VMSystem.TrafficControl
             double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.2;
             double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
-
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLengthExpanded = vLength * _GeometryExpandRatio;
             vWidth = vWidth * _WidthExpandRatio;
 
+            if (IsConflicWithVehicleAtWorkStation)
+            {
+                vWidth = vLength = vLengthExpanded = 0.5;
+            }
 
             MapPoint endPoint = _nexNavPts.Last();
             var pathForCalulate = _nexNavPts.Skip(1).ToList();
@@ -286,13 +275,16 @@ namespace VMSystem.TrafficControl
                     else
                     {
                         IsWaitingForLeaveWorkStationTimeout = false;
-                        Task.Run(async () =>
+                        MapPoint entryPoint = GetEntryPoint();
+                        if (!entryPoint.Enable)
                         {
-                            await Task.Delay(1000);
-                            MapPoint entryPoint = GetEntryPoint();
-                            entryPoint.Enable = true;
-                            NotifyServiceHelper.SUCCESS($"動態鎖定點位-{entryPoint.TagNumber} 已解除.");
-                        });
+                            Task.Run(async () =>
+                            {
+                                await Task.Delay(1000);
+                                entryPoint.Enable = true;
+                                NotifyServiceHelper.SUCCESS($"動態鎖定點位-{entryPoint.TagNumber} 已解除.");
+                            });
+                        }
                         _LeaveWorkStationWaitTimer.Reset();
                     }
                 }
@@ -300,6 +292,7 @@ namespace VMSystem.TrafficControl
         }
 
         public bool LeaveWorkStationHighPriority { get; internal set; }
+        public bool IsConflicWithVehicleAtWorkStation { get; internal set; }
 
         private async Task _WaitLeaveWorkStationTimeToolongDetection()
         {
@@ -308,15 +301,17 @@ namespace VMSystem.TrafficControl
             while (_IsWaitingForLeaveWorkStation)
             {
                 await Task.Delay(1);
-
                 if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 5 && !IsWaitingForLeaveWorkStationTimeout)
                 {
-                    MapPoint entryPoint = GetEntryPoint();
-                    entryPoint.Enable = false;
-                    NotifyServiceHelper.WARNING($"動態鎖定點位-{entryPoint.TagNumber}");
                     IsWaitingForLeaveWorkStationTimeout = true;
-                    return;
                 }
+                //if (_LeaveWorkStationWaitTimer.Elapsed.TotalSeconds > 15)
+                //{
+                //    MapPoint entryPoint = GetEntryPoint();
+                //    entryPoint.Enable = false;
+                //    NotifyServiceHelper.WARNING($"動態[Disable]點位-{entryPoint.TagNumber}");
+                //    return;
+                //}
 
             }
         }
@@ -326,7 +321,12 @@ namespace VMSystem.TrafficControl
             int entryPointTag = Vehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
             return StaMap.Map.Points.Values.First(pt => pt.TagNumber == entryPointTag);
         }
+        public void RaiseSpintAtPointRequest(double forwardAngle)
+        {
+            SpinAtPointRequest.ForwardAngle = forwardAngle;
+            SpinAtPointRequest.IsSpinRequesting = true;
 
+        }
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {
             var _pathPoints = pathPoints.Clone().ToList();
@@ -367,9 +367,33 @@ namespace VMSystem.TrafficControl
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState = REGION_CONTROL_STATE.NONE;
-            IsConflicSolving = IsWaitingConflicSolve = false;
+            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = false;
+            AvoidActionState.CannotReachHistoryPoints.Clear();
             IsAvoidRaising = false;
             AvoidPt = null;
         }
+
+        internal void CancelSpinAtPointRequest()
+        {
+            SpinAtPointRequest.IsSpinRequesting = false;
+        }
+
+        internal void AddCannotReachPointWhenAvoiding(MapPoint avoidDestinePoint)
+        {
+            NotifyServiceHelper.ERROR($"{Vehicle.Name} 避車至 {avoidDestinePoint.Graph.Display} 失敗.");
+            AvoidActionState.CannotReachHistoryPoints.Add(avoidDestinePoint);
+        }
+    }
+
+
+    public class clsSpinAtPointRequest
+    {
+        public bool IsSpinRequesting { get; set; } = false;
+        public double ForwardAngle { get; set; } = 0;
+    }
+
+    public class clsAvoidActionState
+    {
+        public List<MapPoint> CannotReachHistoryPoints { get; set; } = new();
     }
 }
