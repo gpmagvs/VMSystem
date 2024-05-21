@@ -100,6 +100,9 @@ namespace VMSystem.TrafficControl
         private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts, bool isUseForCalculate)
         {
             var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
+            if (IsWaitingForEntryRegion)
+                return new List<MapRectangle> { Vehicle.AGVRealTimeGeometery };
+
 
             if (!_nexNavPts.Any() || (!isUseForCalculate && IsWaitingConflicSolve))
                 return new List<MapRectangle>()
@@ -293,6 +296,7 @@ namespace VMSystem.TrafficControl
 
         public bool LeaveWorkStationHighPriority { get; internal set; }
         public bool IsConflicWithVehicleAtWorkStation { get; internal set; }
+        public bool IsWaitingForEntryRegion { get; internal set; }
 
         private async Task _WaitLeaveWorkStationTimeToolongDetection()
         {
