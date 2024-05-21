@@ -320,6 +320,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             try
             {
+                if (Agv == null)
+                {
+                    return new SimpleRequestResponse
+                    {
+                        ReturnCode = RETURN_CODE.OK
+                    };
+                }
                 if (Agv.options.Simulation)
                 {
                     Agv.AgvSimulation?.CancelTask();
