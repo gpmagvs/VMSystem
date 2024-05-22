@@ -468,10 +468,8 @@ namespace VMSystem.TrafficControl
         /// <param name="goal"></param>
         /// <param name="agv"></param>
         /// <returns>回傳直如果為double.MaxValue視為找不到路徑或是目標站點不予許車種</returns>
-        public static double ElevateDistanceToGoalStation(MapPoint goal, IAGV agv)
+        public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint, IAGV agv)
         {
-            var from = agv.currentMapPoint;
-            MapPoint _workStationPoint = goal;
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
             Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
@@ -482,12 +480,12 @@ namespace VMSystem.TrafficControl
                 return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
-            var result = pathFinder.FindShortestPath(StaMap.Map, from, goal, new PathFinder.PathFinderOption { OnlyNormalPoint = false });
+            var result = pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, _workStationPoint, new PathFinder.PathFinderOption { OnlyNormalPoint = false });
             if (result == null)
                 return double.MaxValue;
             else
                 return result.total_travel_distance;
-        }
+        }      
 
         #region Private Methods
 
@@ -506,8 +504,6 @@ namespace VMSystem.TrafficControl
 
 
         #endregion
-
-
 
     }
 }

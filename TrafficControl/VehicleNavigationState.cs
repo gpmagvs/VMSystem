@@ -12,6 +12,7 @@ using System.Drawing;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
+using static VMSystem.TrafficControl.VehicleNavigationState;
 
 namespace VMSystem.TrafficControl
 {
@@ -38,7 +39,6 @@ namespace VMSystem.TrafficControl
 
         public static Map CurrentMap => StaMap.Map;
         public NAV_STATE State { get; set; } = NAV_STATE.IDLE;
-        public REGION_CONTROL_STATE RegionControlState { get; set; } = REGION_CONTROL_STATE.NONE;
         public IAGV Vehicle { get; set; }
         public MapPoint CurrentMapPoint
         {
@@ -79,6 +79,8 @@ namespace VMSystem.TrafficControl
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
         public clsAvoidActionState AvoidActionState { get; set; } = new();
+
+        public clsRegionControlState RegionControlState { get; set; } = new();
         public List<MapRectangle> NextPathOccupyRegionsForPathCalculation
         {
             get
@@ -100,6 +102,9 @@ namespace VMSystem.TrafficControl
         private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts, bool isUseForCalculate)
         {
             var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
+            if (IsWaitingForEntryRegion)
+                return new List<MapRectangle> { Vehicle.AGVRealTimeGeometery };
+
 
             if (!_nexNavPts.Any() || (!isUseForCalculate && IsWaitingConflicSolve))
                 return new List<MapRectangle>()
@@ -299,6 +304,7 @@ namespace VMSystem.TrafficControl
 
         public bool LeaveWorkStationHighPriority { get; internal set; }
         public bool IsConflicWithVehicleAtWorkStation { get; internal set; }
+        public bool IsWaitingForEntryRegion { get; internal set; }
 
         private async Task _WaitLeaveWorkStationTimeToolongDetection()
         {
@@ -372,8 +378,8 @@ namespace VMSystem.TrafficControl
         internal void StateReset()
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
-            RegionControlState = REGION_CONTROL_STATE.NONE;
-            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = false;
+            RegionControlState.State = REGION_CONTROL_STATE.NONE;
+            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = IsWaitingForEntryRegion = false;
             AvoidActionState.CannotReachHistoryPoints.Clear();
             IsAvoidRaising = false;
             AvoidPt = null;
@@ -401,5 +407,11 @@ namespace VMSystem.TrafficControl
     public class clsAvoidActionState
     {
         public List<MapPoint> CannotReachHistoryPoints { get; set; } = new();
+    }
+
+    public class clsRegionControlState
+    {
+        public REGION_CONTROL_STATE State { get; set; } = REGION_CONTROL_STATE.NONE;
+        public MapRegion NextToGoRegion { get; set; } = new();
     }
 }

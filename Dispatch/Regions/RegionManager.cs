@@ -1,5 +1,12 @@
-﻿using AGVSystemCommonNet6.MAP;
+﻿using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.MAP;
+using System.Runtime.CompilerServices;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.ConflicDetection;
+using VMSystem.VMS;
 
 namespace VMSystem.Dispatch.Regions
 {
@@ -64,10 +71,42 @@ namespace VMSystem.Dispatch.Regions
             MapRegion _Region = StaMap.Map.Regions.FirstOrDefault(reg => reg.Name == regionQuery.Name);
             if (_Region == null)
                 return true;
-            inRegionVehicles = _Region.InRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name).ToList();
+
+            List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(WannaEntryRegionVehicle).ToList();
+
+            try
+            {
+                List<IAGV> goToRegionVehicles = otherVehicles.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                                                             .Where(agv => _IsTraving(agv.CurrentRunningTask()))
+                                                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion(StaMap.Map).Name == regionQuery.Name))
+                                                                    .ToList();
+                if (goToRegionVehicles.Any())
+                {
+                    inRegionVehicles = goToRegionVehicles.Select(agv => agv.Name).ToList();
+                    return false;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex.Message, ex);
+            }
+            inRegionVehicles = otherVehicles.Where(agv => agv.currentMapPoint.GetRegion(StaMap.Map).Name == regionQuery.Name)
+                                                                                 .Select(agv => agv.Name).ToList();
+
             var currentWillEntryRegionVehicleNames = _Region.ReserveRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name);
             return inRegionVehicles.Count() < _Region.MaxVehicleCapacity && currentWillEntryRegionVehicleNames.Count() < _Region.MaxVehicleCapacity;
+
+
+            bool _IsTraving(TaskBase taskBase)
+            {
+                return taskBase.Stage == VehicleMovementStage.Traveling ||
+                    taskBase.Stage == VehicleMovementStage.Traveling_To_Source ||
+                    taskBase.Stage == VehicleMovementStage.Traveling_To_Destine ||
+                    taskBase.Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point;
+            }
         }
+
     }
 
     public static class Extensions

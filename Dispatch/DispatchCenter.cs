@@ -401,7 +401,8 @@ namespace VMSystem.Dispatch
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));//其他車輛當前導航路徑不可用
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
-            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
+            constrains.AddRange(otherAGV.Where(v => v.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                                        .SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
             constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();

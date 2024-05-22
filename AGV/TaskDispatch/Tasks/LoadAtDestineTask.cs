@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.ResponseModel;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {

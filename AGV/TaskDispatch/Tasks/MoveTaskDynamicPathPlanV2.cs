@@ -16,6 +16,7 @@ using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static AGVSystemCommonNet6.MAP.PathFinder;
+using static VMSystem.TrafficControl.VehicleNavigationState;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -126,7 +127,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 continue;
 
                             }
-
+                            if (GetRegionChangedToEntryable())
+                            {
+                                await CycleStopRequestAsync();
+                                return;
+                            }
                             pathConflicStopWatch.Start();
                             searchStartPt = Agv.currentMapPoint;
                             UpdateMoveStateMessage($"Search Path...");
@@ -202,7 +207,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             Action_Type = ACTION_TYPE.None,
                             Task_Name = OrderData.TaskName,
-                            Destination = Agv.NavigationState.RegionControlState == VehicleNavigationState.REGION_CONTROL_STATE.WAIT_AGV_REACH_ENTRY_POINT ? nextGoal.TagNumber : DestineTag,
+                            Destination = Agv.NavigationState.RegionControlState.State == REGION_CONTROL_STATE.WAIT_AGV_REACH_ENTRY_POINT ? nextGoal.TagNumber : DestineTag,
                             Trajectory = _previsousTrajectorySendToAGV.ToArray(),
                             Task_Sequence = _seq
                         });
@@ -256,6 +261,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 _previsousTrajectorySendToAGV.Clear();
                                 searchStartPt = Agv.currentMapPoint;
                                 break;
+                            }
+                            if (GetRegionChangedToEntryable())
+                            {
+                                await CycleStopRequestAsync();
+                                return;
                             }
                             await Task.Delay(10);
                         }
@@ -334,6 +344,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        private bool GetRegionChangedToEntryable()
+        {
+            if (Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
+            {
+                MapRegion nextRegionToGo = Agv.NavigationState.RegionControlState.NextToGoRegion;
+                return RegionManager.IsRegionEnterable(Agv, nextRegionToGo, out var inRegionVehicles);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         private async Task FinalStopThetaAdjuctProcess()
         {
             await _DispatchTaskToAGV(new clsTaskDownloadData
@@ -405,10 +428,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 MapRegion? _Region = regions[i];
 
+                if (!IsNeedToStayAtWaitPoint(_Region, out _))
+                    continue;
+
                 int tagOfWaitingForEntryRegion = _Region.EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag))
                                                                    .OrderBy(pt => pt.CalculateDistance(Agv.currentMapPoint))
                                                                    .GetTagCollection().FirstOrDefault();
-
                 bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
 
                 MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
@@ -422,16 +447,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
                 };
                 NotifyServiceHelper.INFO($"{Agv.Name}即將前往 {_Region.Name} 等待點。");
+                Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
                 Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
                 await _moveToRegionWaitPointsTask.SendTaskToAGV();
                 await Task.Delay(1000);
+
+                Agv.NavigationState.IsWaitingForEntryRegion = true;
+                Agv.NavigationState.ResetNavigationPoints();
+                await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
                 {
-                    Agv.NavigationState.ResetNavigationPoints();
-                    await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                     _moveToRegionWaitPointsTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
                     await Task.Delay(1000);
                 }
+                Agv.NavigationState.IsWaitingForEntryRegion = false;
 
             }
 
