@@ -501,6 +501,16 @@ namespace VMSystem.TrafficControl
             else
                 return result.total_travel_distance;
         }
+      
+        public static AGV_TYPE GetEQAcceptAGVType(MapPoint _workStationPoint)
+        {
+            var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+            var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+            Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
+            AcceptAGVInfoOfEQTags.Wait();
+            AGV_TYPE _workStationPoint_AGVType = (AGV_TYPE) AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
+            return _workStationPoint_AGVType;
+        }
 
         #region Private Methods
 
