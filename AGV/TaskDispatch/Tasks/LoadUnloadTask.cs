@@ -8,6 +8,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class LoadUnloadTask : TaskBase
     {
+        private MapPoint EntryPoint = new();
+        private MapPoint EQPoint = new();
+
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }
@@ -33,17 +36,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             base.CreateTaskToAGV();
 
-            MapPoint destinMapPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
-            MapPoint sourceMapPoint = GetEntryPointsOfWorkStation(destinMapPoint, Agv.currentMapPoint);
+            EQPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
+            EntryPoint = GetEntryPointsOfWorkStation(EQPoint, Agv.currentMapPoint);
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
-            this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
+            this.TaskDonwloadToAGV.Destination = EQPoint.TagNumber;
             this.TaskDonwloadToAGV.Homing_Trajectory = new clsMapPoint[2]
             {
-                MapPointToTaskPoint(sourceMapPoint,index:0),
-                MapPointToTaskPoint(destinMapPoint,index:1)
+                MapPointToTaskPoint(EntryPoint,index:0),
+                MapPointToTaskPoint(EQPoint,index:1)
             };
-            MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { sourceMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
+            MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { EntryPoint.TagNumber, EQPoint.TagNumber }, null, false);
         }
         public override async Task SendTaskToAGV()
         {
@@ -55,7 +58,29 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await StaMap.UnRegistPoint(Agv.Name, currentTag);
                 NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
             }
+            UpdateEQActionMessageDisplay();
             await base.SendTaskToAGV();
+        }
+
+        internal async Task UpdateEQActionMessageDisplay()
+        {
+            ACTION_TYPE orderAction = OrderData.Action;
+            string actionString = "";
+            string sourceDestineString = "";
+            if (orderAction == ACTION_TYPE.Carry)
+            {
+                MapPoint fromPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+                MapPoint toPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+                sourceDestineString = ActionType == ACTION_TYPE.Load ? $"(來源 {fromPt.Graph.Display})" : $"(終點 {toPt.Graph.Display})";
+            }
+            actionString = this.ActionType == ACTION_TYPE.Load ? "放貨" : "取貨";
+            await Task.Delay(1000);
+            UpdateMoveStateMessage($"{EQPoint.Graph.Display} [{actionString}] 中...\r\n{sourceDestineString}");
+
+        }
+        public override void UpdateMoveStateMessage(string msg)
+        {
+            TrafficWaitingState.SetDisplayMessage($"{msg}");
         }
         protected abstract int GetSlotHeight();
         internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)

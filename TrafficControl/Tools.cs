@@ -216,9 +216,9 @@ namespace VMSystem.TrafficControl
         }
         internal static MapRectangle CreateSquare(MapPoint mapPoint, double sideLength)
         {
-            return CreateSquare(new PointF((float)mapPoint.X, (float)mapPoint.Y), sideLength);
+            return CreateSquare(new PointF((float)mapPoint.X, (float)mapPoint.Y), sideLength, mapPoint.TagNumber, mapPoint.TagNumber);
         }
-        public static MapRectangle CreateSquare(PointF center, double sideLength)
+        public static MapRectangle CreateSquare(PointF center, double sideLength, int startTag = -1, int endTag = -1)
         {
             // 創建正方形的四個角點
             PointF corner1 = new PointF((float)(center.X - sideLength / 2), (float)(center.Y - sideLength / 2));
@@ -233,13 +233,20 @@ namespace VMSystem.TrafficControl
                 Corner2 = corner2,
                 Corner3 = corner3,
                 Corner4 = corner4,
-                // 可以根據需要設置其他屬性
+                StartPointTag = new MapPoint
+                {
+                    TagNumber = startTag
+                },
+                EndMapPoint = new MapPoint
+                {
+                    TagNumber = endTag
+                }
             };
 
             return square;
         }
 
-        public static MapRectangle CreateRectangle(double x, double y, double theta, double width, double length)
+        public static MapRectangle CreateRectangle(double x, double y, double theta, double width, double length, int startTag = -1, int endTag = -1)
         {
 
             var center = new PointF((float)x, (float)y);
@@ -268,7 +275,15 @@ namespace VMSystem.TrafficControl
                 Corner1 = corners[0],
                 Corner2 = corners[1],
                 Corner3 = corners[2],
-                Corner4 = corners[3]
+                Corner4 = corners[3],
+                StartPointTag = new MapPoint
+                {
+                    TagNumber = startTag
+                },
+                EndMapPoint = new MapPoint
+                {
+                    TagNumber = endTag
+                }
             };
         }
 

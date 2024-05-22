@@ -12,6 +12,7 @@ using System.Drawing;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
+using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static VMSystem.TrafficControl.VehicleNavigationState;
 
 namespace VMSystem.TrafficControl
@@ -121,12 +122,9 @@ namespace VMSystem.TrafficControl
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLengthExpanded = vLength * _GeometryExpandRatio;
+            int tagNumberOfAgv = Vehicle.currentMapPoint.TagNumber;
             vWidth = vWidth * _WidthExpandRatio;
 
-            if (IsConflicWithVehicleAtWorkStation)
-            {
-                vWidth = vLength = vLengthExpanded = 0.5;
-            }
             MapRectangle RotationRectangleInCurrentPoint = Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded);
 
             if (SpinAtPointRequest.IsSpinRequesting)
@@ -173,7 +171,8 @@ namespace VMSystem.TrafficControl
             if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath && !isAtWorkStation)
             {
                 MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
-                                                   Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength) : Tools.CreateSquare(endPoint, vLengthExpanded);
+                                                     Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength, endPoint.TagNumber, endPoint.TagNumber)
+                                                   : Tools.CreateSquare(endPoint, vLengthExpanded);
                 finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
                 output.Add(finalStopRectangle);
             }
@@ -355,7 +354,8 @@ namespace VMSystem.TrafficControl
         {
             List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
             output.AddRange(pathPoints.Clone());
-            NextNavigtionPointsForPathCalculation = NextNavigtionPoints = output.Distinct().ToList();
+            output = output.DistinctBy(pt => pt.TagNumber).ToList();
+            NextNavigtionPointsForPathCalculation = NextNavigtionPoints = output;
         }
 
         public void ResetNavigationPoints()
