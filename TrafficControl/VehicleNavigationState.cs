@@ -373,7 +373,7 @@ namespace VMSystem.TrafficControl
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
-            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = false;
+            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = IsWaitingForEntryRegion = false;
             AvoidActionState.CannotReachHistoryPoints.Clear();
             IsAvoidRaising = false;
             AvoidPt = null;
