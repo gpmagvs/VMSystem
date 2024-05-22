@@ -11,6 +11,7 @@ using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 
@@ -246,7 +247,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
                         };
                     }
-
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
                     {
@@ -260,7 +260,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             LOG.TRACE($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
             if (Agv.options.Simulation)
             {
-                //StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
                 TaskDownloadRequestResponse taskStateResponse = Agv.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
                 return taskStateResponse;
             }
@@ -270,22 +269,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
 
-                    if (Agv.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
-                        taskStateResponse = Agv.AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _TaskDonwloadToAGV).Result;
+                    if (Agv.options.Protocol == PROTOCOL.RESTFulAPI)
+                        taskStateResponse = await Agv.AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _TaskDonwloadToAGV);
                     else
                         taskStateResponse = Agv.TcpClientHandler.SendTaskMessage(_TaskDonwloadToAGV);
 
-#if CancelTaskTest
-                    Task.Factory.StartNew(async () =>
-                    {
-                        await Task.Delay(100);
-                        this.CancelOrder();
-                    });
-#endif
-                    if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
-                    {
-                        //StaMap.RegistPoint(Agv.Name, _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out string ErrorMessage);
-                    }
                     return taskStateResponse;
                 }
                 catch (Exception)
@@ -296,6 +284,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
+
+        public virtual void UpdateMoveStateMessage(string msg)
+        {
+            if (OrderData == null)
+                return;
+            string GetDestineDisplay()
+            {
+                int _destineTag = 0;
+                bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
+                _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
+                return StaMap.GetStationNameByTag(_destineTag);
+            }
+            bool _isPathAvoiding = Stage == VehicleMovementStage.AvoidPath;
+            TrafficWaitingState.SetDisplayMessage($"[{(_isPathAvoiding ? "避車" : OrderData.ActionName)}]-{(_isPathAvoiding ? "避讓點" : "終點")} : {GetDestineDisplay()}\r\n({msg})");
+        }
 
         protected virtual async Task<(bool confirm, string message, List<string> regions)> RegistToPartsSystem(clsTaskDownloadData _TaskDonwloadToAGV)
         {

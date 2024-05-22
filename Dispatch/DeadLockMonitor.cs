@@ -177,17 +177,25 @@ namespace VMSystem.Dispatch
             //是否與停在設備中的車輛互相停等
             bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
             {
-                vehiclesAtWorkStation = otherVehicles.Where(v => v.CurrentRunningTask().ActionType != ACTION_TYPE.None)
-                                                         .Where(v => v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
-                                                         .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
+                vehiclesAtWorkStation = otherVehicles.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                                                     .Where(v => v.CurrentRunningTask().ActionType != ACTION_TYPE.None)
+                                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
                 return vehiclesAtWorkStation.Any();
-                //waitingVehicle.currentMapPoint.TargetNormalPoints().Where(pt => pt.TagNumber == )
             }
             if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
                 var AvoidToVehicle = vehiclesAtWorkStation.First();
-                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待!");
-                waitingVehicle.NavigationState.IsConflicWithVehicleAtWorkStation = true;
+                //把設備進入點Disable
+                int tagOfEntryPointOfEq = AvoidToVehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
+                MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
+                entryPoint.Enable = false;
+                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Disable {entryPoint.TagNumber}");
+                while (waitingVehicle.NavigationState.IsWaitingConflicSolve)
+                {
+                    await Task.Delay(1);
+                }
+                entryPoint.Enable = true;
+                NotifyServiceHelper.SUCCESS($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})解除互相等待! Enable {entryPoint.TagNumber}");
             }
 
 

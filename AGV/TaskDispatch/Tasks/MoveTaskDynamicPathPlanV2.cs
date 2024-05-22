@@ -134,7 +134,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             pathConflicStopWatch.Start();
                             searchStartPt = Agv.currentMapPoint;
-                            UpdateMoveStateMessage($"Search Path...");
+
+                            if (string.IsNullOrEmpty(TrafficWaitingState.Descrption))
+                                UpdateMoveStateMessage($"Search Path...");
                             await Task.Delay(10);
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -148,7 +150,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 pathConflicStopWatch.Stop();
                                 pathConflicStopWatch.Reset();
-                                await AvoidPathProcess();
+                                await AvoidPathProcess(_seq);
                                 searchStartPt = Agv.currentMapPoint;
                                 _previsousTrajectorySendToAGV.Clear();
                                 await SendCancelRequestToAGV();
@@ -157,7 +159,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             if (Agv.NavigationState.SpinAtPointRequest.IsSpinRequesting)
                             {
-                                await SpinAtCurrentPointProcess();
+                                await SpinAtCurrentPointProcess(_seq);
                             }
                             continue;
                         }
@@ -212,6 +214,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             Task_Sequence = _seq
                         });
                         _seq += 1;
+                        await Task.Delay(200);
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
                         //UpdateMoveStateMessage($"Go to {nextGoal.TagNumber}");
                         int nextGoalTag = nextGoal.TagNumber;
@@ -249,7 +252,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                                 throw new TaskCanceledException();
-
                             if (cycleStopRequesting || IsSomeoneWaitingU)
                             {
                                 while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
@@ -380,7 +382,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        private async Task SpinAtCurrentPointProcess()
+        private async Task SpinAtCurrentPointProcess(int _seq)
         {
             double _forwardAngle = Agv.NavigationState.SpinAtPointRequest.ForwardAngle;
 
@@ -396,6 +398,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             };
             _trajPath.Last().Direction = Agv.NavigationState.SpinAtPointRequest.ForwardAngle;
             clsMapPoint[] traj = PathFinder.GetTrajectory(CurrentMap.Name, _trajPath);
+            _seq += 1;
             await CycleStopRequestAsync();
             await _DispatchTaskToAGV(new clsTaskDownloadData
             {
@@ -403,6 +406,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Destination = Agv.currentMapPoint.TagNumber,
                 Trajectory = traj,
                 Task_Name = OrderData.TaskName,
+                Task_Sequence = _seq
             });
 
             while (!CalculateThetaError(_forwardAngle, out _))
@@ -479,22 +483,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// </summary>
         /// <returns></returns>
         /// <exception cref="TaskCanceledException"></exception>
-        private async Task AvoidPathProcess()
+        private async Task AvoidPathProcess(int _seq)
         {
             await SendCancelRequestToAGV();
             _previsousTrajectorySendToAGV.Clear();
-            var trafficAvoidTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
-            {
-                Action = ACTION_TYPE.None,
-                To_Station = Agv.NavigationState.AvoidPt.TagNumber + "",
-                TaskName = OrderData.TaskName,
-                DesignatedAGVName = Agv.Name,
-            })
-            {
-                Stage = VehicleMovementStage.AvoidPath
-            };
+
             var _avoidToAgv = Agv.NavigationState.AvoidToVehicle;
             var runningTaskOfAvoidToVehicle = _avoidToAgv.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
+            if (runningTaskOfAvoidToVehicle == null)
+                return;
             UpdateMoveStateMessage($"Before Avoid Path Check...");
             bool _isRegionTrafficControl = runningTaskOfAvoidToVehicle.IsWaitingSomeone;
             Stopwatch _cancelAvoidTimer = Stopwatch.StartNew();
@@ -512,13 +509,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, Agv.states.Coordination.Theta - 90, Agv);
             if ((spinDetection.Detect()).Result == DETECTION_RESULT.OK)
             {
-                await SpinAtCurrentPointProcess();
+                await SpinAtCurrentPointProcess(_seq);
             }
 
             if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve)
                 return;
-
-
+            _seq += 1;
+            var trafficAvoidTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+            {
+                Action = ACTION_TYPE.None,
+                To_Station = Agv.NavigationState.AvoidPt.TagNumber + "",
+                TaskName = OrderData.TaskName,
+                DesignatedAGVName = Agv.Name,
+            })
+            {
+                Stage = VehicleMovementStage.AvoidPath
+            };
             Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
             Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
             trafficAvoidTask.UpdateMoveStateMessage($"避車中...前往 {Agv.NavigationState.AvoidPt.TagNumber}");
@@ -644,21 +650,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return _isTurningAngleDoneInNarrow;
         }
 
-        public void UpdateMoveStateMessage(string msg)
-        {
-            if (OrderData == null)
-                return;
-            string GetDestineDisplay()
-            {
-                int _destineTag = 0;
-                bool isCarryOrderAndGoToSource = OrderData.Action == ACTION_TYPE.Carry && Stage == VehicleMovementStage.Traveling_To_Source;
-                _destineTag = isCarryOrderAndGoToSource ? OrderData.From_Station_Tag : OrderData.To_Station_Tag;
-                return StaMap.GetStationNameByTag(_destineTag);
-            }
-            bool _isPathAvoiding = Stage == VehicleMovementStage.AvoidPath;
-            TrafficWaitingState.SetDisplayMessage($"[{(_isPathAvoiding ? "避車" : OrderData.ActionName)}]-{(_isPathAvoiding ? "避讓點" : "終點")} : {GetDestineDisplay()}\r\n({msg})");
-        }
-
 
         public struct LowLevelSearch
         {
@@ -671,14 +662,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             /// <param name="GoalPoint"></param>
             /// <returns></returns>
             /// <exception cref="Exceptions.NotFoundAGVException"></exception>
-            public static IEnumerable<MapPoint> GetOptimizedMapPoints(MapPoint StartPoint, MapPoint GoalPoint, IEnumerable<MapPoint>? constrains)
+            public static IEnumerable<MapPoint> GetOptimizedMapPoints(MapPoint StartPoint, MapPoint GoalPoint, IEnumerable<MapPoint>? constrains, double VehicleCurrentAngle = double.MaxValue)
             {
                 PathFinder _pathFinder = new PathFinder();
                 clsPathInfo _pathInfo = _pathFinder.FindShortestPath(_Map, StartPoint, GoalPoint, new PathFinderOption
                 {
                     OnlyNormalPoint = true,
                     ConstrainTags = constrains == null ? new List<int>() : constrains.GetTagCollection().ToList(),
-                    Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
+                    Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
+                    VehicleCurrentAngle = VehicleCurrentAngle
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())

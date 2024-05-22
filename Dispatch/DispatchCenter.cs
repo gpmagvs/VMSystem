@@ -68,14 +68,14 @@ namespace VMSystem.Dispatch
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
-            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>());
+            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>(), vehicle.states.Coordination.Theta);
             IEnumerable<MapPoint> optimizePath_Init = null;
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint));
+                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 optimizePath_Init = optimizePath_Init_No_constrain;
             }
@@ -119,12 +119,6 @@ namespace VMSystem.Dispatch
                 var optmizePath_init_sub = optimizePath_Init.Take(goalIndex + 1).ToList();
                 vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optmizePath_init_sub);
                 var result = await FindPath(vehicle, otherAGV, point, optmizePath_init_sub, false);
-
-                //if ((vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).IsWaitingSomeone)
-                //{
-                //    NotifyServiceHelper.WARNING("跨區依任務優先權交管!");
-                //    return null;
-                //}
                 subGoalResults.Add(result);
             }
 
@@ -240,7 +234,7 @@ namespace VMSystem.Dispatch
                         else
                         {
                             vehicle.NavigationState.CancelSpinAtPointRequest();
-                            (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"{spinDetectResult.Message}");
+                            vehicle.CurrentRunningTask().UpdateMoveStateMessage($"{spinDetectResult.Message}");
                             await Task.Delay(500);
                         }
                     }
@@ -289,7 +283,7 @@ namespace VMSystem.Dispatch
                     _optimizePath = oriOptimizePath;
                 return _optimizePath;
 
-                static bool FindConflicRegion(IAGV vehicle, List<IAGV> otherDispatingVehicle, out MapRectangle _conflicRegion)
+                bool FindConflicRegion(IAGV vehicle, List<IAGV> otherDispatingVehicle, out MapRectangle _conflicRegion)
                 {
                     MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
                     _conflicRegion = null;
@@ -312,44 +306,11 @@ namespace VMSystem.Dispatch
                             }
                             if (isConflic)
                             {
-
-                                //if (_otherAGVRunningTask != null && _otherAGVRunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
-                                //{
-                                //    var otherAGVFinalRegion = _otherAGVRunningTask.finalMapPoint.GetRegion(CurrentMap);
-                                //    var thisAGVFinalRegion = vehicleRunningTask.finalMapPoint.GetRegion(CurrentMap);
-
-                                //    if (!string.IsNullOrEmpty(otherAGVFinalRegion.Name) && (otherAGVFinalRegion.Name != thisAGVFinalRegion.Name))
-                                //    {
-                                //        (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeadLockMonitor.DeterminPriorityOfVehicles(new List<IAGV>() { vehicle, _otherAGV });
-
-                                //        if (highPriorityVehicle.Name == vehicle.Name && !_otherAGV.NavigationState.IsAvoidRaising) //當前車輛有高度優先權
-                                //        {
-                                //            var LPVehicle = _otherAGV;
-                                //            MapPoint avoidPoint = GetNearestAvoidPoint();
-                                //            if (avoidPoint != null)
-                                //            {
-                                //                //vehicleRunningTask.IsWaitingSomeone = true;
-                                //                //vehicle.NavigationState.AvoidToVehicle = _otherAGV;
-                                //                //_otherAGV.NavigationState.IsAvoidRaising = true;
-                                //                //_otherAGV.NavigationState.AvoidToVehicle = vehicle;
-                                //                //_otherAGV.NavigationState.AvoidPt = avoidPoint;
-                                //                _otherAGVRunningTask.CycleStopRequestAsync();
-                                //            }
-                                //            MapPoint GetNearestAvoidPoint()
-                                //            {
-                                //                return CurrentMap.Points.Values.Where(pt => pt.IsAvoid)
-                                //                                 .Where(pt => !pt.GetCircleArea(ref LPVehicle).IsIntersectionTo(vehicle.AGVRotaionGeometry))
-                                //                                 .OrderBy(pt => pt.CalculateDistance(_otherAGV.currentMapPoint))
-                                //                                 .FirstOrDefault();
-                                //            }
-
-                                //        }
-
-                                //    }
-
-                                //}
-                                vehicleRunningTask.UpdateMoveStateMessage($"{item.StartPointTag.TagNumber}-{item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}.\r\n(_geometryConflic:{_geometryConflic}/_pathConflic:{_pathConflic})");
-
+                                bool _isPointConflic = item.StartPointTag.TagNumber == item.EndMapPoint.TagNumber;
+                                if (_isPointConflic)
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPointTag.TagNumber} Conflic To {_otherAGV.Name}");
+                                else
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Path From {item.StartPointTag.TagNumber} To {item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}");
                                 break;
                             }
                         }
@@ -408,10 +369,10 @@ namespace VMSystem.Dispatch
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
-            //if (additionRegists.Any())
-            //{
-            //    NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
-            //}
+            if (additionRegists.Any())
+            {
+                //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
+            }
             return constrains;
         }
         private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
@@ -458,7 +419,7 @@ namespace VMSystem.Dispatch
                     if (VehicleToEntry.CurrentRunningTask().IsTaskCanceled)
                         return null;
 
-                    (VehicleToEntry.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).UpdateMoveStateMessage($"等待設備維修-[{blockedWorkStation.Graph.Display}]..");
+                    VehicleToEntry.CurrentRunningTask().UpdateMoveStateMessage($"等待設備維修-[{blockedWorkStation.Graph.Display}]..");
                     await Task.Delay(1000);
                 }
                 VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;

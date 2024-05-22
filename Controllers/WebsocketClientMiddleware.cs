@@ -7,6 +7,7 @@ using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.HttpTools;
 using VMSystem.BackgroundServices;
+using AGVSystemCommonNet6.MAP;
 
 namespace VMSystem.Controllers
 {
@@ -59,6 +60,7 @@ namespace VMSystem.Controllers
                         return new { };
                     var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
                     var OrderHandler = agv.taskDispatchModule.OrderHandler;
+                    List<int> navingTagList = GetNavigationTag(agv);
                     bool isOrderExecuting = agv.taskDispatchModule.OrderExecuteState == AGV.clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
                     return new
                     {
@@ -72,7 +74,7 @@ namespace VMSystem.Controllers
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = isOrderExecuting ? OrderHandler.GetNavPathTags() : OrderHandler.RunningTask.FuturePlanNavigationTags,
+                        nav_path = isOrderExecuting ? navingTagList : OrderHandler.RunningTask.FuturePlanNavigationTags,
                         theta = agv.states.Coordination.Theta,
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
@@ -83,6 +85,12 @@ namespace VMSystem.Controllers
                         },
                         currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
                     };
+
+                    List<int> GetNavigationTag(AGV.IAGV agv)
+                    {
+                        List<int> tags = agv.NavigationState.NextNavigtionPoints.GetTagCollection().DistinctBy(tag => tag).ToList();
+                        return tags;
+                    }
                 }
                 return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => GetNavigationData(agv));
             }
