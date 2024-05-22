@@ -146,6 +146,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 Agv.NavigationState.IsWaitingConflicSolve = true;
                             }
+
                             if (Agv.NavigationState.IsAvoidRaising)
                             {
                                 pathConflicStopWatch.Stop();
@@ -409,7 +410,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Task_Sequence = _seq
             });
 
-            while (!CalculateThetaError(_forwardAngle, out _))
+            while (!CalculateThetaError(_forwardAngle, out _) || Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
                 await Task.Delay(1000);
                 UpdateMoveStateMessage($"Spin forward to {_forwardAngle}");

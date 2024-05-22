@@ -21,6 +21,9 @@ namespace VMSystem.Dispatch
             { ACTION_TYPE.None, 500 },
             { ACTION_TYPE.Charge, 400 },
         };
+
+        public List<Tuple<IAGV, MapPath>> TempRemovedMapPathes = new List<Tuple<IAGV, MapPath>>();
+
         private IEnumerable<IAGV> WaitingConflicReleaseVehicles
         {
             get
@@ -171,31 +174,50 @@ namespace VMSystem.Dispatch
             return weights;
         }
 
+        internal async void HandleVehicleNoWaitConflicSolve(object? sender, IAGV waitingVehicle)
+        {
+            var stored = TempRemovedMapPathes.FirstOrDefault(store => store.Item1 == waitingVehicle);
+            if (stored == null)
+                return;
+
+            MapPath pathToResotre = stored.Item2;
+            if (StaMap.AddPathDynamic(pathToResotre))
+            {
+                TempRemovedMapPathes.Remove(stored);
+                NotifyServiceHelper.SUCCESS($"{waitingVehicle.Name} 與在設備中的車輛解除互相等待! 重新開啟路徑(ID= {pathToResotre.PathID})");
+            }
+        }
         internal async void HandleVehicleStartWaitConflicSolve(object? sender, IAGV waitingVehicle)
         {
             var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(waitingVehicle);
             //是否與停在設備中的車輛互相停等
             bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
             {
-                vehiclesAtWorkStation = otherVehicles.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                     .Where(v => v.CurrentRunningTask().ActionType != ACTION_TYPE.None)
-                                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
+                vehiclesAtWorkStation = otherVehicles.Where(v => v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
+                //vehiclesAtWorkStation = otherVehicles.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                //                                     .Where(v => v.CurrentRunningTask().ActionType != ACTION_TYPE.None)
+                //                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
                 return vehiclesAtWorkStation.Any();
             }
             if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
                 var AvoidToVehicle = vehiclesAtWorkStation.First();
-                //把設備進入點Disable
-                int tagOfEntryPointOfEq = AvoidToVehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
+                //要把等待中AGV到設備的路徑移除
+                int tagOfEntryPointOfEq = AvoidToVehicle.currentMapPoint.TargetNormalPoints().First().TagNumber;
                 MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
-                entryPoint.Enable = false;
-                NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Disable {entryPoint.TagNumber}");
-                while (waitingVehicle.NavigationState.IsWaitingConflicSolve)
+                var _stored = TempRemovedMapPathes.FirstOrDefault(store => store.Item1 == waitingVehicle);
+                if (_stored == null)
                 {
-                    await Task.Delay(1);
+                    int currentTag = waitingVehicle.currentMapPoint.TagNumber;
+                    MapPoint currentPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == currentTag);
+                    int indexOfEntryPoint = StaMap.GetIndexOfPoint(entryPoint);
+                    currentPoint?.Target?.Remove(indexOfEntryPoint, out _);
+                    if (StaMap.TryRemovePathDynamic(currentPoint, entryPoint, out MapPath path))
+                    {
+                        TempRemovedMapPathes.Add(new Tuple<IAGV, MapPath>(waitingVehicle, path));
+                        NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{currentTag}->{tagOfEntryPointOfEq}");
+                    }
                 }
-                entryPoint.Enable = true;
-                NotifyServiceHelper.SUCCESS($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})解除互相等待! Enable {entryPoint.TagNumber}");
             }
 
 

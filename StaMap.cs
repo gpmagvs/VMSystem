@@ -550,6 +550,31 @@ namespace VMSystem
 
         }
 
+        internal static bool TryRemovePathDynamic(MapPoint fromPt, MapPoint toPt, out MapPath path)
+        {
+            string pathID = $"{GetIndexOfPoint(fromPt)}_{GetIndexOfPoint(toPt)}";
+            path = Map.Segments.FirstOrDefault(_path => _path.PathID == pathID);
+            if (path == null)
+                return false;
+            return Map.Segments.Remove(path);
+        }
+
+        internal static bool AddPathDynamic(MapPath path)
+        {
+            try
+            {
+                var existPath = Map.Segments.FirstOrDefault(_path => _path.PathID == path.PathID);
+                if (existPath != null)
+                    Map.Segments.Remove(existPath);
+                Map.Segments.Add(path);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+
         public class MapPointComparer : IEqualityComparer<MapPoint>
         {
             public bool Equals(MapPoint x, MapPoint y)

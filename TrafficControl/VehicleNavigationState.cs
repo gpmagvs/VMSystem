@@ -20,6 +20,7 @@ namespace VMSystem.TrafficControl
     public class VehicleNavigationState
     {
         public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
+        public static event EventHandler<IAGV> OnAGVNoWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVStartWaitLeavingWorkStation;
         public enum REGION_CONTROL_STATE
         {
@@ -247,13 +248,16 @@ namespace VMSystem.TrafficControl
                 {
                     _IsWaitingConflicSolve = value;
                     if (_IsWaitingConflicSolve)
-                    {
                         StartWaitConflicSolveTime = DateTime.Now;
-                        OnAGVStartWaitConflicSolve?.Invoke(Vehicle, Vehicle);
-                    }
                     else
+                    {
                         StartWaitConflicSolveTime = DateTime.MinValue;
+                        OnAGVNoWaitConflicSolve?.Invoke(Vehicle, Vehicle);
+                    }
                 }
+
+                if (_IsWaitingConflicSolve)
+                    OnAGVStartWaitConflicSolve?.Invoke(Vehicle, Vehicle);
             }
         }
         public bool IsConflicSolving { get; set; } = false;
