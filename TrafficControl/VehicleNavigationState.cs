@@ -135,6 +135,8 @@ namespace VMSystem.TrafficControl
 
             MapPoint endPoint = _nexNavPts.Last();
             var pathForCalulate = _nexNavPts.Skip(1).ToList();
+            output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLengthExpanded).Where(p => !double.IsNaN(p.Theta)).ToList());
+
             if (!isAtWorkStation && pathForCalulate.Count > 1)
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
@@ -165,7 +167,6 @@ namespace VMSystem.TrafficControl
             }
 
 
-            output.AddRange(Tools.GetPathRegionsWithRectangle(_nexNavPts, vWidth, vLengthExpanded).Where(p => !double.IsNaN(p.Theta)).ToList());
             output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLengthExpanded, vLengthExpanded));
 
             bool _isAvoidPath = Vehicle.CurrentRunningTask().Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.AvoidPath;
@@ -174,7 +175,7 @@ namespace VMSystem.TrafficControl
                 MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
                                                      Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength, endPoint.TagNumber, endPoint.TagNumber)
                                                    : Tools.CreateSquare(endPoint, vLengthExpanded);
-                finalStopRectangle.StartPointTag = finalStopRectangle.EndMapPoint = endPoint;
+                finalStopRectangle.StartPoint = finalStopRectangle.EndPoint = endPoint;
                 output.Add(finalStopRectangle);
             }
             double finalStopAngle = output.Last().Theta;
@@ -308,6 +309,11 @@ namespace VMSystem.TrafficControl
         public bool LeaveWorkStationHighPriority { get; internal set; }
         public bool IsConflicWithVehicleAtWorkStation { get; internal set; }
         public bool IsWaitingForEntryRegion { get; internal set; }
+
+        /// <summary>
+        /// 當前衝突的區塊
+        /// </summary>
+        public MapRectangle CurrentConflicRegion { get; internal set; } = new();
 
         private async Task _WaitLeaveWorkStationTimeToolongDetection()
         {

@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -199,28 +200,59 @@ namespace VMSystem.Dispatch
                 //                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
                 return vehiclesAtWorkStation.Any();
             }
-            if (!_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
+            if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
                 DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
             }
         }
         private void DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
         {
+            MapRectangle CurrentConflicRegion = waitingVehicle.NavigationState.CurrentConflicRegion;
+
+            //start tag / end tag
+
             var AvoidToVehicle = vehiclesAtWorkStation.First();
             //要把等待中AGV到設備的路徑移除
             int tagOfEntryPointOfEq = AvoidToVehicle.currentMapPoint.TargetNormalPoints().First().TagNumber;
             MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
+
+            if (entryPoint.TagNumber != CurrentConflicRegion.StartPoint.TagNumber && entryPoint.TagNumber != CurrentConflicRegion.EndPoint.TagNumber)
+                return;
+
+            double thetaOfEQTrajectory = Math.Abs(Tools.CalculationForwardAngle(entryPoint, AvoidToVehicle.currentMapPoint));
+            double thetaOfConflicPath = Math.Abs(Tools.CalculationForwardAngle(CurrentConflicRegion.StartPoint, CurrentConflicRegion.EndPoint));
+            double thetaRelative = Math.Abs(thetaOfEQTrajectory - thetaOfConflicPath);
+            bool isRotationFrontEqStation = Math.Abs(90 - thetaRelative) > 10;
+
+            if (!isRotationFrontEqStation)
+                return;
+
             var _stored = TempRemovedMapPathes.FirstOrDefault(store => store.Item1 == waitingVehicle);
             if (_stored == null)
             {
-                int currentTag = waitingVehicle.currentMapPoint.TagNumber;
-                MapPoint currentPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == currentTag);
-                int indexOfEntryPoint = StaMap.GetIndexOfPoint(entryPoint);
-                currentPoint?.Target?.Remove(indexOfEntryPoint, out _);
-                if (StaMap.TryRemovePathDynamic(currentPoint, entryPoint, out MapPath path))
+                MapPoint startPtOfPathClose = new();
+                MapPoint endPtOfPathClose = new();
+
+                bool _isForwardToEQPathConflic = entryPoint.TagNumber == CurrentConflicRegion.EndPoint.TagNumber; //朝向設備的路徑干涉
+                if (_isForwardToEQPathConflic)
+                {
+                    startPtOfPathClose = CurrentConflicRegion.StartPoint;
+                    endPtOfPathClose = entryPoint;
+                }
+                else
+                {
+                    startPtOfPathClose = entryPoint;
+                    endPtOfPathClose = CurrentConflicRegion.EndPoint;
+                }
+
+                int indexOfEndPt = StaMap.GetIndexOfPoint(endPtOfPathClose);
+                StaMap.Map.Points.Values.First(pt => pt.TagNumber == startPtOfPathClose.TagNumber)
+                                         .Target.Remove(indexOfEndPt, out _);
+
+                if (StaMap.TryRemovePathDynamic(startPtOfPathClose, endPtOfPathClose, out MapPath path))
                 {
                     TempRemovedMapPathes.Add(new Tuple<IAGV, MapPath>(waitingVehicle, path));
-                    NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{currentTag}->{tagOfEntryPointOfEq}");
+                    NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{startPtOfPathClose.TagNumber}->{endPtOfPathClose.TagNumber}");
                 }
             }
         }

@@ -278,12 +278,13 @@ namespace VMSystem.Dispatch
                 MapRectangle conflicRegion = null;
                 if (FindConflicRegion(vehicle, otherDispatingVehicle, out conflicRegion))
                 {
-                    bool willConflicRegionReleaseFuture = false;
-                    MapPoint conflicRegionStartPt = StaMap.GetPointByTagNumber(conflicRegion.StartPointTag.TagNumber);
-                    MapPoint conflicRegionEndPt = StaMap.GetPointByTagNumber(conflicRegion.EndMapPoint.TagNumber);
+                    vehicle.NavigationState.CurrentConflicRegion = conflicRegion;
                 }
                 else
+                {
+                    vehicle.NavigationState.CurrentConflicRegion = null;
                     _optimizePath = oriOptimizePath;
+                }
                 return _optimizePath;
 
                 bool FindConflicRegion(IAGV vehicle, List<IAGV> otherDispatingVehicle, out MapRectangle _conflicRegion)
@@ -309,11 +310,11 @@ namespace VMSystem.Dispatch
                             }
                             if (isConflic)
                             {
-                                bool _isPointConflic = item.StartPointTag.TagNumber == item.EndMapPoint.TagNumber;
+                                bool _isPointConflic = item.StartPoint.TagNumber == item.EndPoint.TagNumber;
                                 if (_isPointConflic)
-                                    vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPointTag.TagNumber} Conflic To {_otherAGV.Name}");
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPoint.TagNumber} Conflic To {_otherAGV.Name}");
                                 else
-                                    vehicleRunningTask?.UpdateMoveStateMessage($"Path From {item.StartPointTag.TagNumber} To {item.EndMapPoint.TagNumber} Conflic To {_otherAGV.Name}");
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Path From {item.StartPoint.TagNumber} To {item.EndPoint.TagNumber} Conflic To {_otherAGV.Name}");
                                 break;
                             }
                         }

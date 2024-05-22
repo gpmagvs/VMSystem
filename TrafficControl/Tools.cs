@@ -154,7 +154,7 @@ namespace VMSystem.TrafficControl
                     {
                         var lastPathRegion = _OthersAGVPathRectangles.Values.ToList()[indexOfLastConflicRegion];
                         var lastPathRegionOwner = _OthersAGVPathRectangles.FirstOrDefault(kp => kp.Value == lastPathRegion).Key;
-                        conflicSoFar = lastPathRegion.Last().StartPointTag.CalculateDistance(lastPathRegionOwner.states.Coordination.X, lastPathRegionOwner.states.Coordination.Y) > 5;
+                        conflicSoFar = lastPathRegion.Last().StartPoint.CalculateDistance(lastPathRegionOwner.states.Coordination.X, lastPathRegionOwner.states.Coordination.Y) > 5;
                     }
                     //if (conflicSoFar)
                     //    return false;
@@ -199,8 +199,8 @@ namespace VMSystem.TrafficControl
                 bool isNarrow = startPtRegion.IsNarrowPath || endPtRegion.IsNarrowPath;
 
                 MapRectangle _rectangle = CreatePathRectangle(new PointF((float)startPt.X, (float)startPt.Y), new PointF((float)endPt.X, (float)endPt.Y), (float)vehicleWidth + (isNarrow ? 0.1f : 0f), (float)vehicleLength);
-                _rectangle.StartPointTag = startPt;
-                _rectangle.EndMapPoint = endPt;
+                _rectangle.StartPoint = startPt;
+                _rectangle.EndPoint = endPt;
                 _PathRectangles.Add(_rectangle);
             }
 
@@ -233,11 +233,11 @@ namespace VMSystem.TrafficControl
                 Corner2 = corner2,
                 Corner3 = corner3,
                 Corner4 = corner4,
-                StartPointTag = new MapPoint
+                StartPoint = new MapPoint
                 {
                     TagNumber = startTag
                 },
-                EndMapPoint = new MapPoint
+                EndPoint = new MapPoint
                 {
                     TagNumber = endTag
                 }
@@ -276,11 +276,11 @@ namespace VMSystem.TrafficControl
                 Corner2 = corners[1],
                 Corner3 = corners[2],
                 Corner4 = corners[3],
-                StartPointTag = new MapPoint
+                StartPoint = new MapPoint
                 {
                     TagNumber = startTag
                 },
-                EndMapPoint = new MapPoint
+                EndPoint = new MapPoint
                 {
                     TagNumber = endTag
                 }
@@ -299,8 +299,8 @@ namespace VMSystem.TrafficControl
 
             MapRectangle _rectangle = CreateRectangle(AGV.states.Coordination.X, AGV.states.Coordination.Y, AGV.states.Coordination.Theta, width, length);
 
-            _rectangle.StartPointTag = AGV.currentMapPoint;
-            _rectangle.EndMapPoint = AGV.currentMapPoint;
+            _rectangle.StartPoint = AGV.currentMapPoint;
+            _rectangle.EndPoint = AGV.currentMapPoint;
             return _rectangle;
         }
 
