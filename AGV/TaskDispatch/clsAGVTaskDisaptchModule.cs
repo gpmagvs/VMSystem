@@ -207,9 +207,10 @@ namespace VMSystem.AGV
         private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1, 1);
         public async void AsyncTaskQueueFromDatabase()
         {
-            await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
             try
             {
+                await _syncTaskQueueFronDBSemaphoreSlim.WaitAsync();
+
                 var taskIDs = taskList.Select(tk => tk.TaskName);
                 if (!taskIDs.Any())
                     return;
