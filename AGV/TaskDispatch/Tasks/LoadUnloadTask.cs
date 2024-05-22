@@ -37,7 +37,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             base.CreateTaskToAGV();
 
             EQPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
-            EntryPoint = GetEntryPointsOfWorkStation(EQPoint);
+            EntryPoint = GetEntryPointsOfWorkStation(EQPoint, Agv.currentMapPoint);
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
             this.TaskDonwloadToAGV.Destination = EQPoint.TagNumber;

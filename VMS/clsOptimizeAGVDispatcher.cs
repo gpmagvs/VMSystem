@@ -31,10 +31,10 @@ namespace VMSystem.VMS
                     List<string> List_TaskAGV = new List<string>();
 
                     List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                    List<string> _taskList_for_waiting_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                    List<string> _taskList_for_navigation_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.NAVIGATING).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                    List_TaskAGV.AddRange(_taskList_for_waiting_agv);
-                    List_TaskAGV.AddRange(_taskList_for_navigation_agv);
+                    List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                    List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
+                    List_TaskAGV.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
+                    List_TaskAGV.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
                     List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                     List_TaskAGV.AddRange(List_idlecarryAGV);
@@ -52,8 +52,6 @@ namespace VMSystem.VMS
                         IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
                         if (AGV == null)
                             continue;
-                        else
-                            _taskDto = await ChechGenerateTransferTaskOrNot(AGV, _taskDto);
 
                         agv = AGV;
                         _taskDto.DesignatedAGVName = AGV.Name;
@@ -100,15 +98,18 @@ namespace VMSystem.VMS
                     EQAcceptEQType = tostation_agvtype;
                 else if (fromstation_agvtype != AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
                     EQAcceptEQType = fromstation_agvtype;
+                else if (fromstation_agvtype == tostation_agvtype)
+                    EQAcceptEQType = fromstation_agvtype;
                 else // fromstation_agvtype!=tostation_agvtype
                 {
                     if (taskDto.transfer_task_stage == 0)
                     {
+                        EQAcceptEQType = fromstation_agvtype;
                         taskDto.need_change_agv = true;
                         taskDto.transfer_task_stage = 1;
                     }
                     else if (taskDto.transfer_task_stage == 1) { }
-                    else if (taskDto.transfer_task_stage == 2) 
+                    else if (taskDto.transfer_task_stage == 2)
                     {
                         EQAcceptEQType = tostation_agvtype;
                     }
