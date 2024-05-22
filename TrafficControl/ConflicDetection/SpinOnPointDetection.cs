@@ -33,13 +33,13 @@ namespace VMSystem.TrafficControl.ConflicDetection
             var executingTaskVehicles = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
             Dictionary<IAGV, List<MapRectangle>> remainPathCoflicState = executingTaskVehicles.ToDictionary(agv => agv, agv => agv.NavigationState.NextPathOccupyRegions.Where(rct => rct.IsIntersectionTo(RectangleOfDetectPoint)).ToList());
             conflicAGVList.AddRange(remainPathCoflicState.Where(kp => kp.Value.Count != 0).Select(kp => kp.Key));
-            Dictionary<IAGV, bool> finalDestineNearState = executingTaskVehicles.ToDictionary(agv => agv, agv => _IsFinalDestineTooNear(agv));
-            conflicAGVList.AddRange(finalDestineNearState.Where(kp => kp.Value).Select(kp => kp.Key));
+            //Dictionary<IAGV, bool> finalDestineNearState = executingTaskVehicles.ToDictionary(agv => agv, agv => _IsFinalDestineTooNear(agv));
+            //conflicAGVList.AddRange(finalDestineNearState.Where(kp => kp.Value).Select(kp => kp.Key));
             return conflicAGVList.Any();
 
             bool _IsFinalDestineTooNear(IAGV agv)
             {
-                double distanceThres = this.AGVToDetect.AGVRotaionGeometry.RotationRadius * 2;
+                double distanceThres = this.AGVToDetect.AGVRotaionGeometry.RotationRadius * 3;
                 return (agv.CurrentRunningTask() as MoveTaskDynamicPathPlanV2).finalMapPoint.CalculateDistance(this.AGVToDetect.states.Coordination) <= distanceThres;
             }
         }

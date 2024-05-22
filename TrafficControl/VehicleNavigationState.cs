@@ -127,6 +127,12 @@ namespace VMSystem.TrafficControl
             {
                 vWidth = vLength = vLengthExpanded = 0.5;
             }
+            MapRectangle RotationRectangleInCurrentPoint = Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded);
+
+            if (SpinAtPointRequest.IsSpinRequesting)
+            {
+                output.Add(RotationRectangleInCurrentPoint);
+            }
 
             MapPoint endPoint = _nexNavPts.Last();
             var pathForCalulate = _nexNavPts.Skip(1).ToList();
@@ -141,7 +147,7 @@ namespace VMSystem.TrafficControl
                         output.Add(Vehicle.AGVRealTimeGeometery);
                     }
                     else
-                        output.Add(Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded));
+                        output.Add(RotationRectangleInCurrentPoint);
                 }
 
                 for (int i = 1; i < pathForCalulate.Count - 1; i++) //0 1 2 3 4 5 

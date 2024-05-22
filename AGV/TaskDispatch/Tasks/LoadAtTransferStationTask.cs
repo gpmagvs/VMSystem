@@ -8,6 +8,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class LoadAtTransferStationTask : LoadAtDestineTask
     {
+        public List<int> listTransferStation = new List<int>();
         public Dictionary<int, List<int>> dict_Transfer_to_from_tags = new Dictionary<int, List<int>>();
         public LoadAtTransferStationTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
@@ -28,9 +29,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             DestineTag = OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag;
-            clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
-            if (response == null || response.confirm == false)
-                return (response.confirm, response.AlarmCode);
+  			if (!OrderData.bypass_eq_status_check)
+            {
+            	clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            	if (response == null || response.confirm == false)
+                	return (response.confirm, response.AlarmCode);
+			}
             return await base.DistpatchToAGV();
         }
         protected override int GetDestineWorkStationTagByOrderInfo(clsTaskDto orderInfo)

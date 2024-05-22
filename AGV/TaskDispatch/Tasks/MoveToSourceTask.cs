@@ -16,9 +16,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
-            clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
-            if (response == null || response.confirm == false)
-                return (response.confirm, response.AlarmCode);
+            if (!OrderData.bypass_eq_status_check)
+            {
+                clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+                if (response == null || response.confirm == false)
+                    return (response.confirm, response.AlarmCode);
+            }
             return await base.DistpatchToAGV();
         }
     }

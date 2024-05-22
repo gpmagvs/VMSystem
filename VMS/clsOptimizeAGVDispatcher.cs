@@ -22,54 +22,50 @@ namespace VMSystem.VMS
 
         protected override async Task TaskAssignWorker()
         {
-            _ = Task.Run(async () =>
+            while (true)
             {
-                while (true)
+                try
                 {
-                    try
-                    {
-                        await Task.Delay(1000);
+                    await Task.Delay(1000);
 
-                        List<string> List_TaskAGV = new List<string>();
+                    List<string> List_TaskAGV = new List<string>();
 
-                        List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                        List<string> _taskList_for_waiting_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                        List<string> _taskList_for_navigation_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.NAVIGATING).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                        List_TaskAGV.AddRange(_taskList_for_waiting_agv);
-                        List_TaskAGV.AddRange(_taskList_for_navigation_agv);
+                    List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                    List<string> _taskList_for_waiting_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                    List<string> _taskList_for_navigation_agv = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.NAVIGATING).Select(task => task.DesignatedAGVName).Distinct().ToList();
+                    List_TaskAGV.AddRange(_taskList_for_waiting_agv);
+                    List_TaskAGV.AddRange(_taskList_for_navigation_agv);
 
-                        List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
-                        List_TaskAGV.AddRange(List_idlecarryAGV);
+                    List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
+                    List_TaskAGV.AddRange(List_idlecarryAGV);
 
-                        if (_taskList_waiting_and_no_DesignatedAGV.Count == 0)
-                            continue;
-
-                        //將任務依照優先度排序
-                        List<clsTaskDto> taskOrderedByPriority = _taskList_waiting_and_no_DesignatedAGV.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority).ToList();
-                        for (int i = 0; i < taskOrderedByPriority.Count(); i++)
-                        {
-                            var _taskDto = taskOrderedByPriority[i];
-                            if (_taskDto.DesignatedAGVName != "")
-                                continue;
-                            IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
-                            if (AGV == null)
-                                continue;
-                            else
-                                _taskDto = await ChechGenerateTransferTaskOrNot(AGV, _taskDto);
-
-                            agv = AGV;
-                            _taskDto.DesignatedAGVName = AGV.Name;
-                            TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        LOG.ERROR(ex);
+                    if (_taskList_waiting_and_no_DesignatedAGV.Count == 0)
                         continue;
+
+                    //將任務依照優先度排序
+                    List<clsTaskDto> taskOrderedByPriority = _taskList_waiting_and_no_DesignatedAGV.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority).ToList();
+                    for (int i = 0; i < taskOrderedByPriority.Count(); i++)
+                    {
+                        var _taskDto = taskOrderedByPriority[i];
+                        if (_taskDto.DesignatedAGVName != "")
+                            continue;
+                        IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
+                        if (AGV == null)
+                            continue;
+                        else
+                            _taskDto = await ChechGenerateTransferTaskOrNot(AGV, _taskDto);
+
+                        agv = AGV;
+                        _taskDto.DesignatedAGVName = AGV.Name;
+                        TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
                     }
                 }
-
-            });
+                catch (Exception ex)
+                {
+                    LOG.ERROR(ex);
+                    continue;
+                }
+            }
 
         }
         /// <summary>

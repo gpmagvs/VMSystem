@@ -150,7 +150,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 pathConflicStopWatch.Reset();
                                 await AvoidPathProcess();
                                 searchStartPt = Agv.currentMapPoint;
-                                await Task.Delay(1000);
+                                _previsousTrajectorySendToAGV.Clear();
+                                await SendCancelRequestToAGV();
+                                await Task.Delay(100);
                                 Agv.OnMapPointChanged += Agv_OnMapPointChanged;
                             }
                             if (Agv.NavigationState.SpinAtPointRequest.IsSpinRequesting)
