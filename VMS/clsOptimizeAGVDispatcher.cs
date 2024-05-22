@@ -82,26 +82,50 @@ namespace VMSystem.VMS
         private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto, List<string> List_ExceptAGV)
         {
             MapPoint goalStation = null;
-            //取 放貨
-            if (taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.LoadAndPark || taskDto.Action == ACTION_TYPE.Unload)
+            MapPoint FromStation = null;
+            MapPoint ToStation = null;
+            AGV_TYPE EQAcceptEQType = AGV_TYPE.Any;
+            if (taskDto.Action == ACTION_TYPE.Unload)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
+                EQAcceptEQType = Tools.GetEQAcceptAGVType(goalStation);
             }
             else if (taskDto.Action == ACTION_TYPE.Carry)
             {
-                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out goalStation);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
+                AGV_TYPE fromstation_agvtype = Tools.GetEQAcceptAGVType(FromStation);
+                AGV_TYPE tostation_agvtype = Tools.GetEQAcceptAGVType(ToStation);
+                goalStation = FromStation;
+
+                if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
+                    EQAcceptEQType = fromstation_agvtype;
+                else if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype != AGV_TYPE.Any)
+                    EQAcceptEQType = tostation_agvtype;
+                else if (fromstation_agvtype != AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
+                    EQAcceptEQType = fromstation_agvtype;
+                else // fromstation_agvtype!=tostation_agvtype
+                {
+                    if (taskDto.transfer_task_stage == 0)
+                    {
+                        taskDto.need_change_agv = true;
+                        taskDto.transfer_task_stage = 1;
+                    }
+                    else if (taskDto.transfer_task_stage == 1) { }
+                    else if (taskDto.transfer_task_stage == 2) 
+                    {
+                        EQAcceptEQType = tostation_agvtype;
+                    }
+                }
             }
-            //var agvSortedByDistance = VMSManager.AllAGV.Select(x=>x);
             List<IAGV> agvSortedByDistance = new List<IAGV>();
             try
             {
-                //agvSortedByDistance = VMSManager.AllAGV.Where(agv => agv.online_state == clsEnums.ONLINE_STATE.ONLINE && agv.IsSolvingTrafficInterLock == false)
-                //                                  .OrderBy(agv => Tools.ElevateDistanceToGoalStation(goalStation, agv))
-                //                                  .OrderByDescending(agv => agv.online_state);
                 List<object> temp = new List<object>();
-
                 foreach (var agv in VMSManager.AllAGV)
                 {
+                    if (EQAcceptEQType != AGV_TYPE.Any && EQAcceptEQType != agv.model)
+                        continue;
                     clsEnums.ONLINE_STATE online_state = agv.online_state;
                     if (online_state == clsEnums.ONLINE_STATE.OFFLINE)
                         continue;

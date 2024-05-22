@@ -53,6 +53,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 order.OrderData.DesignatedAGVName = "";
                 order.OrderData.State = TASK_RUN_STATUS.WAIT;
                 order.OrderData.need_change_agv = false;
+                order.OrderData.transfer_task_stage = 2;
                 if (order.OrderData.Action == ACTION_TYPE.Load)
                     order.OrderData.Action = ACTION_TYPE.Carry;
 
