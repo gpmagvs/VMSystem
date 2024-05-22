@@ -100,17 +100,7 @@ namespace VMSystem.Dispatch
                 usableSubGoals.Add(outPtOfSingleWay);
                 usableSubGoals = usableSubGoals.DistinctBy(pt => pt.TagNumber).OrderBy(pt => pt.CalculateDistance(vehicle.currentMapPoint)).ToList();
             }
-            bool _isAnyVehicleInWorkStationOfNarrowRegion(MapRegion refRegion)
-            {
-                if (!refRegion.IsNarrowPath)
-                    return false;
-                return false;
-                List<MapPoint> registedWorkStationsInNarrowRegion = StaMap.RegistDictionary.Keys.Select(tag => StaMap.GetPointByTagNumber(tag))
-                                            .Where(point => point.StationType != MapPoint.STATION_TYPE.Normal)
-                                            .Where(point => point.GetRegion(CurrentMap).Name == refRegion.Name)
-                                            .ToList();
-                return registedWorkStationsInNarrowRegion.Any();
-            }
+
             usableSubGoals = usableSubGoals.Any() ? usableSubGoals : new List<MapPoint>() { finalMapPoint };
             List<IEnumerable<MapPoint>> subGoalResults = new List<IEnumerable<MapPoint>>();
 
@@ -182,7 +172,18 @@ namespace VMSystem.Dispatch
 
                     }
                     return path;
-
+                    #region local methods
+                    bool _isAnyVehicleInWorkStationOfNarrowRegion(MapRegion refRegion)
+                    {
+                        if (!refRegion.IsNarrowPath)
+                            return false;
+                        return false;
+                        List<MapPoint> registedWorkStationsInNarrowRegion = StaMap.RegistDictionary.Keys.Select(tag => StaMap.GetPointByTagNumber(tag))
+                                                    .Where(point => point.StationType != MapPoint.STATION_TYPE.Normal)
+                                                    .Where(point => point.GetRegion(CurrentMap).Name == refRegion.Name)
+                                                    .ToList();
+                        return registedWorkStationsInNarrowRegion.Any();
+                    }
 
                     bool _WillFinalStopPointConflicMaybe(IEnumerable<MapPoint> _path)
                     {
@@ -210,6 +211,8 @@ namespace VMSystem.Dispatch
 
                         return isTooCloseWithVehicleEntryPointOFWorkStation || otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.8)));
                     }
+
+                    #endregion
                 }
                 catch (Exception ex)
                 {
@@ -259,7 +262,6 @@ namespace VMSystem.Dispatch
                 }
             }
             async Task<IEnumerable<MapPoint>> FindPath(IAGV vehicle, IEnumerable<IAGV> otherAGV, MapPoint _finalMapPoint, IEnumerable<MapPoint> oriOptimizePath, bool autoSolve = false)
-
             {
                 IEnumerable<MapPoint> _optimizePath = null;
                 List<IAGV> otherDispatingVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle).ToList();
