@@ -96,7 +96,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 LOG.TRACE($"AGV=[ {string.Join(",", _WaitingForAGV.Select(agv => agv.Name))}] is Waiting For {this.Agv.Name}");
             }
         }
-        protected MapPoint GetEntryPointsOfWorkStation(MapPoint _desintWorkStation)
+        protected MapPoint GetEntryPointsOfWorkStation(MapPoint _desintWorkStation, MapPoint agv_currentmappoint = null)
         {
             MapPoint _destine_point;
             var forbidsMapPoints = StaMap.GetNoStopPointsByAGVModel(this.Agv.model);
@@ -104,7 +104,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var usablePoints = entryPoints.Where(pt => !forbidsMapPoints.Contains(pt));
 
             if (usablePoints.Any())
-                _destine_point = usablePoints.First();
+            {
+                if (agv_currentmappoint != null)
+                {
+                    Dictionary<MapPoint, double> dict_distance_between_agvcurrentpoint_and_usablePoints = usablePoints.ToDictionary(x => x, x => double.MaxValue);
+                    foreach (var p in dict_distance_between_agvcurrentpoint_and_usablePoints.Keys)
+                    {
+                        dict_distance_between_agvcurrentpoint_and_usablePoints[p] = Math.Sqrt(Math.Pow(agv_currentmappoint.X - p.X, 2) + Math.Pow(agv_currentmappoint.Y - p.Y, 2));
+                    }
+                    _destine_point = dict_distance_between_agvcurrentpoint_and_usablePoints.OrderByDescending(x => x.Value).LastOrDefault().Key;
+                }
+                else
+                    _destine_point = usablePoints.FirstOrDefault();
+            }
             else
                 throw new NoPathForNavigatorException();
             return _destine_point;
