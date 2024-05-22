@@ -199,44 +199,29 @@ namespace VMSystem.Dispatch
                 //                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
                 return vehiclesAtWorkStation.Any();
             }
-            if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
+            if (!_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
-                var AvoidToVehicle = vehiclesAtWorkStation.First();
-                //要把等待中AGV到設備的路徑移除
-                int tagOfEntryPointOfEq = AvoidToVehicle.currentMapPoint.TargetNormalPoints().First().TagNumber;
-                MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
-                var _stored = TempRemovedMapPathes.FirstOrDefault(store => store.Item1 == waitingVehicle);
-                if (_stored == null)
+                DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
+            }
+        }
+        private void DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
+        {
+            var AvoidToVehicle = vehiclesAtWorkStation.First();
+            //要把等待中AGV到設備的路徑移除
+            int tagOfEntryPointOfEq = AvoidToVehicle.currentMapPoint.TargetNormalPoints().First().TagNumber;
+            MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
+            var _stored = TempRemovedMapPathes.FirstOrDefault(store => store.Item1 == waitingVehicle);
+            if (_stored == null)
+            {
+                int currentTag = waitingVehicle.currentMapPoint.TagNumber;
+                MapPoint currentPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == currentTag);
+                int indexOfEntryPoint = StaMap.GetIndexOfPoint(entryPoint);
+                currentPoint?.Target?.Remove(indexOfEntryPoint, out _);
+                if (StaMap.TryRemovePathDynamic(currentPoint, entryPoint, out MapPath path))
                 {
-                    int currentTag = waitingVehicle.currentMapPoint.TagNumber;
-                    MapPoint currentPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == currentTag);
-                    int indexOfEntryPoint = StaMap.GetIndexOfPoint(entryPoint);
-                    currentPoint?.Target?.Remove(indexOfEntryPoint, out _);
-                    if (StaMap.TryRemovePathDynamic(currentPoint, entryPoint, out MapPath path))
-                    {
-                        TempRemovedMapPathes.Add(new Tuple<IAGV, MapPath>(waitingVehicle, path));
-                        NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{currentTag}->{tagOfEntryPointOfEq}");
-                    }
+                    TempRemovedMapPathes.Add(new Tuple<IAGV, MapPath>(waitingVehicle, path));
+                    NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{currentTag}->{tagOfEntryPointOfEq}");
                 }
-            }
-
-
-            return;
-            var executingOrderVehicles = VMSManager.AllAGV.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                          .Where(v => v.CurrentRunningTask().ActionType == ACTION_TYPE.None)
-                                                          .Where(v => !v.NavigationState.IsAvoidRaising);
-            if (executingOrderVehicles.Count() < 2)
-                return;
-            var toAvoidVehicle = await DeadLockSolve(executingOrderVehicles.Take(2));
-            if (toAvoidVehicle == null)
-                return;
-            if (toAvoidVehicle.main_state == clsEnums.MAIN_STATUS.RUN)
-            {
-                //await toAvoidVehicle.CurrentRunningTask().CycleStopRequestAsync();
-            }
-            else
-            {
-
             }
         }
 
