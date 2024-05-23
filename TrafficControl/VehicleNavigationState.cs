@@ -7,6 +7,8 @@ using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.VisualBasic;
 using SQLitePCL;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.AGV;
@@ -402,8 +404,13 @@ namespace VMSystem.TrafficControl
 
         internal void AddCannotReachPointWhenAvoiding(MapPoint avoidDestinePoint)
         {
-            NotifyServiceHelper.ERROR($"{Vehicle.Name} 避車至 {avoidDestinePoint.Graph.Display} 失敗.");
-            AvoidActionState.CannotReachHistoryPoints.Add(avoidDestinePoint);
+            if (AvoidActionState.CannotReachHistoryPoints.TryGetValue(avoidDestinePoint.TagNumber, out MapPoint _existPoint))
+                return;
+
+            if (AvoidActionState.CannotReachHistoryPoints.TryAdd(avoidDestinePoint.TagNumber, avoidDestinePoint))
+            {
+                NotifyServiceHelper.ERROR($"{Vehicle.Name} 避車至 {avoidDestinePoint.Graph.Display} 失敗.");
+            }
         }
     }
 
@@ -416,7 +423,7 @@ namespace VMSystem.TrafficControl
 
     public class clsAvoidActionState
     {
-        public List<MapPoint> CannotReachHistoryPoints { get; set; } = new();
+        public ConcurrentDictionary<int, MapPoint> CannotReachHistoryPoints { get; set; } = new();
     }
 
     public class clsRegionControlState

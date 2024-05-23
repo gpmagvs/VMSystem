@@ -377,7 +377,7 @@ namespace VMSystem.Dispatch
                             {
                                 //var constrains = _GetConstrainsOfLPVStopPoint();
                                 var constrains = StaMap.Map.Points.Values.Where(pt => !pt.Enable).ToList();
-                                constrains.AddRange(_LowProrityVehicle.NavigationState.AvoidActionState.CannotReachHistoryPoints);
+                                constrains.AddRange(_LowProrityVehicle.NavigationState.AvoidActionState.CannotReachHistoryPoints.Values);
                                 constrains.RemoveAll(pt => pt.TagNumber == _LowProrityVehicle.currentMapPoint.TagNumber);
                                 var pathToStopPt = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_LowProrityVehicle.currentMapPoint, stopPoint, constrains);
                                 return pathToStopPt;
