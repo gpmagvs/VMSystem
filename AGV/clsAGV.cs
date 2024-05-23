@@ -431,6 +431,18 @@ namespace VMSystem.AGV
             LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
+            RaiseOffLineRequestWhenSystemStartAsync();
+        }
+
+        private void RaiseOffLineRequestWhenSystemStartAsync()
+        {
+            Task.Run(async() =>
+            {
+                while (!AGVOfflineFromAGVS(out string msg))
+                {
+                    await Task.Delay(1000);
+                }
+            });
         }
 
         protected virtual void CreateTaskDispatchModuleInstance()

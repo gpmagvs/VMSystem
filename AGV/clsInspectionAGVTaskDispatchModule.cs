@@ -37,7 +37,7 @@ namespace VMSystem.AGV
 
         }
 
-        protected override void CheckAutoCharge()
+        protected override async Task CheckAutoCharge()
         {
             return;
         }

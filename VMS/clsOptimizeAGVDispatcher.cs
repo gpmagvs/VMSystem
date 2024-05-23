@@ -15,7 +15,7 @@ namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
     {
-        public void Run()
+        public override async Task Run()
         {
             TaskAssignWorker();
         }
