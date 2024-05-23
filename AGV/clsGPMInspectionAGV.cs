@@ -6,7 +6,7 @@ using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
 {
-    public class clsGPMInspectionAGV : clsGPMForkAGV
+    public class clsGPMInspectionAGV : clsAGV
     {
         public override clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_INSPECTION_AGV;
         public override AGV_TYPE model { get; set; } = AGV_TYPE.INSPECTION_AGV;

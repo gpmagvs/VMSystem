@@ -77,7 +77,7 @@ namespace VMSystem.VMS
             var inspectionAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.INSPECTION_AGV);
             var yunTechForkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.YUNTECH_FORK_AGV);
 
-            VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsGPMForkAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.YUNTECH_FORK, new YunTechAgvVMS(yunTechForkAgvList.Select(agv => new clsYunTechAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
@@ -518,7 +518,7 @@ namespace VMSystem.VMS
             switch (dto.Model)
             {
                 case AGV_TYPE.FORK:
-                    agv = new clsGPMForkAGV(dto.AGV_Name, option);
+                    agv = new clsAGV(dto.AGV_Name, option);
                     break;
                 case AGV_TYPE.YUNTECH_FORK_AGV:
                     agv = new clsYunTechAGV(dto.AGV_Name, option);

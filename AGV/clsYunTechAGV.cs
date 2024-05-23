@@ -5,7 +5,7 @@ using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV
 {
-    public class clsYunTechAGV : clsGPMForkAGV
+    public class clsYunTechAGV : clsAGV
     {
         public override clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.YUNTECH_FORK;
         public override AGV_TYPE model { get; set; } = AGV_TYPE.FORK;

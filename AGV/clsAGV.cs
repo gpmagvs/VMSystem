@@ -26,14 +26,14 @@ using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.AGV
 {
-    public class clsGPMForkAGV : IAGV
+    public class clsAGV : IAGV
     {
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
-        public clsGPMForkAGV()
+        public clsAGV()
         {
 
         }
-        public clsGPMForkAGV(string name, clsAGVOptions options)
+        public clsAGV(string name, clsAGVOptions options)
         {
             this.options = options;
             Name = name;
