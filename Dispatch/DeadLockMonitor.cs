@@ -208,7 +208,8 @@ namespace VMSystem.Dispatch
         private void DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
         {
             MapRectangle CurrentConflicRegion = waitingVehicle.NavigationState.CurrentConflicRegion;
-
+            if (CurrentConflicRegion == null)
+                return;
             //start tag / end tag
 
             var AvoidToVehicle = vehiclesAtWorkStation.First();
