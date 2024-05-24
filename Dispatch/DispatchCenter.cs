@@ -149,27 +149,21 @@ namespace VMSystem.Dispatch
                     }
                     else
                     {
-                        if (_isAnyVehicleInWorkStationOfNarrowRegion(finalPointRegion))
-                            path = subGoalResults.Last(path => path != null).ToList();
-                        else
-                        {
-                            var pathCandicates = subGoalResults.Where(_p => _p != null);
 
-                            if (pathCandicates.Count() > 1)
-                            {
-                                path = pathCandicates.ToList()[1].ToList();
-                            }
-                            else
-                                path = subGoalResults.First(path => path != null).ToList();
+                        var pathCandicates = subGoalResults.Where(_p => _p != null);
+
+                        if (pathCandicates.Count() > 1)
+                        {
+                            path = pathCandicates.ToList()[1].ToList();
                         }
+                        else
+                            path = subGoalResults.First(path => path != null).ToList();
                     }
 
                     if (path != null)
                     {
                         bool willConflicMaybe = _noConflicPathToDestine == null && _WillFinalStopPointConflicMaybe(path);
                         return willConflicMaybe ? null : path;
-
-
                     }
                     return path;
                     #region local methods
@@ -233,7 +227,7 @@ namespace VMSystem.Dispatch
                         clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
                         if (spinDetectResult.Result == DETECTION_RESULT.OK)
                         {
-                            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint);
+                            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint, false);
                         }
                         else
                         {
@@ -291,7 +285,9 @@ namespace VMSystem.Dispatch
                 {
                     MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
                     _conflicRegion = null;
-                    foreach (var item in vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation)
+                    var _PathRectangles = vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation;
+                    _PathRectangles.Reverse();
+                    foreach (var item in _PathRectangles)
                     {
                         bool isConflic = false;
                         foreach (var _otherAGV in otherDispatingVehicle)
@@ -366,7 +362,8 @@ namespace VMSystem.Dispatch
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));//其他車輛當前導航路徑不可用
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
-            constrains.AddRange(otherAGV.Where(v => v.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+            constrains.AddRange(otherAGV.Where(v => v.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
+                                        .Where(v => v.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
                                         .SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
             constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();

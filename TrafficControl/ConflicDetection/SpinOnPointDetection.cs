@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 
@@ -8,28 +9,40 @@ namespace VMSystem.TrafficControl.ConflicDetection
 {
     public class SpinOnPointDetection : ConflicDetectionBase
     {
-        public override double AGVLengthExpandRatio { get; set; } = 2;
+        public override double AGVLengthExpandRatio { get; set; } = 1.3;
         public override double AGVWidthExpandRatio { get; set; } = 2;
         public SpinOnPointDetection(MapPoint DetectPoint, double ThetaOfPrediction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPrediction, AGVToDetect)
         {
 
         }
-
+        protected override IEnumerable<IAGV> GetOtherVehicles()
+        {
+            var _otherVehicles = base.GetOtherVehicles();
+            return _otherVehicles.Where(agv => agv.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None);
+        }
         public override clsConflicDetectResultWrapper Detect()
         {
+
             if (IsConflicToOtherVehiclesFinalStopPoint(out List<IAGV> conflicAGVList))
             {
+
                 return new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, $"Cannot Spin-> Will Conflic To {conflicAGVList.GetNames()}")
                 {
                     ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH
                 };
+            }
+
+            if (IsOtherVehiclesCurrentLocationSoFar())
+            {
+                NotifyServiceHelper.INFO($"{AGVToDetect.Name} Spin Directly because Other Vehicles is so far(so good)");
+                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
             }
             return base.Detect();
         }
         public bool IsConflicToOtherVehiclesFinalStopPoint(out List<IAGV> conflicAGVList)
         {
             conflicAGVList = new();
-            MapRectangle RectangleOfDetectPoint = GetRectangleOfDetectPoint();
+            MapRectangle RectangleOfDetectPoint = GetRotationRectangeOfDetectPoint();
             var executingTaskVehicles = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
             Dictionary<IAGV, List<MapRectangle>> remainPathCoflicState = executingTaskVehicles.ToDictionary(agv => agv, agv => agv.NavigationState.NextPathOccupyRegions.Where(rct => rct.IsIntersectionTo(RectangleOfDetectPoint)).ToList());
             conflicAGVList.AddRange(remainPathCoflicState.Where(kp => kp.Value.Count != 0).Select(kp => kp.Key));

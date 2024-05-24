@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.MAP;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
 using VMSystem.VMS;
@@ -81,7 +82,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
             return conflicAGVList.Any();
         }
-        public bool IsConflicToOtherVehicleRotaionBody(out List<IAGV> conflicAGVList)
+        public virtual bool IsConflicToOtherVehicleRotaionBody(out List<IAGV> conflicAGVList)
         {
             conflicAGVList = new();
             MapRectangle RectangleOfDetectPoint = GetRotationRectangeOfDetectPoint();
@@ -133,14 +134,19 @@ namespace VMSystem.TrafficControl.ConflicDetection
             double length = AGVToDetect.options.VehicleLength / 100.0 * AGVLengthExpandRatio;
             return Tools.CreateRectangle(x, y, theta, width, length);
         }
-        private MapRectangle GetRotationRectangeOfDetectPoint()
+        protected MapRectangle GetRotationRectangeOfDetectPoint()
         {
             double x = DetectPoint.X;
             double y = DetectPoint.Y;
             double theta = ThetaOfPridiction;
-            double width = AGVToDetect.options.VehicleWidth / 100.0 * AGVWidthExpandRatio;
             double length = AGVToDetect.options.VehicleLength / 100.0 * AGVLengthExpandRatio;
             return Tools.CreateRectangle(x, y, theta, length, length);
+        }
+
+        public bool IsOtherVehiclesCurrentLocationSoFar()
+        {
+            var _DistancesToCurrentPoint = OtherAGV.Select(_agv => DetectPoint.CalculateDistance(_agv.states.Coordination));
+            return _DistancesToCurrentPoint.All(distance => distance >= 3);
         }
 
     }

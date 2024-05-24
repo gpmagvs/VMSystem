@@ -344,10 +344,11 @@ namespace VMSystem.TrafficControl
             int entryPointTag = Vehicle.CurrentRunningTask().TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID;
             return StaMap.Map.Points.Values.First(pt => pt.TagNumber == entryPointTag);
         }
-        public void RaiseSpintAtPointRequest(double forwardAngle)
+        public void RaiseSpintAtPointRequest(double forwardAngle, bool isRaisedByAvoidingVehicleRequeset)
         {
             SpinAtPointRequest.ForwardAngle = forwardAngle;
             SpinAtPointRequest.IsSpinRequesting = true;
+            SpinAtPointRequest.IsRaiseByAvoidingVehicleReqest = isRaisedByAvoidingVehicleRequeset;
 
         }
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
@@ -419,6 +420,7 @@ namespace VMSystem.TrafficControl
     {
         public bool IsSpinRequesting { get; set; } = false;
         public double ForwardAngle { get; set; } = 0;
+        public bool IsRaiseByAvoidingVehicleReqest { get; internal set; } = false;
     }
 
     public class clsAvoidActionState

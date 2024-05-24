@@ -19,5 +19,15 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
             return baseDetectResult;
         }
+
+        public override bool IsConflicToOtherVehicleRotaionBody(out List<IAGV> conflicAGVList)
+        {
+            conflicAGVList = new();
+            MapRectangle RectangleOfDetectPoint = GetRectangleOfDetectPoint();
+            conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
+                                     .ToList();
+
+            return conflicAGVList.Any();
+        }
     }
 }
