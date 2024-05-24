@@ -74,7 +74,8 @@ namespace VMSystem.BackgroundServices
                             HighBatLvThreshold = agv.options.BatteryOptions.HightLevel,
                             TaskSourceStationName = sourceDisplay,
                             TaskDestineStationName = destineDisplay,
-                            StationName = currentLocDisplay
+                            StationName = currentLocDisplay,
+                            AppVersion = agv.states.AppVersion
                         };
                         return dto;
                     };
