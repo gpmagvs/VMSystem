@@ -38,7 +38,8 @@ namespace VMSystem.AGV
             BatteryLowLevel,
             ChargingButBatteryUnderMiddleLevel,
             BatteryStatusError,
-            SystemError
+            SystemError,
+            Disconnection
         }
 
         public IAGV agv;
@@ -325,6 +326,9 @@ namespace VMSystem.AGV
         {
             try
             {
+                if (!agv.connected)
+                    return AGV_ORDERABLE_STATUS.Disconnection;
+
                 if (agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                     return AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
 
@@ -396,18 +400,21 @@ namespace VMSystem.AGV
                                 // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
                                 await Task.Delay(1000);
                                 break;
+                            case AGV_ORDERABLE_STATUS.Disconnection:
+                                OrderHandler.RunningTask.UpdateStateDisplayMessage("Disconnection");
+                                break;
                             case AGV_ORDERABLE_STATUS.EXECUTING:
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR:
-                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("STATUS_ERROR");
+                                OrderHandler.RunningTask.UpdateStateDisplayMessage("STATUS_ERROR");
                                 break;
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
                                 bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
                                 if (!_IsChargeStatesChecking)
-                                    OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage(isCharging ? "充電中.." : "IDLE");
+                                    OrderHandler.RunningTask.UpdateStateDisplayMessage(isCharging ? "充電中.." : "IDLE");
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
-                                OrderHandler.RunningTask.TrafficWaitingState.SetDisplayMessage("OFFLINE");
+                                OrderHandler.RunningTask.UpdateStateDisplayMessage("OFFLINE");
                                 break;
                             case AGV_ORDERABLE_STATUS.EXECUTING_RESUME:
                                 using (var database = new AGVSDatabase())

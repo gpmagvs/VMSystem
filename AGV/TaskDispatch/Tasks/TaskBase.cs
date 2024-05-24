@@ -297,6 +297,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
 
+        public virtual void UpdateStateDisplayMessage(string msg)
+        {
+            TrafficWaitingState.SetDisplayMessage(msg);
+
+        }
         public virtual void UpdateMoveStateMessage(string msg)
         {
             if (OrderData == null)
