@@ -48,7 +48,7 @@ namespace VMSystem.AGV
         private bool _IsChargeTaskCreating;
         private bool _IsChargeStatesChecking = false;
 
-        private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.NO_ORDER;
+        private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
         private bool IsChargeTaskNotExcutableCauseCargoExist
         {
@@ -116,7 +116,7 @@ namespace VMSystem.AGV
         /// 自動派AGV去充電
         /// 條件 : 運轉模式
         /// </summary>
-        protected virtual async void CheckAutoCharge()
+        protected virtual async Task CheckAutoCharge()
         {
             Task<clsAlarmDto> _charge_forbid_alarm = null;
             while (true)
@@ -318,9 +318,10 @@ namespace VMSystem.AGV
         }
 
 
-        public async Task Run()
+        public virtual async Task Run()
         {
-            await TaskAssignWorker();
+            TaskAssignWorker();
+            CheckAutoCharge();
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
@@ -457,14 +458,7 @@ namespace VMSystem.AGV
                     }
                 }
             });
-
-            Thread AutoChargeThread = new Thread(() =>
-            {
-                CheckAutoCharge();
-            });
-            AutoChargeThread.Start();
         }
-
         private void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;

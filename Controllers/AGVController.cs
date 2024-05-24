@@ -151,7 +151,7 @@ namespace VMSystem.Controllers
             {
                 OnlineModeQueryResponse response = new OnlineModeQueryResponse()
                 {
-                    RemoteMode = REMOTE_MODE.ONLINE,
+                    RemoteMode = agv.online_mode_req == ONLINE_STATE.OFFLINE ? REMOTE_MODE.OFFLINE : REMOTE_MODE.ONLINE,
                     TimeStamp = DateTime.Now.ToString()
                 };
                 agv.connected = true;
