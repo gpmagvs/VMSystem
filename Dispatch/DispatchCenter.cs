@@ -217,30 +217,30 @@ namespace VMSystem.Dispatch
             else
             {
 
-                if (optimizePath_Init.Count() > 1)
-                {
-                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(optimizePath_Init.First(), optimizePath_Init.ToList()[1]);
+                //if (optimizePath_Init.Count() > 1)
+                //{
+                //    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(optimizePath_Init.First(), optimizePath_Init.ToList()[1]);
 
-                    if (!CalculateThetaError(forwardAngleToNextPoint, out _) && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
-                    {
-                        SpinOnPointDetection spinDetection = new SpinOnPointDetection(vehicle.currentMapPoint, forwardAngleToNextPoint, vehicle);
-                        clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
-                        if (spinDetectResult.Result == DETECTION_RESULT.OK)
-                        {
-                            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint, false);
-                        }
-                        else
-                        {
-                            vehicle.NavigationState.CancelSpinAtPointRequest();
-                            vehicle.CurrentRunningTask().UpdateMoveStateMessage($"{spinDetectResult.Message}");
-                            await Task.Delay(500);
-                        }
-                    }
-                    else
-                    {
-                        vehicle.NavigationState.CancelSpinAtPointRequest();
-                    }
-                }
+                //    if (!CalculateThetaError(forwardAngleToNextPoint, out _) && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
+                //    {
+                //        SpinOnPointDetection spinDetection = new SpinOnPointDetection(vehicle.currentMapPoint, forwardAngleToNextPoint, vehicle);
+                //        clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
+                //        if (spinDetectResult.Result == DETECTION_RESULT.OK)
+                //        {
+                //            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint, false);
+                //        }
+                //        else
+                //        {
+                //            vehicle.NavigationState.CancelSpinAtPointRequest();
+                //            vehicle.CurrentRunningTask().UpdateMoveStateMessage($"{spinDetectResult.Message}");
+                //            await Task.Delay(500);
+                //        }
+                //    }
+                //    else
+                //    {
+                //        vehicle.NavigationState.CancelSpinAtPointRequest();
+                //    }
+                //}
                 vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
                 return null;
 

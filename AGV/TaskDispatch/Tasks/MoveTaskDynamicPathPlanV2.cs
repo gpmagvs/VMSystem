@@ -212,8 +212,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             double nextForwardAngle = Tools.CalculationForwardAngle(nextPath.First(), nextPath[1]);
                             if (_willRotationFirst(nextForwardAngle, out double error) && Stage == VehicleMovementStage.AvoidPath)
                             {
+                                var spinDetector = new SpinOnPointDetection(this.Agv.currentMapPoint, nextForwardAngle, this.Agv);
+
                                 //Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
-                                while (!await WaitSpinDone(Agv.NavigationState.AvoidToVehicle, nextForwardAngle))
+                                while (spinDetector.Detect().Result != DETECTION_RESULT.OK && !await WaitSpinDone(Agv.NavigationState.AvoidToVehicle, nextForwardAngle))
                                 {
                                     Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
                                     await Task.Delay(100);
