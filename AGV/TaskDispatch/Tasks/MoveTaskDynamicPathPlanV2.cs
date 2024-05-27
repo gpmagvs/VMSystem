@@ -587,45 +587,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);
             }
-            double forwardAngle = Agv.states.Coordination.Theta - 180;
-            spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, forwardAngle, Agv);
-            while ((spinDetection.Detect()).Result != DETECTION_RESULT.OK)
-            {
-                trafficAvoidTask.UpdateMoveStateMessage($"Wait spin action allowed...");
-                await Task.Delay(1000);
-            }
-
             sw.Restart();
-            //while (!IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine))
-            //{
-            //    await Task.Delay(10);
-            //    if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
-            //        throw new TaskCanceledException();
-            //    if (sw.Elapsed.TotalSeconds > 5 && _avoidToAgv.NavigationState.IsWaitingConflicSolve)
-            //        break;
-            //    trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Pass Path..{sw.Elapsed.ToString()}");
-            //}
-
-
             IsSomeoneWaitingU = false;
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
-            //Agv.NavigationState.ResetNavigationPoints();
-            //Agv.NavigationState.StateReset();
-
-            bool IsAvoidVehiclePassed(out List<MapPoint> optimizePathToDestine)
-            {
-                optimizePathToDestine = null;
-
-                try
-                {
-                    optimizePathToDestine = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint.Clone(), finalMapPoint, DispatchCenter.GetConstrains(Agv, OtherAGV, finalMapPoint)).ToList();
-                }
-                catch (Exception)
-                {
-                }
-                return optimizePathToDestine != null && !Agv.AGVRotaionGeometry.IsIntersectionTo(_avoidToAgv.AGVRealTimeGeometery);
-
-            }
         }
 
         private bool IsPathPassMuiltRegions(MapPoint finalMapPoint, out List<MapRegion> regions)
