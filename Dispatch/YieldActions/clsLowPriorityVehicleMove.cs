@@ -26,11 +26,11 @@ namespace VMSystem.Dispatch.YieldActions
             if (StopMapPoint == null)
                 return null;
 
-            _LowProrityVehicle.NavigationState.AvoidPt = StopMapPoint;
-            _LowProrityVehicle.NavigationState.IsAvoidRaising = true;
+            _LowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = StopMapPoint;
+            _LowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
             _LowProrityVehicle.NavigationState.IsConflicSolving = false;
             _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
-            _LowProrityVehicle.NavigationState.AvoidToVehicle = _HightPriorityVehicle;
+            _LowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _HightPriorityVehicle;
             return _LowProrityVehicle;
         }
 

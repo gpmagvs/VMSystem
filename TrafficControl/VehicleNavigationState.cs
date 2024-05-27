@@ -118,7 +118,7 @@ namespace VMSystem.TrafficControl
                     };
 
             bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
-            bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidPt?.TagNumber;
+            bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidActionState.AvoidPt?.TagNumber;
             bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
             double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.2;
             double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
@@ -264,9 +264,6 @@ namespace VMSystem.TrafficControl
             }
         }
         public bool IsConflicSolving { get; set; } = false;
-        public MapPoint AvoidPt { get; internal set; }
-        public bool IsAvoidRaising { get; internal set; } = false;
-        public IAGV AvoidToVehicle { get; internal set; }
         public MoveTaskDynamicPathPlanV2 CurrentAvoidMoveTask { get; internal set; }
 
         public bool _IsWaitingForLeaveWorkStation = false;
@@ -393,9 +390,9 @@ namespace VMSystem.TrafficControl
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
             IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = IsWaitingForEntryRegion = false;
-            AvoidActionState.CannotReachHistoryPoints.Clear();
-            IsAvoidRaising = false;
-            AvoidPt = null;
+
+            AvoidActionState.Reset();
+
         }
 
         internal void CancelSpinAtPointRequest()
@@ -425,7 +422,26 @@ namespace VMSystem.TrafficControl
 
     public class clsAvoidActionState
     {
+        public MapPoint AvoidPt { get; internal set; }
+        public bool IsAvoidRaising { get; internal set; } = false;
+        public IAGV AvoidToVehicle { get; internal set; }
+
+        public MapPoint AvoidToPtMoveDestine
+        {
+            get
+            {
+                return AvoidAction == ACTION_TYPE.None ? AvoidPt : AvoidPt.TargetNormalPoints().First();
+            }
+        }
+        public ACTION_TYPE AvoidAction { get; set; } = ACTION_TYPE.None;
         public ConcurrentDictionary<int, MapPoint> CannotReachHistoryPoints { get; set; } = new();
+
+        internal void Reset()
+        {
+            CannotReachHistoryPoints.Clear();
+            IsAvoidRaising = false;
+            AvoidPt = null;
+        }
     }
 
     public class clsRegionControlState
