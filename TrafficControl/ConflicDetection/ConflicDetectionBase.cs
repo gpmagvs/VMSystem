@@ -3,6 +3,8 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
 using VMSystem.VMS;
+using VMSystem.TrafficControl;
+using static VMSystem.TrafficControl.clsTrafficControlParameters;
 
 namespace VMSystem.TrafficControl.ConflicDetection
 {
@@ -11,14 +13,8 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public readonly MapPoint DetectPoint;
         public readonly IAGV AGVToDetect;
         public readonly double ThetaOfPridiction;
-        /// <summary>
-        /// 計算干涉時車輛[長度]膨脹係數
-        /// </summary>
-        public virtual double AGVLengthExpandRatio { get; set; } = 1.0;
-        /// <summary>
-        /// 計算干涉時車輛[寬度]膨脹係數
-        /// </summary>
-        public virtual double AGVWidthExpandRatio { get; set; } = 1.0;
+        public virtual clsVehicleGeometryExpand GeometryExpand { get; set; } = new clsVehicleGeometryExpand();
+
         public IEnumerable<IAGV> OtherAGV => GetOtherVehicles();
 
         protected virtual IEnumerable<IAGV> GetOtherVehicles()
@@ -130,8 +126,8 @@ namespace VMSystem.TrafficControl.ConflicDetection
             double x = DetectPoint.X;
             double y = DetectPoint.Y;
             double theta = ThetaOfPridiction;
-            double width = AGVToDetect.options.VehicleWidth / 100.0 * AGVWidthExpandRatio;
-            double length = AGVToDetect.options.VehicleLength / 100.0 * AGVLengthExpandRatio;
+            double width = AGVToDetect.options.VehicleWidth / 100.0 * GeometryExpand.Width;
+            double length = AGVToDetect.options.VehicleLength / 100.0 * GeometryExpand.Length;
             return Tools.CreateRectangle(x, y, theta, width, length);
         }
         protected MapRectangle GetRotationRectangeOfDetectPoint()
@@ -139,7 +135,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
             double x = DetectPoint.X;
             double y = DetectPoint.Y;
             double theta = ThetaOfPridiction;
-            double length = AGVToDetect.options.VehicleLength / 100.0 * AGVLengthExpandRatio;
+            double length = AGVToDetect.options.VehicleLength / 100.0 * GeometryExpand.Length;
             return Tools.CreateRectangle(x, y, theta, length, length);
         }
 

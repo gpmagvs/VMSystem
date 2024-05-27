@@ -3,11 +3,13 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Data;
 using VMSystem.AGV;
@@ -26,11 +28,13 @@ namespace VMSystem.TrafficControl
     {
         public static ConcurrentQueue<clsTrafficInterLockSolver> InterLockTrafficSituations { get; set; } = new ConcurrentQueue<clsTrafficInterLockSolver>();
         public static List<clsWaitingInfo> AGVWaitingQueue = new List<clsWaitingInfo>();
-
         private static SemaphoreSlim _leaveWorkStaitonReqSemaphore = new SemaphoreSlim(1, 1);
+        internal static clsTrafficControlParameters TrafficControlParameters { get; set; } = new clsTrafficControlParameters();
+        private static FileSystemWatcher TrafficControlParametersChangedWatcher;
 
         internal static void Initialize()
         {
+            LoadTrafficControlParameters();
             SystemModes.OnRunModeON += HandleRunModeOn;
             clsWaitingInfo.OnAGVWaitingStatusChanged += ClsWaitingInfo_OnAGVWaitingStatusChanged;
             clsSubTask.OnPathClosedByAGVImpactDetecting += ClsSubTask_OnPathClosedByAGVImpactDetecting;
@@ -42,6 +46,32 @@ namespace VMSystem.TrafficControl
             Task.Run(() => TrafficInterLockSolveWorker());
         }
 
+        private static void LoadTrafficControlParameters()
+        {
+            string _fullFileName = Path.Combine(AGVSConfigulator.ConfigsFilesFolder, "TrafficControlParams.json");
+            if (File.Exists(_fullFileName))
+            {
+                TrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(_fullFileName));
+            }
+
+            File.WriteAllText(_fullFileName, JsonConvert.SerializeObject(TrafficControlParameters, Formatting.Indented));
+            TrafficControlParametersChangedWatcher = new FileSystemWatcher(AGVSConfigulator.ConfigsFilesFolder, "TrafficControlParams.json");
+            TrafficControlParametersChangedWatcher.Changed += TrafficControlParametersChangedWatcher_Changed;
+            TrafficControlParametersChangedWatcher.EnableRaisingEvents = true;
+        }
+
+        private static void TrafficControlParametersChangedWatcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            string _tempFile = Path.Combine(Path.GetTempPath(),Path.GetFileName(e.FullPath));
+            File.Copy(e.FullPath, _tempFile,true);
+            var _newTrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(_tempFile));
+            if(_newTrafficControlParameters != null)
+            {
+                TrafficControlParameters = _newTrafficControlParameters;
+                LOG.TRACE($"TrafficControlParameters changed:\r\n{TrafficControlParameters.ToJson()}");
+            }
+            File.Delete(_tempFile);
+        }
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
         private static async void HandleRunModeOn()

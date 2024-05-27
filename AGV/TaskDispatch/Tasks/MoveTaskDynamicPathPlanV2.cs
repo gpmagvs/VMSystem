@@ -206,18 +206,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        double nextForwardAngle = Tools.CalculationForwardAngle(nextPath.First(), nextPath[1]);
-                        if (_willRotationFirst(nextForwardAngle, out double error) && Stage == VehicleMovementStage.AvoidPath)
+                        if (nextPath.Count > 1)
                         {
-                            //Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
-                            while (!await WaitSpinDone(Agv.NavigationState.AvoidToVehicle, nextForwardAngle))
+
+                            double nextForwardAngle = Tools.CalculationForwardAngle(nextPath.First(), nextPath[1]);
+                            if (_willRotationFirst(nextForwardAngle, out double error) && Stage == VehicleMovementStage.AvoidPath)
                             {
-                                Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
-                                await Task.Delay(100);
-                                UpdateMoveStateMessage($"Wait {Agv.NavigationState.AvoidToVehicle.Name} Spin to {nextForwardAngle} Degree");
+                                //Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
+                                while (!await WaitSpinDone(Agv.NavigationState.AvoidToVehicle, nextForwardAngle))
+                                {
+                                    Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
+                                    await Task.Delay(100);
+                                    UpdateMoveStateMessage($"Wait {Agv.NavigationState.AvoidToVehicle.Name} Spin to {nextForwardAngle} Degree");
+                                }
                             }
                         }
-
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
