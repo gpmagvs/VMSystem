@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.AGVDispatch;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -191,6 +192,26 @@ namespace VMSystem.Dispatch
         internal async void HandleVehicleStartWaitConflicSolve(object? sender, IAGV waitingVehicle)
         {
             var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(waitingVehicle);
+
+            if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
+            {
+                DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
+            }
+            if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
+            {
+                var normalPointsInThisRegin = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == _region.Name)
+                                                                      .OrderBy(pt => pt.CalculateDistance(waitingVehicle.states.Coordination));
+                var normalPointsWithWorkStationEntryAable = normalPointsInThisRegin.ToDictionary(pt => pt, pt => pt.TargetWorkSTationsPoints());
+                KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.FirstOrDefault(pair => pair.Value.Any() && pair.Value.All(pt => pt.IsParking));
+
+                if (parkableStationEntrys.Key != null && _TryGetParkableStation(parkableStationEntrys.Value, out MapPoint _parkStation))
+                {
+                    waitingVehicle.NavigationState.AvoidActionState.AvoidPt = _parkStation;
+                    waitingVehicle.NavigationState.AvoidActionState.AvoidToVehicle = vehicleWaitingEntry;
+                    waitingVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
+                    waitingVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
+                }
+            }
             //是否與停在設備中的車輛互相停等
             bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
             {
@@ -200,11 +221,29 @@ namespace VMSystem.Dispatch
                 //                                     .Where(v => v.NavigationState.IsWaitingForLeaveWorkStation);
                 return vehiclesAtWorkStation.Any();
             }
-            if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
+
+            bool _IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion region)
             {
-                DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
+                MapRegion currentRegion = waitingVehicle.currentMapPoint.GetRegion(StaMap.Map);
+                region = currentRegion;
+                var waitingForEntryRegionVehicles = otherVehicles.Where(agv => (agv.NavigationState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point) && agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name);
+                vehicleWaitingEntry = null;
+                if (!waitingForEntryRegionVehicles.Any())
+                    return false;
+                //Agv.NavigationState.RegionControlState.NextToGoRegion 
+                vehicleWaitingEntry = waitingForEntryRegionVehicles.FirstOrDefault();
+                return vehicleWaitingEntry != null;
+            }
+
+            bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)
+            {
+                List<int> _forbiddenTags = waitingVehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+                _parkablePoint = value.FirstOrDefault(pt => !_forbiddenTags.Contains(pt.TagNumber));
+                return _parkablePoint != null;
             }
         }
+
+
         private void DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
         {
             MapRectangle CurrentConflicRegion = waitingVehicle.NavigationState.CurrentConflicRegion;
