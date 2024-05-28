@@ -9,8 +9,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 {
     public class SpinOnPointDetection : ConflicDetectionBase
     {
-        public override double AGVLengthExpandRatio { get; set; } = 1.3;
-        public override double AGVWidthExpandRatio { get; set; } = 2;
+        public override clsTrafficControlParameters.clsVehicleGeometryExpand GeometryExpand { get; set; } = TrafficControlCenter.TrafficControlParameters.VehicleGeometryExpands.SpinOnPointGeoExpand;
         public SpinOnPointDetection(MapPoint DetectPoint, double ThetaOfPrediction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPrediction, AGVToDetect)
         {
 

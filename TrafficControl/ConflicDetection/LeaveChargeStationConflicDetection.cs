@@ -7,10 +7,9 @@ namespace VMSystem.TrafficControl.ConflicDetection
 {
     public class LeaveChargeStationConflicDetection : ConflicDetectionBase
     {
+        public override clsTrafficControlParameters.clsVehicleGeometryExpand GeometryExpand { get; set; } = TrafficControlCenter.TrafficControlParameters.VehicleGeometryExpands.LeaveChargeStationGeoExpand;
         public LeaveChargeStationConflicDetection(MapPoint DetectPoint, double ThetaOfPridiction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPridiction, AGVToDetect)
         {
-            base.AGVLengthExpandRatio = 2;
-            base.AGVWidthExpandRatio = 2;
         }
 
         public override clsConflicDetectResultWrapper Detect()
