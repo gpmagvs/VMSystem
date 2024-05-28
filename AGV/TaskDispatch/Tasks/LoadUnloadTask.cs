@@ -1,8 +1,10 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -59,9 +61,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
             }
             UpdateEQActionMessageDisplay();
+            ChangeWorkStationMoveStateBackwarding();
             await base.SendTaskToAGV();
         }
-
+        private async Task ChangeWorkStationMoveStateBackwarding()
+        {
+            await Task.Delay(1500);
+            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
+            await Task.Delay(1500);
+            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
+        }
         internal async Task UpdateEQActionMessageDisplay()
         {
             ACTION_TYPE orderAction = OrderData.Action;

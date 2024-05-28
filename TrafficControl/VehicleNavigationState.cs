@@ -79,6 +79,13 @@ namespace VMSystem.TrafficControl
                 Log($"Region Change to {value.Name}(Is Narrow Path?{value.IsNarrowPath})");
             }
         }
+
+        public enum WORKSTATION_MOVE_STATE
+        {
+            FORWARDING,
+            BACKWARDING
+        }
+        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.FORWARDING;
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
@@ -118,17 +125,19 @@ namespace VMSystem.TrafficControl
                     };
 
             bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
-            bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidPt?.TagNumber;
+            bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidActionState.AvoidPt?.TagNumber;
             bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
-            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.2;
+            //double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.45;
+            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath ? 1.0 : 1.40;
             double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLengthExpanded = vLength * _GeometryExpandRatio;
+            var rotationSquareLen = vLength * 1.2;
             int tagNumberOfAgv = Vehicle.currentMapPoint.TagNumber;
             vWidth = vWidth * _WidthExpandRatio;
 
-            MapRectangle RotationRectangleInCurrentPoint = Tools.CreateSquare(Vehicle.currentMapPoint, vLengthExpanded);
+            MapRectangle RotationRectangleInCurrentPoint = Tools.CreateSquare(Vehicle.currentMapPoint, rotationSquareLen);
 
             if (SpinAtPointRequest.IsSpinRequesting)
             {
@@ -143,7 +152,7 @@ namespace VMSystem.TrafficControl
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
                 bool _infrontOfChargeStation = Vehicle.currentMapPoint.TargetWorkSTationsPoints().ToList().Any(pt => pt.IsCharge);
-                if (Math.Abs(Vehicle.states.Coordination.Theta - lastAngle) > 10)
+                if (Math.Abs(Vehicle.states.Coordination.Theta - lastAngle) > 5)
                 {
                     if (_infrontOfChargeStation)
                     {
@@ -159,9 +168,9 @@ namespace VMSystem.TrafficControl
                     var _endPt = pathForCalulate[i + 1];
                     double forwardAngle = _GetForwardAngle(_startPt, _endPt);
 
-                    if (Math.Abs(forwardAngle - lastAngle) > 10)
+                    if (Math.Abs(forwardAngle - lastAngle) > 5)
                     {
-                        output.Add(Tools.CreateSquare(_startPt, vLengthExpanded));
+                        output.Add(Tools.CreateSquare(_startPt, rotationSquareLen));
                     }
                     lastAngle = forwardAngle;
                 }
@@ -176,7 +185,7 @@ namespace VMSystem.TrafficControl
             {
                 MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
                                                      Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength, endPoint.TagNumber, endPoint.TagNumber)
-                                                   : Tools.CreateSquare(endPoint, vLengthExpanded);
+                                                   : Tools.CreateSquare(endPoint, rotationSquareLen);
                 finalStopRectangle.StartPoint = finalStopRectangle.EndPoint = endPoint;
                 output.Add(finalStopRectangle);
             }
@@ -264,9 +273,6 @@ namespace VMSystem.TrafficControl
             }
         }
         public bool IsConflicSolving { get; set; } = false;
-        public MapPoint AvoidPt { get; internal set; }
-        public bool IsAvoidRaising { get; internal set; } = false;
-        public IAGV AvoidToVehicle { get; internal set; }
         public MoveTaskDynamicPathPlanV2 CurrentAvoidMoveTask { get; internal set; }
 
         public bool _IsWaitingForLeaveWorkStation = false;
@@ -393,9 +399,9 @@ namespace VMSystem.TrafficControl
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
             IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = IsWaitingForEntryRegion = false;
-            AvoidActionState.CannotReachHistoryPoints.Clear();
-            IsAvoidRaising = false;
-            AvoidPt = null;
+            CancelSpinAtPointRequest();
+            AvoidActionState.Reset();
+
         }
 
         internal void CancelSpinAtPointRequest()
@@ -425,7 +431,26 @@ namespace VMSystem.TrafficControl
 
     public class clsAvoidActionState
     {
+        public MapPoint AvoidPt { get; internal set; }
+        public bool IsAvoidRaising { get; internal set; } = false;
+        public IAGV AvoidToVehicle { get; internal set; }
+
+        public MapPoint AvoidToPtMoveDestine
+        {
+            get
+            {
+                return AvoidAction == ACTION_TYPE.None ? AvoidPt : AvoidPt.TargetNormalPoints().First();
+            }
+        }
+        public ACTION_TYPE AvoidAction { get; set; } = ACTION_TYPE.None;
         public ConcurrentDictionary<int, MapPoint> CannotReachHistoryPoints { get; set; } = new();
+        public double StopAngle { get; set; } = 0;
+        internal void Reset()
+        {
+            CannotReachHistoryPoints.Clear();
+            IsAvoidRaising = false;
+            AvoidPt = null;
+        }
     }
 
     public class clsRegionControlState

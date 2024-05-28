@@ -29,7 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             else
             {
-                _SetOrderAsFaiiureState("LoadOrder Start Fail" + result.message);
+                _SetOrderAsFaiiureState("UnloadOrder Start Fail" + result.message);
             }
         }
 
