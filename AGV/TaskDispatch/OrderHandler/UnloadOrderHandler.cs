@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
+using static SQLite.SQLite3;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -19,11 +20,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             await base.HandleAGVActionFinishFeedback();
         }
-        public override Task StartOrder(IAGV Agv)
+        public override async Task StartOrder(IAGV Agv)
         {
-            Task<clsAGVSTaskReportResponse> response = AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.To_Station_Tag, ACTION_TYPE.Unload);
-            response.Wait();
-            return base.StartOrder(Agv);
+            clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Unload);
+            if (result.confirm)
+            {
+                await base.StartOrder(Agv);
+            }
+            else
+            {
+                _SetOrderAsFaiiureState("UnloadOrder Start Fail" + result.message);
+            }
         }
 
         protected override void ActionsWhenOrderCancle()

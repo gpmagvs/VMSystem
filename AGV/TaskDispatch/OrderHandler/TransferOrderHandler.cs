@@ -45,14 +45,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     foreach (var tag in task.dict_Transfer_to_from_tags)
                     {
                         int intTransferToTag = tag.Key;
-                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, intTransferToTag, ACTION_TYPE.Carry);
+                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Carry);
                         if (result.confirm)
                         {
                             OrderData.TransferToTag = intTransferToTag;
                             OrderData.TransferFromTag = tag.Value.FirstOrDefault();
                             await base.StartOrder(Agv);
                             IsAllTransferStationFail = false;
-                            break;                            
+                            break;
                         }
                         else
                         {
@@ -69,7 +69,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             else
             {
                 int destineTag = OrderData.need_change_agv /*&& RunningTask.TransferStage == TransferStage.MoveToTransferStationLoad*/ ? OrderData.TransferToTag : OrderData.To_Station_Tag;
-                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, destineTag, ACTION_TYPE.Carry);
+                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), destineTag, 0, ACTION_TYPE.Carry);
                 if (result.confirm)
                     await base.StartOrder(Agv);
                 else
