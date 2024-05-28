@@ -206,23 +206,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        if (nextPath.Count > 1)
-                        {
+                        //if (nextPath.Count > 1)
+                        //{
 
-                            double nextForwardAngle = Tools.CalculationForwardAngle(nextPath.First(), nextPath[1]);
-                            if (_willRotationFirst(nextForwardAngle, out double error) && Stage == VehicleMovementStage.AvoidPath)
-                            {
-                                var spinDetector = new SpinOnPointDetection(this.Agv.currentMapPoint, nextForwardAngle, this.Agv);
+                        //    double nextForwardAngle = Tools.CalculationForwardAngle(nextPath.First(), nextPath[1]);
+                        //    if (_willRotationFirst(nextForwardAngle, out double error) && Stage == VehicleMovementStage.AvoidPath)
+                        //    {
+                        //        var spinDetector = new SpinOnPointDetection(this.Agv.currentMapPoint, nextForwardAngle, this.Agv);
 
-                                //Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
-                                while (spinDetector.Detect().Result != DETECTION_RESULT.OK && !await WaitSpinDone(Agv.NavigationState.AvoidActionState.AvoidToVehicle, nextForwardAngle))
-                                {
-                                    Agv.NavigationState.AvoidActionState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
-                                    await Task.Delay(100);
-                                    UpdateMoveStateMessage($"Wait {Agv.NavigationState.AvoidActionState.AvoidToVehicle.Name} Spin to {nextForwardAngle} Degree");
-                                }
-                            }
-                        }
+                        //        //Agv.NavigationState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
+                        //        while (spinDetector.Detect().Result != DETECTION_RESULT.OK && !await WaitSpinDone(Agv.NavigationState.AvoidActionState.AvoidToVehicle, nextForwardAngle))
+                        //        {
+                        //            Agv.NavigationState.AvoidActionState.AvoidToVehicle.NavigationState.RaiseSpintAtPointRequest(nextForwardAngle, true);
+                        //            await Task.Delay(100);
+                        //            UpdateMoveStateMessage($"Wait {Agv.NavigationState.AvoidActionState.AvoidToVehicle.Name} Spin to {nextForwardAngle} Degree");
+                        //        }
+                        //    }
+                        //}
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
@@ -602,9 +602,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                     while (Agv.states.Last_Visited_Node != parkStation.TagNumber || Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                     {
-                        if(parkTask.IsTaskCanceled)
+                        if (parkTask.IsTaskCanceled)
                         {
-                            throw new TaskCanceledException(); 
+                            throw new TaskCanceledException();
                         }
                         await Task.Delay(1000);
                         parkTask.UpdateMoveStateMessage($"Wait Park Done...");

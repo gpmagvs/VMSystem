@@ -160,7 +160,7 @@ namespace VMSystem.AGV
                 if (_online_state != value)
                 {
                     _online_state = value;
-
+                    NavigationState.StateReset();
                     //taskDispatchModule.AsyncTaskQueueFromDatabase();
                     if (main_state == clsEnums.MAIN_STATUS.IDLE)
                     {
@@ -436,7 +436,7 @@ namespace VMSystem.AGV
 
         private void RaiseOffLineRequestWhenSystemStartAsync()
         {
-            Task.Run(async() =>
+            Task.Run(async () =>
             {
                 while (!AGVOfflineFromAGVS(out string msg))
                 {

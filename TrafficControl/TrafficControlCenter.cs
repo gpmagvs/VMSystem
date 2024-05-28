@@ -62,10 +62,10 @@ namespace VMSystem.TrafficControl
 
         private static void TrafficControlParametersChangedWatcher_Changed(object sender, FileSystemEventArgs e)
         {
-            string _tempFile = Path.Combine(Path.GetTempPath(),Path.GetFileName(e.FullPath));
-            File.Copy(e.FullPath, _tempFile,true);
+            string _tempFile = Path.Combine(Path.GetTempPath(), Path.GetFileName(e.FullPath));
+            File.Copy(e.FullPath, _tempFile, true);
             var _newTrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(_tempFile));
-            if(_newTrafficControlParameters != null)
+            if (_newTrafficControlParameters != null)
             {
                 TrafficControlParameters = _newTrafficControlParameters;
                 LOG.TRACE($"TrafficControlParameters changed:\r\n{TrafficControlParameters.ToJson()}");
@@ -189,7 +189,6 @@ namespace VMSystem.TrafficControl
 
                 }
                 bool _isAcceptAction = args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-
 
                 if (!_isAcceptAction)
                 {

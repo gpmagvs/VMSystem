@@ -16,8 +16,16 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public override clsConflicDetectResultWrapper Detect()
         {
             clsConflicDetectResultWrapper baseDetectResult = base.Detect();
-
+            if (baseDetectResult.Result != DETECTION_RESULT.OK && _IsConflicAGVEntryWorkStationCurrent(baseDetectResult))
+                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
             return baseDetectResult;
+
+
+            bool _IsConflicAGVEntryWorkStationCurrent(clsConflicDetectResultWrapper baseDetectResult)
+            {
+                return baseDetectResult.ConflicToAGVList.Any(agv => agv.CurrentRunningTask().ActionType != AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None
+                                                                    && agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING);
+            }
         }
 
         public override bool IsConflicToOtherVehicleRotaionBody(out List<IAGV> conflicAGVList)
