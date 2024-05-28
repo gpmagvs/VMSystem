@@ -544,11 +544,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return;
                 }
             }
-            SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, Agv.states.Coordination.Theta - 90, Agv);
-            if ((spinDetection.Detect()).Result == DETECTION_RESULT.OK)
-            {
-                await SpinAtCurrentPointProcess(_seq);
-            }
+            //SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, Agv.states.Coordination.Theta - 90, Agv);
+            //if ((spinDetection.Detect()).Result == DETECTION_RESULT.OK)
+            //{
+            //    await SpinAtCurrentPointProcess(_seq);
+            //}
 
             if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve)
             {
