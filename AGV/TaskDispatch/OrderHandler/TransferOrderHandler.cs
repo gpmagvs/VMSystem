@@ -41,6 +41,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask task = (VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask)loadAtTransferStationTask;
                     bool IsAllTransferStationFail = true;
                     string strFailMsg = "";
+                    if (task.dict_Transfer_to_from_tags == null)
+                    {
+                        _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason: dict_Transfer_to_from_tags not foound");
+                        return;
+                    }
                     // 檢查可用轉運站狀態
                     foreach (var tag in task.dict_Transfer_to_from_tags)
                     {
@@ -56,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
                         else
                         {
-                            strFailMsg += result.AlarmCode.ToString() + ",";
+                            strFailMsg += $"Tag-{tag}:{result.message.ToString()},";
                         }
                     }
                     if (IsAllTransferStationFail)
@@ -69,9 +74,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             else
             {
                 int destineTag = OrderData.need_change_agv /*&& RunningTask.TransferStage == TransferStage.MoveToTransferStationLoad*/ ? OrderData.TransferToTag : OrderData.To_Station_Tag;
-                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), destineTag, 0, ACTION_TYPE.Carry);
+                if (OrderData.transfer_task_stage == 2)
+                    OrderData.From_Slot = "0";
+                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), destineTag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
                 if (result.confirm)
+                {
+                    if (result.ReturnObj != null)
+                    {
+                        OrderData.To_Slot = result.ReturnObj.ToString();
+                    }
                     await base.StartOrder(Agv);
+                }
                 else
                 {
                     this.Agv = Agv;

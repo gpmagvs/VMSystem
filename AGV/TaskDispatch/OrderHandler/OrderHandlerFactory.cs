@@ -48,7 +48,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 string strPreviousAGV = order.OrderData.DesignatedAGVName;
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
+                order.OrderData.TaskName += $"_2";
                 order.OrderData.From_Station = order.OrderData.TransferFromTag.ToString();
+                order.OrderData.To_Slot = "-1";
                 order.OrderData.need_change_agv = false;
                 order.OrderData.DesignatedAGVName = "";
                 order.OrderData.State = TASK_RUN_STATUS.WAIT;
@@ -121,8 +123,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData).GetAwaiter().GetResult();
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
-                    //orderData.TransferToTag = _transferTo;
-                    //orderData.TransferFromTag = _transferFrom.FirstOrDefault(); // TODO 可能有多個轉運站需再調整
                     _queue.Enqueue(task);
                 }
                 else
@@ -192,7 +192,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
                 });
                 if (orderData.need_change_agv)
-                {                    
+                {
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData).GetAwaiter().GetResult();
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
@@ -235,9 +235,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             List<int> TransferStationTags = new List<int>();
             // 從orderData.To_Station_Tag取得可以去的轉換站Tag
             if (orderData.From_Station_Tag == -1) // 放貨任務
-                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.To_Station_Tag);
+                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQWIPAcceptTransferTagInfoByTag(orderData.To_Station_Tag);
             else
-                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptTransferTagInfoByTag(orderData.From_Station_Tag);
+                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQWIPAcceptTransferTagInfoByTag(orderData.From_Station_Tag);
 
             if (TransferStationTags.Count() <= 0)
             {

@@ -23,14 +23,61 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
-            clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Load);
-            if (result.confirm)
+            if (OrderData.need_change_agv == true) // 參考 TransferOrderHandler.StartOrder 尋找可用轉運站
             {
-                await base.StartOrder(Agv);
+                // TODO 把可用的轉換站存在這listTransferStation
+                var loadAtTransferStationTask = SequenceTaskQueue.Where(x => x.GetType() == typeof(VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask)).FirstOrDefault();
+                if (loadAtTransferStationTask == null)
+                {
+                    //TODO error
+                }
+                else
+                {
+                    VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask task = (VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask)loadAtTransferStationTask;
+                    bool IsAllTransferStationFail = true;
+                    string strFailMsg = "";
+                    if (task.dict_Transfer_to_from_tags == null) 
+                    {
+                        _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason: dict_Transfer_to_from_tags not foound");
+                        return;
+                    }
+                    // 檢查可用轉運站狀態
+                    foreach (var tag in task.dict_Transfer_to_from_tags)
+                    {
+                        int intTransferToTag = tag.Key;
+                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Load);
+                        if (result.confirm)
+                        {
+                            OrderData.TransferToTag = intTransferToTag;
+                            OrderData.TransferFromTag = tag.Value.FirstOrDefault();
+                            OrderData.To_Slot = "0"; // 轉運站會在第0層
+                            await base.StartOrder(Agv);
+                            IsAllTransferStationFail = false;
+                            break;
+                        }
+                        else
+                        {
+                            strFailMsg += $"Tag-{intTransferToTag}:{result.message},";
+                        }
+                    }
+                    if (IsAllTransferStationFail)
+                    {
+                        this.Agv = Agv;
+                        _SetOrderAsFaiiureState("all transfer station fail:" + strFailMsg);
+                    }
+                }
             }
             else
             {
-                _SetOrderAsFaiiureState("LoadOrder Start Fail" + result.message);
+                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Load);
+                if (result.confirm)
+                {
+                    await base.StartOrder(Agv);
+                }
+                else
+                {
+                    _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason:" + result.message);
+                }
             }
         }
 

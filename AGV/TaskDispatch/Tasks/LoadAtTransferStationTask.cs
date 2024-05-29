@@ -8,7 +8,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class LoadAtTransferStationTask : LoadAtDestineTask
     {
-        public List<int> listTransferStation = new List<int>();
         public Dictionary<int, List<int>> dict_Transfer_to_from_tags = new Dictionary<int, List<int>>();
         public LoadAtTransferStationTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
