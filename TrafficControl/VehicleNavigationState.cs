@@ -85,7 +85,7 @@ namespace VMSystem.TrafficControl
             FORWARDING,
             BACKWARDING
         }
-        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.FORWARDING;
+        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.BACKWARDING;
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();

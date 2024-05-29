@@ -293,8 +293,8 @@ namespace VMSystem.TrafficControl
             var angleDegrees = (float)AGV.states.Coordination.Theta;
 
             bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;
-            bool isInChargeStation = AGV.currentMapPoint.IsCharge;
-            var length = AGV.options.VehicleLength / 100.0;
+            bool isInChargeStation = AGV.currentMapPoint.IsCharge && AGV.main_state != MAIN_STATUS.RUN;
+            var length = AGV.options.VehicleLength / 100.0 * (isInChargeStation ? 0.5 : 1); ;
             var width = AGV.options.VehicleWidth / 100.0 * (isInChargeStation ? 0.5 : 1);
 
             MapRectangle _rectangle = CreateRectangle(AGV.states.Coordination.X, AGV.states.Coordination.Y, AGV.states.Coordination.Theta, width, length);
@@ -501,14 +501,14 @@ namespace VMSystem.TrafficControl
             else
                 return result.total_travel_distance;
         }
-      
+
         public static AGV_TYPE GetEQAcceptAGVType(MapPoint _workStationPoint)
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
             Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
             AcceptAGVInfoOfEQTags.Wait();
-            AGV_TYPE _workStationPoint_AGVType = (AGV_TYPE) AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
+            AGV_TYPE _workStationPoint_AGVType = (AGV_TYPE)AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
             return _workStationPoint_AGVType;
         }
 
