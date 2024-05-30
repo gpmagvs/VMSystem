@@ -45,7 +45,7 @@ namespace VMSystem.BackgroundServices
                 if ((DateTime.Now - lastData.time).TotalSeconds > 10)
                 {
                     VehicleMaintainService maintainService = _scopeFactory.CreateAsyncScope().ServiceProvider.GetRequiredService<VehicleMaintainService>();
-                    double diffValue = (currentMileage - lastData.mileage) / 1000;
+                    double diffValue = (currentMileage - lastData.mileage) ;
                     await maintainService.UpdateHorizonMotorCurrentMileageValue(agv.Name, diffValue);
                     VehiclesMileageStoreed[agv.Name] = new(DateTime.Now, currentMileage);
                 }

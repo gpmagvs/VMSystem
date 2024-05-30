@@ -70,7 +70,6 @@ namespace VMSystem.VMS
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
 
             using AGVSDatabase database = new AGVSDatabase();
-
             var agvList = database.tables.AgvStates.ToList();
 
             var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
@@ -80,7 +79,6 @@ namespace VMSystem.VMS
 
 
             await MaintainSettingInitialize();
-            await database.SaveChanges();
             VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
@@ -105,7 +103,7 @@ namespace VMSystem.VMS
         {
             using AGVSDatabase database = new AGVSDatabase();
             List<MAINTAIN_ITEM> allMaintainItems = Enum.GetValues(typeof(MAINTAIN_ITEM)).Cast<MAINTAIN_ITEM>().ToList();
-            var maintainSettingNotCompletesAGVs = database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count);
+            var maintainSettingNotCompletesAGVs =await  database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count).ToListAsync();
             if (maintainSettingNotCompletesAGVs.Any())
             {
                 foreach (var item in maintainSettingNotCompletesAGVs)
