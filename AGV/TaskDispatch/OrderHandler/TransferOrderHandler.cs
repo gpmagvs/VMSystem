@@ -61,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
                         else
                         {
-                            strFailMsg += $"Tag-{tag}:{result.message.ToString()},";
+                            strFailMsg += $"{result.message},";
                         }
                     }
                     if (IsAllTransferStationFail)
