@@ -44,10 +44,11 @@ builder.Services.AddDbContext<AGVSDbContext>(options =>
 {
     options.UseSqlServer(DBConnection);
 });
-builder.Services.AddHostedService<DatabaseBackgroundService>();
-builder.Services.AddHostedService<VehicleStateService>();
 builder.Services.AddScoped<VehicleOnlineRequestByAGVService>();
 builder.Services.AddScoped<VehicleOnlineBySystemService>();
+builder.Services.AddScoped<VehicleMaintainService>();
+builder.Services.AddHostedService<DatabaseBackgroundService>();
+builder.Services.AddHostedService<VehicleStateService>();
 
 
 var app = builder.Build();

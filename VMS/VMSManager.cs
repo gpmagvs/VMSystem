@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.Maintainance;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.ViewModels;
@@ -77,6 +78,9 @@ namespace VMSystem.VMS
             var inspectionAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.INSPECTION_AGV);
             var yunTechForkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.YUNTECH_FORK_AGV);
 
+
+            await MaintainSettingInitialize();
+            await database.SaveChanges();
             VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
             VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
@@ -96,6 +100,45 @@ namespace VMSystem.VMS
             TaskDatabaseChangeWorker();
             //TaskAssignToAGVWorker();
         }
+
+        private static async Task MaintainSettingInitialize()
+        {
+            using AGVSDatabase database = new AGVSDatabase();
+            List<MAINTAIN_ITEM> allMaintainItems = Enum.GetValues(typeof(MAINTAIN_ITEM)).Cast<MAINTAIN_ITEM>().ToList();
+            var maintainSettingNotCompletesAGVs = database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count);
+            if (maintainSettingNotCompletesAGVs.Any())
+            {
+                foreach (var item in maintainSettingNotCompletesAGVs)
+                {
+                    AddMaintainSettings(item);
+                }
+            }
+            await database.SaveChanges();
+            void AddMaintainSettings(clsAGVStateDto vehicleState)
+            {
+                try
+                {
+                    if (vehicleState.MaintainSettings == null)
+                        vehicleState.MaintainSettings = new List<VehicleMaintain>();
+
+                    List<MAINTAIN_ITEM> existMaintainItems = vehicleState.MaintainSettings.Any() ?
+                                                            vehicleState.MaintainSettings.Select(item => item.MaintainItem).ToList() : new();
+                    foreach (var maintainItem in allMaintainItems)
+                    {
+                        if (existMaintainItems.Contains(maintainItem))
+                            continue;
+                        var agv = database.tables.AgvStates.First(a => a.AGV_Name == vehicleState.AGV_Name);
+                        agv.MaintainSettings.Add(new VehicleMaintain(vehicleState.AGV_Name, maintainItem));
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                    throw ex;
+                }
+            }
+        }
+
         private static clsAGVOptions CreateOptions(clsAGVStateDto agvDto)
         {
             return new clsAGVOptions

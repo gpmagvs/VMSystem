@@ -51,6 +51,8 @@ namespace VMSystem.AGV
         public DateTime lastTimeAliveCheckTime = DateTime.MinValue;
 
         public event EventHandler<int> OnMapPointChanged;
+        public static event EventHandler<(IAGV agv, double currentMileage)> OnMileageChanged;
+
         public IAGV.BATTERY_STATUS batteryStatus
         {
             get
@@ -76,7 +78,7 @@ namespace VMSystem.AGV
 
         public AvailabilityHelper availabilityHelper { get; private set; }
         public StopRegionHelper StopRegionHelper { get; private set; }
-        private clsRunningStatus _states = new clsRunningStatus();
+        private clsRunningStatus _states = new clsRunningStatus() { Odometry = -1 };
         public clsRunningStatus states
         {
             get => _states;
@@ -87,9 +89,18 @@ namespace VMSystem.AGV
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
                     var region = currentMapPoint.GetRegion(StaMap.Map);
                 }
+
+                if (value.Odometry != _states.Odometry)
+                {
+                    OnMileageChanged?.Invoke(this, (this, value.Odometry));
+                }
+
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
                 main_state = value.AGV_Status;
+
+
+
             }
         }
 

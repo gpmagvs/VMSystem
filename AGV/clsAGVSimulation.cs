@@ -34,6 +34,7 @@ namespace VMSystem.AGV
         private SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(1, 1);
         private List<clsAGVTrafficState> TrafficState => TrafficControlCenter.DynamicTrafficState.AGVTrafficStates.Values.ToList().FindAll(_agv => _agv.AGVName != agv.Name);
         public clsRunningStatus runningSTatus = new clsRunningStatus();
+        private double Mileage = 0;
         public clsAGVSimulation() { }
         public clsAGVSimulation(clsAGVTaskDisaptchModule dispatcherModule)
         {
@@ -73,8 +74,10 @@ namespace VMSystem.AGV
         {
             while (!disposedValue)
             {
-                await Task.Delay(100);
-                agv.states = runningSTatus;
+                await Task.Delay(10);
+                runningSTatus.Odometry = Mileage;
+                var clone = runningSTatus.Clone();
+                agv.states = clone;
             }
         }
 
@@ -430,6 +433,8 @@ namespace VMSystem.AGV
             {
                 runningSTatus.Coordination.X += MoveSpeed_X * 0.1;
                 runningSTatus.Coordination.Y += MoveSpeed_Y * 0.1;
+
+
                 if (moveCancelTokenSource != null && moveCancelTokenSource.IsCancellationRequested)
                     return;
                 if (token.IsCancellationRequested)
@@ -439,7 +444,7 @@ namespace VMSystem.AGV
             }
             runningSTatus.Coordination.X = TargetX;
             runningSTatus.Coordination.Y = TargetY;
-            runningSTatus.Odometry += O_Distance_All;
+            Mileage += O_Distance_All;
         }
 
         private async Task SimulationThetaChange(double currentAngle, double targetAngle, CancellationToken token = default)

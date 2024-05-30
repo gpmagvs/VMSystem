@@ -7,25 +7,53 @@ using AGVSystemCommonNet6.AGVDispatch;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using VMSystem.Services;
+using System.Collections.Concurrent;
 
 namespace VMSystem.BackgroundServices
 {
     public class VehicleStateService : IHostedService, IDisposable
     {
         public static Dictionary<string, clsAGVStateDto> AGVStatueDtoStored => DatabaseCaches.Vehicle.VehicleStates.ToDictionary(v => v.AGV_Name, v => v);
+        private ConcurrentDictionary<string, (DateTime time, double milegate)> VehiclesMileageStoreed = new();
+
         AGVSDbContext context;
         public VehicleStateService(IServiceScopeFactory scopeFactory)
         {
             _scopeFactory = scopeFactory;
             context = _scopeFactory.CreateAsyncScope().ServiceProvider.GetRequiredService<AGVSDbContext>();
-
         }
-        Timer _timer;
         private readonly IServiceScopeFactory _scopeFactory;
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            clsAGV.OnMileageChanged += ClsAGV_OnMileageChanged;
             _ = Task.Run(() => DoWork());
+        }
+
+        private async void ClsAGV_OnMileageChanged(object? sender, (IAGV agv, double currentMileage) e)
+        {
+            UpdateMaintainOdomOfHorizonMotor(e.agv, e.currentMileage);
+        }
+
+        private async Task UpdateMaintainOdomOfHorizonMotor(IAGV agv, double currentMileage)
+        {
+            await Task.Delay(1);
+
+            if (VehiclesMileageStoreed.TryGetValue(agv.Name, out (DateTime time, double mileage) lastData))
+            {
+                if ((DateTime.Now - lastData.time).TotalSeconds > 10)
+                {
+                    VehicleMaintainService maintainService = _scopeFactory.CreateAsyncScope().ServiceProvider.GetRequiredService<VehicleMaintainService>();
+                    double diffValue = (currentMileage - lastData.mileage) / 1000;
+                    await maintainService.UpdateHorizonMotorCurrentMileageValue(agv.Name, diffValue);
+                    VehiclesMileageStoreed[agv.Name] = new(DateTime.Now, currentMileage);
+                }
+            }
+            else
+            {
+                VehiclesMileageStoreed.TryAdd(agv.Name, new(DateTime.Now, currentMileage));
+            }
         }
 
         private async Task DoWork()
