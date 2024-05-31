@@ -280,6 +280,8 @@ namespace VMSystem.TrafficControl
         internal bool IsWaitingForLeaveWorkStationTimeout = false;
 
         private Stopwatch _LeaveWorkStationWaitTimer = new Stopwatch();
+        internal IAGV currentConflicToAGV;
+
         public bool IsWaitingForLeaveWorkStation
         {
             get => _IsWaitingForLeaveWorkStation;

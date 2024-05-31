@@ -183,12 +183,8 @@ namespace VMSystem.Dispatch
                     {
                         if (_path.Count() < 2)
                         {
-                            //考慮原地旋轉是否會與其他車輛干涉
-                            var directionAngleFInal = _path.GetStopDirectionAngle(order, vehicle, stage, _path.Last());
-                            var rotationDiff = Math.Abs(vehicle.states.Coordination.Theta - directionAngleFInal);
-                            bool _rotationWillConflicToOtherVehiclePath = otherAGV.Any(v => v.NavigationState.NextPathOccupyRegions.Any(r => r.IsIntersectionTo(vehicle.AGVRotaionGeometry)));
-                            bool _rotationWillConflicToOtherVehicleCurrentBody = otherAGV.Any(v => v.AGVRotaionGeometry.IsIntersectionTo(vehicle.AGVRotaionGeometry));
-                            return rotationDiff > 10 && (_rotationWillConflicToOtherVehiclePath || _rotationWillConflicToOtherVehicleCurrentBody);
+                            return WillRotationAtCurrentPointConflicTo(vehicle, order, stage, _path, otherAGV);
+                            //return;
                         }
                         bool isTooCloseWithVehicleEntryPointOFWorkStation = false;
                         IEnumerable<IAGV> atWorkStationVehicles = otherAGV.Where(agv => !agv.currentMapPoint.IsCharge && agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
@@ -285,6 +281,16 @@ namespace VMSystem.Dispatch
                 {
                     MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
                     _conflicRegion = null;
+
+                    var _nextPath = vehicle.NavigationState.NextNavigtionPointsForPathCalculation;
+
+                    if (_nextPath.DistinctBy(p => p.TagNumber).Count() == 1 && !WillRotationAtCurrentPointConflicTo(vehicle, order, stage, _nextPath, otherAGV)) //原地
+                    {
+                        return false;
+                    }
+
+
+
                     var _PathRectangles = vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation;
                     _PathRectangles.Reverse();
                     foreach (var item in _PathRectangles)
@@ -307,6 +313,7 @@ namespace VMSystem.Dispatch
                             if (isConflic)
                             {
                                 bool _isPointConflic = item.StartPoint.TagNumber == item.EndPoint.TagNumber;
+                                vehicle.NavigationState.currentConflicToAGV = _otherAGV;
                                 if (_isPointConflic)
                                     vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPoint.TagNumber} Conflic To {_otherAGV.Name}");
                                 else
@@ -328,6 +335,17 @@ namespace VMSystem.Dispatch
                 }
             }
         }
+
+        private static bool WillRotationAtCurrentPointConflicTo(IAGV vehicle, clsTaskDto order, VehicleMovementStage stage, IEnumerable<MapPoint> _path, IEnumerable<IAGV> otherAGV)
+        {
+            //考慮原地旋轉是否會與其他車輛干涉
+            var directionAngleFInal = _path.GetStopDirectionAngle(order, vehicle, stage, _path.Last());
+            var rotationDiff = Math.Abs(vehicle.states.Coordination.Theta - directionAngleFInal);
+            bool _rotationWillConflicToOtherVehiclePath = otherAGV.Any(v => v.NavigationState.NextPathOccupyRegions.Any(r => r.IsIntersectionTo(vehicle.AGVRotaionGeometry)));
+            bool _rotationWillConflicToOtherVehicleCurrentBody = otherAGV.Any(v => v.AGVRotaionGeometry.IsIntersectionTo(vehicle.AGVRotaionGeometry));
+            return rotationDiff > 10 && (_rotationWillConflicToOtherVehiclePath || _rotationWillConflicToOtherVehicleCurrentBody);
+        }
+
         public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint)
         {
             List<MapPoint> constrains = new List<MapPoint>();

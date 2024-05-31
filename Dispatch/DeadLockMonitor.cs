@@ -60,11 +60,17 @@ namespace VMSystem.Dispatch
                     if (WaitingConflicReleaseVehicles.Count() > 1)
                     {
                         var _deadLockVehicles = WaitingConflicReleaseVehicles.ToArray();
-                        foreach (var item in WaitingConflicReleaseVehicles)
+
+                        IAGV firstWaitingVehicle = _deadLockVehicles.First();
+                        IAGV second = _deadLockVehicles.Where(agv => agv.Name != firstWaitingVehicle.Name)
+                                         .Where(agv => agv.NavigationState.currentConflicToAGV.Name == firstWaitingVehicle.Name)
+                                         .FirstOrDefault();
+
+                        if (second != null)
                         {
-                            item.NavigationState.IsConflicSolving = true;
+                            firstWaitingVehicle.NavigationState.IsConflicSolving = second.NavigationState.IsConflicSolving = true;
+                            await DeadLockSolve(new List<IAGV>() { firstWaitingVehicle, second });
                         }
-                        await DeadLockSolve(_deadLockVehicles);
                     }
                 }
                 catch (Exception ex)
@@ -117,6 +123,25 @@ namespace VMSystem.Dispatch
         private async Task<IAGV> DeadLockSolve(IEnumerable<IAGV> DeadLockVehicles)
         {
             //決定誰要先移動到避車點
+
+            Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStation(vehicle));
+
+            if (parkStationState.Any(pair => pair.Value != null))
+            {
+                var _lpPair = parkStationState.First(pair => pair.Value != null);
+                var _lowProrityVehicle = _lpPair.Key;
+                var avoidPoint = _lpPair.Value;
+
+                var _highProrityVehicle = parkStationState.First(pair => pair.Key.Name != _lowProrityVehicle.Name).Key;
+                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
+
+                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = avoidPoint;
+                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
+                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
+                _lowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
+                return _lowProrityVehicle;
+            }
+
             (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeterminPriorityOfVehicles(DeadLockVehicles);
             clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
             var toAvoidVehicle = await lowPriorityWork.StartSolve();
@@ -126,6 +151,7 @@ namespace VMSystem.Dispatch
 
         public static (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
+
             Dictionary<IAGV, int> orderedByWeight = DeadLockVehicles.ToDictionary(v => v, v => CalculateWeights(v));
             IEnumerable<IAGV> ordered = new List<IAGV>();
             if (orderedByWeight.First().Value == orderedByWeight.Last().Value)
@@ -189,6 +215,31 @@ namespace VMSystem.Dispatch
                 NotifyServiceHelper.SUCCESS($"{waitingVehicle.Name} 與在設備中的車輛解除互相等待! 重新開啟路徑(ID= {pathToResotre.PathID})");
             }
         }
+
+        internal static MapPoint GetParkableStation(IAGV agvToPark)
+        {
+            var currentRegion = agvToPark.currentMapPoint.GetRegion(StaMap.Map);
+            var normalPointsInThisRegin = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == currentRegion.Name)
+                                                                   .OrderBy(pt => pt.CalculateDistance(agvToPark.states.Coordination));
+            var normalPointsWithWorkStationEntryAable = normalPointsInThisRegin.ToDictionary(pt => pt, pt => pt.TargetWorkSTationsPoints());
+            var registedTags = StaMap.RegistDictionary.Keys.ToList();
+            KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.FirstOrDefault(pair => pair.Value.Any() && pair.Value.All(pt => !registedTags.Contains(pt.TagNumber)) && pair.Value.All(pt => pt.IsParking));
+            if (parkableStationEntrys.Key != null && _TryGetParkableStation(parkableStationEntrys.Value, out MapPoint _parkStation))
+            {
+                return _parkStation;
+            }
+            else
+            {
+                return null;
+            }
+            bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)
+            {
+                List<int> _forbiddenTags = agvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+                _parkablePoint = value.FirstOrDefault(pt => !_forbiddenTags.Contains(pt.TagNumber));
+                return _parkablePoint != null;
+            }
+        }
+
         internal async void HandleVehicleStartWaitConflicSolve(object? sender, IAGV waitingVehicle)
         {
             var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(waitingVehicle);
@@ -199,14 +250,11 @@ namespace VMSystem.Dispatch
             }
             if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
             {
-                var normalPointsInThisRegin = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == _region.Name)
-                                                                      .OrderBy(pt => pt.CalculateDistance(waitingVehicle.states.Coordination));
-                var normalPointsWithWorkStationEntryAable = normalPointsInThisRegin.ToDictionary(pt => pt, pt => pt.TargetWorkSTationsPoints());
-                KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.FirstOrDefault(pair => pair.Value.Any() && pair.Value.All(pt => pt.IsParking));
+                MapPoint parkStation = GetParkableStation(waitingVehicle);
 
-                if (parkableStationEntrys.Key != null && _TryGetParkableStation(parkableStationEntrys.Value, out MapPoint _parkStation))
+                if (parkStation != null)
                 {
-                    waitingVehicle.NavigationState.AvoidActionState.AvoidPt = _parkStation;
+                    waitingVehicle.NavigationState.AvoidActionState.AvoidPt = parkStation;
                     waitingVehicle.NavigationState.AvoidActionState.AvoidToVehicle = vehicleWaitingEntry;
                     waitingVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
                     waitingVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
