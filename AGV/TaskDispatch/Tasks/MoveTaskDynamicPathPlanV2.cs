@@ -473,9 +473,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (!IsNeedToStayAtWaitPoint(_Region, out _))
                 return;
 
-            int tagOfWaitingForEntryRegion = _Region.EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag))
-                                                               .OrderBy(pt => pt.CalculateDistance(Agv.currentMapPoint))
-                                                               .GetTagCollection().FirstOrDefault();
+            int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(_Region);
             bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
 
             MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
@@ -512,8 +510,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 return !RegionManager.IsRegionEnterable(Agv, region, out inRegionVehicles);
             }
+            int _SelectTagOfWaitingPoint(MapRegion region)
+            {
+                int waitingTagSetting = region.EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag))
+                                                               .OrderBy(pt => pt.CalculateDistance(Agv.currentMapPoint))
+                                                               .GetTagCollection()
+                                                               .FirstOrDefault();
+                MapPoint neariestPointInRegion = StaMap.Map.Points.Values.Where(pt => pt.GetRegion(StaMap.Map).Name == region.Name)
+                                                                         .OrderBy(pt => pt.CalculateDistance(Agv.states.Coordination))
+                                                                         .FirstOrDefault();
+                if (waitingTagSetting != 0 && neariestPointInRegion != null)
+                {
+                    MapPoint pointOfWaitingToEntryRegion = StaMap.GetPointByTagNumber(waitingTagSetting);
+
+                    double distanceFromAGVLocToRegion = neariestPointInRegion.CalculateDistance(Agv.states.Coordination);
+                    double distanceFromWaitingPointToRegion = neariestPointInRegion.CalculateDistance(pointOfWaitingToEntryRegion);
+
+                    return distanceFromAGVLocToRegion < distanceFromWaitingPointToRegion ? Agv.currentMapPoint.TagNumber : pointOfWaitingToEntryRegion.TagNumber;
+                }
+                else
+                {
+                    return waitingTagSetting;
+                }
+
+            }
             #endregion
         }
+
 
         /// <summary>
         /// 避車動作
