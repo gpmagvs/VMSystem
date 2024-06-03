@@ -73,10 +73,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             else
             {
-                int destineTag = OrderData.need_change_agv /*&& RunningTask.TransferStage == TransferStage.MoveToTransferStationLoad*/ ? OrderData.TransferToTag : OrderData.To_Station_Tag;
                 if (OrderData.transfer_task_stage == 2)
+                {
                     OrderData.From_Slot = "0";
-                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), destineTag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
+                    OrderData.To_Slot = "-1";
+                }
+                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
                 if (result.confirm)
                 {
                     if (result.ReturnObj != null)

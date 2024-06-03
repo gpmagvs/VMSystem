@@ -50,7 +50,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 var nextAGV = VMSManager.GetAGVByName(order.OrderData.TransferToDestineAGVName);
                 order.OrderData.TaskName += $"_2";
                 order.OrderData.From_Station = order.OrderData.TransferFromTag.ToString();
-                order.OrderData.From_Slot = "0";
+                //order.OrderData.From_Slot = "0";
                 //order.OrderData.To_Slot = "-1";
                 order.OrderData.need_change_agv = false;
                 order.OrderData.DesignatedAGVName = "";
