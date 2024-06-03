@@ -519,19 +519,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPoint neariestPointInRegion = StaMap.Map.Points.Values.Where(pt => pt.GetRegion(StaMap.Map).Name == region.Name)
                                                                          .OrderBy(pt => pt.CalculateDistance(Agv.states.Coordination))
                                                                          .FirstOrDefault();
-                if (waitingTagSetting != 0 && neariestPointInRegion != null)
-                {
-                    MapPoint pointOfWaitingToEntryRegion = StaMap.GetPointByTagNumber(waitingTagSetting);
-
-                    double distanceFromAGVLocToRegion = neariestPointInRegion.CalculateDistance(Agv.states.Coordination);
-                    double distanceFromWaitingPointToRegion = neariestPointInRegion.CalculateDistance(pointOfWaitingToEntryRegion);
-
-                    return distanceFromAGVLocToRegion < distanceFromWaitingPointToRegion ? Agv.currentMapPoint.TagNumber : pointOfWaitingToEntryRegion.TagNumber;
-                }
-                else
-                {
-                    return waitingTagSetting;
-                }
+                return waitingTagSetting;
 
             }
             #endregion
