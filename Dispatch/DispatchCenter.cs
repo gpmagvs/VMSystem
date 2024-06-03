@@ -152,9 +152,9 @@ namespace VMSystem.Dispatch
 
                         var pathCandicates = subGoalResults.Where(_p => _p != null);
 
-                        if (pathCandicates.Count() > 1)
+                        if (pathCandicates.Count() > 2)
                         {
-                            path = pathCandicates.ToList()[1].ToList();
+                            path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
                         }
                         else
                             path = subGoalResults.First(path => path != null).ToList();
@@ -388,6 +388,8 @@ namespace VMSystem.Dispatch
             constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
+            if (MainVehicle.NavigationState.CurrentConflicRegion != null)
+                constrains.Add(MainVehicle.NavigationState.CurrentConflicRegion.StartPoint);
             if (additionRegists.Any())
             {
                 //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");

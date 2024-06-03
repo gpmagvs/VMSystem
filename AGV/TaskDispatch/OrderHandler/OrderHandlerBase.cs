@@ -48,6 +48,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 while (SequenceTaskQueue.Count > 0)
                 {
                     await Task.Delay(200);
+                    Agv.NavigationState.StateReset();
                     _CurrnetTaskFinishResetEvent.Reset();
                     var task = SequenceTaskQueue.Dequeue();
 

@@ -32,7 +32,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             throw new NotImplementedException();
         }
-
+        public override Task SendTaskToAGV()
+        {
+            Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
+            return base.SendTaskToAGV();
+        }
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {
             throw new NotImplementedException();

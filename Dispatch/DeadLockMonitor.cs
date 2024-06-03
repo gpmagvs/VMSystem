@@ -223,9 +223,17 @@ namespace VMSystem.Dispatch
                                                                    .OrderBy(pt => pt.CalculateDistance(agvToPark.states.Coordination));
             var normalPointsWithWorkStationEntryAable = normalPointsInThisRegin.ToDictionary(pt => pt, pt => pt.TargetWorkSTationsPoints());
             var registedTags = StaMap.RegistDictionary.Keys.ToList();
-            KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.FirstOrDefault(pair => pair.Value.Any() && pair.Value.All(pt => !registedTags.Contains(pt.TagNumber)) && pair.Value.All(pt => pt.IsParking));
-            if (parkableStationEntrys.Key != null && _TryGetParkableStation(parkableStationEntrys.Value, out MapPoint _parkStation))
+            KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.Where(pair => pair.Value.Any() && pair.Value.All(pt => !registedTags.Contains(pt.TagNumber)) && pair.Value.All(pt => pt.IsParking))
+                                                                                                                        .FirstOrDefault();
+
+            if (parkableStationEntrys.Key != null)
             {
+                var _parkableStations = parkableStationEntrys.Value;
+                if (agvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD)
+                {
+                    _parkableStations = _parkableStations.Where(pt => pt.StationType != MapPoint.STATION_TYPE.Buffer && pt.StationType != MapPoint.STATION_TYPE.Charge_Buffer);
+                }
+                _TryGetParkableStation(_parkableStations, out MapPoint _parkStation);
                 return _parkStation;
             }
             else
@@ -258,6 +266,11 @@ namespace VMSystem.Dispatch
                     waitingVehicle.NavigationState.AvoidActionState.AvoidToVehicle = vehicleWaitingEntry;
                     waitingVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
                     waitingVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
+                }
+                else
+                {
+                    clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(waitingVehicle, vehicleWaitingEntry);
+                    var toAvoidVehicle = await lowPriorityWork.StartSolve();
                 }
             }
             //是否與停在設備中的車輛互相停等

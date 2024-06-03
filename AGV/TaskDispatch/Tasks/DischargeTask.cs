@@ -30,6 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
+            Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             DetermineThetaOfDestine(this.TaskDonwloadToAGV);
             await WaitLeaveWorkStationAllowable(new clsLeaveFromWorkStationConfirmEventArg
             {

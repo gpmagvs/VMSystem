@@ -549,7 +549,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             while (avoidAction == ACTION_TYPE.None && !_isRegionTrafficControl && _cancelAvoidTimer.Elapsed.TotalSeconds < 2)
             {
                 await Task.Delay(1);
-                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_isRegionTrafficControl)
+                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_isRegionTrafficControl && !_avoidToAgv.NavigationState.IsWaitingForEntryRegion)
                 {
                     UpdateMoveStateMessage($"避車動作取消-因避讓車輛已有新路徑");
                     NotifyServiceHelper.INFO($"{Agv.Name}避車動作取消-因避讓車輛已有新路徑!");
@@ -654,7 +654,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                     throw new TaskCanceledException();
-                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
+                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion||_avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
                     break;
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);

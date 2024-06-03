@@ -26,6 +26,7 @@ namespace VMSystem.Dispatch.YieldActions
             if (StopMapPoint == null)
                 return null;
 
+            _LowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None;
             _LowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = StopMapPoint;
             _LowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
             _LowProrityVehicle.NavigationState.IsConflicSolving = false;
