@@ -377,7 +377,12 @@ namespace VMSystem.Dispatch
             }
 
             var disabledPoints = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable);
-            constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
+
+            if (TrafficControlCenter.TrafficControlParameters.DisableChargeStationEntryPointWhenNavigation)
+            {
+                constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
+            }
+
             constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));//其他車輛當前導航路徑不可用
             //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
             constrains.AddRange(otherAGV.Where(v => v.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)

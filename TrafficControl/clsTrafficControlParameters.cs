@@ -5,6 +5,8 @@
 
         public clsVehicleGeometryExpands VehicleGeometryExpands { get; set; } = new clsVehicleGeometryExpands();
 
+        public bool DisableChargeStationEntryPointWhenNavigation { get; set; } = true;
+
         public class clsVehicleGeometryExpands
         {
             public clsVehicleGeometryExpand LeaveWorkStationGeoExpand { get; set; } = new clsVehicleGeometryExpand()
