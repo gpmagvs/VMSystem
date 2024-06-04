@@ -494,6 +494,9 @@ namespace VMSystem.AGV
             }
         }
 
+        /// <summary>
+        /// Alive Check Process for AGV Connection Status Check 
+        /// </summary>
         private void AliveCheck()
         {
             Task.Run(async () =>
@@ -521,7 +524,6 @@ namespace VMSystem.AGV
                 }
             });
         }
-
         public async Task PublishTrafficDynamicData(clsDynamicTrafficState data)
         {
             try

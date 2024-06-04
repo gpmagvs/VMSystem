@@ -124,7 +124,7 @@ namespace VMSystem.Dispatch
         {
             //決定誰要先移動到避車點
 
-            Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStation(vehicle));
+            Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStationOfCurrentRegion(vehicle));
 
             if (parkStationState.Any(pair => pair.Value != null))
             {
@@ -133,11 +133,10 @@ namespace VMSystem.Dispatch
                 var avoidPoint = _lpPair.Value;
 
                 var _highProrityVehicle = parkStationState.First(pair => pair.Key.Name != _lowProrityVehicle.Name).Key;
+                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
                 _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-
                 _lowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = avoidPoint;
                 _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
                 _lowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
                 return _lowProrityVehicle;
             }
@@ -216,35 +215,23 @@ namespace VMSystem.Dispatch
             }
         }
 
-        internal static MapPoint GetParkableStation(IAGV agvToPark)
+        internal static MapPoint GetParkableStationOfCurrentRegion(IAGV agvToPark)
         {
+            //找到所有可停車
             var currentRegion = agvToPark.currentMapPoint.GetRegion(StaMap.Map);
-            var normalPointsInThisRegin = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == currentRegion.Name)
-                                                                   .OrderBy(pt => pt.CalculateDistance(agvToPark.states.Coordination));
-            var normalPointsWithWorkStationEntryAable = normalPointsInThisRegin.ToDictionary(pt => pt, pt => pt.TargetWorkSTationsPoints());
-            var registedTags = StaMap.RegistDictionary.Keys.ToList();
-            KeyValuePair<MapPoint, IEnumerable<MapPoint>> parkableStationEntrys = normalPointsWithWorkStationEntryAable.Where(pair => pair.Value.Any() && pair.Value.All(pt => !registedTags.Contains(pt.TagNumber)) && pair.Value.All(pt => pt.IsParking))
-                                                                                                                        .FirstOrDefault();
-
-            if (parkableStationEntrys.Key != null)
+            //在該區域所有的主幹道點位
+            var normalPointsInThisRegion = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == currentRegion.Name);
+            //找到所有可停車的點位(Key = Entry Point , Value= Stations)
+            var parkables = normalPointsInThisRegion.ToDictionary(pt => pt, pt => pt.TargetParkableStationPoints(ref agvToPark));
+            if (parkables.Any(pair => pair.Value.Any()))
             {
-                var _parkableStations = parkableStationEntrys.Value;
-                if (agvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD)
-                {
-                    _parkableStations = _parkableStations.Where(pt => pt.StationType != MapPoint.STATION_TYPE.Buffer && pt.StationType != MapPoint.STATION_TYPE.Charge_Buffer);
-                }
-                _TryGetParkableStation(_parkableStations, out MapPoint _parkStation);
-                return _parkStation;
+                parkables = parkables.OrderBy(obj => obj.Key.CalculateDistance(agvToPark.states.Coordination))
+                                   .ToDictionary(obj => obj.Key, obj => obj.Value);
+                return parkables.First().Value.First();
             }
             else
             {
                 return null;
-            }
-            bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)
-            {
-                List<int> _forbiddenTags = agvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
-                _parkablePoint = value.FirstOrDefault(pt => !_forbiddenTags.Contains(pt.TagNumber));
-                return _parkablePoint != null;
             }
         }
 
@@ -258,7 +245,7 @@ namespace VMSystem.Dispatch
             }
             if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
             {
-                MapPoint parkStation = GetParkableStation(waitingVehicle);
+                MapPoint parkStation = GetParkableStationOfCurrentRegion(waitingVehicle);
 
                 if (parkStation != null)
                 {

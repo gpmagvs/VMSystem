@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
+using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.Dispatch;
@@ -654,7 +655,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                     throw new TaskCanceledException();
-                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion||_avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
+                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion || _avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
                     break;
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);
@@ -880,6 +881,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
                 .Where(pt => StaMap.Map.Points.Values.Any(_p => _p.TagNumber == pt.TagNumber))
                 .Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal);
+        }
+        public static IEnumerable<MapPoint> TargetParkableStationPoints(this MapPoint mapPoint)
+        {
+            IEnumerable<MapPoint> stations = mapPoint.TargetWorkSTationsPoints();
+            return stations.Where(pt => pt.IsParking);
+        }
+        public static IEnumerable<MapPoint> TargetParkableStationPoints(this MapPoint mapPoint, ref IAGV AgvToPark)
+        {
+            IEnumerable<MapPoint> stations = mapPoint.TargetParkableStationPoints();
+            //所有被註冊的Tag
+            var registedTags = StaMap.RegistDictionary.Keys.ToList();
+            List<int> _forbiddenTags = AgvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+            _forbiddenTags.AddRange(registedTags);
+            return stations.Where(pt => pt.IsParking && !_forbiddenTags.Contains(pt.TagNumber));
         }
         /// <summary>
         /// 
