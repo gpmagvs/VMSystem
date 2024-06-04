@@ -225,8 +225,9 @@ namespace VMSystem.Dispatch
             var parkables = normalPointsInThisRegion.ToDictionary(pt => pt, pt => pt.TargetParkableStationPoints(ref agvToPark));
             if (parkables.Any(pair => pair.Value.Any()))
             {
-                parkables = parkables.OrderBy(obj => obj.Key.CalculateDistance(agvToPark.states.Coordination))
-                                   .ToDictionary(obj => obj.Key, obj => obj.Value);
+                parkables = parkables.Where(pair=>pair.Key!=null&& pair.Value.Any())
+                                     .OrderBy(obj => obj.Key.CalculateDistance(agvToPark.states.Coordination))
+                                     .ToDictionary(obj => obj.Key, obj => obj.Value);
                 return parkables.First().Value.First();
             }
             else
