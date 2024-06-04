@@ -28,12 +28,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             DestineTag = OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag;
-  			if (!OrderData.bypass_eq_status_check)
+            if (!OrderData.bypass_eq_status_check)
             {
-            	clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
-            	if (response == null || response.confirm == false)
-                	return (response.confirm, response.AlarmCode);
-			}
+                clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
+                if (response.confirm == false)
+                    return (response.confirm, response.AlarmCode);
+            }
+            //         if (!OrderData.bypass_eq_status_check)
+            //         {
+            //         	clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            //         	if (response == null || response.confirm == false)
+            //             	return (response.confirm, response.AlarmCode);
+            //}
             return await base.DistpatchToAGV();
         }
         protected override int GetDestineWorkStationTagByOrderInfo(clsTaskDto orderInfo)

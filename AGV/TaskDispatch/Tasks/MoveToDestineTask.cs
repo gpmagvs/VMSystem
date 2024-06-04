@@ -10,29 +10,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
         public MoveToDestineTask() : base()
-        {
-        }
+        { }
 
         public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-        }
+        { }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
             if (!OrderData.bypass_eq_status_check)
-                if (OrderData.Action == ACTION_TYPE.Unload)
-                {
-                    clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Unload);
-                    if (response == null || response.confirm == false)
-                        return (response.confirm, response.AlarmCode);
-                }
-                else if (OrderData.Action == ACTION_TYPE.LoadAndPark || OrderData.Action == ACTION_TYPE.Load || OrderData.Action == ACTION_TYPE.Carry)
-                {
-                    clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
-                    if (response == null || response.confirm == false)
-                        return (response.confirm, response.AlarmCode);
-                }
+            {
+                clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
+                if (response.confirm == false)
+                    return (response.confirm, response.AlarmCode);
+            }
+            //if (!OrderData.bypass_eq_status_check)
+            //    if (OrderData.Action == ACTION_TYPE.Unload)
+            //    {
+            //        clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Unload);
+            //        if (response == null || response.confirm == false)
+            //            return (response.confirm, response.AlarmCode);
+            //    }
+            //    else if (OrderData.Action == ACTION_TYPE.LoadAndPark || OrderData.Action == ACTION_TYPE.Load || OrderData.Action == ACTION_TYPE.Carry)
+            //    {
+            //        clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            //        if (response == null || response.confirm == false)
+            //            return (response.confirm, response.AlarmCode);
+            //    }
             return await base.DistpatchToAGV();
         }
     }

@@ -43,10 +43,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
-                if (response == null || response.confirm == false)
+                clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
+                if (response.confirm == false)
                     return (response.confirm, response.AlarmCode);
             }
+            //if (!OrderData.bypass_eq_status_check)
+            //{
+            //    clsAGVSTaskReportResponse response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+            //    if (response == null || response.confirm == false)
+            //        return (response.confirm, response.AlarmCode);
+            //}
             return await base.DistpatchToAGV();
         }
     }
