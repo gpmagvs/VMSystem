@@ -23,8 +23,11 @@ namespace VMSystem.Services
 
             if (TasksObj.GetType() == typeof(MoveToDestineTask))
             {
+                if (OrderDataAction == ACTION_TYPE.Charge|| OrderDataAction == ACTION_TYPE.None)
+                    return new clsAGVSTaskReportResponse() { confirm = true };
                 if (OrderDataAction == ACTION_TYPE.Carry)
                     OrderDataAction = ACTION_TYPE.Load;
+
                 //response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(tag, OrderDataAction);
             }
             else if (TasksObj.GetType() == typeof(UnloadAtDestineTask))

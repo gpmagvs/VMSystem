@@ -1,7 +1,10 @@
-﻿namespace VMSystem.TrafficControl
+﻿using AGVSystemCommonNet6.Configuration;
+
+namespace VMSystem.TrafficControl
 {
     public class clsTrafficControlParameters
     {
+        public clsAGVTaskControlConfigs Basic { get; set; } = new clsAGVTaskControlConfigs();
 
         public clsVehicleGeometryExpands VehicleGeometryExpands { get; set; } = new clsVehicleGeometryExpands();
 
@@ -24,8 +27,20 @@
                 Length = 1.3,
                 Width = 2
             };
+
+            public clsVehicleGeomertyExpandWhenNavigation NavigationGeoExpand { get; set; } = new clsVehicleGeomertyExpandWhenNavigation()
+            {
+                Length = 1.4,
+                Width = 1.4,
+                LengthExpandWhenRotation = 1.2
+            };
+
         }
 
+        public class clsVehicleGeomertyExpandWhenNavigation : clsVehicleGeometryExpand
+        {
+            public double LengthExpandWhenRotation { get; set; } = 1.2;
+        }
 
         public class clsVehicleGeometryExpand
         {

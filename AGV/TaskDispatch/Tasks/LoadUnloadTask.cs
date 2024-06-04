@@ -54,7 +54,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-            if (AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
+            if (TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
             {
                 int currentTag = Agv.currentMapPoint.TagNumber;
                 await StaMap.UnRegistPoint(Agv.Name, currentTag);

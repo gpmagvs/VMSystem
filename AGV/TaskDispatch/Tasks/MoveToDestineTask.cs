@@ -18,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
         {
-            if (!OrderData.bypass_eq_status_check)
+            if (!OrderData.bypass_eq_status_check )
             {
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
                 if (response.confirm == false)

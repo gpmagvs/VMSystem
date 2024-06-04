@@ -211,7 +211,7 @@ namespace VMSystem.AGV
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousTag})", color: ConsoleColor.Green);
-                        if (value.IsEquipment && !AGVSConfigulator.SysConfigs.TaskControlConfigs.UnLockEntryPointWhenParkAtEquipment)
+                        if (value.IsEquipment && !TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;
@@ -776,7 +776,7 @@ namespace VMSystem.AGV
 
         public void CheckAGVStatesBeforeDispatchTask(ACTION_TYPE action, MapPoint DestinePoint)
         {
-            bool IsCheckAGVCargoStatus = AGVSConfigulator.SysConfigs.TaskControlConfigs.CheckAGVCargoStatusWhenLDULDAction;
+            bool IsCheckAGVCargoStatus = TrafficControlCenter.TrafficControlParameters.Basic.CheckAGVCargoStatusWhenLDULDAction;
             if (action == ACTION_TYPE.None && currentMapPoint.StationType != STATION_TYPE.Normal)
             {
                 throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_MOVE_TASK_IN_WORKSTATION);

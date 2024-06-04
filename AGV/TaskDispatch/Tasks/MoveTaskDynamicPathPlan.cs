@@ -46,7 +46,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     int _sequenceIndex = 0;
                     string task_simplex = this.TaskDonwloadToAGV.Task_Simplex;
                     _previsousTrajectorySendToAGV = new List<clsMapPoint>();
-                    int pointNum = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.TaskControlConfigs.SegmentTrajectoryPointNum;
+                    int pointNum = TrafficControlCenter.TrafficControlParameters.Basic.SegmentTrajectoryPointNum;
                     int pathStartTagToCal = Agv.states.Last_Visited_Node;
                     int _lastFinalEndTag = -1;
                     List<MapPoint> _lastNextPath = new List<MapPoint>();

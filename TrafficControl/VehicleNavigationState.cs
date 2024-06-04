@@ -128,12 +128,16 @@ namespace VMSystem.TrafficControl
             bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidActionState.AvoidPt?.TagNumber;
             bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
             //double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.45;
-            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath ? 1.0 : 1.40;
+
+            var _GeoExpandParam = TrafficControlCenter.TrafficControlParameters.VehicleGeometryExpands.NavigationGeoExpand;
+
+            double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath ? 1.0 : _GeoExpandParam.Length;
             double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLengthExpanded = vLength * _GeometryExpandRatio;
-            var rotationSquareLen = vLength * 1.2;
+
+            var rotationSquareLen = vLength * _GeoExpandParam.LengthExpandWhenRotation;
             int tagNumberOfAgv = Vehicle.currentMapPoint.TagNumber;
             vWidth = vWidth * _WidthExpandRatio;
 

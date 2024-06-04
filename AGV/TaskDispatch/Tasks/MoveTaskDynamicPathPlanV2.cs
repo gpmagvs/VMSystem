@@ -73,7 +73,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             cycleStopRequesting = false;
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
-            bool IsRegionNavigationEnabled = AGVSConfigulator.SysConfigs.TaskControlConfigs.MultiRegionNavigation;
+            bool IsRegionNavigationEnabled = TrafficControlCenter.TrafficControlParameters.Basic.MultiRegionNavigation;
             try
             {
                 finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
