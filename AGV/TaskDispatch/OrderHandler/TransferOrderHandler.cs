@@ -76,7 +76,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (OrderData.transfer_task_stage == 2)
                 {
                     OrderData.From_Slot = "0";
-                    OrderData.To_Slot = "-1";
+                    if (OrderData.To_Slot == "-1")
+                        OrderData.To_Slot = "-2";
                 }
                 clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
                 if (result.confirm)
