@@ -234,7 +234,7 @@ namespace VMSystem.AGV.TaskDispatch
             {
 
                 if (_task.Action == ACTION_TYPE.Load || _task.Action == ACTION_TYPE.Unload)
-                    await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(_task.Destination.TagNumber, _task.Action);
+                    await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(_task.Destination.TagNumber, Convert.ToInt16(TaskOrder.To_Slot), _task.Action);
 
                 if (IsStartMoveToDestineStationAfterUnload(_task))
                 {

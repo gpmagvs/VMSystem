@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using System.Diagnostics;
 using static AGVSystemCommonNet6.clsEnums;
+using static SQLite.SQLite3;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -11,9 +12,25 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         protected override void _SetOrderAsFinishState()
         {
             base._SetOrderAsFinishState();
-             onAGVChargeOrderDone?.Invoke(this, this);
+            onAGVChargeOrderDone?.Invoke(this, this);
         }
-      
+        public override async Task StartOrder(IAGV Agv)
+        {
+            if (Agv.model != AGV_TYPE.SUBMERGED_SHIELD)
+            {
+                if (Agv.states.Cargo_Status != 0)
+                {
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: Cargo_Status!=0");
+                    return;
+                }
+                if (Agv.states.CSTID != null && Agv.states.CSTID.Any(str => str != ""))
+                {
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: CSTID not empty");
+                    return;
+                }
+            }
+            await base.StartOrder(Agv);
+        }
     }
 
     public class ExchangeBatteryOrderHandler : OrderHandlerBase

@@ -94,7 +94,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 if (IsRegionNavigationEnabled && Stage != VehicleMovementStage.Traveling_To_Region_Wait_Point && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> regions))
                 {
-                    await RegionPathNavigation(regions);
+                    bool regionActionDone = await RegionPathNavigation(regions);
+                    if (regionActionDone)
+                    {
+
+                    }
                 }
 
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
@@ -479,30 +483,41 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// </summary>
         /// <param name="regions"></param>
         /// <returns></returns>
-        private async Task RegionPathNavigation(List<MapRegion> regions)
+        private async Task<bool> RegionPathNavigation(List<MapRegion> regions)
         {
             if (regions.Count < 2)
-                return;
+                return false;
 
             MapRegion? _Region = regions.Skip(1).FirstOrDefault(region => IsNeedToStayAtWaitPoint(region, out List<string> inRegionVehiclesNames));
             if (_Region == null)
-                return;
+                return false;
 
             if (!IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehiclesNames))
-                return;
+                return false;
 
             TryGetWaitingPointSelectStregy(_Region, inRegionVehiclesNames, out SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy);
 
             if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION)
             {
                 NotifyServiceHelper.INFO($"同區域-[{_Region.Name}] 衝突!!");
-                return;
+                return false;
             }
 
             if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
             {
-                NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!");
-                return;
+                //goto point in next region that closest to current location.
+                MapPoint neariestPointInRegion = _Region.GetNearestPointOfRegion(Agv);
+                MoveTaskDynamicPathPlanV2 _moveInToRegionTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                {
+                    Action = ACTION_TYPE.None,
+                    To_Station = neariestPointInRegion.TagNumber.ToString(),
+                    TaskName = OrderData.TaskName,
+                    DesignatedAGVName = Agv.Name,
+                })
+                { Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point };
+                NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!進入{neariestPointInRegion.TagNumber}");
+                await _moveInToRegionTask.SendTaskToAGV();
+                return true;
             }
 
             int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(_Region, WaitPointSelectStrategy);
@@ -519,7 +534,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
             };
-            NotifyServiceHelper.INFO($"{Agv.Name}即將前往 {_Region.Name} 等待點。");
+            NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
             Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
             Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
             await _moveToRegionWaitPointsTask.SendTaskToAGV();
@@ -535,6 +550,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             Agv.NavigationState.IsWaitingForEntryRegion = false;
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+            return true;
             #region local methods
 
             bool IsNeedToStayAtWaitPoint(MapRegion region, out List<string> inRegionVehicles)
@@ -550,8 +566,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                                .FirstOrDefault();
 
                 List<MapPoint> pointsOfRegion = region.GetPointsInRegion();
-                MapPoint neariestPointInRegion = pointsOfRegion.OrderBy(pt => pt.CalculateDistance(Agv.states.Coordination))
-                                                                .First();
+                MapPoint neariestPointInRegion = region.GetNearestPointOfRegion(Agv);
 
                 if (strategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY)
                 {
@@ -624,8 +639,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //在管制區域內的車輛，未來是否會與當前等待車輛同邊(行徑路線反向)
             bool _WillInRegionVehicleGoHereSide()
             {
-
-                return currentRegion.Name == nextDestinePointOfInRegionVehicle.Name || region.Name == nextDestinePointOfInRegionVehicle.Name;
+                return currentRegion.Name == nextDestineRegionOfInRegionVehicle.Name || region.Name == nextDestineRegionOfInRegionVehicle.Name;
             }
         }
 
@@ -785,7 +799,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(Agv.currentMapPoint, finalMapPoint, null);
             regions = _optimizedPath.GetRegions().ToList();
-            return regions.Count > 1;
+            return regions.Count >= 2;
         }
 
         private bool IsTaskAborted()
@@ -1328,6 +1342,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             return StaMap.Map.Points.Values.Where(pt => pt.GetRegion(StaMap.Map).Name == region.Name)
                                             .ToList();
+        }
+
+        public static MapPoint GetNearestPointOfRegion(this MapRegion region, IAGV agvToGo)
+        {
+            var pointsOfRegion = region.GetPointsInRegion();
+            return pointsOfRegion.OrderBy(pt => pt.CalculateDistance(agvToGo.states.Coordination)).First();
         }
 
     }
