@@ -473,6 +473,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        //summery this function 
+        /// <summary>
+        /// 進入管制區域時，選擇等待點策略
+        /// </summary>
+        /// <param name="regions"></param>
+        /// <returns></returns>
         private async Task RegionPathNavigation(List<MapRegion> regions)
         {
             if (regions.Count < 2)
@@ -528,8 +534,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(1000);
             }
             Agv.NavigationState.IsWaitingForEntryRegion = false;
-
-
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
             #region local methods
 
@@ -552,7 +556,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (strategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY)
                 {
                     var tagsOfPtInRegion = pointsOfRegion.GetTagCollection();
-
+                    // 管制區域內的車輛未來不會與當前等待車輛同邊(行徑路線反向)，找到離管制區域最近的點
                     PathFinder pf = new PathFinder();
                     var optimizedPathToRegion = pf.FindShortestPath(StaMap.Map, Agv.currentMapPoint, neariestPointInRegion, new PathFinderOption
                     {

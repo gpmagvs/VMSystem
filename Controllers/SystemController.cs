@@ -12,12 +12,6 @@ namespace VMSystem.Controllers
     [ApiController]
     public class SystemController : ControllerBase
     {
-        [HttpGet("/ws")]
-        public async Task ws(string user_id)
-        {
-            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext, user_id);
-        }
-       
         [HttpGet("VMSAliveCheck")]
         public async Task<IActionResult> AliveCheckHttp()
         {

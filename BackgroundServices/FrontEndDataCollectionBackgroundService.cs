@@ -1,39 +1,26 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
-using Newtonsoft.Json;
-using System.Net.WebSockets;
-using System.Text;
+using Microsoft.AspNetCore.SignalR;
+using VMSystem.Services;
 using VMSystem.TrafficControl;
-using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.VMS;
-using AGVSystemCommonNet6.HttpTools;
-using VMSystem.BackgroundServices;
+using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6;
 
-namespace VMSystem.Controllers
+namespace VMSystem.BackgroundServices
 {
-    public class WebsocketClientMiddleware : WebsocketServerMiddleware
+    public class FrontEndDataCollectionBackgroundService : BackgroundService
     {
-
-        public static WebsocketClientMiddleware middleware = new WebsocketClientMiddleware(130);
-
-        public WebsocketClientMiddleware(int publish_duraction) : base(publish_duraction)
+        private readonly IHubContext<FrontEndDataHub> _hubContext;
+        public FrontEndDataCollectionBackgroundService(IHubContext<FrontEndDataHub> hubContext)
         {
-
+            _hubContext = hubContext;
         }
-        public override List<string> channelMaps { get; set; } = new List<string>()
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-             "/ws",
-             "/ws/DynamicTrafficData",
-             "/ws/AGVNaviPathsInfo",
-             "/ws/VMSAliveCheck",
-             "/ws/VMSStatus",
-
-        };
-        protected override async Task CollectViewModelData()
-        {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                CurrentViewModelDataOfAllChannel[channelMaps[0]] = new
+                var data = new
                 {
                     //DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
                     //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
@@ -41,11 +28,12 @@ namespace VMSystem.Controllers
                     OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                     VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
                 };
-            }
-            catch (Exception ex)
-            {
+                string json = data.ToJson();
+                await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
+                await Task.Delay(150, stoppingToken);
             }
         }
+
         private static class ViewModelFactory
         {
             public static object GetDynamicTrafficDataVM()
@@ -103,6 +91,5 @@ namespace VMSystem.Controllers
                 return VMSManager.GetVMSViewData();
             }
         }
-
     }
 }
