@@ -484,7 +484,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (regions.Count < 2)
                 return;
 
-            MapRegion? _Region = regions.FirstOrDefault(region => IsNeedToStayAtWaitPoint(region, out List<string> inRegionVehiclesNames));
+            MapRegion? _Region = regions.Skip(1).FirstOrDefault(region => IsNeedToStayAtWaitPoint(region, out List<string> inRegionVehiclesNames));
             if (_Region == null)
                 return;
 
