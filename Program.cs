@@ -19,13 +19,14 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = null);
+builder.Services.AddSignalR().AddJsonProtocol(options => { options.PayloadSerializerOptions.PropertyNamingPolicy = null; });
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.WithOrigins("http://localhost:8080").AllowAnyMethod()
+                .AllowAnyHeader()
+                 .AllowCredentials();
     });
 });
 builder.Services.AddWebSockets(options =>
@@ -49,7 +50,10 @@ builder.Services.AddScoped<VehicleOnlineBySystemService>();
 builder.Services.AddScoped<VehicleMaintainService>();
 builder.Services.AddHostedService<DatabaseBackgroundService>();
 builder.Services.AddHostedService<VehicleStateService>();
+builder.Services.AddHostedService<FrontEndDataCollectionBackgroundService>();
 
+//add signalIR service
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -60,8 +64,6 @@ try
     Startup.LOGInstanceInit();
     Startup.VMSInit();
     Startup.StaticFileInit(app);
-    WebsocketClientMiddleware.middleware.Initialize();
-
 }
 catch (Exception ex)
 {
@@ -69,13 +71,16 @@ catch (Exception ex)
     Thread.Sleep(3000);
     Environment.Exit(1);
 }
-
 app.UseSwagger();
 app.UseSwaggerUI();
+app.UseDefaultFiles(new DefaultFilesOptions());
+app.UseStaticFiles();
 app.UseRouting();
-app.UseCors(c => c.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+//app.UseCors(c => c.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin());
+app.UseCors("AllowAll");
 app.UseWebSockets();
 //app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<FrontEndDataHub>("/FrontEndDataHub");
 app.Run();

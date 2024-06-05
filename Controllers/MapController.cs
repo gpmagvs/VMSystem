@@ -45,12 +45,5 @@ namespace VMSystem.Controllers
                 message = result.message
             });
         }
-
-
-        [HttpGet("/ws/DynamicTrafficData")]
-        public async Task GetDynamicTrafficData()
-        {
-            await WebsocketClientMiddleware.middleware.HandleWebsocketClientConnectIn(HttpContext);
-        }
     }
 }

@@ -473,6 +473,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        //summery this function 
+        /// <summary>
+        /// 進入管制區域時，選擇等待點策略
+        /// </summary>
+        /// <param name="regions"></param>
+        /// <returns></returns>
         private async Task RegionPathNavigation(List<MapRegion> regions)
         {
             if (regions.Count < 2)
@@ -528,8 +534,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(1000);
             }
             Agv.NavigationState.IsWaitingForEntryRegion = false;
-
-
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
             #region local methods
 
