@@ -24,9 +24,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:8080").AllowAnyMethod()
-                .AllowAnyHeader()
-                 .AllowCredentials();
+        policy.AllowAnyMethod()
+               .AllowAnyHeader()
+                .SetIsOriginAllowed(origin => true) // 允许任何来源
+                .AllowCredentials(); // 允许凭据
     });
 });
 builder.Services.AddWebSockets(options =>
