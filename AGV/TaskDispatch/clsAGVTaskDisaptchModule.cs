@@ -376,12 +376,13 @@ namespace VMSystem.AGV
                                 var _ExecutingTask = taskOrderedByPriority.First();
                                 ALARMS alarm_code = ALARMS.NONE;
 
-                                if (!CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask, out alarm_code))
+                                (bool autoSearchConfrim, ALARMS autoSearch_alarm_code)= await  CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);
+                                if (!autoSearchConfrim)
                                 {
                                     _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
                                     _ExecutingTask.FinishTime = DateTime.Now;
                                     TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
-                                    await AlarmManagerCenter.AddAlarmAsync(alarm_code, ALARM_SOURCE.AGVS);
+                                    await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS);
                                     continue;
                                 }
 
@@ -454,7 +455,7 @@ namespace VMSystem.AGV
                     }
                     finally
                     {
-                        await Task.Delay(1000);
+                        await Task.Delay(500);
                     }
                 }
             });
