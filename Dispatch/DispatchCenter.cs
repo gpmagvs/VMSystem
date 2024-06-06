@@ -288,11 +288,8 @@ namespace VMSystem.Dispatch
                     {
                         return false;
                     }
-
-
-
                     var _PathRectangles = vehicle.NavigationState.NextPathOccupyRegionsForPathCalculation;
-                    _PathRectangles.Reverse();
+                    //_PathRectangles.Reverse();
                     foreach (var item in _PathRectangles)
                     {
                         bool isConflic = false;
