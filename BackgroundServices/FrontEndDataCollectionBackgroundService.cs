@@ -18,20 +18,33 @@ namespace VMSystem.BackgroundServices
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            await Task.Run(async() =>
             {
-                var data = new
                 {
-                    //DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
-                    //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
-                    AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
-                    OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
-                    VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
-                };
-                string json = data.ToJson();
-                await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
-                await Task.Delay(150, stoppingToken);
-            }
+                    while (true)
+                    {
+                        await Task.Delay(150);
+                        object data = new object();
+                        try
+                        {
+                            data = new
+                            {
+                                //DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
+                                //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
+                                AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
+                                OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
+                                VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
+                            };
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                        }
+                        await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
+
+                    }
+                }
+            });
         }
 
         private static class ViewModelFactory
