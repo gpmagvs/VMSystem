@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
+using VMSystem.Dispatch.Equipment;
 using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 
@@ -185,10 +186,8 @@ namespace VMSystem.VMS
         /// <returns></returns>
         private async Task<clsTaskDto> ChechGenerateTransferTaskOrNot(IAGV AGV, clsTaskDto _taskDto)
         {
-            Dictionary<int, int> dict_AGVs = await AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(new List<int>() { _taskDto.To_Station_Tag });
-            AGV_TYPE to_station_agv_model = (AGV_TYPE)dict_AGVs[_taskDto.To_Station_Tag];
+            AGV_TYPE to_station_agv_model = EquipmentStore.GetEQAcceptAGVType(_taskDto.To_Station_Tag);
             _taskDto.To_Station_AGV_Type = to_station_agv_model;
-
             if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry || _taskDto.Action == ACTION_TYPE.LoadAndPark)
                 if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
                     _taskDto.need_change_agv = false;

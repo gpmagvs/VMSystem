@@ -52,6 +52,7 @@ builder.Services.AddScoped<VehicleMaintainService>();
 builder.Services.AddHostedService<DatabaseBackgroundService>();
 builder.Services.AddHostedService<VehicleStateService>();
 builder.Services.AddHostedService<FrontEndDataCollectionBackgroundService>();
+builder.Services.AddHostedService<EquipmentScopeBackgroundService>();
 
 //add signalIR service
 builder.Services.AddSignalR();

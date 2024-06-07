@@ -17,6 +17,7 @@ using static AGVSystemCommonNet6.MAP.MapPoint;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using static AGVSystemCommonNet6.clsEnums;
+using VMSystem.Dispatch.Equipment;
 
 namespace VMSystem.TrafficControl
 {
@@ -487,10 +488,7 @@ namespace VMSystem.TrafficControl
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-            Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
-            AcceptAGVInfoOfEQTags.Wait();
-            var v = AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
-            var acceptTypeOfEq = (AGV_TYPE)v;
+            AGV_TYPE acceptTypeOfEq  = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
             if (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model)
                 return double.MaxValue;
 
@@ -504,12 +502,7 @@ namespace VMSystem.TrafficControl
 
         public static AGV_TYPE GetEQAcceptAGVType(MapPoint _workStationPoint)
         {
-            var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
-            var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-            Task<Dictionary<int, int>> AcceptAGVInfoOfEQTags = AGVSSerivces.TRANSFER_TASK.GetEQAcceptAGVTypeInfo(validStations.Select(pt => pt.TagNumber));//key:tag , value :車款
-            AcceptAGVInfoOfEQTags.Wait();
-            AGV_TYPE _workStationPoint_AGVType = (AGV_TYPE)AcceptAGVInfoOfEQTags.Result.Where(x => x.Key == _workStationPoint.TagNumber).Select(x => x.Value).FirstOrDefault();
-            return _workStationPoint_AGVType;
+            return EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
         }
 
         #region Private Methods
