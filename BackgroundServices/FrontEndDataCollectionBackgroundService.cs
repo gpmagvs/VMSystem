@@ -6,6 +6,7 @@ using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6;
+using Newtonsoft.Json;
 
 namespace VMSystem.BackgroundServices
 {
@@ -16,33 +17,38 @@ namespace VMSystem.BackgroundServices
         {
             _hubContext = hubContext;
         }
+        internal static object _previousData = new object();
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Run(async() =>
+            await Task.Run(async () =>
             {
+                while (true)
                 {
-                    while (true)
+                    await Task.Delay(120);
+                    object data = new object();
+                    try
                     {
-                        await Task.Delay(150);
-                        object data = new object();
-                        try
+                        data = new
                         {
-                            data = new
-                            {
-                                //DynamicTrafficData = ViewModelFactory.GetDynamicTrafficDataVM(),
-                                //VMSAliveCheckVM = ViewModelFactory.GetVMSAliveCheckVM(),
-                                AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
-                                OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
-                                VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
-                            };
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message);
-                        }
-                        await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
-
+                            AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
+                            OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
+                            VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
+                        };
                     }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
+
+                    // use json string to compare the data is changed or not
+                    if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
+                    {
+                        data = null;
+                        continue;
+                    }
+                    _previousData = data;
+                    await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
+
                 }
             });
         }
@@ -66,7 +72,11 @@ namespace VMSystem.BackgroundServices
                     return new
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
-                        currentCoordication = agv.states.Coordination,
+                        currentCoordication = new {
+                            X = Math.Round(agv.states.Coordination.X,1),
+                            Y = Math.Round(agv.states.Coordination.Y, 1),
+                            Theta = Math.Round(agv.states.Coordination.Theta, 1)
+                        } ,
                         vehicleWidth = agv.options.VehicleWidth,
                         vehicleLength = agv.options.VehicleLength,
                         cargo_status = new
@@ -76,7 +86,7 @@ namespace VMSystem.BackgroundServices
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
                         nav_path = isOrderExecuting ? navingTagList : OrderHandler.RunningTask.FuturePlanNavigationTags,
-                        theta = agv.states.Coordination.Theta,
+                        theta = Math.Round(agv.states.Coordination.Theta,1),
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
                         {

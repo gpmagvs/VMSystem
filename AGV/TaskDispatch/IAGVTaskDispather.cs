@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
+using System.Text.Json.Serialization;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using static AGVSystemCommonNet6.clsEnums;
 using static VMSystem.AGV.clsAGVTaskDisaptchModule;
@@ -43,9 +44,11 @@ namespace VMSystem.AGV.TaskDispatch
         {
             NO_WAIT, GO_TO_WAIT_PT, WAITING
         }
+        [JsonIgnore]
         [NonSerialized]
-        public IAGV Agv;
+        internal IAGV Agv;
         public WAIT_STATUS Status { get; set; }
+        [JsonIgnore]
         [NonSerialized]
         public static Action<clsWaitingInfo> OnAGVWaitingStatusChanged;
         private bool _IsWaiting = false;
@@ -60,8 +63,14 @@ namespace VMSystem.AGV.TaskDispatch
                 }
             }
         }
+
+
+        [JsonIgnore]
         internal ManualResetEvent AllowMoveResumeResetEvent = new ManualResetEvent(false);
         public int ParkingTag { get; private set; }
+
+
+        [JsonIgnore]
         public MapPoint WaitingPoint { get; internal set; } = new MapPoint();
         public string Descrption { get; private set; } = "";
 

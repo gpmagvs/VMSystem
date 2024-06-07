@@ -1,5 +1,6 @@
 ﻿
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json;
 using System.IO;
@@ -13,7 +14,7 @@ namespace VMSystem.BackgroundServices
         FileSystemWatcher fileSystemWatcher;
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            UpdateEQInfoFromConfigFile(Path.Combine(AGVSConfigulator.SysConfigs.EQManagementConfigs.EquipmentManagementConfigFolder,"EQConfigs.json"));
+            UpdateEQInfoFromConfigFile(Path.Combine(AGVSConfigulator.SysConfigs.EQManagementConfigs.EquipmentManagementConfigFolder, "EQConfigs.json"));
             StartEquipmentConfigFileChangedFileWatch();
         }
 
@@ -35,15 +36,24 @@ namespace VMSystem.BackgroundServices
         }
         async void _FileSystemWatcher_Changed(object sender, FileSystemEventArgs e)
         {
-            fileSystemWatcher.EnableRaisingEvents = false;
-            await Task.Delay(200);
-
-            // copy changed file to temp folder 
-            string tempFile = Path.Combine(Path.GetTempPath(), "EQConfigs.json");
-            File.Copy(e.FullPath, tempFile,true);
-            //read the temp file and use Jsonconvert to convert to EquipmentConfiguration
-            UpdateEQInfoFromConfigFile(tempFile);
-            fileSystemWatcher.EnableRaisingEvents = true;
+            try
+            {
+                fileSystemWatcher.EnableRaisingEvents = false;
+                await Task.Delay(200);
+                // copy changed file to temp folder 
+                string tempFile = Path.Combine(Path.GetTempPath(), "EQConfigs.json");
+                File.Copy(e.FullPath, tempFile, true);
+                //read the temp file and use Jsonconvert to convert to EquipmentConfiguration
+                UpdateEQInfoFromConfigFile(tempFile);
+            }
+            catch (Exception ex)
+            {
+                LOG.ERROR(ex.Message);
+            }
+            finally
+            {
+                fileSystemWatcher.EnableRaisingEvents = true;
+            }
 
         }
 

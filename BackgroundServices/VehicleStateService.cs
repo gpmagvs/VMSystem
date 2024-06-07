@@ -79,7 +79,7 @@ namespace VMSystem.BackgroundServices
                             CargoType = agv.states.CargoType,
                             CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
                             CurrentLocation = agv.states.Last_Visited_Node.ToString(),
-                            Theta = agv.states.Coordination.Theta,
+                            Theta = Math.Round(agv.states.Coordination.Theta,1),
                             Connected = agv.connected,
                             Group = agv.VMSGroup,
                             Model = agv.model,

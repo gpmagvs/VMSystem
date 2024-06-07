@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using VMSystem.BackgroundServices;
 
 namespace VMSystem.Services
 {
@@ -8,7 +9,11 @@ namespace VMSystem.Services
         {
 
         }
-
+        public override async Task OnConnectedAsync()
+        {
+            await Clients.All.SendAsync("ReceiveData", "VMS", FrontEndDataCollectionBackgroundService._previousData);
+            await base.OnConnectedAsync();
+        }
         public async Task SendData(string user, string message)
         {
             await Clients.All.SendAsync("ReceiveData", message);
