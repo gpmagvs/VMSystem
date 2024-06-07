@@ -68,6 +68,7 @@ namespace VMSystem.Dispatch.Regions
         internal static bool IsRegionEnterable(IAGV WannaEntryRegionVehicle, MapRegion regionQuery, out List<string> inRegionVehicles)
         {
             inRegionVehicles = new List<string>();
+            // 取得當前區域
             MapRegion _Region = StaMap.Map.Regions.FirstOrDefault(reg => reg.Name == regionQuery.Name);
             if (_Region == null)
                 return true;
@@ -76,11 +77,13 @@ namespace VMSystem.Dispatch.Regions
 
             try
             {
+                //搜尋其他會通過會停在該區域的車輛
                 List<IAGV> goToRegionVehicles = otherVehicles.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                                                              .Where(agv => _IsTraving(agv.CurrentRunningTask()))
                                                              .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion(StaMap.Map).Name == regionQuery.Name))
-                                                                    .ToList();
-                if (goToRegionVehicles.Any())
+                                                             .ToList();
+                //如果該區域已經有車輛在該區域，且該區域已經達到最大容量
+                if (goToRegionVehicles.Any() && goToRegionVehicles.Count() >= _Region.MaxVehicleCapacity)
                 {
                     inRegionVehicles = goToRegionVehicles.Select(agv => agv.Name).ToList();
                     return false;
