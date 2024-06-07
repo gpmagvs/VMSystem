@@ -225,7 +225,7 @@ namespace VMSystem.Dispatch
             var parkables = normalPointsInThisRegion.ToDictionary(pt => pt, pt => pt.TargetParkableStationPoints(ref agvToPark));
             if (parkables.Any(pair => pair.Value.Any()))
             {
-                parkables = parkables.Where(pair=>pair.Key!=null&& pair.Value.Any())
+                parkables = parkables.Where(pair => pair.Key != null && pair.Value.Any())
                                      .OrderBy(obj => obj.Key.CalculateDistance(agvToPark.states.Coordination))
                                      .ToDictionary(obj => obj.Key, obj => obj.Value);
                 return parkables.First().Value.First();
@@ -271,11 +271,14 @@ namespace VMSystem.Dispatch
                 return vehiclesAtWorkStation.Any();
             }
 
+            // 是否與其他車輛互相等待進入區域
             bool _IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion region)
             {
                 MapRegion currentRegion = waitingVehicle.currentMapPoint.GetRegion(StaMap.Map);
                 region = currentRegion;
-                var waitingForEntryRegionVehicles = otherVehicles.Where(agv => (agv.NavigationState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point) && agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name);
+                var waitingForEntryRegionVehicles = otherVehicles.Where(agv => agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name)
+                                                                 .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == waitingVehicle.Name)
+                                                                 .Where(agv => (agv.NavigationState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point));
                 vehicleWaitingEntry = null;
                 if (!waitingForEntryRegionVehicles.Any())
                     return false;

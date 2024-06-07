@@ -540,6 +540,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
             Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
             Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
+
+            await CycleStopRequestAsync();
             await _moveToRegionWaitPointsTask.SendTaskToAGV();
             await Task.Delay(200);
 
@@ -737,7 +739,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     await _WaitReachPointComp(parkStation, parkTask);
                     await Task.Delay(1000);
 
-                    LeaveWorkstationConflicDetection leaveDetector = new LeaveWorkstationConflicDetection(AvoidToPtMoveDestine, Agv.states.Coordination.Theta, Agv);
+                    LeaveParkStationConflicDetection leaveDetector = new LeaveParkStationConflicDetection(AvoidToPtMoveDestine, Agv.states.Coordination.Theta, Agv);
                     var leaveCheckResult = DETECTION_RESULT.NG;
                     while (leaveCheckResult != DETECTION_RESULT.OK)
                     {
@@ -962,10 +964,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 MapPoint _workStationPoint = StaMap.GetPointByTagNumber(_workStationTag);
 
-                var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
-                var forbidTags = executeAGV.GetForbidPassTagByAGVModel();
-                var validPoints = entryPoints.Where(points => !forbidTags.Contains(points.TagNumber));
-                var pt = validPoints.FirstOrDefault();
+                List<MapPoint> entryPoints = _workStationPoint.Target.Keys
+                                                                     .Select(index => StaMap.GetPointByIndex(index))
+                                                                     .ToList();
+
+                List<int> forbidTags = executeAGV.GetForbidPassTagByAGVModel();
+                List<MapPoint> validPoints = entryPoints.Where(points => !forbidTags.Contains(points.TagNumber)).ToList();
+                MapPoint pt = validPoints.FirstOrDefault();
                 if (pt == null)
                 {
 
@@ -1117,29 +1122,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var startPt = new PointF((float)agv.states.Coordination.X, (float)agv.states.Coordination.Y);
             return Tools.CalculationForwardAngle(startPt, endPt);
         }
-        public static IEnumerable<int> GetForbidPassTagByAGVModel(this IAGV agv)
+        public static List<int> GetForbidPassTagByAGVModel(this IAGV agv)
         {
-            List<int> tags = new List<int>();
-            switch (agv.model)
-            {
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD:
-                    tags = StaMap.Map.TagNoStopOfSubmarineAGV;
-                    break;
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.FORK:
-                    tags = StaMap.Map.TagNoStopOfForkAGV;
-                    break;
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.YUNTECH_FORK_AGV:
-                    break;
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV:
-                    break;
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD_Parts:
-                    break;
-                case AGVSystemCommonNet6.clsEnums.AGV_TYPE.Any:
-                    break;
-                default:
-                    break;
-            }
-            return tags.ToList();
+            return StaMap.GetNoStopTagsByAGVModel(agv.model);
         }
 
         public static bool IsPathHasAnyYieldingPoints(this IEnumerable<MapPoint> points, out IEnumerable<MapPoint> yieldedPoints)

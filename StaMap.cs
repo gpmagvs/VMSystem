@@ -523,20 +523,25 @@ namespace VMSystem
             return Math.Pow(Math.Pow(X1 - X2, 2) + Math.Pow(Y1 - Y2, 2) * 1.0, 0.5);
         }
 
-        internal static IEnumerable<MapPoint> GetNoStopPointsByAGVModel(clsEnums.AGV_TYPE model)
+        internal static List<MapPoint> GetNoStopPointsByAGVModel(clsEnums.AGV_TYPE model)
+        {
+            List<int> tags=  GetNoStopTagsByAGVModel(model);
+            return tags.Select(tag => GetPointByTagNumber(tag)).ToList();
+        }
+        internal static List<int> GetNoStopTagsByAGVModel(clsEnums.AGV_TYPE model)
         {
             List<int> tags = new List<int>();
             switch (model)
             {
                 case clsEnums.AGV_TYPE.FORK:
-                    tags = Map.TagNoStopOfForkAGV;
+                    tags = Map.TagNoStopOfForkAGV.Clone();
                     break;
                 case clsEnums.AGV_TYPE.YUNTECH_FORK_AGV:
                     break;
                 case clsEnums.AGV_TYPE.INSPECTION_AGV:
                     break;
                 case clsEnums.AGV_TYPE.SUBMERGED_SHIELD:
-                    tags = Map.TagNoStopOfSubmarineAGV;
+                    tags = Map.TagNoStopOfSubmarineAGV.Clone();
                     break;
                 case clsEnums.AGV_TYPE.SUBMERGED_SHIELD_Parts:
                     break;
@@ -545,11 +550,8 @@ namespace VMSystem
                 default:
                     break;
             }
-
-            return tags.Select(tag => GetPointByTagNumber(tag));
-
+            return tags;
         }
-
         internal static bool TryRemovePathDynamic(MapPoint fromPt, MapPoint toPt, out MapPath path)
         {
             string pathID = $"{GetIndexOfPoint(fromPt)}_{GetIndexOfPoint(toPt)}";
