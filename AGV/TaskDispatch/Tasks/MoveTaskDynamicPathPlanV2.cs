@@ -100,11 +100,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 if (IsRegionNavigationEnabled && Stage != VehicleMovementStage.Traveling_To_Region_Wait_Point && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> regions))
                 {
-                    bool regionActionDone = await RegionPathNavigation(regions);
-                    if (regionActionDone)
-                    {
-
-                    }
+                    await RegionPathNavigation(regions);
                 }
 
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
