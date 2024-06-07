@@ -87,7 +87,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 finalMapPoint = this.OrderData.GetFinalMapPoint(this.Agv, this.Stage);
 
-                if(finalMapPoint == null)
+                if (finalMapPoint == null)
                 {
                     throw new NoPathForNavigatorException();
                 }
@@ -1143,7 +1143,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 default:
                     break;
             }
-            return tags;
+            return tags.ToList();
         }
 
         public static bool IsPathHasAnyYieldingPoints(this IEnumerable<MapPoint> points, out IEnumerable<MapPoint> yieldedPoints)
@@ -1356,7 +1356,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public static MapPoint GetNearestPointOfRegion(this MapRegion region, IAGV agvToGo)
         {
             var pointsOfRegion = region.GetPointsInRegion();
-            return pointsOfRegion.Where(pt=>!pt.IsVirtualPoint)
+            return pointsOfRegion.Where(pt => !pt.IsVirtualPoint)
                                  .OrderBy(pt => pt.CalculateDistance(agvToGo.states.Coordination)).First();
         }
 
