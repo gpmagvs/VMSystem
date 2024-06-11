@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Serilog;
+using Serilog.Filters;
 using VMSystem;
 using VMSystem.BackgroundServices;
 using VMSystem.Controllers;
@@ -15,6 +17,38 @@ using VMSystem.Services;
 Startup.ConfigurationInit();
 
 var builder = WebApplication.CreateBuilder(args);
+
+string logRootFolder = AGVSConfigulator.SysConfigs.LogFolder;
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    //全部的LOG但不包含EF Core Log
+    .WriteTo.Logger(lc => lc
+                .WriteTo.Console()
+                .Filter.ByExcluding(Matching.FromSource("Microsoft.EntityFrameworkCore")) // 過濾EF Core Log  
+                .WriteTo.File(
+                    path: $"{logRootFolder}/VMSystem/log-.log", // 路徑
+                    rollingInterval: RollingInterval.Day, // 每小時一個檔案
+                    retainedFileCountLimit: 24 * 90,// 最多保留 30 天份的 Log 檔案
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                    rollOnFileSizeLimit: false,
+                    fileSizeLimitBytes: null
+                    ))
+////只有 AGVSystem.ApiLoggingMiddleware 
+//.WriteTo.Logger(lc => lc
+//                .WriteTo.Console()
+//                .Filter.ByIncludingOnly(Matching.FromSource("AGVSystem.ApiLoggingMiddleware"))
+//                .WriteTo.File(
+//                    path: $"{logRootFolder}/AGVS/api/log-.log",
+//                    rollingInterval: RollingInterval.Day,
+//                    retainedFileCountLimit: 24 * 90,
+//                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+//                    rollOnFileSizeLimit: false,
+//                    fileSizeLimitBytes: null
+//                )
+//            )
+);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -72,6 +106,7 @@ catch (Exception ex)
     Thread.Sleep(3000);
     Environment.Exit(1);
 }
+app.UseMiddleware<ApiLoggingMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseDefaultFiles(new DefaultFilesOptions());
