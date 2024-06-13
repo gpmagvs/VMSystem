@@ -5,29 +5,14 @@ using AGVSystemCommonNet6.Log;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
-using Serilog;
-using Serilog.Filters;
 using VMSystem;
 using VMSystem.BackgroundServices;
-using VMSystem.Controllers;
 using VMSystem.Services;
 
 
 Startup.ConfigurationInit();
 
 var builder = WebApplication.CreateBuilder(args);
-
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.FromLogContext()
-    .CreateLogger();
-
-builder.Host.UseSerilog();
-
-builder.Logging.ClearProviders();
-builder.Logging.AddSerilog();
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
