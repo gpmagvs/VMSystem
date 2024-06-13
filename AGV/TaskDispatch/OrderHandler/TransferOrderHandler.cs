@@ -28,6 +28,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
+            if (OrderData.bypass_eq_status_check == true) 
+            {
+                await base.StartOrder(Agv);
+                return;
+            }
             if (OrderData.need_change_agv)
             {
                 // TODO 把可用的轉換站存在這listTransferStation
