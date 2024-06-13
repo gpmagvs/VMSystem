@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using NLog;
+using System.Text;
 
 namespace VMSystem
 {
@@ -31,8 +32,17 @@ namespace VMSystem
             var response = await FormatResponse(context.Response);
 
             // 紀錄資訊
-            _logger.LogInformation("Request: \n{Request}", request);
-            _logger.LogInformation("Response: \n{Response}", response);
+            if (context.Request.Path.ToString().ToLower().Contains("api/agv/"))
+            {
+                Logger _logger = LogManager.GetLogger("VehicleState/");
+                _logger.Info("Request: \n{Request}", request);
+                _logger.Info("Response: \n{Response}", response);
+            }
+            else
+            {
+                _logger.LogInformation("Request: \n{Request}", request);
+                _logger.LogInformation("Response: \n{Response}", response);
+            }
 
 
             // 將原始回應內容寫回

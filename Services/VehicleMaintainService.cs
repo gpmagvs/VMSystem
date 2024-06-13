@@ -8,9 +8,11 @@ namespace VMSystem.Services
     public class VehicleMaintainService
     {
         private AGVSDbContext dbContext;
-        public VehicleMaintainService(AGVSDbContext dbContext)
+        ILogger<VehicleMaintainService> logger;
+        public VehicleMaintainService(AGVSDbContext dbContext, ILogger<VehicleMaintainService> logger)
         {
             this.dbContext = dbContext;
+            this.logger = logger;
         }
 
         internal List<VehicleMaintain> GetAllMaintainSettings()
@@ -25,6 +27,7 @@ namespace VMSystem.Services
             {
                 existSetting.currentValue = 0;
                 int changed = await dbContext.SaveChangesAsync();
+                logger.LogTrace($"Reset {agvName} {maintainItem} currentValue to 0");
                 return true;
             }
             else
