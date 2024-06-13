@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using NLog;
+using System.Text;
 
 namespace VMSystem
 {
@@ -31,8 +32,19 @@ namespace VMSystem
             var response = await FormatResponse(context.Response);
 
             // 紀錄資訊
-            _logger.LogInformation("Request: \n{Request}", request);
-            _logger.LogInformation("Response: \n{Response}", response);
+            if (context.Request.Path.ToString().ToLower().Contains("api/agv/"))
+            {
+                //get query string value of [AGVName] from request 
+                var AGVName = context.Request.Query["AGVName"];
+                Logger _logger = LogManager.GetLogger($"VehicleState/{AGVName}");
+                _logger.Info("Request: \n{Request}", request);
+                _logger.Info("Response: \n{Response}", response);
+            }
+            else
+            {
+                _logger.LogInformation("Request: \n{Request}", request);
+                _logger.LogInformation("Response: \n{Response}", response);
+            }
 
 
             // 將原始回應內容寫回
@@ -50,10 +62,10 @@ namespace VMSystem
             request.Body.Position = 0;
             var ip = request.HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            return $"Method: {request.Method}\n" +
-                   $"URL: {request.Scheme}://{request.Host}{request.Path}{request.QueryString}\n" +
-                   $"Body: {body}\n" +
-                   $"IP: {ip}";
+            return $"- Method: {request.Method}\n" +
+                   $"- URL: {request.Scheme}://{request.Host}{request.Path}{request.QueryString}\n" +
+                   $"- Body: {body}\n" +
+                   $"- IP: {ip}";
         }
 
         /// <summary>
@@ -66,9 +78,8 @@ namespace VMSystem
             var body = await new StreamReader(response.Body, Encoding.UTF8).ReadToEndAsync();
             response.Body.Seek(0, SeekOrigin.Begin);
 
-            return $"Status code: {response.StatusCode}\n" +
-                   $"Headers: \n{headers}" +
-                   $"Body: {body}";
+            return $"- Status code: {response.StatusCode}\n" +
+                   $"- Body: {body}";
         }
 
         /// <summary>
