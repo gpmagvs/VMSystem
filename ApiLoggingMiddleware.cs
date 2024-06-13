@@ -34,7 +34,9 @@ namespace VMSystem
             // 紀錄資訊
             if (context.Request.Path.ToString().ToLower().Contains("api/agv/"))
             {
-                Logger _logger = LogManager.GetLogger("VehicleState/");
+                //get query string value of [AGVName] from request 
+                var AGVName = context.Request.Query["AGVName"];
+                Logger _logger = LogManager.GetLogger($"VehicleState/{AGVName}");
                 _logger.Info("Request: \n{Request}", request);
                 _logger.Info("Response: \n{Response}", response);
             }
@@ -60,10 +62,10 @@ namespace VMSystem
             request.Body.Position = 0;
             var ip = request.HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            return $"Method: {request.Method}\n" +
-                   $"URL: {request.Scheme}://{request.Host}{request.Path}{request.QueryString}\n" +
-                   $"Body: {body}\n" +
-                   $"IP: {ip}";
+            return $"- Method: {request.Method}\n" +
+                   $"- URL: {request.Scheme}://{request.Host}{request.Path}{request.QueryString}\n" +
+                   $"- Body: {body}\n" +
+                   $"- IP: {ip}";
         }
 
         /// <summary>
@@ -76,9 +78,8 @@ namespace VMSystem
             var body = await new StreamReader(response.Body, Encoding.UTF8).ReadToEndAsync();
             response.Body.Seek(0, SeekOrigin.Begin);
 
-            return $"Status code: {response.StatusCode}\n" +
-                   $"Headers: \n{headers}" +
-                   $"Body: {body}";
+            return $"- Status code: {response.StatusCode}\n" +
+                   $"- Body: {body}";
         }
 
         /// <summary>

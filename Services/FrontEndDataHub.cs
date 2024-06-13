@@ -18,7 +18,7 @@ namespace VMSystem.Services
         }
         public override Task OnDisconnectedAsync(Exception? exception)
         {
-            logger.LogTrace($"{this.Context.ConnectionId} Disconnected {exception.Message}");
+            logger.LogTrace($"{this.Context.ConnectionId} Disconnected {exception?.Message}");
             return base.OnDisconnectedAsync(exception);
         }
         public async Task SendData(string user, string message)
