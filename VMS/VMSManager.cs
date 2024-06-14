@@ -600,6 +600,8 @@ namespace VMSystem.VMS
                     return (true, "");
                 }
 
+                agvdatabase.tables.VehicleMaintain.RemoveRange(agvdatabase.tables.VehicleMaintain.Where(m => m.AGV_Name == aGV_Name));
+                await agvdatabase.SaveChanges();
                 agvdatabase.tables.AgvStates.Remove(existData);
 
                 var group = VMSList.FirstOrDefault(kpair => kpair.Value.AGVList.ContainsKey(aGV_Name));
