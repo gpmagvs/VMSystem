@@ -620,9 +620,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             if (inRegionVehicle.NavigationState.NextNavigtionPoints.Count() == 0)
             {
-                Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION;
+                Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT;
                 return false;
             }
+            //{
+            //    Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION;
+            //    return false;
+            //}
 
             MapPoint nextDestinePointOfInRegionVehicle = inRegionVehicle.NavigationState.NextNavigtionPoints.Last();
             MapRegion nextDestineRegionOfInRegionVehicle = nextDestinePointOfInRegionVehicle.GetRegion(StaMap.Map);
