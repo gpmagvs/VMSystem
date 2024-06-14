@@ -254,6 +254,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 MapPoint TransferToMapPoint = StaMap.GetPointByTagNumber(TransferTag);
                 var entryPoints = TransferToMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
                 var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
+                validStations = validStations.GroupBy(x=>x.TagNumber).Select(x=>x.First());
                 //從進入點找到EQ內有哪些Tag跟接受車型
                 Dictionary<int, AGV_TYPE> AcceptAGVInfoOfEQTags =  validStations.ToDictionary(station => station.TagNumber, station => EquipmentStore.GetEQAcceptAGVType(station.TagNumber));
 
