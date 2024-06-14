@@ -16,6 +16,7 @@ namespace VMSystem.VMS
 {
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
     {
+        public List<string> NoAcceptRandomCarryHotRunAGVNameList { get; set; } = new List<string>();
         public override async Task Run()
         {
             TaskAssignWorker();
@@ -50,6 +51,12 @@ namespace VMSystem.VMS
                         var _taskDto = taskOrderedByPriority[i];
                         if (_taskDto.DesignatedAGVName != "")
                             continue;
+
+                        if (_taskDto.TaskName.ToUpper().Contains("HR_CARRY"))
+                        {
+                            List_TaskAGV.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
+                        }
+
                         IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
                         if (AGV == null)
                             continue;

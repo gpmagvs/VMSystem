@@ -488,8 +488,8 @@ namespace VMSystem.TrafficControl
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-            AGV_TYPE acceptTypeOfEq  = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
-            if (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model)
+            AGV_TYPE acceptTypeOfEq = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
+            if (acceptTypeOfEq == AGV_TYPE.Null || (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model))
                 return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
