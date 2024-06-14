@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using static SQLite.SQLite3;
 
 namespace VMSystem.Services
 {
@@ -83,7 +84,7 @@ namespace VMSystem.Services
                 else
                 {
                     intTag = taskData.To_Station_Tag;
-                    intSlot = Convert.ToInt16(taskData.To_Slot);            
+                    intSlot = Convert.ToInt16(taskData.To_Slot);
                 }
                 if (OrderDataAction == ACTION_TYPE.Carry)
                     OrderDataAction = ACTION_TYPE.Load;
@@ -108,6 +109,12 @@ namespace VMSystem.Services
                     OrderDataAction = ACTION_TYPE.Unload;
             }
             response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(intTag, intSlot, OrderDataAction);
+
+            if (!response.confirm)
+            {
+                AlarmManagerCenter.AddAlarmAsync(response.AlarmCode, Equipment_Name: taskData.DesignatedAGVName, taskName: taskData.TaskName, level: ALARM_LEVEL.WARNING);
+            }
+
             return response;
         }
     }
