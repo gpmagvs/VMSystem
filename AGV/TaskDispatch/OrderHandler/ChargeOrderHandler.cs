@@ -20,12 +20,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (Agv.states.Cargo_Status != 0)
                 {
-                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: Cargo_Status!=0");
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: Cargo_Status!=0", AGVSystemCommonNet6.Alarm.ALARMS.CANNOT_DISPATCH_CHARGE_TASK_WHEN_AGV_HAS_CARGO);
                     return;
                 }
                 if (Agv.states.CSTID != null && Agv.states.CSTID.Any(str => str != ""))
                 {
-                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: CSTID not empty");
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: CSTID not empty", AGVSystemCommonNet6.Alarm.ALARMS.CANNOT_DISPATCH_CHARGE_TASK_WHEN_AGV_HAS_CARGO);
                     return;
                 }
             }

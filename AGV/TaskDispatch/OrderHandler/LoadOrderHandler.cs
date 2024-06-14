@@ -36,9 +36,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask task = (VMSystem.AGV.TaskDispatch.Tasks.LoadAtTransferStationTask)loadAtTransferStationTask;
                     bool IsAllTransferStationFail = true;
                     string strFailMsg = "";
-                    if (task.dict_Transfer_to_from_tags == null) 
+                    if (task.dict_Transfer_to_from_tags == null)
                     {
-                        _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason: dict_Transfer_to_from_tags not foound");
+                        _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason: dict_Transfer_to_from_tags not foound", ALARMS.Transfer_Tags_Not_Found);
                         return;
                     }
                     // 檢查可用轉運站狀態
@@ -63,7 +63,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (IsAllTransferStationFail)
                     {
                         this.Agv = Agv;
-                        _SetOrderAsFaiiureState("all transfer station fail:" + strFailMsg);
+                        _SetOrderAsFaiiureState("all transfer station fail:" + strFailMsg , ALARMS.No_Transfer_Station_To_Work);
                     }
                 }
             }
@@ -76,7 +76,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 else
                 {
-                    _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason:" + result.message);
+                    _SetOrderAsFaiiureState("LoadOrder Start Fail, Reason:" + result.message,result.AlarmCode);
                 }
             }
         }

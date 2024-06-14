@@ -104,7 +104,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             catch (Exception ex)
             {
                 LOG.Critical(ex.Message, ex);
-                _SetOrderAsFaiiureState(ex.Message);
+                _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
                 ActionsWhenOrderCancle();
                 RunningTask.Dispose();
                 return;
@@ -122,11 +122,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     await Task.Delay(100);
                 }
                 isTaskFail = false;
-                if (TaskAbortedFlag || Agv.main_state == MAIN_STATUS.DOWN)
+                bool isAGVStatusDown = Agv.main_state == MAIN_STATUS.DOWN;
+                if (TaskAbortedFlag || isAGVStatusDown)
                 {
                     TaskCancelledFlag = false;
                     LOG.WARN($"Task Aborted!.{TaskCancelReason}");
-                    _SetOrderAsFaiiureState(TaskAbortReason);
+                    _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? ALARMS.Task_Aborted : ALARMS.AGV_STATUS_DOWN);
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
                     await AbortOrder(Agv.states.Alarm_Code);
@@ -170,7 +171,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                _SetOrderAsFaiiureState(ex.Message);
+                _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
             }
             finally
             {
@@ -283,7 +284,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
 
-        protected void _SetOrderAsFaiiureState(string FailReason)
+        protected void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
             RunningTask.CancelTask();
             UnRegistPoints();
@@ -291,6 +292,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
+            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.WARNING, taskName: OrderData.TaskName);
         }
 
         internal virtual List<int> GetNavPathTags()
