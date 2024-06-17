@@ -55,40 +55,50 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         };
         protected override List<MapPoint> GetNextPath(clsPathInfo optimzedPathInfo, int agvCurrentTag, out bool isNexPathHasEQReplacingParts, out int TagOfBlockedByPartsReplace, int pointNum = 3)
         {
-            isNexPathHasEQReplacingParts = false;
-            TagOfBlockedByPartsReplace = -1;
-            var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == STATION_TYPE.Elevator);
-            bool IsPathContainElevator = elevatorPoint != null;
-            int IndexOfAGVLocation()
+            try
             {
-                return optimzedPathInfo.stations.FindIndex(st => st.TagNumber == Agv.currentMapPoint.TagNumber);
-            }
-            if (IsPathContainElevator && ElevatorStatus == ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR)
-            {
-                _previsousTrajectorySendToAGV.Clear();
-                var pointsOfElevatorEntryAndLeave = elevatorPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
-                EntryPointOfElevator = optimzedPathInfo.stations.First(station => pointsOfElevatorEntryAndLeave.Contains(station));
-                var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
 
-                ElevatorStatus = ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR;
-                //0 1 2 3
-                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(entryPointIndexOfPath + 1).ToList();
+                isNexPathHasEQReplacingParts = false;
+                TagOfBlockedByPartsReplace = -1;
+                var elevatorPoint = optimzedPathInfo.stations.Find(station => station.StationType == STATION_TYPE.Elevator);
+                bool IsPathContainElevator = elevatorPoint != null;
+                int IndexOfAGVLocation()
+                {
+                    return optimzedPathInfo.stations.FindIndex(st => st.TagNumber == Agv.currentMapPoint.TagNumber);
+                }
+                logger.Trace($"IsPathContainElevator=>{IsPathContainElevator},ElevatorStatus :{ElevatorStatus}");
+                if (IsPathContainElevator && ElevatorStatus == ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR)
+                {
+                    _previsousTrajectorySendToAGV.Clear();
+                    IEnumerable<MapPoint> pointsOfElevatorEntryAndLeave = elevatorPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
+                    EntryPointOfElevator = optimzedPathInfo.stations.First(station => pointsOfElevatorEntryAndLeave.GetTagCollection().Contains(station.TagNumber));
+                    var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
+
+                    ElevatorStatus = ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR;
+                    //0 1 2 3
+                    return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(entryPointIndexOfPath + 1).ToList();
+                }
+                else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR)
+                {
+                    _previsousTrajectorySendToAGV.Clear();
+                    var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
+                    ElevatorStatus = ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR;
+                    return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(2).ToList(); // 0. 1 .2.3.4
+                }
+                else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR)
+                {
+                    _previsousTrajectorySendToAGV.Clear();
+                    ElevatorStatus = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
+                    return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(optimzedPathInfo.stations.Count - IndexOfAGVLocation()).ToList();
+                }
+                else
+                    return base.GetNextPath(optimzedPathInfo, agvCurrentTag, out bool _, out int _, pointNum).ToList();
             }
-            else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.MOVE_TO_ENTRY_PT_OF_ELEVATOR)
+            catch (Exception ex)
             {
-                _previsousTrajectorySendToAGV.Clear();
-                var entryPointIndexOfPath = optimzedPathInfo.stations.IndexOf(EntryPointOfElevator);
-                ElevatorStatus = ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR;
-                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(2).ToList(); // 0. 1 .2.3.4
+                logger.Error(ex);
+                throw ex;
             }
-            else if (ElevatorStatus == ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR)
-            {
-                _previsousTrajectorySendToAGV.Clear();
-                ElevatorStatus = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
-                return optimzedPathInfo.stations.Skip(IndexOfAGVLocation()).Take(optimzedPathInfo.stations.Count - IndexOfAGVLocation()).ToList();
-            }
-            else
-                return base.GetNextPath(optimzedPathInfo, agvCurrentTag, out bool _, out int _, pointNum).ToList();
         }
         public ElevatorControl Elevator { get; private set; } = new ElevatorControl();
         protected override async Task<bool> WaitAGVReachNexCheckPoint(MapPoint nextCheckPoint, List<MapPoint> nextPath, CancellationToken token)
