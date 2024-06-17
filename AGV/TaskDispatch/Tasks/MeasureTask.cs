@@ -50,7 +50,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 var agvCurrentTag = Agv.states.Last_Visited_Node;
                 var finalTag = this.TaskDonwloadToAGV.OutPointOfLeaveWorkstation.Point_ID;
                 var isReach = agvCurrentTag == finalTag;
-                LOG.INFO($"Check AGV is reach final goal ,RESULT:{isReach} || AGV at {agvCurrentTag}/Goal:{finalTag}");
+
+                logger.Info($"Check AGV is reach final goal ,RESULT:{isReach} || AGV at {agvCurrentTag}/Goal:{finalTag}");
                 return isReach;
             }
         }

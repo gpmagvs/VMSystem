@@ -36,7 +36,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override VehicleMovementStage Stage => VehicleMovementStage.Traveling_To_Destine;
         public AMCAGVMoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
+            Agv.OnMapPointChanged += Agv_OnMapPointChanged;
         }
+
+        private void Agv_OnMapPointChanged(object? sender, int e)
+        {
+            var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
+            if (currentPt != null)
+            {
+                Agv.NavigationState.CurrentMapPoint = currentPt;
+                List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
+                var ocupyRegionTags = Agv.NavigationState.NextPathOccupyRegions.SelectMany(rect => new int[] { rect.StartPoint.TagNumber, rect.EndPoint.TagNumber })
+                                                         .DistinctBy(tag => tag);
+
+                UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
+            }
+        }
+
         private ManualResetEvent _waitTaskFinish = new ManualResetEvent(false);
 
         public enum ELEVATOR_ENTRY_STATUS

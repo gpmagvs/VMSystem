@@ -207,7 +207,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
 
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
-
+                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
                         var agvLastVisitNodeIndex = nextPath.FindIndex(pt => pt.TagNumber == Agv.states.Last_Visited_Node);
                         var nextCheckPoint = pointNum == -1 || Agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV ?
                                             nextPath.Last() :
