@@ -11,19 +11,33 @@ namespace VMSystem.Services
 
     public abstract class VehicleOnlineBase
     {
+        ILogger<VehicleOnlineBase> logger;
+        public VehicleOnlineBase(ILogger<VehicleOnlineBase> logger)
+        {
+            this.logger = logger;
+        }
         public virtual (ALARMS alarmCode, string message) OnlineRequest(string VehicleName, out IAGV _vehicle)
         {
             _vehicle = GetVehicle(VehicleName);
             if (_vehicle == null)
+            {
+                logger.LogError($"車輛-{VehicleName} 未被系統註冊");
                 return (ALARMS.GET_ONLINE_REQ_BUT_AGV_IS_NOT_REGISTED, $"車輛-{VehicleName} 未被系統註冊");
+            }
             var MainStatusCheckResult = CheckMainStatus(_vehicle);
 
             if (MainStatusCheckResult.alarmCode != ALARMS.NONE)
+            {
+                logger.LogWarning($"車輛-{VehicleName} 無法上線 :{MainStatusCheckResult.message}");
                 return MainStatusCheckResult;
+            }
 
             var LocationCheckResult = CheckLocation(_vehicle);
             if (LocationCheckResult.alarmCode != ALARMS.NONE)
+            {
+                logger.LogWarning($"車輛-{VehicleName} 無法上線 :{LocationCheckResult.message}");
                 return LocationCheckResult;
+            }
 
             return (ALARMS.NONE, "");
         }
@@ -71,6 +85,10 @@ namespace VMSystem.Services
 
     public class VehicleOnlineBySystemService : VehicleOnlineBase
     {
+        public VehicleOnlineBySystemService(ILogger<VehicleOnlineBase> logger) : base(logger)
+        {
+        }
+
         public override (ALARMS alarmCode, string message) OnlineRequest(string VehicleName, out IAGV Vehicle)
         {
             LOG.WARN($"User 要求 {VehicleName} 上線");
@@ -88,6 +106,10 @@ namespace VMSystem.Services
 
     public class VehicleOnlineRequestByAGVService : VehicleOnlineBase
     {
+        public VehicleOnlineRequestByAGVService(ILogger<VehicleOnlineBase> logger) : base(logger)
+        {
+        }
+
         public override (ALARMS alarmCode, string message) OnlineRequest(string VehicleName, out IAGV Vehicle)
         {
             LOG.WARN($"車輛-{VehicleName} 請求上線");

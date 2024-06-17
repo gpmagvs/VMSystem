@@ -27,6 +27,8 @@ namespace VMSystem.AGV
             HIGH,
         }
         Task Run();
+
+        NLog.Logger logger { get; set; }
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
         AGV_TYPE model { get; set; }

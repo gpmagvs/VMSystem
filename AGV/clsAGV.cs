@@ -13,6 +13,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
+using NLog;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -28,6 +29,8 @@ namespace VMSystem.AGV
 {
     public class clsAGV : IAGV
     {
+        public NLog.Logger logger { get; set; }
+
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
         public clsAGV()
         {
@@ -37,7 +40,9 @@ namespace VMSystem.AGV
         {
             this.options = options;
             Name = name;
-            LOG.INFO($"AGV {name} Create. MODEL={model} ");
+            logger = LogManager.GetLogger($"AGVLog/{name}");
+            logger.Info($"AGV {name} Create. MODEL={model} ");
+            NavigationState.logger = logger;
             NavigationState.Vehicle = this;
         }
 
@@ -127,7 +132,7 @@ namespace VMSystem.AGV
                     _pingSuccess = value;
                     if (!value)
                     {
-                        LOG.ERROR($"{Name} Ping Fail({options.HostIP})");
+                        logger.Warn($"Ping Fail({options.HostIP})");
                         string location = currentMapPoint == null ? states.Last_Visited_Node + "" : currentMapPoint.Name;
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: location);
                     }
@@ -210,7 +215,7 @@ namespace VMSystem.AGV
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
-                        LOG.INFO($"{Name} Location Change to {value.TagNumber} (Previous : {previousTag})", color: ConsoleColor.Green);
+                        logger.Info($"Location Change to {value.TagNumber} (Previous : {previousTag})");
                         if (value.IsEquipment && !TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
@@ -439,7 +444,7 @@ namespace VMSystem.AGV
 
 
             AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
-            LOG.TRACE($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
+            logger.Trace($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
             RaiseOffLineRequestWhenSystemStartAsync();
@@ -794,7 +799,7 @@ namespace VMSystem.AGV
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_TO_NOT_EQ_STATION);
                 }
 
-                LOG.INFO($"[{Name}]-Check cargo status  before dispatch Load Task= {states.Cargo_Status}");
+                logger.Info($"[{Name}]-Check cargo status  before dispatch Load Task= {states.Cargo_Status}");
                 if (states.Cargo_Status == 0 && IsCheckAGVCargoStatus)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_LOAD_TASK_WHEN_AGV_NO_CARGO);
@@ -803,7 +808,7 @@ namespace VMSystem.AGV
             }
             if (action == ACTION_TYPE.Unload)
             {
-                LOG.INFO($"[{Name}]-Check cargo status before dispatch Unload Task= {states.Cargo_Status}");
+                logger.Info($"[{Name}]-Check cargo status before dispatch Unload Task= {states.Cargo_Status}");
                 if (!DestinePoint.IsEquipment)
                 {
                     throw new IlleagalTaskDispatchException(ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_TO_NOT_EQ_STATION);
