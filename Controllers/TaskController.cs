@@ -48,5 +48,18 @@ namespace VMSystem.Controllers
             bool accept = vehicle.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(orderAction, out string message);
             return Ok(new clsResponseBase() { confirm = accept, message = message });
         }
+
+        [HttpPost("SettingNoRunRandomCarryHotRunAGVList")]
+        public async Task<IActionResult> SettingNoRunRandomCarryHotRunAGVList([FromBody] List<string> agvNameList)
+        {
+            VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList=agvNameList;
+            return Ok(true);
+        }
+
+        [HttpGet("NoRunRandomCarryHotRunAGVList")]
+        public async Task<IActionResult> GetNoRunRandomCarryHotRunAGVList()
+        {
+            return Ok(VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList);
+        }
     }
 }

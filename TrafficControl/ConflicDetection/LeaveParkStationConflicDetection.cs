@@ -33,9 +33,20 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public bool IsAnyVehiclePassRegionPassible(out List<IAGV> conflicAGVList)
         {
             conflicAGVList = new();
-           
+
             if (entryPtRegion.Name.IsNullOrEmpty())
                 return false;
+
+            // check if the region has a max vehicle capacity
+
+            var inEntryPtRegionVehicles = OtherAGV.Select(agv => agv.currentMapPoint.GetRegion(StaMap.Map))
+                                                  .Where(rg => rg.Name == entryPtRegion.Name);
+
+            if(inEntryPtRegionVehicles.Count() < entryPtRegion.MaxVehicleCapacity)
+            {
+                return false;
+            }
+            //if(entryPtRegion.MaxVehicleCapacity)
 
             //conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
             var _OtherRunningAGV = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)

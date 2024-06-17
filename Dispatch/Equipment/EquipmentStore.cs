@@ -15,7 +15,7 @@ namespace VMSystem.Dispatch.Equipment
             }
             else
             {
-                return clsEnums.AGV_TYPE.Any;
+                return clsEnums.AGV_TYPE.Null;
             }
         }
     }
