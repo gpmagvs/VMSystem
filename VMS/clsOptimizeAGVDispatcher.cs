@@ -87,18 +87,21 @@ namespace VMSystem.VMS
             MapPoint FromStation = null;
             MapPoint ToStation = null;
             AGV_TYPE EQAcceptEQType = AGV_TYPE.Any;
+            int goalSlotHeight = 0;
             if (taskDto.Action == ACTION_TYPE.Unload)
             {
+                goalSlotHeight = int.Parse(taskDto.To_Slot);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
-                EQAcceptEQType = Tools.GetEQAcceptAGVType(goalStation);
+                EQAcceptEQType = Tools.GetEQAcceptAGVType(goalStation,goalSlotHeight);
             }
             else if (taskDto.Action == ACTION_TYPE.Carry)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
-                AGV_TYPE fromstation_agvtype = Tools.GetEQAcceptAGVType(FromStation);
-                AGV_TYPE tostation_agvtype = Tools.GetEQAcceptAGVType(ToStation);
+                AGV_TYPE fromstation_agvtype = Tools.GetEQAcceptAGVType(FromStation, int.Parse(taskDto.From_Slot));
+                AGV_TYPE tostation_agvtype = Tools.GetEQAcceptAGVType(ToStation, int.Parse(taskDto.To_Slot));
                 goalStation = FromStation;
+                goalSlotHeight = int.Parse(taskDto.From_Slot);
 
                 if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
                     EQAcceptEQType = fromstation_agvtype;
@@ -140,7 +143,7 @@ namespace VMSystem.VMS
                     double distance = double.MaxValue;
                     try
                     {
-                        distance = Tools.ElevateDistanceToGoalStation(goalStation, agv);
+                        distance = Tools.ElevateDistanceToGoalStation(goalStation, goalSlotHeight, agv);
                     }
                     catch (Exception e)
                     {
@@ -193,7 +196,7 @@ namespace VMSystem.VMS
         /// <returns></returns>
         private async Task<clsTaskDto> ChechGenerateTransferTaskOrNot(IAGV AGV, clsTaskDto _taskDto)
         {
-            AGV_TYPE to_station_agv_model = EquipmentStore.GetEQAcceptAGVType(_taskDto.To_Station_Tag);
+            AGV_TYPE to_station_agv_model = EquipmentStore.GetEQAcceptAGVType(_taskDto.To_Station_Tag, int.Parse(_taskDto.To_Slot));
             _taskDto.To_Station_AGV_Type = to_station_agv_model;
             if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry || _taskDto.Action == ACTION_TYPE.LoadAndPark)
                 if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
