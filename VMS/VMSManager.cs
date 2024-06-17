@@ -103,13 +103,20 @@ namespace VMSystem.VMS
         {
             using AGVSDatabase database = new AGVSDatabase();
             List<MAINTAIN_ITEM> allMaintainItems = Enum.GetValues(typeof(MAINTAIN_ITEM)).Cast<MAINTAIN_ITEM>().ToList();
-            var maintainSettingNotCompletesAGVs =await  database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count).ToListAsync();
-            if (maintainSettingNotCompletesAGVs.Any())
+            try
             {
-                foreach (var item in maintainSettingNotCompletesAGVs)
+                var maintainSettingNotCompletesAGVs = await database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count).ToListAsync();
+                if (maintainSettingNotCompletesAGVs.Any())
                 {
-                    AddMaintainSettings(item);
+                    foreach (var item in maintainSettingNotCompletesAGVs)
+                    {
+                        AddMaintainSettings(item);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+               LOG.Critical("[VMSManager.MaintainSettingInitialize] with exception" + ex);
             }
             await database.SaveChanges();
             void AddMaintainSettings(clsAGVStateDto vehicleState)
