@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.ConflicDetection;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -52,6 +53,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
+            EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);
+           
+            clsConflicDetectResultWrapper detectResult = enterWorkStationDetection.Detect();
+
+            while(detectResult.Result == DETECTION_RESULT.NG)
+            {
+                await Task.Delay(1000);
+                detectResult = enterWorkStationDetection.Detect();
+                UpdateStateDisplayMessage(detectResult.Message);
+            }
+
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             if (TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)

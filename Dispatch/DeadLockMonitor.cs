@@ -63,15 +63,25 @@ namespace VMSystem.Dispatch
                     {
                         var _deadLockVehicles = WaitingConflicReleaseVehicles.ToArray();
 
-                        IAGV firstWaitingVehicle = _deadLockVehicles.First();
-                        IAGV second = _deadLockVehicles.Where(agv => agv.Name != firstWaitingVehicle.Name)
-                                         .Where(agv => agv.NavigationState.currentConflicToAGV.Name == firstWaitingVehicle.Name)
-                                         .FirstOrDefault();
-
-                        if (second != null)
+                        (IAGV firstWaitingVehicle, IAGV second) GetDeadLockVehiclePair(IAGV vehicleSearch)
                         {
-                            firstWaitingVehicle.NavigationState.IsConflicSolving = second.NavigationState.IsConflicSolving = true;
-                            await DeadLockSolve(new List<IAGV>() { firstWaitingVehicle, second });
+
+                            IAGV firstWaitingVehicle = vehicleSearch;
+                            IAGV second = _deadLockVehicles.Where(agv => agv.Name != firstWaitingVehicle.Name)
+                                                           .Where(agv => agv.NavigationState.currentConflicToAGV.Name == firstWaitingVehicle.Name)
+                                                           .FirstOrDefault();
+                            return (firstWaitingVehicle, second);
+                        }
+
+                        foreach (var vehicle in _deadLockVehicles)
+                        {
+                            (IAGV _firstWaitingVehicle, IAGV _secondVehicle) = GetDeadLockVehiclePair(vehicle);
+                            if (_secondVehicle != null)
+                            {
+                                _firstWaitingVehicle.NavigationState.IsConflicSolving = _secondVehicle.NavigationState.IsConflicSolving = true;
+                                await DeadLockSolve(new List<IAGV>() { _firstWaitingVehicle, _secondVehicle });
+                                break;
+                            }
                         }
                     }
                 }

@@ -4,6 +4,7 @@ using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using WebSocketSharp;
 
 namespace VMSystem.Dispatch.YieldActions
 {
@@ -94,9 +95,28 @@ namespace VMSystem.Dispatch.YieldActions
                                        .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
                                        //.OrderBy(path => path.Last().CalculateDistance(lpv.currentMapPoint))
                                        .Where(path => !path.IsPathConflicWithOtherAGVBody(lpv, out var c)).ToList();
-                        pathToStopPoint = pathes.FirstOrDefault();
+
+
+
+                        MapRegion currentRegionOfLPV = lpv.currentMapPoint.GetRegion(StaMap.Map);
+                        MapRegion currentRegionOfHPV = hpv.currentMapPoint.GetRegion(StaMap.Map);
+                        if (!currentRegionOfLPV.Name.IsNullOrEmpty() && currentRegionOfLPV.MaxVehicleCapacity < 2)
+                        {
+                            pathToStopPoint = pathes.FirstOrDefault(path => _isStopPointNotInLPVAndHPVCurrentRegion(path.Last()));
+
+                            bool _isStopPointNotInLPVAndHPVCurrentRegion(MapPoint _stopPointCandicate)
+                            {
+                                MapRegion regionOfStopPoint= _stopPointCandicate.GetRegion(StaMap.Map);
+                                return regionOfStopPoint.Name != currentRegionOfLPV.Name && regionOfStopPoint.Name != currentRegionOfHPV.Name;
+                            }
+                        }
+                        else
+                            pathToStopPoint = pathes.FirstOrDefault();
+
+
                         if (pathToStopPoint == null)
                             throw new Exception();
+
                         return pathToStopPoint.Last();
                     }
                     IEnumerable<MapPoint> GetPathToStopPoint(MapPoint stopPoint)
