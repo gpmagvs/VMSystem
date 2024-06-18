@@ -9,6 +9,7 @@ namespace VMSystem.Dispatch.YieldActions
 {
     public class clsLowPriorityVehicleMove
     {
+
         public IAGV _LowProrityVehicle { get; private set; }
 
         public IAGV _HightPriorityVehicle { get; private set; }
@@ -118,12 +119,12 @@ namespace VMSystem.Dispatch.YieldActions
                 }
                 catch (Exception ex)
                 {
-                    var _oriHPV = _HightPriorityVehicle;
-                    var _oriLPV = _LowProrityVehicle;
-
-                    _LowProrityVehicle = _oriHPV;
-                    _HightPriorityVehicle = _oriLPV;
-                    return DetermineStopMapPoint(out pathToStopPoint);
+                    return null;
+                    //var _oriHPV = _HightPriorityVehicle;
+                    //var _oriLPV = _LowProrityVehicle;
+                    //_LowProrityVehicle = _oriHPV;
+                    //_HightPriorityVehicle = _oriLPV;
+                    //return DetermineStopMapPoint(out pathToStopPoint);
                 }
 
                 List<MapPoint> _GetConstrainsOfHPVFuturePath()

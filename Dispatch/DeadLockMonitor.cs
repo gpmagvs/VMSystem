@@ -5,10 +5,12 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.YieldActions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
+using WebSocketSharp;
 
 namespace VMSystem.Dispatch
 {
@@ -217,6 +219,11 @@ namespace VMSystem.Dispatch
 
         internal static MapPoint GetParkableStationOfCurrentRegion(IAGV agvToPark)
         {
+
+            bool _isAGVHasCargo = agvToPark.states.Cargo_Status == 1 || agvToPark.states.CSTID.Any(_id => !_id.IsNullOrEmpty());
+            if (_isAGVHasCargo)
+                return null;
+
             //找到所有可停車
             var currentRegion = agvToPark.currentMapPoint.GetRegion(StaMap.Map);
             //在該區域所有的主幹道點位
@@ -247,7 +254,6 @@ namespace VMSystem.Dispatch
             if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
             {
                 MapPoint parkStation = GetParkableStationOfCurrentRegion(waitingVehicle);
-
                 if (parkStation != null)
                 {
                     waitingVehicle.NavigationState.AvoidActionState.AvoidPt = parkStation;

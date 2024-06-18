@@ -818,7 +818,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
         }
 
-        private void Agv_OnMapPointChanged(object? sender, int e)
+        private async void Agv_OnMapPointChanged(object? sender, int e)
         {
             var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
             if (currentPt != null)
@@ -830,6 +830,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                          .DistinctBy(tag => tag);
 
                 UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
+
+                ////若有其他車輛在等待此車
+                //IEnumerable<IAGV> _otherWaitingThisVehicles = OtherAGV.Where(agv=>agv.taskDispatchModule.OrderExecuteState== clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                //                                                      .Where(agv => agv.NavigationState.currentConflicToAGV.Name == this.Agv.Name);
+                //if (_otherWaitingThisVehicles.Any())
+                //{
+                //    await CycleStopRequestAsync();
+                //    Agv.NavigationState.ResetNavigationPoints();
+                //    await Task.Delay(1000);
+                //}
+
                 //UpdateMoveStateMessage($"當前路徑終點:{_NavigationTags.Last()}");
             }
         }

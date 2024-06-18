@@ -120,19 +120,26 @@ namespace VMSystem.Dispatch
 
                 try
                 {
-                    var path = new List<MapPoint>();
+                    List<MapPoint> path = new();
 
-                    var _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
+                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
 
                     if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
                     {
                         int pathLength = _noConflicPathToDestine.Count();
                         if (pathLength > 2)
                         {
-                            var ptToTempStop = _noConflicPathToDestine.Skip(1).LastOrDefault(pt => pt.TagNumber != finalMapPoint.TagNumber && !pt.IsVirtualPoint);
-                            if (ptToTempStop != null)
+
+                            Dictionary<MapPoint,MapRegion> stopablePointsAndRegion = _noConflicPathToDestine.Skip(1)
+                                                                                                            .Where(pt => pt.TagNumber != finalMapPoint.TagNumber && !pt.IsVirtualPoint)
+                                                                                                            .ToDictionary(pt=>pt,pt=> pt.GetRegion(StaMap.Map));
+                            IEnumerable<string> regionNames = stopablePointsAndRegion.Values.Select(region => region.Name).Distinct();
+
+                            var select= stopablePointsAndRegion.LastOrDefault(p=>p.Value.Name == regionNames.First());
+                            if (select.Key != null)
                             {
-                                var takeLen = _noConflicPathToDestine.ToList().IndexOf(ptToTempStop) + 1; //0 1 2
+                                MapPoint ptToTempStop = select.Key;
+                                int takeLen = _noConflicPathToDestine.ToList().IndexOf(ptToTempStop) + 1; //0 1 2
                                 path = _noConflicPathToDestine.Take(takeLen).ToList(); //先移動到終點前一點(非虛擬點)
                             }
                             else
@@ -212,31 +219,6 @@ namespace VMSystem.Dispatch
             }
             else
             {
-
-                //if (optimizePath_Init.Count() > 1)
-                //{
-                //    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(optimizePath_Init.First(), optimizePath_Init.ToList()[1]);
-
-                //    if (!CalculateThetaError(forwardAngleToNextPoint, out _) && vehicle.main_state == clsEnums.MAIN_STATUS.IDLE)
-                //    {
-                //        SpinOnPointDetection spinDetection = new SpinOnPointDetection(vehicle.currentMapPoint, forwardAngleToNextPoint, vehicle);
-                //        clsConflicDetectResultWrapper spinDetectResult = spinDetection.Detect();
-                //        if (spinDetectResult.Result == DETECTION_RESULT.OK)
-                //        {
-                //            vehicle.NavigationState.RaiseSpintAtPointRequest(forwardAngleToNextPoint, false);
-                //        }
-                //        else
-                //        {
-                //            vehicle.NavigationState.CancelSpinAtPointRequest();
-                //            vehicle.CurrentRunningTask().UpdateMoveStateMessage($"{spinDetectResult.Message}");
-                //            await Task.Delay(500);
-                //        }
-                //    }
-                //    else
-                //    {
-                //        vehicle.NavigationState.CancelSpinAtPointRequest();
-                //    }
-                //}
                 vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
                 return null;
 

@@ -224,7 +224,7 @@ namespace VMSystem.TrafficControl
                 //if (isAlreadyPassEntryPt)
                 //    return false;
 
-                bool IsDistanceFarwayEntryPoint = _entryPointOfWorkStation.CalculateDistance(vehicle.states.Coordination) >= 3.0;
+                bool IsDistanceFarwayEntryPoint = _entryPointOfWorkStation.CalculateDistance(vehicle.states.Coordination) >= 5.0;
                 int indexOfPtOfCurrent = pathRemain.FindIndex(pt => pt.TagNumber == vehicle.currentMapPoint.TagNumber); //當前點的index 0.1.2.3
                 int indexofCycleStopPoint = indexOfPtOfCurrent + 1;
                 if (indexofCycleStopPoint == pathRemain.Count)
