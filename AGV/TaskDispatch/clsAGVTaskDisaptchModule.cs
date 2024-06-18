@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore;
+using NLog;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
@@ -48,6 +49,7 @@ namespace VMSystem.AGV
         private DateTime LastNonNoOrderTime;
         private bool _IsChargeTaskCreating;
         private bool _IsChargeStatesChecking = false;
+        private Logger logger;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
@@ -82,7 +84,7 @@ namespace VMSystem.AGV
                         agv.NavigationState.ResetNavigationPoints();
                     }
                     previous_OrderExecuteState = value;
-                    LOG.INFO($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode}", color: ConsoleColor.Green);
+                    logger.Info($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode}");
 
                     //if (value == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
                     //{
@@ -203,7 +205,7 @@ namespace VMSystem.AGV
         //        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm);
         //        break;
         //    }
-        //    LOG.INFO($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
+        //    logger.Info($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
         //}
 
         private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1, 1);
@@ -232,7 +234,7 @@ namespace VMSystem.AGV
                             var indexs = navagatings.Select(task => taskList.FindIndex(t => t.TaskName == task.TaskName)).ToArray();
                             foreach (var idx in indexs)
                             {
-                                LOG.TRACE($"{agv.Name}:{taskList[idx].TaskName} Remove from task queue");
+                                logger.Trace($"{agv.Name}:{taskList[idx].TaskName} Remove from task queue");
                                 taskList.RemoveAt(idx);
                             }
                         }
@@ -242,7 +244,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.Message + ex.StackTrace);
+                logger.Error(ex);
             }
             finally
             {
@@ -306,7 +308,7 @@ namespace VMSystem.AGV
         public clsAGVTaskDisaptchModule(IAGV agv)
         {
             this.agv = agv;
-
+            logger = agv.logger;
             if (agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
                 TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
             else
@@ -350,7 +352,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.Critical(ex.Message + ex.StackTrace);
+                logger.Error(ex);
                 return AGV_ORDERABLE_STATUS.SystemError;
             }
         }
@@ -443,13 +445,13 @@ namespace VMSystem.AGV
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
-                        LOG.Critical(ex);
+                        logger.Error(ex);
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
                     catch (Exception ex)
                     {
-                        LOG.Critical(ex);
+                        logger.Error(ex);
                         ExecutingTaskName = "";
                         TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
@@ -502,7 +504,7 @@ namespace VMSystem.AGV
                     await Task.Delay(1);
                     if (stateIncorrectConfrimCts.IsCancellationRequested)
                     {
-                        LOG.WARN($"{agv.Name} 完成充電任務已經過20秒仍未充電 且電量低於強制充電設定，重新發起充電任務");
+                        logger.Warn($"{agv.Name} 完成充電任務已經過20秒仍未充電 且電量低於強制充電設定，重新發起充電任務");
                         OrderHandler.OrderData.State = TASK_RUN_STATUS.WAIT;
                         VMSManager.HandleTaskDBChangeRequestRaising(this, orderHandler.OrderData);
                         return;
@@ -592,7 +594,7 @@ namespace VMSystem.AGV
             if (task_tracking == null)
             {
                 //AsyncTaskQueueFromDatabase();
-                LOG.WARN($"{agv.Name} task feedback, but order already not tracking");
+                logger.Warn($"{agv.Name} task feedback, but order already not tracking");
                 return 0;
             }
 
@@ -721,7 +723,7 @@ namespace VMSystem.AGV
                     return;
                 }
                 WaitAGVPass(waiting_for_move_agv);
-                LOG.TRACE($"Continue Task-{this.OrderHandler.OrderData.TaskName} {this.agv.main_state}");
+                logger.Trace($"Continue Task-{this.OrderHandler.OrderData.TaskName} {this.agv.main_state}");
                 this.OrderHandler.RunningTask.DistpatchToAGV();
                 void WaitAGVPass(IAGV waiting_for_move_agv)
                 {
@@ -733,7 +735,7 @@ namespace VMSystem.AGV
                     {
                         _waiting_tags.Remove(waiting_for_move_agv.states.Last_Visited_Node);
                         this.OrderHandler.RunningTask.TrafficWaitingState.SetStatusWaitingConflictPointRelease(_waiting_tags);
-                        LOG.TRACE($"Finish Traffic Control..waiting {string.Join(",", _waiting_tags)} release  >>> {waiting_for_move_agv.Name}(Current Tag={waiting_for_move_agv.states.Last_Visited_Node}) and order will continue...{this.agv.main_state}");
+                        logger.Trace($"Finish Traffic Control..waiting {string.Join(",", _waiting_tags)} release  >>> {waiting_for_move_agv.Name}(Current Tag={waiting_for_move_agv.states.Last_Visited_Node}) and order will continue...{this.agv.main_state}");
                         Thread.Sleep(1000);
                     }
                     this.OrderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();

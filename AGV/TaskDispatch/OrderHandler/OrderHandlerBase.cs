@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using NLog;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
@@ -23,7 +24,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public Stack<TaskBase> CompleteTaskStack { get; set; } = new Stack<TaskBase>();
         public clsTaskDto OrderData { get; internal set; } = new clsTaskDto();
         public TaskBase RunningTask { get; internal set; } = new MoveToDestineTask();
-        private ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
+        protected ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
 
 
@@ -39,6 +40,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public event EventHandler<OrderHandlerBase> OnTaskCanceled;
         public event EventHandler<OrderHandlerBase> OnOrderFinish;
+
+        protected Logger logger;
+
+        public OrderHandlerBase()
+        {
+            logger = LogManager.GetLogger("OrderHandle");
+        }
 
         public virtual async Task StartOrder(IAGV Agv)
         {
@@ -61,7 +69,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         AbortOrder(_alarm);
                     };
                     var dispatch_result = await task.DistpatchToAGV();
-                    LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 開始");
+                    logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
                     if (!dispatch_result.confirmed)
                     {
                         if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
@@ -83,7 +91,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     task.ActionFinishInvoke();
 
 
-                    LOG.INFO($"[{Agv.Name}] Task-{task.ActionType} 結束");
+                    logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
                     bool _isTaskFail = await DetermineTaskState();
                     if (_isTaskFail)
@@ -104,7 +112,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                LOG.Critical(ex.Message, ex);
+                logger.Error(ex);
                 _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
                 ActionsWhenOrderCancle();
                 RunningTask.Dispose();
@@ -127,7 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (TaskAbortedFlag || isAGVStatusDown)
                 {
                     TaskCancelledFlag = false;
-                    LOG.WARN($"Task Aborted!.{TaskCancelReason}");
+                    logger.Warn($"Task Aborted!.{TaskCancelReason}");
                     _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? ALARMS.Task_Aborted : ALARMS.AGV_STATUS_DOWN);
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
@@ -136,7 +144,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 if (TaskCancelledFlag)
                 {
-                    LOG.WARN($"Task canceled.{TaskCancelReason}");
+                    logger.Warn($"Task canceled.{TaskCancelReason}");
                     _SetOrderAsCancelState(TaskCancelReason);
                     ActionsWhenOrderCancle();
                     isTaskFail = true;
@@ -155,7 +163,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
             try
             {
-                LOG.WARN($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.ToJson()}");
+                logger.Info($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.ToJson()}");
                 _ = Task.Run(async () =>
                 {
                     if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)

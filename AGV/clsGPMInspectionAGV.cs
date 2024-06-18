@@ -22,7 +22,7 @@ namespace VMSystem.AGV
                     Task.Run(async () =>
                     {
                         bool registedSuccess = false;
-                        LOG.INFO($"Try Unregist Regions when Online State Changed to {value}");
+                        base.logger.Info($"Try Unregist Regions To Parts System when Online State Changed to {value}");
                         while (!(registedSuccess = await TrafficControl.PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>() { this.currentMapPoint.Graph.Display })))
                         {
                             await Task.Delay(1000);

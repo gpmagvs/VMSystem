@@ -484,11 +484,11 @@ namespace VMSystem.TrafficControl
         /// <param name="goal"></param>
         /// <param name="agv"></param>
         /// <returns>回傳直如果為double.MaxValue視為找不到路徑或是目標站點不予許車種</returns>
-        public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint, IAGV agv)
+        public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint,int slotHeight, IAGV agv)
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-            AGV_TYPE acceptTypeOfEq = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
+            AGV_TYPE acceptTypeOfEq = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber, slotHeight);
             if (acceptTypeOfEq == AGV_TYPE.Null || (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model))
                 return double.MaxValue;
 

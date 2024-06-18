@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -62,7 +63,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.Message, ex);
+                logger.Error(ex);
                 return new List<int>();
             }
         }
@@ -70,15 +71,25 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             base.HandleAGVNavigatingFeedback(feedbackData);
         }
+        protected override async Task HandleAGVActionFinishFeedback()
+        {
+            logger.Info($"{Agv.Name} Feedback Action Finish of Measure Order (Current Location:{Agv.currentMapPoint.TagNumber})");
+            if (RunningTask.IsAGVReachDestine && Agv.main_state != MAIN_STATUS.DOWN)
+            {
+                RunningTask.ActionFinishInvoke();
+                _CurrnetTaskFinishResetEvent.Set();
+            }
+            else if (Agv.main_state == MAIN_STATUS.DOWN)
+                AbortOrder(Agv.states.Alarm_Code);
+        }
         protected override void HandleAGVActionStartFeedback()
         {
             base.HandleAGVActionStartFeedback();
             RunningTask.TrafficWaitingState.SetDisplayMessage($"量測任務進行中...");
         }
-
         internal async Task MeasureResultFeedback(clsMeasureResult measureResult)
         {
-            LOG.INFO($"{Agv.Name} Report Measure Data: {measureResult.ToJson()}");
+            logger.Info($"{Agv.Name} Report Measure Data: {measureResult.ToJson()}");
             string BayName = StaMap.GetBayNameByMesLocation(measureResult.location);
             measureResult.AGVName = Agv.Name;
             measureResult.BayName = BayName;
@@ -101,7 +112,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (Exception ex)
                 {
-                    LOG.ERROR(ex.Message, ex);
+                    logger.Error(ex.Message, ex);
                     AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
                 }
             }

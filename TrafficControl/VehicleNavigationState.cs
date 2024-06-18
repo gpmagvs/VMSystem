@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.VisualBasic;
+using NLog;
 using SQLitePCL;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -24,6 +25,7 @@ namespace VMSystem.TrafficControl
         public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVNoWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVStartWaitLeavingWorkStation;
+        public Logger logger;
         public enum REGION_CONTROL_STATE
         {
             WAIT_AGV_CYCLE_STOP,
@@ -76,7 +78,7 @@ namespace VMSystem.TrafficControl
             {
                 if (_CurrentRegion == value) return;
                 _CurrentRegion = value;
-                Log($"Region Change to {value.Name}(Is Narrow Path?{value.IsNarrowPath})");
+                logger.Info($"Region Change to {value.Name}(Is Narrow Path?{value.IsNarrowPath})");
             }
         }
 
@@ -246,7 +248,7 @@ namespace VMSystem.TrafficControl
                 if (_FinalTheta != value)
                 {
                     _FinalTheta = value;
-                    LOG.WARN($"停車角度更新: {value}");
+                    logger.Info($"停車角度更新: {value}");
                 }
             }
         }

@@ -289,7 +289,7 @@ namespace VMSystem.Dispatch
 
             bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)
             {
-                List<int> _forbiddenTags = waitingVehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+                List<int> _forbiddenTags = waitingVehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV.ToList() : StaMap.Map.TagNoStopOfForkAGV.ToList();
                 _parkablePoint = value.FirstOrDefault(pt => !_forbiddenTags.Contains(pt.TagNumber));
                 return _parkablePoint != null;
             }

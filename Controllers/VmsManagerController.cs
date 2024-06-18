@@ -28,10 +28,11 @@ namespace VMSystem.Controllers
     public class VmsManagerController : ControllerBase
     {
         private VehicleOnlineBySystemService _onlineService;
-
-        public VmsManagerController(VehicleOnlineBySystemService onlineService)
+        ILogger<VmsManagerController> logger;
+        public VmsManagerController(VehicleOnlineBySystemService onlineService, ILogger<VmsManagerController> logger)
         {
             _onlineService = onlineService;
+            this.logger = logger;
         }
 
         [HttpGet("AGVStatus")]
@@ -43,7 +44,7 @@ namespace VMSystem.Controllers
         [HttpPost("ExecuteTask")]
         public async Task<IActionResult> ExecuteTask(clsTaskDto taskData)
         {
-            LOG.Critical($"Get Task Data Transfer Object : {taskData.DesignatedAGVName}");
+            logger.LogInformation($"Get Task Data Transfer Object : {taskData.DesignatedAGVName}");
             bool Confirm = VMSManager.TryRequestAGVToExecuteTask(ref taskData, out IAGV agv);
             if (Confirm)
             {
@@ -62,7 +63,7 @@ namespace VMSystem.Controllers
             (ALARMS alarmCode, string message) check_result = _onlineService.OnlineRequest(agv_name, out _);
             return Ok(new { ReturnCode = check_result.alarmCode, Message = check_result.message });
 
-            Console.WriteLine($"要求 {agv_name}上線 ");
+            logger.LogInformation($"用戶要求 {agv_name}上線 ");
             bool online_success = false;
             string msg = string.Empty;
 
@@ -89,7 +90,7 @@ namespace VMSystem.Controllers
         [HttpGet("OfflineRequet")]
         public async Task<IActionResult> OfflineRequet(string agv_name, clsEnums.AGV_TYPE model = clsEnums.AGV_TYPE.FORK)
         {
-            Console.WriteLine($"AGV-{agv_name}要求下線");
+            logger.LogInformation($"用戶要求 {agv_name}下線 ");
             string msg = string.Empty;
             if (VMSManager.TryGetAGV(agv_name, out IAGV agv))
             {

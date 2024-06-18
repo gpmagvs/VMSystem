@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using NLog;
 using System.Diagnostics;
 using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch.Exceptions;
@@ -35,6 +36,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public MapPoint NextCheckPoint { get; set; } = new MapPoint();
 
         public IEnumerable<IAGV> OtherAGV => VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv);
+
+        public Logger logger;
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -42,6 +46,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.OrderData = orderData;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
+            logger = LogManager.GetLogger(this.GetType().Name);
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
@@ -150,8 +155,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-
-                LOG.ERROR(ex.ToString(), ex);
+                logger.Error(ex);
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
             }
         }
@@ -249,7 +253,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 while (!parts_accept.confirm)
                 {
-
                     if (stopwatch.Elapsed.TotalSeconds > 180)
                     {
                         TrafficWaitingState.SetStatusNoWaiting();
