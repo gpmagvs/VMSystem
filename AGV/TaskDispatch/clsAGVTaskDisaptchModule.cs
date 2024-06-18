@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -376,7 +377,7 @@ namespace VMSystem.AGV
                                 var _ExecutingTask = taskOrderedByPriority.First();
                                 ALARMS alarm_code = ALARMS.NONE;
 
-                                (bool autoSearchConfrim, ALARMS autoSearch_alarm_code)= await  CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);
+                                (bool autoSearchConfrim, ALARMS autoSearch_alarm_code) = await CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);
                                 if (!autoSearchConfrim)
                                 {
                                     _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
@@ -460,10 +461,11 @@ namespace VMSystem.AGV
                 }
             });
         }
-        private void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
+        private async void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
+            await MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 

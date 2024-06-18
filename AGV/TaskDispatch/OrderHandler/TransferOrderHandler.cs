@@ -2,9 +2,11 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using AGVSystemCommonNet6.Microservices.VMS;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using static SQLite.SQLite3;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -28,11 +30,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
-            //if (OrderData.bypass_eq_status_check == true) 
-            //{
-            //    await base.StartOrder(Agv);
-            //    return;
-            //}
+            await MCSCIMService.TaskReporter((OrderData, 3));
+
             if (OrderData.need_change_agv)
             {
                 // TODO 把可用的轉換站存在這listTransferStation
@@ -55,7 +54,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     foreach (var tag in task.dict_Transfer_to_from_tags)
                     {
                         int intTransferToTag = tag.Key;
-                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Carry);
+                        clsAGVSTaskReportResponse result = new clsAGVSTaskReportResponse() { confirm = false, message = "[TransferOrderHandler.StartOrder] error" };
+                        if (OrderData.bypass_eq_status_check == true)
+                        {
+                            result.confirm = true;
+                            result.message = "bypass_eq_status_check";
+                        }
+                        else
+                            result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Carry);
                         if (result.confirm)
                         {
                             OrderData.TransferToTag = intTransferToTag;
@@ -84,7 +90,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (OrderData.To_Slot == "-1")
                         OrderData.To_Slot = "-2";
                 }
-                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
+                clsAGVSTaskReportResponse result = new clsAGVSTaskReportResponse() { confirm = false, message = "[TransferOrderHandler.StartOrder] error" };
+                if (OrderData.bypass_eq_status_check == true)
+                {
+                    result.confirm = true;
+                    result.message = "bypass_eq_status_check";
+                }
+                else
+                    result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry);
                 if (result.confirm)
                 {
                     if (result.ReturnObj != null)
@@ -96,7 +109,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 else
                 {
                     this.Agv = Agv;
-                    _SetOrderAsFaiiureState(result.message,result.AlarmCode);
+                    _SetOrderAsFaiiureState(result.message, result.AlarmCode);
                 }
             }
         }

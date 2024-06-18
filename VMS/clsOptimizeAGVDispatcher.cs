@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
@@ -64,6 +65,9 @@ namespace VMSystem.VMS
                         agv = AGV;
                         _taskDto.DesignatedAGVName = AGV.Name;
                         TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
+
+                        if (AGV != null)
+                            await MCSCIMService.TaskReporter((_taskDto, 1));
                     }
                 }
                 catch (Exception ex)
@@ -90,14 +94,14 @@ namespace VMSystem.VMS
             if (taskDto.Action == ACTION_TYPE.Unload)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
-                EQAcceptEQType = Tools.GetEQAcceptAGVType(goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
             }
             else if (taskDto.Action == ACTION_TYPE.Carry)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
-                AGV_TYPE fromstation_agvtype = Tools.GetEQAcceptAGVType(FromStation);
-                AGV_TYPE tostation_agvtype = Tools.GetEQAcceptAGVType(ToStation);
+                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation);
+                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation);
                 goalStation = FromStation;
 
                 if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)

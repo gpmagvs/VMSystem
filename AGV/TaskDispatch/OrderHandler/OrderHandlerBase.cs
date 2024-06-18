@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -284,7 +285,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
 
-        protected void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
+        protected async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
             RunningTask.CancelTask();
             UnRegistPoints();
@@ -292,6 +293,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
+            await MCSCIMService.TaskReporter((OrderData, 7));
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.WARNING, taskName: OrderData.TaskName);
         }
 
