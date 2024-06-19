@@ -12,6 +12,7 @@ using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.Dispatch;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
@@ -53,7 +54,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
 
         public bool IsSomeoneWaitingU { get; internal set; } = false;
-        public bool IsWaitingSomeone { get; internal set; } = false;
         public class clsPathSearchResult
         {
             public bool IsConflicByNarrowPathDirection { get; set; }
@@ -119,30 +119,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, OrderData, Stage));
                         //var dispatchCenterReturnPath = (await DispatchCenter.MoveToGoalGetPath(Agv, searchStartPt, OrderData, Stage));
 
-                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising || IsWaitingSomeone)
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                         {
                             if (Stage == VehicleMovementStage.AvoidPath)
                             {
                                 Agv.NavigationState.AddCannotReachPointWhenAvoiding(finalMapPoint);
-                            }
-                            if (IsWaitingSomeone)
-                            {
-                                IAGV _avoidTo = Agv.NavigationState.AvoidActionState.AvoidToVehicle;
-                                Agv.NavigationState.IsWaitingConflicSolve = true;
-                                await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                                Agv.NavigationState.ResetNavigationPoints();
-                                while (_avoidTo.currentMapPoint.TagNumber != _avoidTo.NavigationState.AvoidActionState.AvoidPt.TagNumber)
-                                {
-                                    Agv.NavigationState.IsWaitingConflicSolve = true;
-                                    UpdateMoveStateMessage($"Wait {_avoidTo.Name} reach {_avoidTo.NavigationState.AvoidActionState.AvoidPt.TagNumber}");
-                                    await Task.Delay(1000);
-                                }
-                                Agv.NavigationState.IsWaitingConflicSolve = false;
-                                await SendCancelRequestToAGV();
-                                _previsousTrajectorySendToAGV.Clear();
-                                searchStartPt = Agv.currentMapPoint;
-                                continue;
-
                             }
                             if (GetRegionChangedToEntryable())
                             {
@@ -179,6 +160,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 await SpinAtCurrentPointProcess(_seq);
                             }
+                            //if (IsRegionNavigationEnabled && IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _regions))
+                            //{
+                            //    await RegionPathNavigation(_regions);
+                            //    TrafficWaitingState.SetStatusNoWaiting();
+                            //    await CycleStopRequestAsync();
+                            //    _previsousTrajectorySendToAGV.Clear();
+                            //    searchStartPt = Agv.currentMapPoint;
+                            //}
                             continue;
                         }
                         Agv.NavigationState.IsWaitingConflicSolve = false;
@@ -527,22 +516,61 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
 
-            MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
-            {
-                Action = ACTION_TYPE.None,
-                To_Station = NoWaitingPointSetting ? finalMapPoint.TagNumber + "" : tagOfWaitingForEntryRegion + "",
-                TaskName = OrderData.TaskName,
-                DesignatedAGVName = Agv.Name,
-            })
-            {
-                Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
-            };
-            NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
-            Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
-            Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
+            MapPoint waitingForEntryPoint = StaMap.GetPointByTagNumber(tagOfWaitingForEntryRegion);
+
+            bool isWaitingAtParkableStation = waitingForEntryPoint.StationType != MapPoint.STATION_TYPE.Normal;
 
             await CycleStopRequestAsync();
-            await _moveToRegionWaitPointsTask.SendTaskToAGV();
+            await Task.Delay(1000);
+            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(1000);
+            }
+
+            NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
+            if (isWaitingAtParkableStation)
+            {
+                OrderHandlerFactory orderFactory = new OrderHandlerFactory();
+                var chargeOrderHandler = orderFactory.CreateHandler(new clsTaskDto()
+                {
+                    Action = ACTION_TYPE.Park,
+                    DesignatedAGVName = this.Agv.Name,
+                    TaskName = this.OrderData.TaskName,
+                    To_Station = waitingForEntryPoint.TagNumber + ""
+                });
+
+                while (chargeOrderHandler.SequenceTaskQueue.Count != 0)
+                {
+                    var task = chargeOrderHandler.SequenceTaskQueue.Dequeue();
+                    Agv.taskDispatchModule.OrderHandler.RunningTask = task;
+                    if (task.ActionType == ACTION_TYPE.None)
+                        await task.SendTaskToAGV();
+                    else
+                        await task.DistpatchToAGV();
+                }
+                await Task.Delay(1000);
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    await Task.Delay(1000);
+                }
+            }
+            else
+            {
+                MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                {
+                    Action = ACTION_TYPE.None,
+                    To_Station = NoWaitingPointSetting ? finalMapPoint.TagNumber + "" : tagOfWaitingForEntryRegion + "",
+                    TaskName = OrderData.TaskName,
+                    DesignatedAGVName = Agv.Name,
+                })
+                {
+                    Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
+                };
+                Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
+                await _moveToRegionWaitPointsTask.SendTaskToAGV();
+            }
+
+            Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
             await Task.Delay(200);
 
             Agv.NavigationState.IsWaitingForEntryRegion = true;
@@ -550,10 +578,34 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
             {
-                _moveToRegionWaitPointsTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
+                if (Agv.CurrentRunningTask().IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    return false;
+
+                Agv.taskDispatchModule.OrderHandler.RunningTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
                 await Task.Delay(200);
             }
             Agv.NavigationState.IsWaitingForEntryRegion = false;
+
+            if (isWaitingAtParkableStation)
+            {
+                MapPoint entryPtOfChargeStation = Agv.currentMapPoint.TargetNormalPoints().First();
+                DischargeTask dischargeTask = new DischargeTask(Agv, new clsTaskDto
+                {
+                    Action = ACTION_TYPE.Discharge,
+                    DesignatedAGVName = this.Agv.Name,
+                    TaskName = this.OrderData.TaskName,
+                    To_Station = entryPtOfChargeStation.TagNumber + ""
+                });
+
+                Agv.taskDispatchModule.OrderHandler.RunningTask = dischargeTask;
+                await dischargeTask.DistpatchToAGV();
+                await Task.Delay(1000);
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    await Task.Delay(1000);
+                }
+            }
+
             Agv.taskDispatchModule.OrderHandler.RunningTask = this;
 
             IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _nextRegions);
@@ -673,12 +725,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (runningTaskOfAvoidToVehicle == null)
                 return;
             UpdateMoveStateMessage($"Before Avoid Path Check...");
-            bool _isRegionTrafficControl = runningTaskOfAvoidToVehicle.IsWaitingSomeone;
             Stopwatch _cancelAvoidTimer = Stopwatch.StartNew();
-            while (avoidAction == ACTION_TYPE.None && !_isRegionTrafficControl && _cancelAvoidTimer.Elapsed.TotalSeconds < 2)
+            while (avoidAction == ACTION_TYPE.None && _cancelAvoidTimer.Elapsed.TotalSeconds < 2)
             {
                 await Task.Delay(1);
-                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_isRegionTrafficControl && !_avoidToAgv.NavigationState.IsWaitingForEntryRegion)
+                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_avoidToAgv.NavigationState.IsWaitingForEntryRegion)
                 {
                     UpdateMoveStateMessage($"避車動作取消-因避讓車輛已有新路徑");
                     NotifyServiceHelper.INFO($"{Agv.Name}避車動作取消-因避讓車輛已有新路徑!");
@@ -999,13 +1050,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public static double FinalForwardAngle(this IEnumerable<MapPoint> path)
         {
-
-            if (!path.Any() || path.Count() < 2)
+            var _path = path.Where(pt => pt != null).ToList();
+            if (!_path.Any() || _path.Count() < 2)
             {
-                return !path.Any() ? 0 : path.Last().Direction;
+                return !_path.Any() ? 0 : _path.Last().Direction;
             }
-            var lastPt = path.Last();
-            var lastSecondPt = path.First();
+            var lastPt = _path.Last();
+            var lastSecondPt = _path.First();
             clsCoordination lastCoord = new clsCoordination(lastPt.X, lastPt.Y, 0);
             clsCoordination lastSecondCoord = new clsCoordination(lastSecondPt.X, lastSecondPt.Y, 0);
             return Tools.CalculationForwardAngle(lastSecondCoord, lastCoord);
@@ -1048,10 +1099,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public static double GetStopDirectionAngle(this IEnumerable<MapPoint> path, clsTaskDto refOrderInfo, IAGV executeAGV, VehicleMovementStage stage, MapPoint nextStopPoint)
         {
             var finalStopPoint = refOrderInfo.GetFinalMapPoint(executeAGV, stage);
-
+            var _path = path.Where(pt => pt != null).ToList();
             //先將各情境角度算好來
             //1. 朝向最後行駛方向
-            double _finalForwardAngle = path.FinalForwardAngle();
+            double _finalForwardAngle = _path.FinalForwardAngle();
 
             double _narrowPathDirection(MapPoint stopPoint)
             {
@@ -1087,7 +1138,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
-            bool isPathEndPtIsDestine = path.Last().TagNumber == finalStopPoint.TagNumber;
+            bool isPathEndPtIsDestine = _path.Last().TagNumber == finalStopPoint.TagNumber;
 
             if (isPathEndPtIsDestine)
             {

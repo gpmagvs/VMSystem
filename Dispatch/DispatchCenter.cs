@@ -130,12 +130,11 @@ namespace VMSystem.Dispatch
                         if (pathLength > 2)
                         {
 
-                            Dictionary<MapPoint,MapRegion> stopablePointsAndRegion = _noConflicPathToDestine.Skip(1)
-                                                                                                            .Where(pt => pt.TagNumber != finalMapPoint.TagNumber && !pt.IsVirtualPoint)
-                                                                                                            .ToDictionary(pt=>pt,pt=> pt.GetRegion(StaMap.Map));
+                            Dictionary<MapPoint, MapRegion> stopablePointsAndRegion = _noConflicPathToDestine.Skip(1).Where(pt=>!pt.IsVirtualPoint)
+                                                                                                             .ToDictionary(pt => pt, pt => pt.GetRegion(StaMap.Map));
                             IEnumerable<string> regionNames = stopablePointsAndRegion.Values.Select(region => region.Name).Distinct();
 
-                            var select= stopablePointsAndRegion.LastOrDefault(p=>p.Value.Name == regionNames.First());
+                            var select = stopablePointsAndRegion.LastOrDefault(p => p.Value.Name == regionNames.First());
                             if (select.Key != null)
                             {
                                 MapPoint ptToTempStop = select.Key;
@@ -161,8 +160,8 @@ namespace VMSystem.Dispatch
 
                         if (pathCandicates.Count() > 2)
                         {
-                            path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
-                        }
+                                path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
+                            }
                         else
                             path = subGoalResults.First(path => path != null).ToList();
                     }
@@ -173,18 +172,8 @@ namespace VMSystem.Dispatch
                         return willConflicMaybe ? null : path;
                     }
                     return path;
+
                     #region local methods
-                    bool _isAnyVehicleInWorkStationOfNarrowRegion(MapRegion refRegion)
-                    {
-                        if (!refRegion.IsNarrowPath)
-                            return false;
-                        return false;
-                        List<MapPoint> registedWorkStationsInNarrowRegion = StaMap.RegistDictionary.Keys.Select(tag => StaMap.GetPointByTagNumber(tag))
-                                                    .Where(point => point.StationType != MapPoint.STATION_TYPE.Normal)
-                                                    .Where(point => point.GetRegion(CurrentMap).Name == refRegion.Name)
-                                                    .ToList();
-                        return registedWorkStationsInNarrowRegion.Any();
-                    }
 
                     bool _WillFinalStopPointConflicMaybe(IEnumerable<MapPoint> _path)
                     {
@@ -373,7 +362,10 @@ namespace VMSystem.Dispatch
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
-                constrains.Add(MainVehicle.NavigationState.CurrentConflicRegion.StartPoint);
+            {
+                if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
+                    constrains.Add(MainVehicle.NavigationState.CurrentConflicRegion.EndPoint);
+            }
             if (additionRegists.Any())
             {
                 //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");

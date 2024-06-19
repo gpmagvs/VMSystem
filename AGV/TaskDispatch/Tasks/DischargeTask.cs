@@ -30,15 +30,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
-            Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
-            DetermineThetaOfDestine(this.TaskDonwloadToAGV);
-            await WaitLeaveWorkStationAllowable(new clsLeaveFromWorkStationConfirmEventArg
+            try
             {
-                Agv = this.Agv,
-                GoalTag = TaskDonwloadToAGV.Destination
-            });
-            StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
-            await base.SendTaskToAGV();
+
+                Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
+                DetermineThetaOfDestine(this.TaskDonwloadToAGV);
+                await WaitLeaveWorkStationAllowable(new clsLeaveFromWorkStationConfirmEventArg
+                {
+                    Agv = this.Agv,
+                    GoalTag = TaskDonwloadToAGV.Destination
+                });
+                StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
+                await base.SendTaskToAGV();
+            }
+            catch (Exception ex)
+            {
+
+                throw ex;
+            }
         }
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {

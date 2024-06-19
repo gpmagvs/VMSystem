@@ -367,13 +367,21 @@ namespace VMSystem.TrafficControl
         }
         public void UpdateNavigationPointsForPathCalculation(IEnumerable<MapPoint> pathPoints)
         {
-            var _pathPoints = pathPoints.Clone().ToList();
-            var runningTask = Vehicle.CurrentRunningTask();
-            var orderData = runningTask.OrderData;
-            _pathPoints.Last().Direction = _pathPoints.GetStopDirectionAngle(orderData, Vehicle, runningTask.Stage, _pathPoints.Last());
-            List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
-            output.AddRange(_pathPoints);
-            NextNavigtionPointsForPathCalculation = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
+            try
+            {
+
+                var _pathPoints = pathPoints.Clone().ToList();
+                var runningTask = Vehicle.CurrentRunningTask();
+                var orderData = runningTask.OrderData;
+                _pathPoints.Last().Direction = _pathPoints.GetStopDirectionAngle(orderData, Vehicle, runningTask.Stage, _pathPoints.Last());
+                List<MapPoint> output = new List<MapPoint>() { Vehicle.currentMapPoint };
+                output.AddRange(_pathPoints);
+                NextNavigtionPointsForPathCalculation = output.Where(pt => pt.TagNumber != 0).Distinct().ToList();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
             //LOG.TRACE($"[{Vehicle.Name}] Update NavigationPointsForPathCalculation: {string.Join("->", NextNavigtionPointsForPathCalculation.Select(pt => pt.TagNumber))} ");
         }
 

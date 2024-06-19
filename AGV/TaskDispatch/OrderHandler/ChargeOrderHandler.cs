@@ -1,5 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using System.Diagnostics;
+using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 using static SQLite.SQLite3;
 
@@ -16,6 +18,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
+
+            if (!IsChargeStationUsableCheck(Agv))
+            {
+                _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason:  Destine Charge Station Can't Use", AGVSystemCommonNet6.Alarm.ALARMS.Destine_Charge_Station_Has_AGV);
+                return;
+            }
+
             if (Agv.model != AGV_TYPE.SUBMERGED_SHIELD)
             {
                 if (Agv.states.Cargo_Status != 0)
@@ -30,6 +39,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
             }
             await base.StartOrder(Agv);
+        }
+
+        private bool IsChargeStationUsableCheck(IAGV Agv)
+        {
+            int chargeStationTag = OrderData.To_Station_Tag;
+            var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
+            bool _isAnyVehicleGoToStation = otherAGVList.Any(agv => agv.CurrentRunningTask().OrderData?.To_Station_Tag == chargeStationTag);
+            bool _isAnyVehicleAtStation = otherAGVList.Any(agv=>agv.currentMapPoint.TagNumber == chargeStationTag);
+            return  ! _isAnyVehicleGoToStation  && !_isAnyVehicleAtStation;
         }
     }
 
