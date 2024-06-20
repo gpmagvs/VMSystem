@@ -26,13 +26,16 @@ namespace VMSystem.Dispatch.YieldActions
             MapPoint StopMapPoint = DetermineStopMapPoint(out IEnumerable<MapPoint> pathToStopPoint);
 
             if (StopMapPoint == null)
+            {
                 return null;
+            }
+
+            _LowProrityVehicle.NavigationState.IsConflicSolving = false;
+            _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
 
             _LowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None;
             _LowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = StopMapPoint;
             _LowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
-            _LowProrityVehicle.NavigationState.IsConflicSolving = false;
-            _LowProrityVehicle.NavigationState.IsWaitingConflicSolve = false;
             _LowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _HightPriorityVehicle;
             return _LowProrityVehicle;
         }
@@ -74,10 +77,29 @@ namespace VMSystem.Dispatch.YieldActions
                     var pathPredictOfHPV = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(pointOfHPV, finalPtOfHPV, constrainsOfHPVPath);
                     cannotStopPoints.AddRange(pathPredictOfHPV);
                     cannotStopPoints.AddRange(_GetConstrainsOfLPVStopPoint());
-                    cannotStopPoints = cannotStopPoints.DistinctBy(pt => pt.TagNumber).ToList();
+                    cannotStopPoints = cannotStopPoints.Where(pt=>!pt.IsAvoid).DistinctBy(pt => pt.TagNumber).ToList();
 
                     var canStopPointCandicates = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.IsVirtualPoint && !cannotStopPoints.GetTagCollection().Contains(pt.TagNumber))
                                                                          .ToList();
+
+                    // Find Avoid Point In Low Priority Vehicle current Region   from canStopPointCandicates
+                    MapRegion regionOfLPV = _LowProrityVehicle.currentMapPoint.GetRegion(StaMap.Map);
+
+                    List<MapPoint> avaliableAvoidPoints = canStopPointCandicates.Where(pt => pt.IsAvoid && IsPointReachable(pt)).ToList();
+
+
+
+                    avaliableAvoidPoints = avaliableAvoidPoints.OrderBy(pt => pt.CalculateDistance(_LowProrityVehicle.currentMapPoint)).ToList();
+
+                    if (avaliableAvoidPoints.Any())
+                    {
+                        IEnumerable<IEnumerable<MapPoint>> PathToAvoidPoints= avaliableAvoidPoints.Select(pt => GetPathToStopPoint(pt)).ToList();
+                        IEnumerable<MapPoint> pathToAvoidPoint =PathToAvoidPoints.FirstOrDefault(path => path != null);
+                        if (pathToAvoidPoint != null)
+                            return pathToAvoidPoint.Last();
+                        else
+                            return null;
+                    }
 
                     IEnumerable<IEnumerable<MapPoint>> pathes = canStopPointCandicates.Select(pt => GetPathToStopPoint(pt)).ToList();
                     if (pathes.All(path => path == null))
@@ -92,7 +114,7 @@ namespace VMSystem.Dispatch.YieldActions
                                        .Where(path => path.Last().TagNumber != finalPtOfLPV.TagNumber)
                                        .Where(path => !path.Last().GetCircleArea(ref hpv, 1.5).IsIntersectionTo(finalPtOfHPV.GetCircleArea(ref hpv)))
                                        .Where(path => !path.Last().GetCircleArea(ref lpv, 1.5).IsIntersectionTo(hpv.AGVRotaionGeometry))
-                                       .OrderBy(path => path.Last().CalculateDistance(finalPtOfLPV))
+                                       .OrderBy(path => path.TotalTravelDistance())
                                        //.OrderBy(path => path.Last().CalculateDistance(lpv.currentMapPoint))
                                        .Where(path => !path.IsPathConflicWithOtherAGVBody(lpv, out var c)).ToList();
 
@@ -106,7 +128,7 @@ namespace VMSystem.Dispatch.YieldActions
 
                             bool _isStopPointNotInLPVAndHPVCurrentRegion(MapPoint _stopPointCandicate)
                             {
-                                MapRegion regionOfStopPoint= _stopPointCandicate.GetRegion(StaMap.Map);
+                                MapRegion regionOfStopPoint = _stopPointCandicate.GetRegion(StaMap.Map);
                                 return regionOfStopPoint.Name != currentRegionOfLPV.Name && regionOfStopPoint.Name != currentRegionOfHPV.Name;
                             }
                         }
@@ -135,6 +157,13 @@ namespace VMSystem.Dispatch.YieldActions
                             return null;
                         }
 
+                    }
+
+                    bool IsPointReachable(MapPoint point)
+                    {
+                        IEnumerable<IAGV> otherVehicles= VMSManager.AllAGV.FilterOutAGVFromCollection(_LowProrityVehicle);
+                        bool pointOcuupy=otherVehicles.Any(agv=>agv.currentMapPoint.TagNumber== point.TagNumber || agv.CurrentRunningTask().OrderData?.To_Station_Tag == point.TagNumber);
+                        return !pointOcuupy;
                     }
                 }
                 catch (Exception ex)

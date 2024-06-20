@@ -156,6 +156,11 @@ namespace VMSystem.Dispatch
             (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeterminPriorityOfVehicles(DeadLockVehicles);
             clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
             var toAvoidVehicle = await lowPriorityWork.StartSolve();
+            if (toAvoidVehicle == null)
+            {
+                lowPriorityWork = new clsLowPriorityVehicleMove(highPriorityVehicle,lowPriorityVehicle);
+                toAvoidVehicle=await lowPriorityWork.StartSolve();
+            }
             await Task.Delay(200);
             return toAvoidVehicle;
         }
@@ -167,6 +172,7 @@ namespace VMSystem.Dispatch
             IEnumerable<IAGV> ordered = new List<IAGV>();
             if (orderedByWeight.First().Value == orderedByWeight.Last().Value)
             {
+
                 //權重相同,先等待者為高優先權車輛
                 ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
             }

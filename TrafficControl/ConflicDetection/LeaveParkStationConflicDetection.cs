@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
 using WebSocketSharp;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTaskDynamicPathPlanV2;
@@ -37,29 +38,33 @@ namespace VMSystem.TrafficControl.ConflicDetection
             if (entryPtRegion.Name.IsNullOrEmpty())
                 return false;
 
-            // check if the region has a max vehicle capacity
+            //// check if the region has a max vehicle capacity
 
-            var inEntryPtRegionVehicles = OtherAGV.Select(agv => agv.currentMapPoint.GetRegion(StaMap.Map))
-                                                  .Where(rg => rg.Name == entryPtRegion.Name);
+            //var inEntryPtRegionVehicles = OtherAGV.Select(agv => agv.currentMapPoint.GetRegion(StaMap.Map))
+            //                                      .Where(rg => rg.Name == entryPtRegion.Name);
 
-            if(inEntryPtRegionVehicles.Count() < entryPtRegion.MaxVehicleCapacity)
-            {
-                return false;
-            }
-            //if(entryPtRegion.MaxVehicleCapacity)
+            //if(inEntryPtRegionVehicles.Count() < entryPtRegion.MaxVehicleCapacity)
+            //{
+            //    return false;
+            //}
+
 
             //conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
             var _OtherRunningAGV = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                    .ToList();
+                                            .ToList();
 
             // search PassRegionPassible
             conflicAGVList = _OtherRunningAGV.Where(agv => _PassRegionPassible(agv))
-                                     .ToList();
+                                             .ToList();
+
 
             bool _PassRegionPassible(IAGV agv)
             {
                 try
                 {
+                    if (agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
+                        return false;
+                    TaskBase currentTask= agv.CurrentRunningTask();
                     MapPoint nextDestinePt = StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag);
                     var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(agv.currentMapPoint, nextDestinePt, null);
                     var regions = _optimizedPath.GetRegions().ToList();
@@ -76,7 +81,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 }
             }
 
-            return conflicAGVList.Any();
+            return conflicAGVList.Any() && conflicAGVList.Count()+1 >= entryPtRegion.MaxVehicleCapacity;
         }
 
     }

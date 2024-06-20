@@ -124,6 +124,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (Stage == VehicleMovementStage.AvoidPath)
                             {
                                 Agv.NavigationState.AddCannotReachPointWhenAvoiding(finalMapPoint);
+                                var avoidTo = Agv.NavigationState.AvoidActionState.AvoidPt;
+
+                                if (avoidTo == null || OtherAGV.Any(agv => agv.currentMapPoint.TagNumber == avoidTo.TagNumber || agv.CurrentRunningTask().OrderData?.To_Station_Tag == avoidTo.TagNumber))
+                                {
+                                    return;
+                                }
                             }
                             if (GetRegionChangedToEntryable())
                             {
@@ -798,11 +804,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     var leaveCheckResult = DETECTION_RESULT.NG;
                     while (leaveCheckResult != DETECTION_RESULT.OK)
                     {
+                        if (IsTaskCanceled || IsTaskAborted())
+                            throw new TaskCanceledException();
+
                         var detectResult = leaveDetector.Detect();
                         leaveCheckResult = detectResult.Result;
                         if (leaveCheckResult != DETECTION_RESULT.OK)
                             parkTask.UpdateMoveStateMessage($"等待 {AvoidToPtMoveDestine.Graph.Display} 可通行\r\n({detectResult.Message})");
                         await Task.Delay(1000);
+
 
                     }
 
@@ -834,7 +844,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                     throw new TaskCanceledException();
-                if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion || _avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
+                //if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion || _avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
+                if (sw.Elapsed.TotalSeconds > 5 || ( _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
                     break;
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);
