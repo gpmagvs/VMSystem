@@ -69,7 +69,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             else
             {
-                clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Load);
+                clsAGVSTaskReportResponse result = new clsAGVSTaskReportResponse() { confirm = false, message = "[LoadOrderHandler.StartOrder] error" };
+                if (OrderData.bypass_eq_status_check == true)
+                {
+                    result.confirm = true;
+                    result.message = "bypass_eq_status_check";
+                }
+                else
+                    result  = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Load);
                 if (result.confirm)
                 {
                     await base.StartOrder(Agv);
