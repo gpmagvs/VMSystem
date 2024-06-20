@@ -64,7 +64,6 @@ namespace VMSystem.AGV
                 workstations = StaMap.GetParkableStations();
             if (action == ACTION_TYPE.Charge)
             {
-
                 workstations = StaMap.GetChargeableStations(this.agv);
                 var response = await AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name);
                 Console.WriteLine(stopwatch.Elapsed.TotalMilliseconds);

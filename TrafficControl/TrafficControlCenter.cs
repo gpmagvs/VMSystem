@@ -125,21 +125,32 @@ namespace VMSystem.TrafficControl
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
 
+
+                string _waitMessage = "";
+
                 clsConflicDetectResultWrapper _result = new(DETECTION_RESULT.NG, "");
                 if (isLeaveFromChargeStation)
                 {
                     LeaveChargeStationConflicDetection _LeaveChargeDetector = new LeaveChargeStationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
                     _result = _LeaveChargeDetector.Detect();
+                    _waitMessage += _result.Message;
                 }
                 else
                 {
                     LeaveWorkstationConflicDetection _LeaveMainEQDetector = new LeaveWorkstationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
                     _result = _LeaveMainEQDetector.Detect();
                 }
-                var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
 
+                //addiction check .
+
+                EnterWorkStationDetection enterWorkStationDetection = new(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
+                clsConflicDetectResultWrapper workstationLeaveAddictionCheckResult = enterWorkStationDetection.Detect();
+                _waitMessage += workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.OK ? "" : "\r\n" + workstationLeaveAddictionCheckResult.Message;
+
+                var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool _isAllowLeaveByDeadLockDetection = _RaiseReqAGV.NavigationState.LeaveWorkStationHighPriority;
-                bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false : _result.Result == DETECTION_RESULT.NG;
+                bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false : _result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG;
+
 
                 CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;
                 _RaiseReqAGV.NavigationState.IsWaitingForLeaveWorkStation = _isNeedWait;
@@ -165,14 +176,14 @@ namespace VMSystem.TrafficControl
                         else
                         {
                             args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                            args.Message = _result.Message;
+                            args.Message = _waitMessage;
                         }
                     }
                     else
                     {
                         args.WaitSignal.Reset();
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                        args.Message = _result.Message;
+                        args.Message = _waitMessage;
                     }
                 }
                 else

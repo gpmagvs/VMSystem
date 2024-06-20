@@ -44,6 +44,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             this.Agv = Agv;
             this.OrderData = orderData;
+            this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
             logger = LogManager.GetLogger(this.GetType().Name);

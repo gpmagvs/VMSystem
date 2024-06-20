@@ -29,13 +29,22 @@ namespace VMSystem
             Console.Title = "GPM-車輛管理系統(VMS)";
         }
 
-        internal static void DBInit(WebApplicationBuilder builder, WebApplication app)
+        internal static async void DBInit(WebApplicationBuilder builder, WebApplication app)
         {
             try
             {
                 //AGVSDatabase.Initialize().GetAwaiter().GetResult();
-                TaskDatabaseHelper dbheper = new TaskDatabaseHelper();
-                dbheper.SetRunningTaskWait();
+
+                using AGVSDatabase database = new AGVSDatabase();
+                var queingTasks = database.tables.Tasks.Where(task => task.State == AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.NAVIGATING ||
+                                                  task.State == AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT).ToList();
+                foreach (var _task in queingTasks)
+                {
+                    _task.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.FAILURE;
+                    _task.FailureReason = "系統重啟刪除任務";
+                    _task.FinishTime = System.DateTime.Now;
+                }
+                await database.SaveChanges();
             }
             catch (Exception ex)
             {
@@ -62,7 +71,7 @@ namespace VMSystem
                 FileProvider = fileProvider,
                 RequestPath = requestPath,
                 ServeUnknownFileTypes = true,
-                DefaultContentType = "application/octet-stream", 
+                DefaultContentType = "application/octet-stream",
             });
 
             app.UseDirectoryBrowser(new DirectoryBrowserOptions
@@ -76,7 +85,8 @@ namespace VMSystem
         internal static void VMSInit()
         {
             StaMap.Download();
-            VMSManager.Initialize().ContinueWith(tk=> {
+            VMSManager.Initialize().ContinueWith(tk =>
+            {
                 Dispatch.DispatchCenter.Initialize();
             });
             TrafficControlCenter.Initialize();
