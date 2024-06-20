@@ -199,8 +199,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData).GetAwaiter().GetResult();
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
-                    //orderData.TransferToTag = _transferTo;
-                    //orderData.TransferFromTag = _transferFrom.FirstOrDefault(); // TODO 可能有多個轉運站需再調整
                     _queue.Enqueue(task);
                 }
                 else
@@ -254,38 +252,44 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 MapPoint TransferToMapPoint = StaMap.GetPointByTagNumber(TransferTag);
                 var entryPoints = TransferToMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
                 var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
-                validStations = validStations.GroupBy(x=>x.TagNumber).Select(x=>x.First());
+                validStations = validStations.GroupBy(x => x.TagNumber).Select(x => x.First());
                 //從進入點找到EQ內有哪些Tag跟接受車型
-                Dictionary<int, AGV_TYPE> AcceptAGVInfoOfEQTags =  validStations.ToDictionary(station => station.TagNumber, station => EquipmentStore.GetEQAcceptAGVType(station.TagNumber));
+                Dictionary<int, AGV_TYPE> AcceptAGVInfoOfEQTags = validStations.ToDictionary(station => station.TagNumber, station => EquipmentStore.GetEQAcceptAGVType(station.TagNumber));
                 AcceptAGVInfoOfEQTags.Where(x => x.Value != AGV_TYPE.Null).Select(x => x);
-
+                AcceptAGVInfoOfEQTags = AcceptAGVInfoOfEQTags.Where(x => x.Value != AGV_TYPE.Null).Select(x => x).ToDictionary(x => x.Key, x => x.Value);
+                if (AcceptAGVInfoOfEQTags.Count <= 0)
+                    continue;
+                int _transferToTag = -1;
                 IAGV toSourceAGV = VMSManager.GetAGVByName(orderData.DesignatedAGVName);
                 AGV_TYPE toSourceModel = toSourceAGV.model;
-                int _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == toSourceModel).Key;
-                AcceptAGVInfoOfEQTags.Remove(_transferToTag);
-                var toSourceModelTag = AcceptAGVInfoOfEQTags.Where(x => x.Value == toSourceModel).Select(x => x.Key).ToList();
-                // 移除跟來源車型一樣的Tag剩下的AcceptAGVInfoOfEQTags為跟來源車型不一樣或是Any
-                foreach (var item in toSourceModelTag)
+                _transferToTag = AcceptAGVInfoOfEQTags.FirstOrDefault(kp => kp.Value == AGV_TYPE.Any || kp.Value == toSourceModel).Key;
+                if (AcceptAGVInfoOfEQTags.Count == 1)    // 如果平對平只有一張tag
                 {
-                    AcceptAGVInfoOfEQTags.Remove(item);
-                }
-                if (orderData.TransferToDestineAGVName == "")
-                {
-                    list_TransferFromTag.AddRange(AcceptAGVInfoOfEQTags.Select(x => x.Key).ToList());
+                    list_TransferFromTag.Add(_transferToTag);
                 }
                 else
                 {
-                    IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
-                    AGV_TYPE toDestineModel = toDestineAGV.model;
-                    list_TransferFromTag.AddRange(AcceptAGVInfoOfEQTags.Where(x => x.Value == toDestineModel).Select(x => x.Key).ToList());
+                    var toSourceModelTag = AcceptAGVInfoOfEQTags.Where(x => x.Value == toSourceModel).Select(x => x.Key).ToList();
+                    // 移除跟來源車型一樣的Tag剩下的AcceptAGVInfoOfEQTags為跟來源車型不一樣或是Any
+                    foreach (var item in toSourceModelTag)
+                    {
+                        AcceptAGVInfoOfEQTags.Remove(item);
+                    }
+                    if (orderData.TransferToDestineAGVName == "")
+                    {
+                        list_TransferFromTag.AddRange(AcceptAGVInfoOfEQTags.Select(x => x.Key).ToList());
+                    }
+                    else
+                    {
+                        IAGV toDestineAGV = VMSManager.GetAGVByName(orderData.TransferToDestineAGVName);
+                        AGV_TYPE toDestineModel = toDestineAGV.model;
+                        list_TransferFromTag.AddRange(AcceptAGVInfoOfEQTags.Where(x => x.Value == toDestineModel).Select(x => x.Key).ToList());
+                    }
                 }
-                // 如果平對平只有一張tag
-                bool isTwoEntryPoints = TransferToMapPoint.Target.Keys.Count > 1;
-                if (isTwoEntryPoints)
-                    list_TransferFromTag.Add(_transferToTag);
-
                 dict.Add(_transferToTag, list_TransferFromTag);
-            }    
+            }
+            if (dict.Count <= 0)
+                dict = null;
             return dict;
         }
 
