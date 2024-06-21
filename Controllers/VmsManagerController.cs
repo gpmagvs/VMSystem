@@ -1,25 +1,13 @@
-﻿using AGVSystemCommonNet6.HttpTools;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
-using System.Diagnostics;
-using System.Text;
-using VMSystem.AGV;
-using VMSystem.VMS;
-using AGVSystemCommonNet6.AGVDispatch.Messages;
-using AGVSystemCommonNet6.Log;
-using static AGVSystemCommonNet6.Vehicle_Control.CarComponent;
-using static AGVSystemCommonNet6.clsEnums;
-using System.Xml.Linq;
-using System;
-using AGVSystemCommonNet6.AGVDispatch.Model;
-using AGVSystemCommonNet6;
+﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using static VMSystem.AGV.clsGPMInspectionAGV;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
+using AGVSystemCommonNet6.Alarm;
+using Microsoft.AspNetCore.Mvc;
+using VMSystem.AGV;
 using VMSystem.BackgroundServices;
 using VMSystem.Services;
-using AGVSystemCommonNet6.Alarm;
+using VMSystem.VMS;
+using static AGVSystemCommonNet6.clsEnums;
+using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.Controllers
 {

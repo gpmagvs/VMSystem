@@ -532,7 +532,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 await Task.Delay(1000);
             }
-
+            Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
             NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
             if (isWaitingAtParkableStation)
             {
@@ -579,7 +579,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
             await Task.Delay(200);
 
-            Agv.NavigationState.IsWaitingForEntryRegion = true;
             Agv.NavigationState.ResetNavigationPoints();
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
@@ -590,7 +589,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.taskDispatchModule.OrderHandler.RunningTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
                 await Task.Delay(200);
             }
-            Agv.NavigationState.IsWaitingForEntryRegion = false;
+            Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
 
             if (isWaitingAtParkableStation)
             {
@@ -735,7 +734,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             while (avoidAction == ACTION_TYPE.None && _cancelAvoidTimer.Elapsed.TotalSeconds < 2)
             {
                 await Task.Delay(1);
-                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_avoidToAgv.NavigationState.IsWaitingForEntryRegion)
+                if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_avoidToAgv.NavigationState.RegionControlState.IsWaitingForEntryRegion)
                 {
                     UpdateMoveStateMessage($"避車動作取消-因避讓車輛已有新路徑");
                     NotifyServiceHelper.INFO($"{Agv.Name}避車動作取消-因避讓車輛已有新路徑!");
@@ -750,7 +749,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //    await SpinAtCurrentPointProcess(_seq);
             //}
 
-            if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_avoidToAgv.NavigationState.IsWaitingForEntryRegion)
+            if (!_avoidToAgv.NavigationState.IsWaitingConflicSolve && !_avoidToAgv.NavigationState.RegionControlState.IsWaitingForEntryRegion)
             {
                 Agv.NavigationState.AvoidActionState.IsAvoidRaising = false;
                 return;

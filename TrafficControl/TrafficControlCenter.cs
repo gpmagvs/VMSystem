@@ -147,9 +147,16 @@ namespace VMSystem.TrafficControl
                 clsConflicDetectResultWrapper workstationLeaveAddictionCheckResult = enterWorkStationDetection.Detect();
                 _waitMessage += workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.OK ? "" : "\r\n" + workstationLeaveAddictionCheckResult.Message;
 
+
+                LeaveParkStationConflicDetection _LeaveParkDetector = new LeaveParkStationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
+                clsConflicDetectResultWrapper _parkResult = _LeaveParkDetector.Detect();
+                _waitMessage += _parkResult.Result == DETECTION_RESULT.OK ? "" : "\r\n" + _parkResult.Message;
+
+
                 var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool _isAllowLeaveByDeadLockDetection = _RaiseReqAGV.NavigationState.LeaveWorkStationHighPriority;
-                bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false : _result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG;
+                bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false :
+                                    (_result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG) || _parkResult.Result == DETECTION_RESULT.NG;
 
 
                 CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;

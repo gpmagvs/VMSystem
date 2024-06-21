@@ -115,7 +115,7 @@ namespace VMSystem.TrafficControl
         private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts, bool isUseForCalculate)
         {
             var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
-            if (IsWaitingForEntryRegion)
+            if (RegionControlState.IsWaitingForEntryRegion)
                 return new List<MapRectangle> { Vehicle.AGVRealTimeGeometery };
 
 
@@ -324,7 +324,7 @@ namespace VMSystem.TrafficControl
 
         public bool LeaveWorkStationHighPriority { get; internal set; }
         public bool IsConflicWithVehicleAtWorkStation { get; internal set; }
-        public bool IsWaitingForEntryRegion { get; internal set; }
+
 
         /// <summary>
         /// 當前衝突的區塊
@@ -414,7 +414,7 @@ namespace VMSystem.TrafficControl
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
-            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = IsWaitingForEntryRegion = false;
+            IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = RegionControlState.IsWaitingForEntryRegion = false;
             CancelSpinAtPointRequest();
             AvoidActionState.Reset();
 
@@ -473,5 +473,6 @@ namespace VMSystem.TrafficControl
     {
         public REGION_CONTROL_STATE State { get; set; } = REGION_CONTROL_STATE.NONE;
         public MapRegion NextToGoRegion { get; set; } = new();
+        public bool IsWaitingForEntryRegion { get; internal set; }
     }
 }

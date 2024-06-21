@@ -300,7 +300,7 @@ namespace VMSystem.Dispatch
                 region = currentRegion;
                 var waitingForEntryRegionVehicles = otherVehicles.Where(agv => agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name)
                                                                  .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == waitingVehicle.Name)
-                                                                 .Where(agv => (agv.NavigationState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point));
+                                                                 .Where(agv => (agv.NavigationState.RegionControlState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point));
                 vehicleWaitingEntry = null;
                 if (!waitingForEntryRegionVehicles.Any())
                     return false;

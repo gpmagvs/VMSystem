@@ -38,17 +38,6 @@ namespace VMSystem.TrafficControl.ConflicDetection
             if (entryPtRegion.Name.IsNullOrEmpty())
                 return false;
 
-            //// check if the region has a max vehicle capacity
-
-            //var inEntryPtRegionVehicles = OtherAGV.Select(agv => agv.currentMapPoint.GetRegion(StaMap.Map))
-            //                                      .Where(rg => rg.Name == entryPtRegion.Name);
-
-            //if(inEntryPtRegionVehicles.Count() < entryPtRegion.MaxVehicleCapacity)
-            //{
-            //    return false;
-            //}
-
-
             //conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
             var _OtherRunningAGV = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                                             .ToList();
@@ -62,10 +51,17 @@ namespace VMSystem.TrafficControl.ConflicDetection
             {
                 try
                 {
+                    clsRegionControlState regionControlState = agv.NavigationState.RegionControlState;
+                    if (regionControlState.IsWaitingForEntryRegion && regionControlState.NextToGoRegion.Name== entryPtRegion.Name)
+                    {
+                        return true;
+                    }
+
                     if (agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
                         return false;
-                    TaskBase currentTask= agv.CurrentRunningTask();
+                    TaskBase currentTask = agv.CurrentRunningTask();
                     MapPoint nextDestinePt = StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag);
+
                     var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(agv.currentMapPoint, nextDestinePt, null);
                     var regions = _optimizedPath.GetRegions().ToList();
                     if (!regions.Any(rg => rg.Name == entryPtRegion.Name))
@@ -81,7 +77,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 }
             }
 
-            return conflicAGVList.Any() && conflicAGVList.Count()+1 >= entryPtRegion.MaxVehicleCapacity;
+            return conflicAGVList.Any() && conflicAGVList.Count() + 1 >= entryPtRegion.MaxVehicleCapacity;
         }
 
     }
