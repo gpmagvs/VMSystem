@@ -187,7 +187,8 @@ namespace VMSystem.TrafficControl
             output.AddRange(Tools.GetPathRegionsWithRectangle(new List<MapPoint> { endPoint }, vLengthExpanded, vLengthExpanded));
 
             bool _isAvoidPath = Vehicle.CurrentRunningTask().Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.AvoidPath;
-            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath && !isAtWorkStation)
+            bool _isWaitingForEntryRegion = RegionControlState.IsWaitingForEntryRegion;
+            if (Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && !_isAvoidPath && !isAtWorkStation && !_isWaitingForEntryRegion)
             {
                 MapRectangle finalStopRectangle = IsCurrentGoToChargeAndNextStopPointInfrontOfChargeStation() ?
                                                      Tools.CreateRectangle(endPoint.X, endPoint.Y, endPoint.Direction, vWidth, vLength, endPoint.TagNumber, endPoint.TagNumber)
@@ -414,8 +415,10 @@ namespace VMSystem.TrafficControl
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
+            RegionControlState.IsWaitingForEntryRegion = false;
             IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = RegionControlState.IsWaitingForEntryRegion = false;
             CancelSpinAtPointRequest();
+            currentConflicToAGV = null;
             AvoidActionState.Reset();
 
         }

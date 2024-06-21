@@ -35,7 +35,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
         {
             conflicAGVList = new();
 
-            if (entryPtRegion.Name.IsNullOrEmpty())
+            if (entryPtRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN || entryPtRegion.Name.IsNullOrEmpty())
                 return false;
 
             //conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
@@ -52,13 +52,18 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 try
                 {
                     clsRegionControlState regionControlState = agv.NavigationState.RegionControlState;
-                    if (regionControlState.IsWaitingForEntryRegion && regionControlState.NextToGoRegion.Name== entryPtRegion.Name)
+                    if (regionControlState.IsWaitingForEntryRegion && regionControlState.NextToGoRegion.Name == entryPtRegion.Name)
                     {
                         return true;
                     }
 
                     if (agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal)
                         return false;
+
+
+                    if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN && agv.NavigationState.IsWaitingConflicSolve)
+                        return false;
+
                     TaskBase currentTask = agv.CurrentRunningTask();
                     MapPoint nextDestinePt = StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag);
 
@@ -69,6 +74,13 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
                     if (regions.Last().Name == entryPtRegion.Name)
                         return false;
+                    else
+                    {
+                        if(agv.NavigationState.NextNavigtionPoints.Last().GetRegion(StaMap.Map).Name!= entryPtRegion.Name)
+                            return false;
+                    }
+
+
                     return true;
                 }
                 catch (Exception ex)
