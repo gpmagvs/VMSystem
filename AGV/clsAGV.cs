@@ -30,7 +30,7 @@ namespace VMSystem.AGV
     public class clsAGV : IAGV
     {
         public NLog.Logger logger { get; set; }
-
+        public TaskExecuteHelper TaskExecuter { get; set; }
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
         public clsAGV()
         {
@@ -40,6 +40,7 @@ namespace VMSystem.AGV
         {
             this.options = options;
             Name = name;
+            TaskExecuter = new TaskExecuteHelper(this);
             logger = LogManager.GetLogger($"AGVLog/{name}");
             logger.Info($"AGV {name} Create. MODEL={model} ");
             NavigationState.logger = logger;

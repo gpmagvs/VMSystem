@@ -132,7 +132,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
-
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
@@ -233,19 +232,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public List<int> FuturePlanNavigationTags = new List<int>();
         internal async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
-            _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
-            {
-                ActionName = OrderData.Action,
-                NextAction = this.NextAction,
-                SourceTag = OrderData.Action == ACTION_TYPE.Carry ? OrderData.From_Station_Tag : OrderData.To_Station_Tag,
-                DestineTag = OrderData.To_Station_Tag,
-                DestineName = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag).Graph.Display,
-                SourceName = OrderData.Action == ACTION_TYPE.Carry ? StaMap.GetPointByTagNumber(OrderData.From_Station_Tag).Graph.Display : "",
-                IsTransferTask = OrderData.Action == ACTION_TYPE.Carry,
-                DestineSlot = int.Parse(OrderData.To_Slot),
-                SourceSlot = int.Parse(OrderData.From_Slot)
-            };
-
             if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
             {
                 TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
@@ -273,30 +259,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
             TrafficWaitingState.SetStatusNoWaiting();
-            LOG.TRACE($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
-            if (Agv.options.Simulation)
-            {
-                TaskDownloadRequestResponse taskStateResponse = Agv.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
-                return taskStateResponse;
-            }
-            else
-            {
-                try
-                {
-                    TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
-
-                    if (Agv.options.Protocol == PROTOCOL.RESTFulAPI)
-                        taskStateResponse = await Agv.AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _TaskDonwloadToAGV);
-                    else
-                        taskStateResponse = Agv.TcpClientHandler.SendTaskMessage(_TaskDonwloadToAGV);
-
-                    return taskStateResponse;
-                }
-                catch (Exception)
-                {
-                    return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL };
-                }
-            }
+            return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
         }
         protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
@@ -342,63 +305,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
         {
-
-            try
-            {
-                if (Agv == null)
-                {
-                    return new SimpleRequestResponse
-                    {
-                        ReturnCode = RETURN_CODE.OK
-                    };
-                }
-                if (Agv.options.Simulation)
-                {
-                    Agv.AgvSimulation?.CancelTask();
-                    return new SimpleRequestResponse
-                    {
-                        ReturnCode = RETURN_CODE.OK
-                    };
-                }
-
-                clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
-                {
-                    ResetMode = RESET_MODE.CYCLE_STOP,
-                    Task_Name = OrderData.TaskName,
-                    TimeStamp = DateTime.Now,
-                };
-                SimpleRequestResponse taskStateResponse;
-                if (Agv.options.Protocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
-                {
-                    taskStateResponse = await Agv.AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
-                }
-                else
-                {
-                    taskStateResponse = Agv.TcpClientHandler.SendTaskCancelMessage(reset_cmd);
-                }
-                LOG.WARN($"取消{Agv.Name}任務-AGV Response : Return Code :{taskStateResponse.ReturnCode},Message : {taskStateResponse.Message}");
-
-                if (taskStateResponse.ReturnCode == RETURN_CODE.OK)
-                {
-                    await Task.Delay(1000);
-                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                    {
-                        await Task.Delay(1000);
-                        if (IsTaskCanceled || disposedValue)
-                            break;
-                    }
-
-                }
-                return taskStateResponse;
-            }
-            catch (Exception ex)
-            {
-                return new SimpleRequestResponse
-                {
-                    ReturnCode = RETURN_CODE.System_Error
-                };
-
-            }
+            await Agv.TaskExecuter.TaskCycleStop(this.OrderData.TaskName);
+            return new SimpleRequestResponse();
         }
 
         internal void Replan(List<int> tags)

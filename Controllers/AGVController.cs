@@ -51,6 +51,7 @@ namespace VMSystem.Controllers
 
                 if (VMSManager.GetAGVByName(AGVName, out var agv))
                 {
+                    await agv.TaskExecuter.HandleVehicleTaskStatusFeedback(feedbackData);
                     int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
                     return Ok(new { ReturnCode = confirmed_code, Message = "" });
                 }

@@ -626,9 +626,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await Task.Delay(1000);
                     }
                 }
-
+                await CycleStopRequestAsync();
                 Agv.taskDispatchModule.OrderHandler.RunningTask = this;
-
                 IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _nextRegions);
                 return await RegionPathNavigation(_nextRegions);
             }
@@ -640,7 +639,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             finally
             {
                 Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
-                await CycleStopRequestAsync();
                 Agv.taskDispatchModule.OrderHandler.RunningTask = this;
             }
            
