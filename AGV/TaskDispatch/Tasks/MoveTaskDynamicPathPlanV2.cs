@@ -482,139 +482,168 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <returns></returns>
         private async Task<bool> RegionPathNavigation(List<MapRegion> regions)
         {
-            if (regions.Count < 2)
-                return false;
-
-            MapRegion? _Region = regions.Skip(1).FirstOrDefault(region => IsNeedToStayAtWaitPoint(region, out List<string> inRegionVehiclesNames));
-            if (_Region == null)
-                return false;
-
-            if (!IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehiclesNames))
-                return false;
-
-            TryGetWaitingPointSelectStregy(_Region, inRegionVehiclesNames, out SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy);
-
-            if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION)
+            try
             {
-                NotifyServiceHelper.INFO($"同區域-[{_Region.Name}] 衝突!!");
-                return false;
-            }
-
-            if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
-            {
-                //goto point in next region that closest to current location.
-                MapPoint neariestPointInRegion = _Region.GetNearestPointOfRegion(Agv);
-                MoveTaskDynamicPathPlanV2 _moveInToRegionTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
-                {
-                    Action = ACTION_TYPE.None,
-                    To_Station = neariestPointInRegion.TagNumber.ToString(),
-                    TaskName = OrderData.TaskName,
-                    DesignatedAGVName = Agv.Name,
-                })
-                { Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point };
-                NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!進入{neariestPointInRegion.TagNumber}");
-                await _moveInToRegionTask.SendTaskToAGV();
-                IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
-                return await RegionPathNavigation(nextRegions);
-            }
-
-            int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(_Region, WaitPointSelectStrategy);
-
-            bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
-
-            MapPoint waitingForEntryPoint = StaMap.GetPointByTagNumber(tagOfWaitingForEntryRegion);
-
-            bool isWaitingAtParkableStation = waitingForEntryPoint.StationType != MapPoint.STATION_TYPE.Normal;
-
-            await CycleStopRequestAsync();
-            await Task.Delay(1000);
-            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-            {
-                await Task.Delay(1000);
-            }
-            Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
-            NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
-            if (isWaitingAtParkableStation)
-            {
-                OrderHandlerFactory orderFactory = new OrderHandlerFactory();
-                var chargeOrderHandler = orderFactory.CreateHandler(new clsTaskDto()
-                {
-                    Action = ACTION_TYPE.Park,
-                    DesignatedAGVName = this.Agv.Name,
-                    TaskName = this.OrderData.TaskName,
-                    To_Station = waitingForEntryPoint.TagNumber + ""
-                });
-
-                while (chargeOrderHandler.SequenceTaskQueue.Count != 0)
-                {
-                    var task = chargeOrderHandler.SequenceTaskQueue.Dequeue();
-                    Agv.taskDispatchModule.OrderHandler.RunningTask = task;
-                    if (task.ActionType == ACTION_TYPE.None)
-                        await task.SendTaskToAGV();
-                    else
-                        await task.DistpatchToAGV();
-                }
-                await Task.Delay(1000);
-                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                {
-                    await Task.Delay(1000);
-                }
-            }
-            else
-            {
-                MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
-                {
-                    Action = ACTION_TYPE.None,
-                    To_Station = NoWaitingPointSetting ? finalMapPoint.TagNumber + "" : tagOfWaitingForEntryRegion + "",
-                    TaskName = OrderData.TaskName,
-                    DesignatedAGVName = Agv.Name,
-                })
-                {
-                    Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
-                };
-                Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
-                await _moveToRegionWaitPointsTask.SendTaskToAGV();
-            }
-
-            Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
-            await Task.Delay(200);
-
-            Agv.NavigationState.ResetNavigationPoints();
-            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-            while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
-            {
-                if (Agv.CurrentRunningTask().IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                if (regions.Count < 2)
                     return false;
 
-                Agv.taskDispatchModule.OrderHandler.RunningTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
-                await Task.Delay(200);
-            }
-            Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
+                MapRegion? _Region = regions.Skip(1).FirstOrDefault(region => IsNeedToStayAtWaitPoint(region, out List<string> inRegionVehiclesNames));
+                if (_Region == null)
+                    return false;
 
-            if (isWaitingAtParkableStation)
-            {
-                MapPoint entryPtOfChargeStation = Agv.currentMapPoint.TargetNormalPoints().First();
-                DischargeTask dischargeTask = new DischargeTask(Agv, new clsTaskDto
+                if (!IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehiclesNames))
+                    return false;
+
+                TryGetWaitingPointSelectStregy(_Region, inRegionVehiclesNames, out SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy);
+
+                if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION)
                 {
-                    Action = ACTION_TYPE.Discharge,
-                    DesignatedAGVName = this.Agv.Name,
-                    TaskName = this.OrderData.TaskName,
-                    To_Station = entryPtOfChargeStation.TagNumber + ""
-                });
+                    NotifyServiceHelper.INFO($"同區域-[{_Region.Name}] 衝突!!");
+                    return false;
+                }
 
-                Agv.taskDispatchModule.OrderHandler.RunningTask = dischargeTask;
-                await dischargeTask.DistpatchToAGV();
+                if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
+                {
+                    //goto point in next region that closest to current location.
+                    MapPoint neariestPointInRegion = _Region.GetNearestPointOfRegion(Agv);
+                    MoveTaskDynamicPathPlanV2 _moveInToRegionTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                    {
+                        Action = ACTION_TYPE.None,
+                        To_Station = neariestPointInRegion.TagNumber.ToString(),
+                        TaskName = OrderData.TaskName,
+                        DesignatedAGVName = Agv.Name,
+                    })
+                    { Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point };
+                    NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!進入{neariestPointInRegion.TagNumber}");
+                    await _moveInToRegionTask.SendTaskToAGV();
+                    IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
+                    return await RegionPathNavigation(nextRegions);
+                }
+
+                int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(_Region, WaitPointSelectStrategy);
+
+                bool NoWaitingPointSetting = tagOfWaitingForEntryRegion == null || tagOfWaitingForEntryRegion == 0;
+
+                MapPoint waitingForEntryPoint = StaMap.GetPointByTagNumber(tagOfWaitingForEntryRegion);
+
+                bool isWaitingAtParkableStation = waitingForEntryPoint.StationType != MapPoint.STATION_TYPE.Normal;
+
+                await CycleStopRequestAsync();
                 await Task.Delay(1000);
                 while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                 {
                     await Task.Delay(1000);
                 }
+                Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
+                NotifyServiceHelper.INFO($"[{Agv.Name}] 即將前往 [{_Region.Name}] 等待點 ({WaitPointSelectStrategy})");
+                if (isWaitingAtParkableStation)
+                {
+                    OrderHandlerFactory orderFactory = new OrderHandlerFactory();
+                    var chargeOrderHandler = orderFactory.CreateHandler(new clsTaskDto()
+                    {
+                        Action = ACTION_TYPE.Park,
+                        DesignatedAGVName = this.Agv.Name,
+                        TaskName = this.OrderData.TaskName,
+                        To_Station = waitingForEntryPoint.TagNumber + ""
+                    });
+
+                    while (chargeOrderHandler.SequenceTaskQueue.Count != 0)
+                    {
+                        var task = chargeOrderHandler.SequenceTaskQueue.Dequeue();
+                        Agv.taskDispatchModule.OrderHandler.RunningTask = task;
+                        if (task.ActionType == ACTION_TYPE.None)
+                            await task.SendTaskToAGV();
+                        else
+                            await task.DistpatchToAGV();
+                    }
+                    await Task.Delay(1000);
+                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                    {
+                        await Task.Delay(1000);
+                    }
+                }
+                else
+                {
+                    MoveTaskDynamicPathPlanV2 _moveToRegionWaitPointsTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                    {
+                        Action = ACTION_TYPE.None,
+                        To_Station = NoWaitingPointSetting ? finalMapPoint.TagNumber + "" : tagOfWaitingForEntryRegion + "",
+                        TaskName = OrderData.TaskName,
+                        DesignatedAGVName = Agv.Name,
+                    })
+                    {
+                        Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point
+                    };
+                    Agv.taskDispatchModule.OrderHandler.RunningTask = _moveToRegionWaitPointsTask;
+                    await _moveToRegionWaitPointsTask.SendTaskToAGV();
+                }
+
+                Agv.NavigationState.RegionControlState.NextToGoRegion = _Region;
+                await Task.Delay(200);
+
+                Agv.NavigationState.ResetNavigationPoints();
+                Agv.NavigationState.ResetNavigationPointsOfPathCalculation();
+
+                await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+
+                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+                while (IsNeedToStayAtWaitPoint(_Region, out List<string> inRegionVehicles))
+                {
+                    if (Agv.CurrentRunningTask().IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                        return false;
+
+                    var conflicToVehicles= OtherAGV.Where(agv => agv.NavigationState.currentConflicToAGV?.Name == Agv.Name);
+
+                    if (conflicToVehicles.Any())
+                    {
+                        
+                        NotifyServiceHelper.WARNING($"{Agv.Name}等待進入通行區{_Region.Name}的過程中阻擋其他車輛({conflicToVehicles.GetNames()})");
+                        IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
+                        return false;
+                    }
+
+                    Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
+                    Agv.taskDispatchModule.OrderHandler.RunningTask.UpdateMoveStateMessage($"等待 {string.Join(",", inRegionVehicles)} 離開 {_Region.Name}..");
+                    await Task.Delay(200);
+                }
+
+                if (isWaitingAtParkableStation)
+                {
+                    MapPoint entryPtOfChargeStation = Agv.currentMapPoint.TargetNormalPoints().First();
+                    DischargeTask dischargeTask = new DischargeTask(Agv, new clsTaskDto
+                    {
+                        Action = ACTION_TYPE.Discharge,
+                        DesignatedAGVName = this.Agv.Name,
+                        TaskName = this.OrderData.TaskName,
+                        To_Station = entryPtOfChargeStation.TagNumber + ""
+                    });
+
+                    Agv.taskDispatchModule.OrderHandler.RunningTask = dischargeTask;
+                    await dischargeTask.DistpatchToAGV();
+                    await Task.Delay(1000);
+                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                    {
+                        await Task.Delay(1000);
+                    }
+                }
+
+                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+
+                IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _nextRegions);
+                return await RegionPathNavigation(_nextRegions);
             }
+            catch (Exception ex)
+            {
 
-            Agv.taskDispatchModule.OrderHandler.RunningTask = this;
-
-            IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _nextRegions);
-            return await RegionPathNavigation(_nextRegions);
+                throw;
+            }
+            finally
+            {
+                Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
+                await CycleStopRequestAsync();
+                Agv.taskDispatchModule.OrderHandler.RunningTask = this;
+            }
+           
             #region local methods
 
             bool IsNeedToStayAtWaitPoint(MapRegion region, out List<string> inRegionVehicles)
