@@ -39,6 +39,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public Logger logger;
 
+        public TaskBase parentTaskBase { get; set; } = null;
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -300,6 +302,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IsTaskCanceled = true;
             this.Dispose();
             await SendCancelRequestToAGV();
+
+            parentTaskBase._TaskCancelTokenSource.Cancel();
+            parentTaskBase.IsTaskCanceled = true;
             TrafficWaitingState.SetStatusNoWaiting();
         }
 
