@@ -185,8 +185,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
-                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
-                        Agv.NavigationState.IsWaitingConflicSolve = false;
+                       
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
@@ -200,6 +199,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
                         _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
 
+
+                        Agv.NavigationState.IsWaitingConflicSolve = false;
+                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
 
                         if (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
                         {
@@ -504,20 +506,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
                 {
-                    //goto point in next region that closest to current location.
-                    MapPoint neariestPointInRegion = _Region.GetNearestPointOfRegion(Agv);
-                    MoveTaskDynamicPathPlanV2 _moveInToRegionTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
-                    {
-                        Action = ACTION_TYPE.None,
-                        To_Station = neariestPointInRegion.TagNumber.ToString(),
-                        TaskName = OrderData.TaskName,
-                        DesignatedAGVName = Agv.Name,
-                    })
-                    { Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point };
-                    NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!進入{neariestPointInRegion.TagNumber}");
-                    await _moveInToRegionTask.SendTaskToAGV();
-                    IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
-                    return await RegionPathNavigation(nextRegions);
+                    ////goto point in next region that closest to current location.
+                    //MapPoint neariestPointInRegion = _Region.GetNearestPointOfRegion(Agv);
+                    //MoveTaskDynamicPathPlanV2 _moveInToRegionTask = new MoveTaskDynamicPathPlanV2(Agv, new clsTaskDto
+                    //{
+                    //    Action = ACTION_TYPE.None,
+                    //    To_Station = neariestPointInRegion.TagNumber.ToString(),
+                    //    TaskName = OrderData.TaskName,
+                    //    DesignatedAGVName = Agv.Name,
+                    //})  { 
+                    //    Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point 
+                    //};
+                    NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!");
+                    return true;
+                    //await _moveInToRegionTask.SendTaskToAGV();
+                    //IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
+                    //return await RegionPathNavigation(nextRegions);
                 }
 
                 int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(_Region, WaitPointSelectStrategy);
@@ -592,11 +596,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     if (Agv.CurrentRunningTask().IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                         return false;
 
-                    var conflicToVehicles= OtherAGV.Where(agv => agv.NavigationState.currentConflicToAGV?.Name == Agv.Name);
+                    var conflicToVehicles = OtherAGV.Where(agv => agv.NavigationState.currentConflicToAGV?.Name == Agv.Name);
 
                     if (conflicToVehicles.Any())
                     {
-                        
+
                         NotifyServiceHelper.WARNING($"{Agv.Name}等待進入通行區{_Region.Name}的過程中阻擋其他車輛({conflicToVehicles.GetNames()})");
                         IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
                         return false;
@@ -641,7 +645,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
                 Agv.taskDispatchModule.OrderHandler.RunningTask = this;
             }
-           
+
             #region local methods
 
             bool IsNeedToStayAtWaitPoint(MapRegion region, out List<string> inRegionVehicles)
@@ -871,7 +875,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (_avoidToAgv.CurrentRunningTask().IsTaskCanceled)
                     throw new TaskCanceledException();
                 //if (sw.Elapsed.TotalSeconds > 5 && (_avoidToAgv.NavigationState.IsWaitingForEntryRegion || _avoidToAgv.NavigationState.IsWaitingConflicSolve || _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
-                if (sw.Elapsed.TotalSeconds > 5 || ( _avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
+                if (sw.Elapsed.TotalSeconds > 5 || (_avoidToAgv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING))
                     break;
                 trafficAvoidTask.UpdateMoveStateMessage($"Wait {_avoidToAgv.Name} Start Go..{sw.Elapsed.ToString()}");
                 await Task.Delay(1000);

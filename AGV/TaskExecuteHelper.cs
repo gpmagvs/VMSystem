@@ -27,7 +27,7 @@ namespace VMSystem.AGV
         /// <summary>
         /// 最後一次下發給車輛的任務模型
         /// </summary>
-        public clsTaskDownloadData lastTaskDonwloadToAGV { get; private set; } = new clsTaskDownloadData();
+        public clsTaskDownloadData lastTaskDonwloadToAGV { get; private set; } = null;
 
         private HttpHelper VehicleHttp => Vehicle.AGVHttp;
         private AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL CommunicationProtocol => Vehicle.options.Protocol;
@@ -56,8 +56,6 @@ namespace VMSystem.AGV
             try
             {
                 await TaskExecuteSemaphoreSlim.WaitAsync();
-                WaitACTIONFinishReportedMRE.WaitOne();
-
                 if (_TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None && lastTaskDonwloadToAGV != null)
                 {
                     //check 是否非完整任務會造成空車派車生成路徑錯誤
@@ -180,7 +178,6 @@ namespace VMSystem.AGV
         {
             try
             {
-                await TaskExecuteSemaphoreSlim.WaitAsync();
                 if (lastTaskDonwloadToAGV == null)
                     return;
                 NotifyServiceHelper.WARNING($"{Vehicle.Name} Cycle Stop! ");
@@ -220,7 +217,6 @@ namespace VMSystem.AGV
                     else
                     {
                         logger.Info("Vehicle Action_Finish Reported!");
-                        lastTaskDonwloadToAGV = null;
                     }
                 }
             }
@@ -230,25 +226,32 @@ namespace VMSystem.AGV
             }
             finally
             {
-                TaskExecuteSemaphoreSlim.Release();
+                lastTaskDonwloadToAGV = null;
             }
         }
 
         internal async Task HandleVehicleTaskStatusFeedback(FeedbackData feedbackData)
         {
-            logger.Info($"Vehicle Task Status Feedback: {feedbackData.ToJson()}");
-            TASK_RUN_STATUS taskStatus = feedbackData.TaskStatus;
-            string taskName = feedbackData.TaskName;
-            if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
+            try
             {
-                await Task.Delay(1);
-                WaitACTIONFinishReportedMRE.Set();
-
-                if (lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.Destination == Vehicle.states.Last_Visited_Node)
+                logger.Info($"Vehicle Task Status Feedback: {feedbackData.ToJson()}");
+                TASK_RUN_STATUS taskStatus = feedbackData.TaskStatus;
+                string taskName = feedbackData.TaskName;
+                if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                 {
-                    lastTaskDonwloadToAGV = null;
-                }
+                    await Task.Delay(1);
+                    WaitACTIONFinishReportedMRE.Set();
 
+                    if (lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.Destination == Vehicle.states.Last_Visited_Node)
+                    {
+                        lastTaskDonwloadToAGV = null;
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
             }
         }
     }

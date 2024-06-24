@@ -67,7 +67,16 @@ namespace VMSystem.TrafficControl.ConflicDetection
                     TaskBase currentTask = agv.CurrentRunningTask();
                     MapPoint nextDestinePt = StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag);
 
-                    var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(agv.currentMapPoint, nextDestinePt, null);
+                    bool isAgvLDULDRunning = agv.CurrentRunningTask().ActionType != AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None && agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
+                    IEnumerable<MapPoint> _optimizedPath = new List<MapPoint>();
+                    if (isAgvLDULDRunning)
+                    {
+                        _optimizedPath = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory
+                                                                                   .Reverse()
+                                                                                   .Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID));
+                    }
+                    else
+                        _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(agv.currentMapPoint, nextDestinePt, null);
                     var regions = _optimizedPath.GetRegions().ToList();
                     if (!regions.Any(rg => rg.Name == entryPtRegion.Name))
                         return false;
@@ -76,7 +85,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                         return false;
                     else
                     {
-                        if(agv.NavigationState.NextNavigtionPoints.Last().GetRegion(StaMap.Map).Name!= entryPtRegion.Name)
+                        if (agv.NavigationState.NextNavigtionPoints.Last().GetRegion(StaMap.Map).Name != entryPtRegion.Name)
                             return false;
                     }
 

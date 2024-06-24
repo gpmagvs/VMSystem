@@ -32,10 +32,31 @@ namespace VMSystem.TrafficControl.ConflicDetection
         {
             conflicAGVList = new();
             MapRectangle RectangleOfDetectPoint = GetRectangleOfDetectPoint();
+
             conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
                                      .ToList();
+            var LdUldActingVehicles = OtherAGV.Where(agv => agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN && agv.CurrentRunningTask().ActionType != AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None && agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING);
 
+            //設備進入點
+            if (LdUldActingVehicles.Any())
+            {
+                IEnumerable<IAGV> conflicAtEntrys = LdUldActingVehicles.ToDictionary(agv => agv, agv => agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory.First().Point_ID)
+                                    .ToDictionary(kp => kp.Key, kp => _GetEntryPointCircleArea(kp.Key, kp.Value))
+                                    .Where(kp => kp.Value.IsIntersectionTo(RectangleOfDetectPoint))
+                                    .Select(kp => kp.Key);
+                if (LdUldActingVehicles.Any())
+                {
+                    conflicAGVList.AddRange(conflicAtEntrys);
+                }
+            }
+
+            conflicAGVList = conflicAGVList.DistinctBy(agv => agv.Name).ToList();
             return conflicAGVList.Any();
+        }
+
+        private MapCircleArea _GetEntryPointCircleArea(IAGV agv, int tag)
+        {
+            return StaMap.GetPointByTagNumber(tag).GetCircleArea(ref agv, 1);
         }
     }
 }
