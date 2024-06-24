@@ -636,7 +636,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await Task.Delay(1000);
                     }
                 }
-                await CycleStopRequestAsync();
                 Agv.taskDispatchModule.OrderHandler.RunningTask = this;
                 IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> _nextRegions);
                 return await RegionPathNavigation(_nextRegions);
