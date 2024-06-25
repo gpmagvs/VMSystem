@@ -88,7 +88,6 @@ namespace VMSystem.BackgroundServices
                             TaskRunAction = agv.taskDispatchModule.OrderHandler.OrderData.Action,
                             CurrentAction = agv.taskDispatchModule.OrderHandler.RunningTask.ActionType,
                             TransferProcess = agv.taskDispatchModule.OrderHandler.RunningTask.Stage,
-                            TaskETA = agv.taskDispatchModule.TaskStatusTracker.NextDestineETA,
                             IsCharging = agv.states.IsCharging,
                             IsExecutingOrder = agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING,
                             VehicleWidth = agv.options.VehicleWidth,

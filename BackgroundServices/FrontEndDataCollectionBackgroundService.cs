@@ -64,7 +64,6 @@ namespace VMSystem.BackgroundServices
                 {
                     if (agv.currentMapPoint == null)
                         return new { };
-                    var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
                     var OrderHandler = agv.taskDispatchModule.OrderHandler;
                     List<int> navingTagList = GetNavigationTag(agv);
                     bool isOrderExecuting = agv.taskDispatchModule.OrderExecuteState == AGV.clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
@@ -91,10 +90,8 @@ namespace VMSystem.BackgroundServices
                         states = new
                         {
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,
-                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING || taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
                             main_status = agv.main_state
                         },
-                        currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
                     };
 
                     List<int> GetNavigationTag(AGV.IAGV agv)

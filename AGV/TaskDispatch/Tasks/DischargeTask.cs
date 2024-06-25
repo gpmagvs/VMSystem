@@ -40,6 +40,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Agv = this.Agv,
                     GoalTag = TaskDonwloadToAGV.Destination
                 });
+
+
+                MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
+                UpdateMoveStateMessage($"退出-[{stationPt.Graph.Display}]...");
+
+
                 StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
                 await base.SendTaskToAGV();
             }
@@ -48,6 +54,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 throw ex;
             }
+        }
+
+        public override async void UpdateMoveStateMessage(string msg)
+        {
+            await Task.Delay(1000);
+            base.UpdateMoveStateMessage(msg);
         }
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {

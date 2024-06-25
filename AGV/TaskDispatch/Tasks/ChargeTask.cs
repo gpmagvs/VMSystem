@@ -34,8 +34,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override Task SendTaskToAGV()
         {
+
+            MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
+            UpdateMoveStateMessage($"進入充電站-[{stationPt.Graph.Display}]...");
+
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             return base.SendTaskToAGV();
+        }
+        public override async void UpdateMoveStateMessage(string msg)
+        {
+            await Task.Delay(1000);
+            base.UpdateMoveStateMessage(msg);
         }
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {

@@ -11,5 +11,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public ParkTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }
+
+        public override Task SendTaskToAGV()
+        {
+            MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
+            UpdateMoveStateMessage($"進入 [{stationPt.Graph.Display}] 停車");
+
+            return base.SendTaskToAGV();
+        }
     }
 }
