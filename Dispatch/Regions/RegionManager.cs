@@ -24,7 +24,7 @@ namespace VMSystem.Dispatch.Regions
             {
                 _region.ReserveRegionVehicles.Remove(vehicle.Name);
             }
-            var regionToGo = finalMapPoint.GetRegion(StaMap.Map);
+            var regionToGo = finalMapPoint.GetRegion();
             regionToGo.ReserveRegionVehicles.Add(vehicle.Name);
         }
 
@@ -35,29 +35,29 @@ namespace VMSystem.Dispatch.Regions
             var agvPreviousRegions = GetRegions().Where(region => region.InRegionVehicles.Contains(vehicle.Name));
             foreach (var _region in agvPreviousRegions)
                 _region.InRegionVehicles.Remove(vehicle.Name);
-            vehicle.currentMapPoint.GetRegion(StaMap.Map).InRegionVehicles.Add(vehicle.Name);
+            vehicle.currentMapPoint.GetRegion().InRegionVehicles.Add(vehicle.Name);
         }
 
         internal static bool TryGetRegionMaxCapcity(MapPoint goalPoint, out int MaxVehicleCapacity)
         {
-            MaxVehicleCapacity = goalPoint.GetRegion(StaMap.Map).MaxVehicleCapacity;
+            MaxVehicleCapacity = goalPoint.GetRegion().MaxVehicleCapacity;
             return MaxVehicleCapacity != -1;
         }
 
         internal static bool TryGetRegionEntryPoints(MapPoint goalPoint, out IEnumerable<MapPoint> entryPoints)
         {
-            entryPoints = goalPoint.GetRegion(StaMap.Map).EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag));
+            entryPoints = goalPoint.GetRegion().EnteryTags.Select(tag => StaMap.GetPointByTagNumber(tag));
             return entryPoints.Any();
         }
 
         internal static bool TryGetRegionLeavePoints(MapPoint goalPoint, out IEnumerable<MapPoint> leavePoints)
         {
-            leavePoints = goalPoint.GetRegion(StaMap.Map).LeavingTags.Select(tag => StaMap.GetPointByTagNumber(tag));
+            leavePoints = goalPoint.GetRegion().LeavingTags.Select(tag => StaMap.GetPointByTagNumber(tag));
             return leavePoints.Any();
         }
         internal static IEnumerable<MapPoint> GetRegionEntryPoints(MapPoint goalPoint)
         {
-            return GetRegionEntryPoints(goalPoint.GetRegion(StaMap.Map));
+            return GetRegionEntryPoints(goalPoint.GetRegion());
         }
         internal static IEnumerable<MapPoint> GetRegionEntryPoints(MapRegion nextRegion)
         {
@@ -79,8 +79,8 @@ namespace VMSystem.Dispatch.Regions
             {
                 //搜尋其他會通過會停在該區域的車輛
                 List<IAGV> goToRegionVehicles = otherVehicles.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                             .Where(agv => _IsTraving(agv.CurrentRunningTask()))
-                                                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion(StaMap.Map).Name == regionQuery.Name))
+                                                             .Where(agv => _IsTraving(agv.CurrentRunningTask()) || _IsInThisRegion(agv))
+                                                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == regionQuery.Name))
                                                              .ToList();
                 //如果該區域已經有車輛在該區域，且該區域已經達到最大容量
                 if (goToRegionVehicles.Any() && goToRegionVehicles.Count() >= _Region.MaxVehicleCapacity)
@@ -94,7 +94,7 @@ namespace VMSystem.Dispatch.Regions
             {
                 LOG.ERROR(ex.Message, ex);
             }
-            inRegionVehicles = otherVehicles.Where(agv => agv.currentMapPoint.GetRegion(StaMap.Map).Name == regionQuery.Name)
+            inRegionVehicles = otherVehicles.Where(agv => agv.currentMapPoint.GetRegion().Name == regionQuery.Name)
                                                                                  .Select(agv => agv.Name).ToList();
 
             var currentWillEntryRegionVehicleNames = _Region.ReserveRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name);
@@ -108,6 +108,11 @@ namespace VMSystem.Dispatch.Regions
                     taskBase.Stage == VehicleMovementStage.Traveling_To_Destine ||
                     taskBase.Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point;
             }
+
+            bool _IsInThisRegion(IAGV agv)
+            {
+                return agv.currentMapPoint.GetRegion().Name == _Region.Name;
+            }
         }
 
     }
@@ -116,7 +121,7 @@ namespace VMSystem.Dispatch.Regions
     {
         public static IEnumerable<MapRegion> GetRegions(this IEnumerable<MapPoint> path)
         {
-            return path.Select(pt => pt.GetRegion(StaMap.Map))
+            return path.Select(pt => pt.GetRegion())
                 .DistinctBy(reg => reg.Name);
         }
     }

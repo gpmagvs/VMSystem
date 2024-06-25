@@ -93,7 +93,7 @@ namespace VMSystem.AGV
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
-                    var region = currentMapPoint.GetRegion(StaMap.Map);
+                    var region = currentMapPoint.GetRegion();
                 }
 
                 if (value.Odometry != _states.Odometry)

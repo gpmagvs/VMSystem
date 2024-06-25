@@ -116,12 +116,12 @@ namespace VMSystem.TrafficControl
 
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
-            await _leaveWorkStaitonReqSemaphore.WaitAsync();
             IAGV _RaiseReqAGV = args.Agv;
             Task _CycleStopTaskOfOtherVehicle = null;
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
             try
             {
+                //await _leaveWorkStaitonReqSemaphore.WaitAsync();
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
 
@@ -227,7 +227,7 @@ namespace VMSystem.TrafficControl
             }
             finally
             {
-                _leaveWorkStaitonReqSemaphore.Release();
+                //_leaveWorkStaitonReqSemaphore.Release();
             }
 
             #region region method

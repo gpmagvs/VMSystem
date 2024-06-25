@@ -9,7 +9,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 {
     public class LeaveParkStationConflicDetection : LeaveWorkstationConflicDetection
     {
-        MapRegion entryPtRegion => DetectPoint.GetRegion(StaMap.Map);
+        MapRegion entryPtRegion => DetectPoint.GetRegion();
         public LeaveParkStationConflicDetection(MapPoint DetectPoint, double ThetaOfPridiction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPridiction, AGVToDetect)
         {
         }
@@ -85,7 +85,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                         return false;
                     else
                     {
-                        if (agv.NavigationState.NextNavigtionPoints.Last().GetRegion(StaMap.Map).Name != entryPtRegion.Name)
+                        if (agv.NavigationState.NextNavigtionPoints.Last().GetRegion().Name != entryPtRegion.Name)
                             return false;
                     }
 

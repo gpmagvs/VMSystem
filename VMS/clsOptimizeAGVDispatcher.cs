@@ -66,8 +66,8 @@ namespace VMSystem.VMS
                         _taskDto.DesignatedAGVName = AGV.Name;
                         TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
 
-                        if (AGV != null)
-                            await MCSCIMService.TaskReporter((_taskDto, 1));
+                        //if (AGV != null)
+                        //    await MCSCIMService.TaskReporter((_taskDto, 1));
                     }
                 }
                 catch (Exception ex)

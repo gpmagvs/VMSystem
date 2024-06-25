@@ -467,7 +467,7 @@ namespace VMSystem.AGV
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
-            await MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
+             MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 

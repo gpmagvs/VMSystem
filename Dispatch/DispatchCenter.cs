@@ -33,7 +33,6 @@ namespace VMSystem.Dispatch
             }
         }
         public static DeadLockMonitor TrafficDeadLockMonitor = new DeadLockMonitor();
-        public static List<IAGV> DispatingVehicles = new List<IAGV>();
 
         public static void Initialize()
         {
@@ -47,8 +46,6 @@ namespace VMSystem.Dispatch
             try
             {
                 await semaphore.WaitAsync();
-                if (!DispatingVehicles.Contains(vehicle))
-                    DispatingVehicles.Add(vehicle);
                 MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
                 var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
                 return path = path == null ? path : path.Clone();
@@ -83,8 +80,8 @@ namespace VMSystem.Dispatch
 
             Dictionary<MapPoint, bool> wayStates = optimizePath_Init.ToDictionary(pt => pt, pt => pt.IsSingleWay());
             IEnumerable<MapPoint> optimizePathFound = null;
-            MapRegion vehicleCurrentRegion = vehicle.currentMapPoint.GetRegion(CurrentMap);
-            MapRegion finalPointRegion = finalMapPoint.GetRegion(CurrentMap);
+            MapRegion vehicleCurrentRegion = vehicle.currentMapPoint.GetRegion();
+            MapRegion finalPointRegion = finalMapPoint.GetRegion();
 
             var outPtOfSingleWay = optimizePath_Init.GetOutPointOfPathWithSingleWay();
 
@@ -130,7 +127,7 @@ namespace VMSystem.Dispatch
                         if (pathLength > 2)
                         {
 
-                            Dictionary<MapPoint, MapRegion> stopablePointsAndRegion = _noConflicPathToDestine.Skip(1).Where(pt=>!pt.IsVirtualPoint)
+                            Dictionary<MapPoint, MapRegion> stopablePointsAndRegion = _noConflicPathToDestine.Skip(1).Where(pt => !pt.IsVirtualPoint)
                                                                                                              .ToDictionary(pt => pt, pt => pt.GetRegion(StaMap.Map));
                             IEnumerable<string> regionNames = stopablePointsAndRegion.Values.Select(region => region.Name).Distinct();
 
@@ -160,8 +157,8 @@ namespace VMSystem.Dispatch
 
                         if (pathCandicates.Count() > 2)
                         {
-                                path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
-                            }
+                            path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
+                        }
                         else
                             path = subGoalResults.First(path => path != null).ToList();
                     }
@@ -423,11 +420,6 @@ namespace VMSystem.Dispatch
                 return await WorkStationPartsReplacingControl(VehicleToEntry, path);
                 //return path;
             }
-        }
-
-        public static void CancelDispatchRequest(IAGV vehicle)
-        {
-            DispatingVehicles.Remove(vehicle);
         }
 
         internal static void AddWorkStationInPartsReplacing(int workstationTag)

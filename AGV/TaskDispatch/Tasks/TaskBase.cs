@@ -49,7 +49,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
-            logger = LogManager.GetLogger(this.GetType().Name);
+            logger = LogManager.GetLogger("TaskDispatch");
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
@@ -303,8 +303,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.Dispose();
             await SendCancelRequestToAGV();
 
-            parentTaskBase._TaskCancelTokenSource.Cancel();
-            parentTaskBase.IsTaskCanceled = true;
             TrafficWaitingState.SetStatusNoWaiting();
         }
 

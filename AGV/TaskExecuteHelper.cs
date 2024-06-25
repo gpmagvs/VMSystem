@@ -34,7 +34,7 @@ namespace VMSystem.AGV
 
         private Logger logger;
 
-        private ManualResetEvent WaitACTIONFinishReportedMRE = new ManualResetEvent(false);
+        internal ManualResetEvent WaitACTIONFinishReportedMRE = new ManualResetEvent(false);
 
         private SemaphoreSlim TaskExecuteSemaphoreSlim = new SemaphoreSlim(1, 1);
 
@@ -151,7 +151,7 @@ namespace VMSystem.AGV
 
         }
 
-        internal async Task EmergencyStop(string TaskName="")
+        internal async Task EmergencyStop(string TaskName = "")
         {
             clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
             {

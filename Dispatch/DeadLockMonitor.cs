@@ -158,8 +158,8 @@ namespace VMSystem.Dispatch
             var toAvoidVehicle = await lowPriorityWork.StartSolve();
             if (toAvoidVehicle == null)
             {
-                lowPriorityWork = new clsLowPriorityVehicleMove(highPriorityVehicle,lowPriorityVehicle);
-                toAvoidVehicle=await lowPriorityWork.StartSolve();
+                lowPriorityWork = new clsLowPriorityVehicleMove(highPriorityVehicle, lowPriorityVehicle);
+                toAvoidVehicle = await lowPriorityWork.StartSolve();
             }
             await Task.Delay(200);
             return toAvoidVehicle;
@@ -241,9 +241,9 @@ namespace VMSystem.Dispatch
                 return null;
 
             //找到所有可停車
-            var currentRegion = agvToPark.currentMapPoint.GetRegion(StaMap.Map);
+            var currentRegion = agvToPark.currentMapPoint.GetRegion();
             //在該區域所有的主幹道點位
-            var normalPointsInThisRegion = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion(StaMap.Map).Name == currentRegion.Name);
+            var normalPointsInThisRegion = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion().Name == currentRegion.Name);
             //找到所有可停車的點位(Key = Entry Point , Value= Stations)
             var parkables = normalPointsInThisRegion.ToDictionary(pt => pt, pt => pt.TargetParkableStationPoints(ref agvToPark));
             if (parkables.Any(pair => pair.Value.Any()))
@@ -296,17 +296,23 @@ namespace VMSystem.Dispatch
             // 是否與其他車輛互相等待進入區域
             bool _IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion region)
             {
-                MapRegion currentRegion = waitingVehicle.currentMapPoint.GetRegion(StaMap.Map);
+                MapRegion currentRegion = waitingVehicle.currentMapPoint.GetRegion();
                 region = currentRegion;
                 var waitingForEntryRegionVehicles = otherVehicles.Where(agv => agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name)
                                                                  .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == waitingVehicle.Name)
                                                                  .Where(agv => (agv.NavigationState.RegionControlState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point));
                 vehicleWaitingEntry = null;
+
                 if (!waitingForEntryRegionVehicles.Any())
                     return false;
-                //Agv.NavigationState.RegionControlState.NextToGoRegion 
-                vehicleWaitingEntry = waitingForEntryRegionVehicles.FirstOrDefault();
-                return vehicleWaitingEntry != null;
+
+                MapPoint nextGoalPt = StaMap.GetPointByTagNumber(waitingVehicle.CurrentRunningTask().DestineTag);
+                IEnumerable<MapPoint> pathToGoal = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(waitingVehicle.currentMapPoint, nextGoalPt, null);
+                IEnumerable<MapPoint> outOfRegionPoints = pathToGoal.Skip(1).Where(pt => pt.GetRegion().Name != currentRegion.Name);
+                IEnumerable<MapRegion> otherVehicleCurrentRegions = waitingForEntryRegionVehicles.Select(agv => agv.currentMapPoint.GetRegion());
+
+                return outOfRegionPoints.Any(pt => otherVehicleCurrentRegions.Any(reg => reg.Name == pt.GetRegion().Name));
+
             }
 
             bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)

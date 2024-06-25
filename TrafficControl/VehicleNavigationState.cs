@@ -54,7 +54,7 @@ namespace VMSystem.TrafficControl
                 if (_CurrentMapPoint == value)
                     return;
                 _CurrentMapPoint = value;
-                CurrentRegion = CurrentMapPoint.GetRegion(CurrentMap);
+                CurrentRegion = CurrentMapPoint.GetRegion();
                 var currentPtInNavitaion = NextNavigtionPoints.FirstOrDefault(pt => pt.TagNumber == value.TagNumber);
                 if (currentPtInNavitaion != null)
                 {
@@ -126,7 +126,7 @@ namespace VMSystem.TrafficControl
                          Vehicle.AGVCurrentPointGeometery
                     };
 
-            bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion(CurrentMap).IsNarrowPath);
+            bool containNarrowPath = _nexNavPts.Any(pt => pt.GetRegion().IsNarrowPath);
             bool isCalculateForAvoidPath = isUseForCalculate && _nexNavPts.Last().TagNumber == AvoidActionState.AvoidPt?.TagNumber;
             bool isAtWorkStation = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
             //double _GeometryExpandRatio = IsCurrentPointIsLeavePointOfChargeStation() || isCalculateForAvoidPath || isAtWorkStation ? 1.0 : 1.45;

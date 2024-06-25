@@ -34,21 +34,20 @@ namespace VMSystem.BackgroundServices
                             OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                             VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
                         };
+                        if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
+                        {
+                            data = null;
+                            continue;
+                        }
+                        _previousData = data;
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(3000);
+                        await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine(ex.Message);
                     }
-
-                    // use json string to compare the data is changed or not
-                    if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
-                    {
-                        data = null;
-                        continue;
-                    }
-                    _previousData = data;
-                    await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
-
                 }
             });
         }
@@ -72,11 +71,12 @@ namespace VMSystem.BackgroundServices
                     return new
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
-                        currentCoordication = new {
-                            X = Math.Round(agv.states.Coordination.X,1),
+                        currentCoordication = new
+                        {
+                            X = Math.Round(agv.states.Coordination.X, 1),
                             Y = Math.Round(agv.states.Coordination.Y, 1),
                             Theta = Math.Round(agv.states.Coordination.Theta, 1)
-                        } ,
+                        },
                         vehicleWidth = agv.options.VehicleWidth,
                         vehicleLength = agv.options.VehicleLength,
                         cargo_status = new
@@ -86,7 +86,7 @@ namespace VMSystem.BackgroundServices
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
                         nav_path = isOrderExecuting ? navingTagList : OrderHandler.RunningTask.FuturePlanNavigationTags,
-                        theta = Math.Round(agv.states.Coordination.Theta,1),
+                        theta = Math.Round(agv.states.Coordination.Theta, 1),
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
                         {
