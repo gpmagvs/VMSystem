@@ -7,13 +7,14 @@ using System.Data;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
+    public class MoveToDestineTask : NavigateToGoalTask
     {
         public MoveToDestineTask() : base()
         { }
 
         public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        { }
+        {
+        }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
