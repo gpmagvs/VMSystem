@@ -83,7 +83,7 @@ namespace VMSystem.Dispatch.YieldActions
                                                                          .ToList();
 
                     // Find Avoid Point In Low Priority Vehicle current Region   from canStopPointCandicates
-                    MapRegion regionOfLPV = _LowProrityVehicle.currentMapPoint.GetRegion(StaMap.Map);
+                    MapRegion regionOfLPV = _LowProrityVehicle.currentMapPoint.GetRegion();
 
                     List<MapPoint> avaliableAvoidPoints = canStopPointCandicates.Where(pt => pt.IsAvoid && IsPointReachable(pt)).ToList();
 
@@ -120,15 +120,15 @@ namespace VMSystem.Dispatch.YieldActions
 
 
 
-                        MapRegion currentRegionOfLPV = lpv.currentMapPoint.GetRegion(StaMap.Map);
-                        MapRegion currentRegionOfHPV = hpv.currentMapPoint.GetRegion(StaMap.Map);
+                        MapRegion currentRegionOfLPV = lpv.currentMapPoint.GetRegion();
+                        MapRegion currentRegionOfHPV = hpv.currentMapPoint.GetRegion();
                         if (!currentRegionOfLPV.Name.IsNullOrEmpty() && currentRegionOfLPV.MaxVehicleCapacity < 2)
                         {
                             pathToStopPoint = pathes.FirstOrDefault(path => _isStopPointNotInLPVAndHPVCurrentRegion(path.Last()));
 
                             bool _isStopPointNotInLPVAndHPVCurrentRegion(MapPoint _stopPointCandicate)
                             {
-                                MapRegion regionOfStopPoint = _stopPointCandicate.GetRegion(StaMap.Map);
+                                MapRegion regionOfStopPoint = _stopPointCandicate.GetRegion();
                                 return regionOfStopPoint.Name != currentRegionOfLPV.Name && regionOfStopPoint.Name != currentRegionOfHPV.Name;
                             }
                         }

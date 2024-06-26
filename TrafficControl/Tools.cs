@@ -194,8 +194,8 @@ namespace VMSystem.TrafficControl
                 var startPt = pathPoints[i];
                 var endPt = pathPoints[i + 1];
 
-                var startPtRegion = startPt.GetRegion(StaMap.Map);
-                var endPtRegion = startPt.GetRegion(StaMap.Map);
+                var startPtRegion = startPt.GetRegion();
+                var endPtRegion = startPt.GetRegion();
 
                 bool isNarrow = startPtRegion.IsNarrowPath || endPtRegion.IsNarrowPath;
 
@@ -290,7 +290,7 @@ namespace VMSystem.TrafficControl
 
         public static MapRectangle CreateAGVRectangle(IAGV AGV)
         {
-            bool isInNarrowRegion = AGV.currentMapPoint.GetRegion(StaMap.Map).IsNarrowPath;
+            bool isInNarrowRegion = AGV.currentMapPoint.GetRegion().IsNarrowPath;
             var angleDegrees = (float)AGV.states.Coordination.Theta;
 
             bool isInWorkStation = AGV.currentMapPoint.StationType != STATION_TYPE.Normal;

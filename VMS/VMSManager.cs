@@ -96,7 +96,7 @@ namespace VMSystem.VMS
             VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             OptimizeAGVDisaptchModule.Run();
             TaskDatabaseChangeWorker();
-            //TaskAssignToAGVWorker();
+            TaskAssignToAGVWorker();
         }
 
         private static async Task MaintainSettingInitialize()
@@ -460,33 +460,6 @@ namespace VMSystem.VMS
             return CheckStationTypeMatch(action, FromStationTag, ToStationTag);
             //Check Action and Final Station Information
 
-        }
-
-        /// <summary>
-        /// 找充電站,需符合以下條件:
-        ///1. 沒有AGV佔據該充電站以及其二次定位點
-        ///2. 充電站的狀態是IDLE(TODO)
-        ///3. 沒有AGV準備要過去充電
-        /// </summary>
-        /// <param name="station"></param>
-        /// <returns></returns>
-        private static bool ChargeableMatch(MapPoint station)
-        {
-            if (!station.IsChargeAble())
-                return false;
-
-            ///1
-            if (AllAGV.Any(agv => agv.states.Last_Visited_Node == station.TagNumber))
-                return false;
-            List<int> tagNumberOfStationSecondary = station.Target.Keys.Select(key => key).ToList(); //充電點的二次定位點tags
-            ///1
-            if (AllAGV.Any(agv => tagNumberOfStationSecondary.Contains(agv.states.Last_Visited_Node)))
-                return false;
-            ///3
-            if (RunningAGVList.Any(agv => agv.taskDispatchModule.TaskStatusTracker.TaskOrder?.To_Station == station.TagNumber + ""))
-                return false;
-
-            return true;
         }
 
         private static bool CheckStationTypeMatch(ACTION_TYPE action, int FromStationTag, int ToStationTag)

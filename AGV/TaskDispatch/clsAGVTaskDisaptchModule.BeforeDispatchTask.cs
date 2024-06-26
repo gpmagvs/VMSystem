@@ -107,8 +107,9 @@ namespace VMSystem.AGV
             List<Task<(MapPoint, double)>> _tasks = new();
             foreach (var station in workstations)
             {
-                _tasks.Add(Task.Run(() =>
+                _tasks.Add(Task.Run(async () =>
                 {
+                    await Task.Delay(10);
                     PathFinder _pathFinder = new PathFinder();
                     double distance = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, station).total_travel_distance;
                     return (station, distance);
@@ -137,8 +138,8 @@ namespace VMSystem.AGV
                         return (ptCandicate, pathInfo);
                     }));
                 }
-                (MapPoint,clsPathInfo)[] pathFindResults = await Task.WhenAll(_findPathTasks);
-                if(pathFindResults.All(par=>par.Item2==null))
+                (MapPoint, clsPathInfo)[] pathFindResults = await Task.WhenAll(_findPathTasks);
+                if (pathFindResults.All(par => par.Item2 == null))
                     return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
                 else
                 {

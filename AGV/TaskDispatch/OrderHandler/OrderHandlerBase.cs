@@ -50,107 +50,112 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public virtual async Task StartOrder(IAGV Agv)
         {
-            this.Agv = Agv;
-            _SetOrderAsRunningState();
-            try
+            _ = Task.Run(async () =>
             {
-                while (SequenceTaskQueue.Count > 0)
-                {
-                    await Task.Delay(200);
-                    Agv.NavigationState.StateReset();
-                    _CurrnetTaskFinishResetEvent.Reset();
-                    var task = SequenceTaskQueue.Dequeue();
 
-                    task.TaskName = OrderData.TaskName;
-                    task.TaskSequence = CompleteTaskStack.Count + 1;
-                    RunningTask = task;
-                    task.OnTaskDownloadToAGVButAGVRejected += (_alarm) =>
+                this.Agv = Agv;
+                _SetOrderAsRunningState();
+                try
+                {
+                    while (SequenceTaskQueue.Count > 0)
                     {
-                        AbortOrder(_alarm);
-                    };
-                    var dispatch_result = await task.DistpatchToAGV();
-                    logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
-                    if (!dispatch_result.confirmed)
-                    {
-                        if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
+                        await Task.Delay(200);
+                        Agv.NavigationState.StateReset();
+                        _CurrnetTaskFinishResetEvent.Reset();
+                        var task = SequenceTaskQueue.Dequeue();
+
+                        task.TaskName = OrderData.TaskName;
+                        task.TaskSequence = CompleteTaskStack.Count + 1;
+                        RunningTask = task;
+                        task.OnTaskDownloadToAGVButAGVRejected += (_alarm) =>
                         {
-                            TaskCancelledFlag = true;
-                            bool isTaskFail = await DetermineTaskState();
-                            if (isTaskFail)
+                            AbortOrder(_alarm);
+                        };
+                        var dispatch_result = await task.DistpatchToAGV();
+                        logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
+                        if (!dispatch_result.confirmed)
+                        {
+                            if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
                             {
+                                TaskCancelledFlag = true;
+                                bool isTaskFail = await DetermineTaskState();
+                                if (isTaskFail)
+                                {
+                                    return;
+                                }
                                 return;
                             }
+                            AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
+                            throw new Exception(dispatch_result.alarm_code.ToString());
+                        }
+
+                        _CurrnetTaskFinishResetEvent.WaitOne();
+                        task.Dispose();
+                        task.ActionFinishInvoke();
+
+
+                        logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
+
+                        bool _isTaskFail = await DetermineTaskState();
+                        if (_isTaskFail)
+                        {
                             return;
                         }
-                        AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
-                        throw new Exception(dispatch_result.alarm_code.ToString());
+                        CompleteTaskStack.Push(task);
+
+
                     }
 
-                    _CurrnetTaskFinishResetEvent.WaitOne();
-                    task.Dispose();
-                    task.ActionFinishInvoke();
-
-
-                    logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
-
-                    bool _isTaskFail = await DetermineTaskState();
-                    if (_isTaskFail)
+                    _SetOrderAsFinishState();
+                    if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
                     {
-                        return;
+                        Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
+                        LoadingAtTransferStationTaskFinishInvoke();
                     }
-                    CompleteTaskStack.Push(task);
-
-
                 }
-
-                _SetOrderAsFinishState();
-                if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
+                catch (Exception ex)
                 {
-                    Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
-                    LoadingAtTransferStationTaskFinishInvoke();
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex);
-                _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
-                ActionsWhenOrderCancle();
-                RunningTask.Dispose();
-                return;
-            }
-            finally
-            {
-                //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
-            }
-
-            async Task<bool> DetermineTaskState()
-            {
-                bool isTaskFail = false;
-                while (Agv.main_state == MAIN_STATUS.RUN)
-                {
-                    await Task.Delay(100);
-                }
-                isTaskFail = false;
-                bool isAGVStatusDown = Agv.main_state == MAIN_STATUS.DOWN;
-                if (TaskAbortedFlag || isAGVStatusDown)
-                {
-                    TaskCancelledFlag = false;
-                    logger.Warn($"Task Aborted!.{TaskCancelReason}");
-                    _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? ALARMS.Task_Aborted : ALARMS.AGV_STATUS_DOWN);
+                    logger.Error(ex);
+                    _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
                     ActionsWhenOrderCancle();
-                    isTaskFail = true;
-                    await AbortOrder(Agv.states.Alarm_Code);
+                    RunningTask.Dispose();
+                    return;
+                }
+                finally
+                {
+                    //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
+                }
+
+                async Task<bool> DetermineTaskState()
+                {
+                    bool isTaskFail = false;
+                    while (Agv.main_state == MAIN_STATUS.RUN)
+                    {
+                        await Task.Delay(100);
+                    }
+                    isTaskFail = false;
+                    bool isAGVStatusDown = Agv.main_state == MAIN_STATUS.DOWN;
+                    if (TaskAbortedFlag || isAGVStatusDown)
+                    {
+                        TaskCancelledFlag = false;
+                        logger.Warn($"Task Aborted!.{TaskCancelReason}");
+                        _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? ALARMS.Task_Aborted : ALARMS.AGV_STATUS_DOWN);
+                        ActionsWhenOrderCancle();
+                        isTaskFail = true;
+                        await AbortOrder(Agv.states.Alarm_Code);
+                        return isTaskFail;
+                    }
+                    if (TaskCancelledFlag)
+                    {
+                        logger.Warn($"Task canceled.{TaskCancelReason}");
+                        _SetOrderAsCancelState(TaskCancelReason);
+                        ActionsWhenOrderCancle();
+                        isTaskFail = true;
+                    }
                     return isTaskFail;
                 }
-                if (TaskCancelledFlag)
-                {
-                    logger.Warn($"Task canceled.{TaskCancelReason}");
-                    _SetOrderAsCancelState(TaskCancelReason);
-                    ActionsWhenOrderCancle();
-                    isTaskFail = true;
-                }
-                return isTaskFail;
-            }
+
+            });
         }
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
 
@@ -301,7 +306,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
-            await MCSCIMService.TaskReporter((OrderData, 7));
+             MCSCIMService.TaskReporter((OrderData, 7));
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.WARNING, taskName: OrderData.TaskName);
         }
 

@@ -39,6 +39,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public Logger logger;
 
+        public TaskBase parentTaskBase { get; set; } = null;
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -47,7 +49,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
-            logger = LogManager.GetLogger(this.GetType().Name);
+            logger = LogManager.GetLogger("TaskDispatch");
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
@@ -300,6 +302,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IsTaskCanceled = true;
             this.Dispose();
             await SendCancelRequestToAGV();
+
             TrafficWaitingState.SetStatusNoWaiting();
         }
 

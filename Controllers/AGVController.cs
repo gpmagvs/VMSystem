@@ -13,6 +13,8 @@ using AGVSystemCommonNet6.DATABASE;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using static VMSystem.AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg;
+using VMSystem.AGV.TaskDispatch.Tasks;
 
 namespace VMSystem.Controllers
 {
@@ -198,36 +200,43 @@ namespace VMSystem.Controllers
         [HttpPost("LeaveWorkStationRequest")]
         public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
         {
-
-            var EQPoint = StaMap.GetPointByTagNumber(EQTag);
-            var EntryPointOfEQ = StaMap.GetPointByIndex(EQPoint.Target.Keys.First());
-
-
-
-            var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg()
-            {
-                Agv = VMSManager.GetAGVByName(AGVName),
-                GoalTag = EntryPointOfEQ.TagNumber,
-            });
-            var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
-            trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
-            bool allowLeve = response.ActionConfirm == AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-            if (!allowLeve)
+            try
             {
 
-                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
+                IAGV agv = VMSManager.GetAGVByName(AGVName);
+
+                var entryTag = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory.First().Point_ID;
+                var EntryPointOfEQ = StaMap.GetPointByTagNumber(entryTag);
+
+                var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg()
+                {
+                    Agv = agv,
+                    GoalTag = EntryPointOfEQ.TagNumber,
+                });
+
+                var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
+                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
+                bool allowLeve = response.ActionConfirm ==LEAVE_WORKSTATION_ACTION.OK;
+                if (!allowLeve)
+                {
+                    trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
+                }
+                else
+                {
+                    trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
+                    await Task.Delay(200);
+                    trafficState.SetStatusNoWaiting();
+
+                }
+                return Ok(new
+                {
+                    confirm = allowLeve,
+                });
             }
-            else
+            catch (Exception ex)
             {
-                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
-                await Task.Delay(200);
-                trafficState.SetStatusNoWaiting();
-
+                throw ex;
             }
-            return Ok(new
-            {
-                confirm = allowLeve,
-            });
         }
 
     }

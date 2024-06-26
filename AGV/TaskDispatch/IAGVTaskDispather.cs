@@ -18,7 +18,6 @@ namespace VMSystem.AGV.TaskDispatch
         }
         Task Run();
         List<clsTaskDto> taskList { get; }
-        MapPoint[] CurrentTrajectory { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
         Task<string> CancelTask(bool unRegistPoints = true);
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
@@ -27,9 +26,7 @@ namespace VMSystem.AGV.TaskDispatch
         void AGVNotWaitingYouNotify(IAGV agv);
 
         AGV_ORDERABLE_STATUS OrderExecuteState { get; set; }
-        public clsAGVTaskTrack TaskStatusTracker { get; set; }
         public OrderHandlerBase OrderHandler { get; set; }
-        public clsAGVTaskTrack LastNormalTaskPauseByAvoid { get; set; }
         string ExecutingTaskName { get; set; }
 
         Dictionary<int, List<MapPoint>> Dict_PathNearPoint { get; set; }

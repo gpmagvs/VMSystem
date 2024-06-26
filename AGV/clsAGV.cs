@@ -93,7 +93,7 @@ namespace VMSystem.AGV
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
-                    var region = currentMapPoint.GetRegion(StaMap.Map);
+                    var region = currentMapPoint.GetRegion();
                 }
 
                 if (value.Odometry != _states.Odometry)
@@ -116,11 +116,6 @@ namespace VMSystem.AGV
         public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
         public IAGVTaskDispather taskDispatchModule { get; set; } = new clsAGVTaskDisaptchModule();
         public clsAGVOptions options { get; set; }
-
-        /// <summary>
-        /// 當前任務規劃移動軌跡
-        /// </summary>
-        public MapPoint[] CurrentTrajectory => taskDispatchModule.CurrentTrajectory;
 
         private bool _pingSuccess = true;
         public bool pingSuccess
@@ -412,25 +407,6 @@ namespace VMSystem.AGV
             StopRegionHelper = new StopRegionHelper(Name);
             RestoreStatesFromDatabase();
             CreateTaskDispatchModuleInstance();
-            //_ = Task.Run(async () =>
-            //{
-            //    await Task.Delay(10);
-            //    //AutoParkWorker();
-            //    AliveCheck();
-            //    Console.WriteLine($"[{Name}] Alive Check Process Start");
-            //    PingCheck();
-            //    Console.WriteLine($"[{Name}] Ping Process Start");
-
-            //    if (options.Simulation)
-            //    {
-            //        AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)taskDispatchModule);
-            //        AgvSimulation.StartSimulation();
-            //        Console.WriteLine($"[{Name}] Simulation Start");
-            //    }
-
-            //});
-
-            //AutoParkWorker();
             AliveCheck();
             Console.WriteLine($"[{Name}] Alive Check Process Start");
             PingCheck();
@@ -761,7 +737,6 @@ namespace VMSystem.AGV
                 Source = source,
 
             };
-            alarmSave.Task_Name = taskDispatchModule.TaskStatusTracker.OrderTaskName;
             AlarmManagerCenter.AddAlarmAsync(alarmSave);
             return alarmSave.Description_Zh;
         }

@@ -285,16 +285,6 @@ namespace VMSystem.AGV
                 return _tasks;
             }
         }
-        public MapPoint[] CurrentTrajectory
-        {
-            get
-            {
-                if (TaskStatusTracker.SubTaskTracking == null)
-                    return new MapPoint[0];
-                return TaskStatusTracker.SubTaskTracking.EntirePathPlan.ToArray();
-            }
-        }
-
 
         public List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
 
@@ -309,15 +299,6 @@ namespace VMSystem.AGV
         {
             this.agv = agv;
             logger = agv.logger;
-            if (agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
-                TaskStatusTracker = new clsAGVTaskTrakInspectionAGV();
-            else
-            {
-                TaskStatusTracker = new clsAGVTaskTrack(this);
-                //TaskStatusTracker.AgvSimulation = new clsAGVSimulation(this);
-            }
-
-            TaskStatusTracker.AGV = agv;
         }
 
 
@@ -338,12 +319,6 @@ namespace VMSystem.AGV
 
                 if (agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                     return AGV_ORDERABLE_STATUS.AGV_OFFLINE;
-
-                if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
-                {
-                    if (this.TaskStatusTracker.WaitingForResume && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Completed && this.TaskStatusTracker.transferProcess != VehicleMovementStage.Not_Start_Yet)
-                        return AGV_ORDERABLE_STATUS.EXECUTING_RESUME;
-                }
                 if (!taskList.Any(tk => tk.DesignatedAGVName == agv.Name && tk.State == TASK_RUN_STATUS.WAIT || tk.State == TASK_RUN_STATUS.NAVIGATING))
                     return AGV_ORDERABLE_STATUS.NO_ORDER;
                 if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
@@ -384,14 +359,12 @@ namespace VMSystem.AGV
                                 {
                                     _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
                                     _ExecutingTask.FinishTime = DateTime.Now;
-                                    TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
                                     await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS);
                                     continue;
                                 }
 
                                 agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                                 _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
-                                TaskStatusTracker.RaiseTaskDtoChange(this, _ExecutingTask);
                                 //await ExecuteTaskAsync(_ExecutingTask);
                                 OrderHandlerFactory factory = new OrderHandlerFactory();
                                 OrderHandler = factory.CreateHandler(_ExecutingTask);
@@ -422,15 +395,6 @@ namespace VMSystem.AGV
                                 OrderHandler.RunningTask.UpdateStateDisplayMessage("OFFLINE");
                                 break;
                             case AGV_ORDERABLE_STATUS.EXECUTING_RESUME:
-                                using (var database = new AGVSDatabase())
-                                {
-                                    var _lastPauseTask = database.tables.Tasks.Where(f => f.DesignatedAGVName == agv.Name && f.TaskName == TaskStatusTracker.OrderTaskName).FirstOrDefault();
-                                    if (_lastPauseTask != null)
-                                    {
-                                        await ExecuteTaskAsync(_lastPauseTask);
-
-                                    }
-                                }
                                 break;
                             default:
                                 break;
@@ -440,20 +404,17 @@ namespace VMSystem.AGV
                     catch (NoPathForNavigatorException ex)
                     {
                         ExecutingTaskName = "";
-                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.NO_PATH_FOR_NAVIGATION);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
                     }
                     catch (IlleagalTaskDispatchException ex)
                     {
                         logger.Error(ex);
                         ExecutingTaskName = "";
-                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_DATA_ILLEAGAL);
                     }
                     catch (Exception ex)
                     {
                         logger.Error(ex);
                         ExecutingTaskName = "";
-                        TaskStatusTracker.AbortOrder(TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, ALARMS.SYSTEM_ERROR, ex.Message);
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.TRAFFIC_ABORT);
                     }
                     finally
@@ -467,7 +428,7 @@ namespace VMSystem.AGV
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
-            await MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
+             MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
@@ -535,50 +496,9 @@ namespace VMSystem.AGV
             });
         }
 
-        public clsAGVTaskTrack TaskStatusTracker { get; set; } = new clsAGVTaskTrack();
         public string ExecutingTaskName { get; set; } = "";
 
-        public clsAGVTaskTrack LastNormalTaskPauseByAvoid { get; set; } = new clsAGVTaskTrack();
-
-        private async Task ExecuteTaskAsync(clsTaskDto executingTask)
-        {
-
-            bool IsResumeTransferTask = false;
-            VehicleMovementStage lastTransferProcess = default;
-            if (SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN)
-            {
-                IsResumeTransferTask = (executingTask.TaskName == TaskStatusTracker.OrderTaskName) && (this.TaskStatusTracker.transferProcess == VehicleMovementStage.Traveling_To_Destine || this.TaskStatusTracker.transferProcess == VehicleMovementStage.Traveling_To_Source);
-                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
-            }
-            if (LastNormalTaskPauseByAvoid != null && LastNormalTaskPauseByAvoid.OrderTaskName == executingTask.TaskName)
-            {
-                IsResumeTransferTask = (executingTask.TaskName == LastNormalTaskPauseByAvoid.OrderTaskName) && (this.LastNormalTaskPauseByAvoid.transferProcess == VehicleMovementStage.Traveling_To_Destine || this.LastNormalTaskPauseByAvoid.transferProcess == VehicleMovementStage.Traveling_To_Source);
-                lastTransferProcess = LastNormalTaskPauseByAvoid.transferProcess;
-            }
-
-            try
-            {
-                TaskStatusTracker.OnTaskOrderStatusQuery -= TaskTrackerQueryOrderStatusCallback;
-            }
-            catch (Exception)
-            {
-            }
-            TaskStatusTracker?.Dispose();
-            if (agv.model != clsEnums.AGV_TYPE.INSPECTION_AGV && executingTask.Action == ACTION_TYPE.Measure)
-                TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
-            else
-            {
-                if (agv.model == clsEnums.AGV_TYPE.INSPECTION_AGV)
-                    TaskStatusTracker = new clsAGVTaskTrakInspectionAGV() { AGV = agv };
-                else
-                    TaskStatusTracker = new clsAGVTaskTrack(this) { AGV = agv };
-            }
-
-            ExecutingTaskName = executingTask.TaskName;
-            TaskStatusTracker.OnTaskOrderStatusQuery += TaskTrackerQueryOrderStatusCallback;
-            await TaskStatusTracker.Start(agv, executingTask, IsResumeTransferTask, lastTransferProcess);
-        }
-
+        
         private TASK_RUN_STATUS TaskTrackerQueryOrderStatusCallback(string taskName)
         {
             var _taskEntity = taskList.FirstOrDefault(task => task.TaskName == taskName);

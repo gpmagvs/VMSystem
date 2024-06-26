@@ -28,6 +28,16 @@ namespace VMSystem
             float width = (float)(refAGv.options.VehicleWidth / 100.0 * sizeRatio);
             return new MapCircleArea(length, width, new System.Drawing.PointF((float)point.X, (float)point.Y));
         }
+
+        /// <summary>
+        /// 取得點位所在的區域
+        /// </summary>
+        /// <param name="pt"></param>
+        /// <returns></returns>
+        public static MapRegion GetRegion(this MapPoint pt)
+        {
+            return pt.GetRegion(StaMap.Map);
+        }
     }
     public class StaMap
     {
@@ -525,7 +535,7 @@ namespace VMSystem
 
         internal static List<MapPoint> GetNoStopPointsByAGVModel(clsEnums.AGV_TYPE model)
         {
-            List<int> tags=  GetNoStopTagsByAGVModel(model);
+            List<int> tags = GetNoStopTagsByAGVModel(model);
             return tags.Select(tag => GetPointByTagNumber(tag)).ToList();
         }
         internal static List<int> GetNoStopTagsByAGVModel(clsEnums.AGV_TYPE model)

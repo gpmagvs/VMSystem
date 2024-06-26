@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
 using VMSystem.Dispatch.Equipment;
@@ -58,16 +59,18 @@ namespace VMSystem.VMS
                             List_TaskAGV.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
                         }
 
-                        IAGV AGV = GetOptimizeAGVToExecuteTask(_taskDto, List_TaskAGV);
+                        IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, List_TaskAGV);
                         if (AGV == null)
                             continue;
 
                         agv = AGV;
                         _taskDto.DesignatedAGVName = AGV.Name;
-                        TaskStatusTracker.RaiseTaskDtoChange(this, _taskDto);
-
-                        if (AGV != null)
-                            await MCSCIMService.TaskReporter((_taskDto, 1));
+                        using (AGVSDatabase db = new AGVSDatabase())
+                        {
+                            db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName).DesignatedAGVName = AGV.Name;
+                            await db.SaveChanges();
+                        }
+                        //    await MCSCIMService.TaskReporter((_taskDto, 1));
                     }
                 }
                 catch (Exception ex)
@@ -85,7 +88,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="taskDto"></param>
         /// <returns></returns>
-        private IAGV GetOptimizeAGVToExecuteTask(clsTaskDto taskDto, List<string> List_ExceptAGV)
+        private async Task<IAGV> GetOptimizeAGVToExecuteTaskAsync(clsTaskDto taskDto, List<string> List_ExceptAGV)
         {
             MapPoint goalStation = null;
             MapPoint FromStation = null;
@@ -134,35 +137,62 @@ namespace VMSystem.VMS
             try
             {
                 List<object> temp = new List<object>();
-                foreach (var agv in VMSManager.AllAGV)
+
+                IEnumerable<IAGV> agvCandicators = VMSManager.AllAGV.Where(agv => (EQAcceptEQType == AGV_TYPE.Any || agv.model == EQAcceptEQType) && agv.online_state == ONLINE_STATE.ONLINE && !agv.IsSolvingTrafficInterLock);
+
+                ConcurrentDictionary<IAGV, double> agvDistance = new ConcurrentDictionary<IAGV, double>();
+
+                List<Task> calculateDistanceTasks = new List<Task>();
+                foreach (var _agv in agvCandicators)
                 {
-                    if (EQAcceptEQType != AGV_TYPE.Any && EQAcceptEQType != agv.model)
-                        continue;
-                    clsEnums.ONLINE_STATE online_state = agv.online_state;
-                    if (online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                        continue;
-                    bool b_IsSolvingTrafficInterLock = agv.IsSolvingTrafficInterLock;
-                    if (b_IsSolvingTrafficInterLock == true)
-                        continue;
-                    double distance = double.MaxValue;
-                    try
+                    calculateDistanceTasks.Add(Task.Run(() =>
                     {
-                        distance = Tools.ElevateDistanceToGoalStation(goalStation, goalSlotHeight, agv);
-                    }
-                    catch (Exception e)
-                    {
-                        continue;
-                    }
-                    if (distance == double.MaxValue)
-                        continue;
-                    object[] obj = new object[2];
-                    obj[0] = agv;
-                    obj[1] = distance;
-                    temp.Add(obj);
+                        double distance = double.MaxValue;
+                        try
+                        {
+                            distance = Tools.ElevateDistanceToGoalStation(goalStation, goalSlotHeight, _agv);
+                        }
+                        catch (Exception e)
+                        {
+                            distance = double.MaxValue;
+                        }
+                        agvDistance.TryAdd(_agv, distance);
+                    }));
                 }
-                agvSortedByDistance.Clear();
-                agvSortedByDistance.AddRange(temp.OrderBy(o => (double)(((object[])o)[1])).Select(x => (IAGV)(((object[])x)[0])));
-                agvSortedByDistance.OrderByDescending(agv => agv.online_state);
+                await Task.WhenAll(calculateDistanceTasks.ToArray());
+                agvSortedByDistance=agvDistance.OrderByDescending(agv => agv.Key.online_state)
+                                               .Select(kp=>kp.Key)
+                                               .ToList();
+
+                //foreach (var agv in VMSManager.AllAGV)
+                //{
+                //    if (EQAcceptEQType != AGV_TYPE.Any && EQAcceptEQType != agv.model)
+                //        continue;
+                //    clsEnums.ONLINE_STATE online_state = agv.online_state;
+                //    if (online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                //        continue;
+                //    bool b_IsSolvingTrafficInterLock = agv.IsSolvingTrafficInterLock;
+                //    if (b_IsSolvingTrafficInterLock == true)
+                //        continue;
+                //    double distance = double.MaxValue;
+                //    try
+                //    {
+                //        distance = Tools.ElevateDistanceToGoalStation(goalStation, goalSlotHeight, agv);
+                //    }
+                //    catch (Exception e)
+                //    {
+                //        continue;
+                //    }
+                //    if (distance == double.MaxValue)
+                //        continue;
+                //    object[] obj = new object[2];
+                //    obj[0] = agv;
+                //    obj[1] = distance;
+                //    temp.Add(obj);
+                //}
+                //agvSortedByDistance.Clear();
+                //agvSortedByDistance.AddRange(temp.OrderBy(o => (double)(((object[])o)[1])).Select(x => (IAGV)(((object[])x)[0])));
+                //agvSortedByDistance.OrderByDescending(agv => agv.online_state);
             }
             catch (Exception ex)
             {

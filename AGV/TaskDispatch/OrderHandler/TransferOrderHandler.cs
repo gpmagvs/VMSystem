@@ -30,7 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
-            await MCSCIMService.TaskReporter((OrderData, 3));
+             MCSCIMService.TaskReporter((OrderData, 3));
 
             if (OrderData.need_change_agv)
             {

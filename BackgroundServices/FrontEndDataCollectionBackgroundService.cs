@@ -34,21 +34,20 @@ namespace VMSystem.BackgroundServices
                             OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                             VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
                         };
+                        if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
+                        {
+                            data = null;
+                            continue;
+                        }
+                        _previousData = data;
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(3000);
+                        await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine(ex.Message);
                     }
-
-                    // use json string to compare the data is changed or not
-                    if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
-                    {
-                        data = null;
-                        continue;
-                    }
-                    _previousData = data;
-                    await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
-
                 }
             });
         }
@@ -65,18 +64,18 @@ namespace VMSystem.BackgroundServices
                 {
                     if (agv.currentMapPoint == null)
                         return new { };
-                    var taskRuningStatus = agv.taskDispatchModule.TaskStatusTracker.TaskRunningStatus;
                     var OrderHandler = agv.taskDispatchModule.OrderHandler;
                     List<int> navingTagList = GetNavigationTag(agv);
                     bool isOrderExecuting = agv.taskDispatchModule.OrderExecuteState == AGV.clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
                     return new
                     {
                         currentLocation = agv.currentMapPoint.TagNumber,
-                        currentCoordication = new {
-                            X = Math.Round(agv.states.Coordination.X,1),
+                        currentCoordication = new
+                        {
+                            X = Math.Round(agv.states.Coordination.X, 1),
                             Y = Math.Round(agv.states.Coordination.Y, 1),
                             Theta = Math.Round(agv.states.Coordination.Theta, 1)
-                        } ,
+                        },
                         vehicleWidth = agv.options.VehicleWidth,
                         vehicleLength = agv.options.VehicleLength,
                         cargo_status = new
@@ -86,15 +85,13 @@ namespace VMSystem.BackgroundServices
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
                         nav_path = isOrderExecuting ? navingTagList : OrderHandler.RunningTask.FuturePlanNavigationTags,
-                        theta = Math.Round(agv.states.Coordination.Theta,1),
+                        theta = Math.Round(agv.states.Coordination.Theta, 1),
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new
                         {
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,
-                            is_executing_task = taskRuningStatus == TASK_RUN_STATUS.NAVIGATING || taskRuningStatus == TASK_RUN_STATUS.ACTION_START,
                             main_status = agv.main_state
                         },
-                        currentAction = agv.taskDispatchModule.TaskStatusTracker.currentActionType
                     };
 
                     List<int> GetNavigationTag(AGV.IAGV agv)
