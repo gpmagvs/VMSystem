@@ -54,24 +54,25 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override async Task SendTaskToAGV()
         {
             EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);
-           
+
             clsConflicDetectResultWrapper detectResult = enterWorkStationDetection.Detect();
 
-            while(detectResult.Result == DETECTION_RESULT.NG)
+            while (detectResult.Result == DETECTION_RESULT.NG)
             {
                 await Task.Delay(1000);
                 detectResult = enterWorkStationDetection.Detect();
                 UpdateStateDisplayMessage(detectResult.Message);
             }
 
+            Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
-            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-            if (TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
-            {
-                int currentTag = Agv.currentMapPoint.TagNumber;
-                await StaMap.UnRegistPoint(Agv.Name, currentTag);
-                NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
-            }
+            // await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+            //if (TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+            //{
+            //    int currentTag = Agv.currentMapPoint.TagNumber;
+            //    await StaMap.UnRegistPoint(Agv.Name, currentTag);
+            //    NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
+            //}
             UpdateEQActionMessageDisplay();
             ChangeWorkStationMoveStateBackwarding();
             await base.SendTaskToAGV();

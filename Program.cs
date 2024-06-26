@@ -60,7 +60,7 @@ try
     builder.Services.AddHostedService<VehicleStateService>();
     builder.Services.AddHostedService<FrontEndDataCollectionBackgroundService>();
     builder.Services.AddHostedService<EquipmentScopeBackgroundService>();
-    //builder.Services.AddHostedService<TaskPathConflicDetectionService>();
+    builder.Services.AddHostedService<TaskPathConflicDetectionService>();
 
     //add signalIR service
     builder.Services.AddSignalR().AddJsonProtocol(options => { options.PayloadSerializerOptions.PropertyNamingPolicy = null; });

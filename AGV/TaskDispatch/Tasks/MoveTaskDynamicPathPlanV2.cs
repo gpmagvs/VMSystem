@@ -124,13 +124,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             if (Stage == VehicleMovementStage.AvoidPath)
                             {
-                                Agv.NavigationState.AddCannotReachPointWhenAvoiding(finalMapPoint);
-                                var avoidTo = Agv.NavigationState.AvoidActionState.AvoidPt;
-
-                                if (avoidTo == null || OtherAGV.Any(agv => agv.currentMapPoint.TagNumber == avoidTo.TagNumber || agv.CurrentRunningTask().OrderData?.To_Station_Tag == avoidTo.TagNumber))
-                                {
-                                    return;
-                                }
+                                NotifyServiceHelper.ERROR($"{Agv.Name} 避車至 {finalMapPoint.Graph.Display} 失敗.");
+                                UpdateMoveStateMessage($"Search Path...");
                             }
 
                             pathConflicStopWatch.Start();
@@ -139,8 +134,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (string.IsNullOrEmpty(TrafficWaitingState.Descrption))
                                 UpdateMoveStateMessage($"Search Path...");
                             await Task.Delay(10);
-                            Agv.NavigationState.ResetNavigationPoints();
-                            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+
                             bool _isConflicSolved = false;
 
                             if (pathConflicStopWatch.Elapsed.Seconds > 1 && !Agv.NavigationState.AvoidActionState.IsAvoidRaising)
@@ -198,8 +192,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
-                        Agv.NavigationState.IsWaitingConflicSolve = false;
-                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
 
                         //trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
@@ -221,6 +213,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
+                        Agv.NavigationState.IsWaitingConflicSolve = false;
+                        Agv.NavigationState.UpdateNavigationPoints(nextPath);
+                        await Task.Delay(100);
+                        TaskExecutePauseMRE.WaitOne();
                         await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
@@ -439,7 +435,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return error < 5;
             }
         }
-
+        SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY;
         //summery this function 
         /// <summary>
         /// 進入管制區域時，選擇等待點策略
@@ -450,6 +446,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                this.WaitPointSelectStrategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY;
                 if (regions.Count < 2)
                     return false;
 
@@ -464,6 +461,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION)
                 {
+                    this.WaitPointSelectStrategy = WaitPointSelectStrategy;
                     NotifyServiceHelper.INFO($"同區域-[{_Region.Name}] 衝突!!");
                     return false;
                 }
@@ -482,6 +480,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     //    Stage = VehicleMovementStage.Traveling_To_Region_Wait_Point 
                     //};
                     NotifyServiceHelper.INFO($"通過區域-[{_Region.Name}]可跟車!");
+                    this.WaitPointSelectStrategy = WaitPointSelectStrategy;
                     return true;
                     //await _moveInToRegionTask.SendTaskToAGV();
                     //IsPathPassMuiltRegions(finalMapPoint, out List<MapRegion> nextRegions);
@@ -795,8 +794,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     };
                     await parkTask.DistpatchToAGV();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = parkTask;
-
-                    await _WaitReachPointComp(parkStation, parkTask);
+                    Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
                     await Task.Delay(1000);
 
                     LeaveParkStationConflicDetection leaveDetector = new LeaveParkStationConflicDetection(AvoidToPtMoveDestine, Agv.states.Coordination.Theta, Agv);
@@ -825,12 +823,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     { TaskName = TaskName };
 
                     Agv.taskDispatchModule.OrderHandler.RunningTask = disChargeTask;
-                    await disChargeTask.DistpatchToAGV();
-
-                    await _WaitReachPointComp(AvoidToPtMoveDestine, disChargeTask);
-
+                    await disChargeTask.DistpatchToAGV(); 
+                    Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = this;
-
                 }
                 catch (Exception ex)
                 {
@@ -854,19 +849,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.taskDispatchModule.OrderHandler.RunningTask = this.parentTaskBase == null ? this : this.parentTaskBase;
 
             await WaitToGoalPathIsClear();
-
-            async Task _WaitReachPointComp(MapPoint parkStation, TaskBase task)
-            {
-                while (Agv.states.Last_Visited_Node != parkStation.TagNumber || Agv.main_state == clsEnums.MAIN_STATUS.RUN)
-                {
-                    if (task.IsTaskCanceled)
-                    {
-                        throw new TaskCanceledException();
-                    }
-                    await Task.Delay(1000);
-                    task.UpdateMoveStateMessage($"Wait Park At {parkStation.Graph.Display} Done...");
-                }
-            }
 
             //等待當前點至終點的路徑可通行 : 路徑沒有被其他車輛占用
             async Task WaitToGoalPathIsClear()
@@ -944,6 +926,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 IEnumerable<MapRegion> remainRegions = Agv.NavigationState.NextNavigtionPoints.Select(pt => pt.GetRegion())
                                                                                               .Where(rg => rg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN)
                                                                                               .DistinctBy(rg => rg.Name);
+                if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
+                    return;
                 if (remainRegions.Any(reg => !RegionManager.IsRegionEnterable(Agv, reg, out var inRegionVehicles)))
                 {
                     string _logMsg = $"[{Agv.Name}] 剩餘區域尚未允許進入!Cycle Stop First";
@@ -1020,7 +1004,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     OnlyNormalPoint = true,
                     ConstrainTags = constrains == null ? new List<int>() : constrains.GetTagCollection().ToList(),
                     Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
-                    VehicleCurrentAngle = VehicleCurrentAngle
+                    VehicleCurrentAngle = VehicleCurrentAngle,
+                    Algorithm = PathFinderOption.ALGORITHM.Dijsktra
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())

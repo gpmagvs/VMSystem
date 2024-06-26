@@ -35,9 +35,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override Task SendTaskToAGV()
         {
 
+            Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
             MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
             UpdateMoveStateMessage($"進入充電站-[{stationPt.Graph.Display}]...");
-
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             return base.SendTaskToAGV();
         }

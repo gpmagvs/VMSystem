@@ -41,6 +41,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public TaskBase parentTaskBase { get; set; } = null;
 
+        internal ManualResetEvent TaskExecutePauseMRE = new ManualResetEvent(true);
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -308,7 +310,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
         {
-            await Agv.TaskExecuter.TaskCycleStop(this.OrderData.TaskName);
+            await Agv.TaskExecuter.TaskCycleStop(this.OrderData?.TaskName);
             return new SimpleRequestResponse();
         }
 

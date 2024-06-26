@@ -200,7 +200,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (RunningTask.ActionType != ACTION_TYPE.None)
             {
-                Agv.NavigationState.ResetNavigationPoints();
                 MapPoint destineMapPoint = StaMap.GetPointByTagNumber(destineTag);
                 StaMap.RegistPoint(Agv.Name, destineMapPoint, out var _);
             }
