@@ -452,6 +452,7 @@ namespace VMSystem.TrafficControl
     {
         public MapPoint AvoidPt { get; internal set; }
         public bool IsAvoidRaising { get; internal set; } = false;
+        public int AvoidRaiseCounter { get; set; } = 0;
         public IAGV AvoidToVehicle { get; internal set; }
 
         public MapPoint AvoidToPtMoveDestine

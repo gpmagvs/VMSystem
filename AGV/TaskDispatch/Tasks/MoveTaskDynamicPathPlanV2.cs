@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json.Linq;
+using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
@@ -148,12 +149,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (pathConflicStopWatch.Elapsed.Seconds > 1 && !Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                             {
+                                if (Agv.NavigationState.CurrentConflicRegion != null)
+                                    LOG.INFO($"[ConflictWait] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name}", show_console: false);
                                 Agv.NavigationState.IsWaitingConflicSolve = true;
                             }
 
                             if (Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                             {
+                                Agv.NavigationState.AvoidActionState.AvoidRaiseCounter++;
                                 pathConflicStopWatch.Stop();
+                                if (Agv.NavigationState.CurrentConflicRegion != null)
+                                    LOG.INFO($"[ConflictWaitTime] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name} waiting for {pathConflicStopWatch.Elapsed.TotalMilliseconds} start ", show_console: false);
                                 pathConflicStopWatch.Reset();
                                 await AvoidPathProcess(_seq);
                                 searchStartPt = Agv.currentMapPoint;
@@ -161,6 +167,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 await SendCancelRequestToAGV();
                                 await Task.Delay(100);
                                 Agv.OnMapPointChanged += Agv_OnMapPointChanged;
+                                if (Agv.NavigationState.AvoidActionState.AvoidRaiseCounter >= 3)
+                                    await SendCancelRequestToAGV();
                             }
                             if (Agv.NavigationState.SpinAtPointRequest.IsSpinRequesting || Agv.NavigationState.SpinAtPointRequest.IsRaiseByAvoidingVehicleReqest)
                             {
@@ -185,7 +193,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
                         nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
-                       
+
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
@@ -313,6 +321,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             UpdateMoveStateMessage($"抵達-{nextGoal.Graph.Display}");
                             await Task.Delay(1000);
                         });
+                        LOG.INFO($"[ConflictTimes] {Agv.Name} finish task, from {OrderData.From_Station} to {OrderData.To_Station} conflict {Agv.NavigationState.AvoidActionState.AvoidRaiseCounter} times", show_console: false);
 
                         bool _willRotationFirst(double nextForwardAngle, out double error)
                         {
