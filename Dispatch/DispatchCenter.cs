@@ -236,7 +236,7 @@ namespace VMSystem.Dispatch
 
                 bool FindConflicRegion(IAGV vehicle, out MapRectangle _conflicRegion)
                 {
-                    MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
+                    TaskBase? vehicleRunningTask = vehicle.CurrentRunningTask() ;
                     _conflicRegion = null;
                     List<IAGV> otherDispatingVehicle = otherAGV.ToList();
                     var _nextPath = vehicle.NavigationState.NextNavigtionPointsForPathCalculation;

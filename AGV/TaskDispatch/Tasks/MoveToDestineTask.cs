@@ -7,7 +7,7 @@ using System.Data;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
-    public class MoveToDestineTask : NavigateToGoalTask
+    public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
         public MoveToDestineTask() : base()
         { }
