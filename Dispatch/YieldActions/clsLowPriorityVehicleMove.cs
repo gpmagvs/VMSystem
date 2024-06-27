@@ -58,15 +58,15 @@ namespace VMSystem.Dispatch.YieldActions
 
                 pathToStopPoint = new List<MapPoint>();
                 //HPV=> High Priority Vehicle
-                MoveTaskDynamicPathPlanV2 currentTaskOfHPV = _HightPriorityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
-                MoveTaskDynamicPathPlanV2 currentTaskOfLPV = _LowProrityVehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2;
+                TaskBase currentTaskOfHPV = _HightPriorityVehicle.CurrentRunningTask();
+                TaskBase currentTaskOfLPV = _LowProrityVehicle.CurrentRunningTask();
 
                 if (currentTaskOfHPV == null)
                     return null;
                 var orderOfHPV = currentTaskOfHPV.OrderData;
                 var orderOfLPV = currentTaskOfLPV.OrderData;
-                MapPoint finalPtOfHPV = currentTaskOfHPV.finalMapPoint;
-                MapPoint finalPtOfLPV = currentTaskOfLPV.finalMapPoint;
+                MapPoint finalPtOfHPV = StaMap.GetPointByTagNumber(currentTaskOfHPV.DestineTag);
+                MapPoint finalPtOfLPV = StaMap.GetPointByTagNumber(currentTaskOfLPV.DestineTag);
 
                 MapPoint pointOfHPV = currentTaskOfHPV.AGVCurrentMapPoint;
                 List<MapPoint> cannotStopPoints = new List<MapPoint>();

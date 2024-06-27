@@ -117,11 +117,11 @@ namespace VMSystem.TrafficControl
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
             try
             {
+                _RaiseReqAGV.NavigationState.ResetNavigationPoints();
+                await Task.Delay(100);
                 //await _leaveWorkStaitonReqSemaphore.WaitAsync();
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
-
-
                 string _waitMessage = "";
 
                 clsConflicDetectResultWrapper _result = new(DETECTION_RESULT.NG, "");
@@ -249,11 +249,11 @@ namespace VMSystem.TrafficControl
             }
             #endregion
         }
-       
+
 
         public static List<TrafficControlCommander> TrafficEventCommanders = new List<TrafficControlCommander>();
 
-     
+
         private static async void TrafficStateCollectorWorker()
         {
             while (true)

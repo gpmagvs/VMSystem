@@ -111,7 +111,10 @@ namespace VMSystem.AGV
                 {
                     await Task.Delay(10);
                     PathFinder _pathFinder = new PathFinder();
-                    double distance = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, station).total_travel_distance;
+                    double distance = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, station,new PathFinderOption
+                    {
+                        Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
+                    }).total_travel_distance;
                     return (station, distance);
                 }));
             }
@@ -133,6 +136,7 @@ namespace VMSystem.AGV
                         var pathInfo = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, ptCandicate, new PathFinder.PathFinderOption
                         {
                             ConstrainTags = othersAGV.Select(agv => agv.currentMapPoint.TagNumber).ToList(),
+                            Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
                             Strategy = PathFinder.PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
                         });
                         return (ptCandicate, pathInfo);

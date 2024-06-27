@@ -41,6 +41,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public TaskBase parentTaskBase { get; set; } = null;
 
+        internal ManualResetEvent TaskExecutePauseMRE = new ManualResetEvent(true);
+
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -140,6 +142,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await SendTaskToAGV();
                 if (IsTaskCanceled)
                     return (false, ALARMS.Task_Canceled);
+                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                    return (false, ALARMS.AGV_STATUS_DOWN);
+
                 return (true, ALARMS.NONE);
             }
             catch (TaskCanceledException ex)
@@ -161,7 +166,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
             }
         }
-
+        protected virtual bool IsTaskExecutable()
+        {
+            if (IsTaskCanceled ||
+                Agv.main_state == clsEnums.MAIN_STATUS.DOWN ||
+                Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING||
+                Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
+                return false;
+            return true;
+        }
         public virtual void CreateTaskToAGV()
         {
             TaskDonwloadToAGV.Task_Name = this.TaskName;
@@ -302,13 +315,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IsTaskCanceled = true;
             this.Dispose();
             await SendCancelRequestToAGV();
-
             TrafficWaitingState.SetStatusNoWaiting();
         }
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
         {
-            await Agv.TaskExecuter.TaskCycleStop(this.OrderData.TaskName);
+            await Agv.TaskExecuter.TaskCycleStop(this.OrderData?.TaskName);
             return new SimpleRequestResponse();
         }
 

@@ -484,7 +484,7 @@ namespace VMSystem.TrafficControl
         /// <param name="goal"></param>
         /// <param name="agv"></param>
         /// <returns>回傳直如果為double.MaxValue視為找不到路徑或是目標站點不予許車種</returns>
-        public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint,int slotHeight, IAGV agv)
+        public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint, int slotHeight, IAGV agv)
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
@@ -493,7 +493,11 @@ namespace VMSystem.TrafficControl
                 return double.MaxValue;
 
             PathFinder pathFinder = new PathFinder();
-            var result = pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, _workStationPoint, new PathFinder.PathFinderOption { OnlyNormalPoint = false });
+            var result = pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, _workStationPoint, new PathFinder.PathFinderOption
+            {
+                OnlyNormalPoint = false,
+                Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra
+            });
             if (result == null)
                 return double.MaxValue;
             else

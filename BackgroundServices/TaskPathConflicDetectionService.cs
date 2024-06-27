@@ -41,20 +41,30 @@ namespace VMSystem.BackgroundServices
                         {
                             return _vehicle.NavigationState.NextNavigtionPoints;
                         }
+
                         IEnumerable<IAGV> conflicVehicles = otherVehicles.Where(agv => agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                                                                          .Where(agv => trajectoryRunning(agv).GetTagCollection().Intersect(trajectoryRunning(vehicle).GetTagCollection()).Any());
 
                         if (conflicVehicles.Any())
                         {
-                            // log critical alarm
-                            logger.LogCritical($"Vehicle {vehicle.Name} has path conflic with {string.Join(",", conflicVehicles.Select(agv => agv.Name))}");
-                            AlarmManagerCenter.AddAlarmAsync(ALARMS.VEHICLES_TRAJECTORY_CONFLIC);
-                            vehicle.TaskExecuter.EmergencyStop();
-                            foreach (var conflicVehicle in conflicVehicles)
+                            if (vehicle.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
                             {
-                                conflicVehicle.TaskExecuter.EmergencyStop();
+                                logger.LogCritical($"Vehicle {vehicle.Name} has path conflic with {string.Join(",", conflicVehicles.Select(agv => agv.Name))}");
+                                AlarmManagerCenter.AddAlarmAsync(ALARMS.VEHICLES_TRAJECTORY_CONFLIC, level: ALARM_LEVEL.WARNING);
+
+                                vehicle.CurrentRunningTask().TaskExecutePauseMRE.Reset();
+                                await vehicle.CurrentRunningTask().CycleStopRequestAsync();
                             }
-                            await Task.Delay(1000);
+                            //vehicle.TaskExecuter.EmergencyStop();
+                            //foreach (var conflicVehicle in conflicVehicles)
+                            //{
+                            //    conflicVehicle.TaskExecuter.EmergencyStop();
+                            //}
+                            //await Task.Delay(1000);
+                        }
+                        else
+                        {
+                            vehicle.CurrentRunningTask().TaskExecutePauseMRE.Set();
                         }
                     };
                 }

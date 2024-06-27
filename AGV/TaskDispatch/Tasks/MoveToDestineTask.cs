@@ -13,7 +13,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         { }
 
         public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        { }
+        {
+        }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()

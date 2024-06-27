@@ -222,19 +222,8 @@ namespace VMSystem.Dispatch
             async Task<IEnumerable<MapPoint>> FindPath(IAGV vehicle, IEnumerable<IAGV> otherAGV, MapPoint _finalMapPoint, IEnumerable<MapPoint> oriOptimizePath, bool autoSolve = false)
             {
                 IEnumerable<MapPoint> _optimizePath = null;
-                List<IAGV> otherDispatingVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle).ToList();
-                if (otherDispatingVehicle.Count == 0)
-                {
-                    otherDispatingVehicle.AddRange(otherAGV);
-
-                    foreach (var item in otherDispatingVehicle)
-                    {
-                        item.NavigationState.ResetNavigationPoints();
-                    }
-                }
-
                 MapRectangle conflicRegion = null;
-                if (FindConflicRegion(vehicle, otherDispatingVehicle, out conflicRegion))
+                if (FindConflicRegion(vehicle, out conflicRegion))
                 {
                     vehicle.NavigationState.CurrentConflicRegion = conflicRegion;
                 }
@@ -245,11 +234,11 @@ namespace VMSystem.Dispatch
                 }
                 return _optimizePath;
 
-                bool FindConflicRegion(IAGV vehicle, List<IAGV> otherDispatingVehicle, out MapRectangle _conflicRegion)
+                bool FindConflicRegion(IAGV vehicle, out MapRectangle _conflicRegion)
                 {
-                    MoveTaskDynamicPathPlanV2? vehicleRunningTask = (vehicle.CurrentRunningTask() as MoveTaskDynamicPathPlanV2);
+                    TaskBase? vehicleRunningTask = vehicle.CurrentRunningTask() ;
                     _conflicRegion = null;
-
+                    List<IAGV> otherDispatingVehicle = otherAGV.ToList();
                     var _nextPath = vehicle.NavigationState.NextNavigtionPointsForPathCalculation;
 
                     if (_nextPath.DistinctBy(p => p.TagNumber).Count() == 1 && !WillRotationAtCurrentPointConflicTo(vehicle, order, stage, _nextPath, otherAGV)) //原地

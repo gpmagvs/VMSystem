@@ -79,10 +79,6 @@ namespace VMSystem.AGV
             {
                 if (previous_OrderExecuteState != value)
                 {
-                    if (previous_OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
-                    {
-                        agv.NavigationState.ResetNavigationPoints();
-                    }
                     previous_OrderExecuteState = value;
                     logger.Info($"{agv.Name} Order Execute State Changed to {value}(System Run Mode={SystemModes.RunMode}");
 

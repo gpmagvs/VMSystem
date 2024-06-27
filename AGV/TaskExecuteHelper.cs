@@ -246,7 +246,7 @@ namespace VMSystem.AGV
                     {
                         lastTaskDonwloadToAGV = null;
                     }
-
+                    Vehicle.NavigationState.ResetNavigationPoints();
                 }
             }
             catch (Exception ex)
