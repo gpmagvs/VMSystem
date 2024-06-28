@@ -119,7 +119,7 @@ namespace VMSystem.Dispatch
                 {
                     List<MapPoint> path = new();
 
-                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber);
+                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null &&  _path.Last().TagNumber == finalMapPoint.TagNumber && _path.All(pt=>otherAGV.SelectMany(agv=>agv.NavigationState.NextNavigtionPoints).GetTagCollection().Contains(pt.TagNumber)));
 
                     if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
                     {
@@ -165,7 +165,8 @@ namespace VMSystem.Dispatch
 
                     if (path != null)
                     {
-                        bool willConflicMaybe = _noConflicPathToDestine == null && _WillFinalStopPointConflicMaybe(path);
+                        bool FinalStopPointConflicMaybe = _WillFinalStopPointConflicMaybe(path);
+                        bool willConflicMaybe = _noConflicPathToDestine == null && FinalStopPointConflicMaybe;
                         return willConflicMaybe ? null : path;
                     }
                     return path;
@@ -192,7 +193,7 @@ namespace VMSystem.Dispatch
 
                         }
 
-                        return isTooCloseWithVehicleEntryPointOFWorkStation || otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.8)));
+                        return isTooCloseWithVehicleEntryPointOFWorkStation || otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
                     }
 
                     #endregion
@@ -236,7 +237,7 @@ namespace VMSystem.Dispatch
 
                 bool FindConflicRegion(IAGV vehicle, out MapRectangle _conflicRegion)
                 {
-                    TaskBase? vehicleRunningTask = vehicle.CurrentRunningTask() ;
+                    TaskBase? vehicleRunningTask = vehicle.CurrentRunningTask();
                     _conflicRegion = null;
                     List<IAGV> otherDispatingVehicle = otherAGV.ToList();
                     var _nextPath = vehicle.NavigationState.NextNavigtionPointsForPathCalculation;
@@ -344,7 +345,6 @@ namespace VMSystem.Dispatch
                                         .SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
             constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
-            constrains = constrains.Where(pt => pt.TagNumber != finalMapPoint.TagNumber && pt.TagNumber != MainVehicle.currentMapPoint.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)

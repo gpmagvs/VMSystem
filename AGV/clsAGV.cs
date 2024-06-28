@@ -58,6 +58,7 @@ namespace VMSystem.AGV
 
         public event EventHandler<int> OnMapPointChanged;
         public static event EventHandler<(IAGV agv, double currentMileage)> OnMileageChanged;
+        public event EventHandler<string> OnTaskCancel;
 
         public IAGV.BATTERY_STATUS batteryStatus
         {
@@ -92,8 +93,16 @@ namespace VMSystem.AGV
             {
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
+                    MapRegion previousRegion = currentMapPoint.GetRegion();
+
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
-                    var region = currentMapPoint.GetRegion();
+
+                    MapRegion currentRegion = currentMapPoint.GetRegion();
+
+                    if (currentRegion.Name == NavigationState.RegionControlState.NextToGoRegion.Name) //抵達預計前往的區域
+                    {
+                        NavigationState.RegionControlState.NextToGoRegion = new MapRegion();
+                    }
                 }
 
                 if (value.Odometry != _states.Odometry)
@@ -937,8 +946,10 @@ namespace VMSystem.AGV
 
         public void CancelTask(string task_name)
         {
+
             TaskBase currentTask = this.CurrentRunningTask();
             bool isTaskExecuting = currentTask.TaskName == task_name;
+            OnTaskCancel?.Invoke(this, task_name);
             if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
                 currentTask.CancelTask();
             else

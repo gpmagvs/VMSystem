@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Log;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
@@ -90,6 +91,7 @@ namespace VMSystem
                 Dispatch.DispatchCenter.Initialize();
             });
             TrafficControlCenter.Initialize();
+            RegionManager.Initialze();
         }
     }
 }

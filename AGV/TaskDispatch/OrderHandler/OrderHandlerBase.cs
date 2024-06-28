@@ -123,6 +123,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
+                    Agv.NavigationState.StateReset();
+                    Agv.NavigationState.ResetNavigationPoints();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
                 }
 

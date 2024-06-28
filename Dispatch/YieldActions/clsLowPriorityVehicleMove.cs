@@ -77,7 +77,7 @@ namespace VMSystem.Dispatch.YieldActions
                     var pathPredictOfHPV = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(pointOfHPV, finalPtOfHPV, constrainsOfHPVPath);
                     cannotStopPoints.AddRange(pathPredictOfHPV);
                     cannotStopPoints.AddRange(_GetConstrainsOfLPVStopPoint());
-                    cannotStopPoints = cannotStopPoints.Where(pt=>!pt.IsAvoid).DistinctBy(pt => pt.TagNumber).ToList();
+                    cannotStopPoints = cannotStopPoints.Where(pt => !pt.IsAvoid).DistinctBy(pt => pt.TagNumber).ToList();
 
                     var canStopPointCandicates = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.IsVirtualPoint && !cannotStopPoints.GetTagCollection().Contains(pt.TagNumber))
                                                                          .ToList();
@@ -93,8 +93,8 @@ namespace VMSystem.Dispatch.YieldActions
 
                     if (avaliableAvoidPoints.Any())
                     {
-                        IEnumerable<IEnumerable<MapPoint>> PathToAvoidPoints= avaliableAvoidPoints.Select(pt => GetPathToStopPoint(pt)).ToList();
-                        IEnumerable<MapPoint> pathToAvoidPoint =PathToAvoidPoints.FirstOrDefault(path => path != null);
+                        IEnumerable<IEnumerable<MapPoint>> PathToAvoidPoints = avaliableAvoidPoints.Select(pt => GetPathToStopPoint(pt)).ToList();
+                        IEnumerable<MapPoint> pathToAvoidPoint = PathToAvoidPoints.FirstOrDefault(path => path != null);
                         if (pathToAvoidPoint != null)
                             return pathToAvoidPoint.Last();
                         else
@@ -161,9 +161,13 @@ namespace VMSystem.Dispatch.YieldActions
 
                     bool IsPointReachable(MapPoint point)
                     {
-                        IEnumerable<IAGV> otherVehicles= VMSManager.AllAGV.FilterOutAGVFromCollection(_LowProrityVehicle);
-                        bool pointOcuupy=otherVehicles.Any(agv=>agv.currentMapPoint.TagNumber== point.TagNumber || agv.CurrentRunningTask().OrderData?.To_Station_Tag == point.TagNumber);
-                        return !pointOcuupy;
+                        IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(_LowProrityVehicle);
+                        bool pointOcuupy = otherVehicles.Any(agv => agv.currentMapPoint.TagNumber == point.TagNumber || agv.CurrentRunningTask().OrderData?.To_Station_Tag == point.TagNumber);
+                        IAGV _lpVehile = _LowProrityVehicle;
+                        if (_lpVehile.NavigationState.AvoidActionState.CannotReachHistoryPoints.Keys.Contains(point.TagNumber))
+                            return false;
+                        bool pointConflicToOtherAGV = otherVehicles.Any(agv => agv.NavigationState.NextPathOccupyRegions.Any(rct => rct.IsIntersectionTo(point.GetCircleArea(ref _lpVehile))));
+                        return !pointOcuupy && !pointConflicToOtherAGV;
                     }
                 }
                 catch (Exception ex)

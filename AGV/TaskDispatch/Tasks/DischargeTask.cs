@@ -16,7 +16,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override void CreateTaskToAGV()
         {
-            MapPoint destinMapPoint = StaMap.GetPointByIndex(AGVCurrentMapPoint.Target.Keys.First());
+
+            MapPoint destinMapPoint = AGVCurrentMapPoint.TargetNormalPoints().FirstOrDefault();
+            if (destinMapPoint == null)
+            {
+                throw new Exception("dicharge No normal station found");
+            }
             base.CreateTaskToAGV();
             this.TaskDonwloadToAGV.Destination = destinMapPoint.TagNumber;
             this.TaskDonwloadToAGV.Homing_Trajectory = new clsMapPoint[2]
@@ -32,6 +37,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                //transfer last point of  this.TaskDonwloadToAGV.Homing_Trajectory  to MapPoint and check Station_Type of MapPoint  should be Normal
+                if (StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID).StationType != MapPoint.STATION_TYPE.Normal)
+                {
+                    throw new Exception("The destination point is not a normal station");
+                }
 
                 Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
                 DetermineThetaOfDestine(this.TaskDonwloadToAGV);
@@ -40,12 +50,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Agv = this.Agv,
                     GoalTag = TaskDonwloadToAGV.Destination
                 });
-
-
                 MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
+
                 UpdateMoveStateMessage($"退出-[{stationPt.Graph.Display}]...");
-
-
                 StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
                 await base.SendTaskToAGV();
             }

@@ -244,6 +244,10 @@ namespace VMSystem.Dispatch
             var currentRegion = agvToPark.currentMapPoint.GetRegion();
             //在該區域所有的主幹道點位
             var normalPointsInThisRegion = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && pt.GetRegion().Name == currentRegion.Name);
+
+            //過濾掉點位對應的設備有其他車輛要過來進行任務
+            normalPointsInThisRegion = normalPointsInThisRegion.Where(pt => !_IsEQOfNormalPointHasTask(pt));
+
             //找到所有可停車的點位(Key = Entry Point , Value= Stations)
             var parkables = normalPointsInThisRegion.ToDictionary(pt => pt, pt => pt.TargetParkableStationPoints(ref agvToPark));
             if (parkables.Any(pair => pair.Value.Any()))
@@ -256,6 +260,13 @@ namespace VMSystem.Dispatch
             else
             {
                 return null;
+            }
+
+            bool _IsEQOfNormalPointHasTask(MapPoint pt)
+            {
+                IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(agvToPark);
+                IEnumerable<int> otherVehiclesCurrentGoalTags = otherVehicles.Select(vehicle => vehicle.CurrentRunningTask().DestineTag);
+                return pt.TargetWorkSTationsPoints().Any(pt => otherVehiclesCurrentGoalTags.Contains(pt.TagNumber));
             }
         }
 
@@ -299,7 +310,7 @@ namespace VMSystem.Dispatch
                 MapRegion currentRegion = waitingVehicle.currentMapPoint.GetRegion();
                 region = currentRegion;
                 var waitingForEntryRegionVehicles = otherVehicles.Where(agv => agv.NavigationState.RegionControlState.NextToGoRegion.Name == currentRegion.Name)
-                                                                 .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == waitingVehicle.Name)
+                                                                 .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == waitingVehicle.Name && waitingVehicle.NavigationState.currentConflicToAGV?.Name == agv.Name)
                                                                  .Where(agv => (agv.NavigationState.RegionControlState.IsWaitingForEntryRegion || agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point));
                 vehicleWaitingEntry = null;
 
@@ -332,8 +343,14 @@ namespace VMSystem.Dispatch
             //start tag / end tag
 
             var AvoidToVehicle = vehiclesAtWorkStation.First();
+
+            MapPoint eqEntryPoint = AvoidToVehicle.currentMapPoint.TargetNormalPoints().FirstOrDefault();
+
+            if (eqEntryPoint == null)
+                return;
+
             //要把等待中AGV到設備的路徑移除
-            int tagOfEntryPointOfEq = AvoidToVehicle.currentMapPoint.TargetNormalPoints().First().TagNumber;
+            int tagOfEntryPointOfEq = eqEntryPoint.TagNumber;
             MapPoint entryPoint = StaMap.Map.Points.Values.First(pt => pt.TagNumber == tagOfEntryPointOfEq);
 
             if (entryPoint.TagNumber != CurrentConflicRegion.StartPoint.TagNumber && entryPoint.TagNumber != CurrentConflicRegion.EndPoint.TagNumber)
