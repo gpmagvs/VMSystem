@@ -122,6 +122,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             if (Stage == VehicleMovementStage.AvoidPath)
                             {
+                                if (this.taskdiagnosisTool.traffic.CheckTrafficBlock(OrderData.TaskName) == true)
+                                {
+                                    base.CancelTask();
+                                    break;
+                                    //await SendCancelRequestToAGV();
+                                }
                                 NotifyServiceHelper.ERROR($"{Agv.Name} 避車至 {finalMapPoint.Graph.Display} 失敗.");
                                 UpdateMoveStateMessage($"Search Path...");
                             }
@@ -137,8 +143,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (pathConflicStopWatch.Elapsed.Seconds > 1 && !Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                             {
-                                if (Agv.NavigationState.CurrentConflicRegion != null)
-                                    LOG.INFO($"[ConflictWait] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name}", show_console: false);
+                                //if (Agv.NavigationState.CurrentConflicRegion != null)
+                                //    LOG.INFO($"[ConflictWait] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name}", show_console: false);
                                 Agv.NavigationState.IsWaitingConflicSolve = true;
                             }
 
@@ -146,8 +152,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 Agv.NavigationState.AvoidActionState.AvoidRaiseCounter++;
                                 pathConflicStopWatch.Stop();
-                                if (Agv.NavigationState.CurrentConflicRegion != null)
-                                    LOG.INFO($"[ConflictWaitTime] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name} waiting for {pathConflicStopWatch.Elapsed.TotalMilliseconds} start ", show_console: false);
+                                //if (Agv.NavigationState.CurrentConflicRegion != null)
+                                //    LOG.INFO($"[ConflictWaitTime] Path From {Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber} To {Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber} Conflict to {Agv.NavigationState.currentConflicToAGV.Name} waiting for {pathConflicStopWatch.Elapsed.TotalMilliseconds} start ", show_console: false);
                                 pathConflicStopWatch.Reset();
                                 await AvoidPathProcess(_seq);
 
@@ -161,8 +167,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 await SendCancelRequestToAGV();
                                 await Task.Delay(100);
                                 Agv.OnMapPointChanged += Agv_OnMapPointChanged;
-                                if (Agv.NavigationState.AvoidActionState.AvoidRaiseCounter >= 3)
-                                    await SendCancelRequestToAGV();
+                                if (base.taskdiagnosisTool.traffic.CheckTrafficBlock(OrderData.TaskName) == true)
+                                {
+                                }
+                                //if (Agv.NavigationState.AvoidActionState.AvoidRaiseCounter >= 3)
+                                //    await SendCancelRequestToAGV();
                             }
                             if (Agv.NavigationState.SpinAtPointRequest.IsSpinRequesting || Agv.NavigationState.SpinAtPointRequest.IsRaiseByAvoidingVehicleReqest)
                             {
@@ -288,7 +297,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             UpdateMoveStateMessage($"抵達-{nextGoal.Graph.Display}");
                             await Task.Delay(1000);
                         });
-                        LOG.INFO($"[ConflictTimes] {Agv.Name} finish task, from {OrderData.From_Station} to {OrderData.To_Station} conflict {Agv.NavigationState.AvoidActionState.AvoidRaiseCounter} times", show_console: false);
 
                         bool _willRotationFirst(double nextForwardAngle, out double error)
                         {
@@ -353,6 +361,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 TrafficWaitingState.SetStatusNoWaiting();
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                 Agv.NavigationState.StateReset();
+                //LOG.INFO($"[ConflictTimes] {Agv.Name} finish task, from {OrderData.From_Station} to {OrderData.To_Station} conflict {Agv.NavigationState.AvoidActionState.AvoidRaiseCounter} times", show_console: false);
+                base.taskdiagnosisTool.traffic.LogResult();
             }
 
 
@@ -775,6 +785,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
             Agv.taskDispatchModule.OrderHandler.RunningTask = trafficAvoidTask;
             trafficAvoidTask.UpdateMoveStateMessage($"避車中...前往 {AvoidToPtMoveDestine.TagNumber}");
+            taskdiagnosisTool.traffic.AddAvoidPointTag(OrderData.TaskName, AvoidToPtMoveDestine.TagNumber);
+            taskdiagnosisTool.traffic.AddConflictPoint(OrderData.TaskName, Agv.NavigationState.CurrentConflicRegion.StartPoint.TagNumber, Agv.NavigationState.CurrentConflicRegion.EndPoint.TagNumber);
+            trafficAvoidTask.taskdiagnosisTool = taskdiagnosisTool;
             Agv.NavigationState.AvoidActionState.IsAvoidRaising = false;
             await trafficAvoidTask.SendTaskToAGV();
             Agv.NavigationState.State = VehicleNavigationState.NAV_STATE.AVOIDING_PATH;

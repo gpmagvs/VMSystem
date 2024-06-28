@@ -43,6 +43,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal ManualResetEvent TaskExecutePauseMRE = new ManualResetEvent(true);
 
+        public TaskDiagnosis taskdiagnosisTool { get; set; } = new TaskDiagnosis();
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -170,7 +171,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (IsTaskCanceled ||
                 Agv.main_state == clsEnums.MAIN_STATUS.DOWN ||
-                Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING||
+                Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING ||
                 Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE)
                 return false;
             return true;
