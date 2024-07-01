@@ -5,9 +5,8 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
-using NLog;
-using NLog.Fluent;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using WebSocketSharp;
 using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
 
 namespace VMSystem.AGV
@@ -24,6 +23,8 @@ namespace VMSystem.AGV
         /// </summary>
         public string ExecutingTaskName { get; private set; } = "";
 
+        public string TrackingTaskSimpleName { get; private set; } = "";
+
         /// <summary>
         /// 最後一次下發給車輛的任務模型
         /// </summary>
@@ -31,12 +32,14 @@ namespace VMSystem.AGV
 
         private HttpHelper VehicleHttp => Vehicle.AGVHttp;
         private AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL CommunicationProtocol => Vehicle.options.Protocol;
-
-        private Logger logger;
+        private NLog.Logger logger;
 
         internal ManualResetEvent WaitACTIONFinishReportedMRE = new ManualResetEvent(false);
-
+        internal ManualResetEvent WaitNavigatingReportedMRE = new ManualResetEvent(false);
+        internal ManualResetEvent WaitActionStartReportedMRE = new ManualResetEvent(false);
         private SemaphoreSlim TaskExecuteSemaphoreSlim = new SemaphoreSlim(1, 1);
+
+        private int sequence = 0;
 
         public TaskExecuteHelper(clsAGV vehicle)
         {
@@ -89,6 +92,10 @@ namespace VMSystem.AGV
                     }
                 }
 
+                if (_TaskDonwloadToAGV.Task_Name != ExecutingTaskName)
+                    sequence = 0;
+
+                ExecutingTaskName = task.TaskName;
 
                 clsTaskDto order = task.OrderData;
                 _TaskDonwloadToAGV.OrderInfo = new clsTaskDownloadData.clsOrderInfo
@@ -103,8 +110,14 @@ namespace VMSystem.AGV
                     DestineSlot = int.Parse(order.To_Slot),
                     SourceSlot = int.Parse(order.From_Slot)
                 };
+                sequence += 1;
+                string _newTaskSimplex = ExecutingTaskName + "_" + sequence;
+                _TaskDonwloadToAGV.Task_Sequence = sequence;
+                _TaskDonwloadToAGV.Task_Simplex = _newTaskSimplex;
+                lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
 
-                logger.Info($"Trajectory send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
+                TrackingTaskSimpleName = _newTaskSimplex;
+                logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
                 {
                     TaskDownloadRequestResponse taskStateResponse = Vehicle.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
@@ -114,20 +127,30 @@ namespace VMSystem.AGV
                 {
                     try
                     {
+                        //一般走行須等待AGV上報 Navagating; otherwise 需等待AGV上報 Action_Start
+                        ManualResetEvent waitReportMRE = _TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None ? WaitNavigatingReportedMRE : WaitActionStartReportedMRE;
+                        waitReportMRE.Reset();
+                        _LogDownloadRequest(_TaskDonwloadToAGV);
+
                         TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
 
                         if (CommunicationProtocol == PROTOCOL.RESTFulAPI)
                             taskStateResponse = await Vehicle.AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _TaskDonwloadToAGV);
                         else
                             taskStateResponse = Vehicle.TcpClientHandler.SendTaskMessage(_TaskDonwloadToAGV);
+
+                        logger.Info($"Response Of Task Download:\n{taskStateResponse.ToJson()}");
                         if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
-                            ExecutingTaskName = task.TaskName;
-                            lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
+                            logger.Trace($"Start wait AGV Report Navigation Status.)");
+                            bool seted = waitReportMRE.WaitOne(TimeSpan.FromSeconds(3));
+                            logger.Trace($"AGV Report Navigation Status => {(seted ? "Success" : "Timeout!")})");
                         }
-
-                        logger.Info($"Task Download To AGV:\n{_TaskDonwloadToAGV.ToJson()}");
-                        logger.Info($"AGV Response Of Task Download:\n{taskStateResponse.ToJson()}");
+                        else
+                        {
+                            //log 
+                            logger.Warn($"Task is Reject by AGV! ReturnCode={taskStateResponse.ReturnCode}");
+                        }
 
                         return taskStateResponse;
                     }
@@ -149,6 +172,22 @@ namespace VMSystem.AGV
                 TaskExecuteSemaphoreSlim.Release();
             }
 
+            void _LogDownloadRequest(clsTaskDownloadData taskDownloadToAGV)
+            {
+                object logObject = new
+                {
+                    TaskName = taskDownloadToAGV.Task_Name,
+                    TaskSimplex = taskDownloadToAGV.Task_Simplex,
+                    TaskSequence = taskDownloadToAGV.Task_Sequence,
+                    Action = taskDownloadToAGV.Action_Type,
+                    Trajectory = string.Join("->", taskDownloadToAGV.ExecutingTrajecory.GetTagList()),
+                    Destination = taskDownloadToAGV.Destination,
+                    Heigh = taskDownloadToAGV.Height,
+                    CST = taskDownloadToAGV.CST,
+                    Station_Type = taskDownloadToAGV.Station_Type.ToString(),
+                };
+                logger.Info($"Task Download To AGV:\n{logObject.ToJson()}");
+            }
         }
 
         internal async Task EmergencyStop(string TaskName = "")
@@ -180,6 +219,14 @@ namespace VMSystem.AGV
             {
                 if (lastTaskDonwloadToAGV == null)
                     return;
+
+                if (lastTaskDonwloadToAGV.Action_Type != ACTION_TYPE.None)
+                {
+                    logger.Warn("TaskCycleStop: Not support for non-normal move task!");
+                    NotifyServiceHelper.WARNING($"{Vehicle.Name} TaskCycleStop: Not support for non-normal move task!");
+                    return;
+                }
+
                 NotifyServiceHelper.WARNING($"{Vehicle.Name} Cycle Stop! ");
 
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
@@ -230,28 +277,45 @@ namespace VMSystem.AGV
             }
         }
 
-        internal async Task HandleVehicleTaskStatusFeedback(FeedbackData feedbackData)
+        internal async Task<bool> HandleVehicleTaskStatusFeedback(FeedbackData feedbackData)
         {
             try
             {
-                logger.Info($"Vehicle Task Status Feedback: {feedbackData.ToJson()}");
                 TASK_RUN_STATUS taskStatus = feedbackData.TaskStatus;
+                logger.Info($"Vehicle Task Status Feedback ({taskStatus.ToString()}): {feedbackData.ToJson()}");
                 string taskName = feedbackData.TaskName;
+                string taskSimplex = feedbackData.TaskSimplex;
+                bool isFeedbackToCurrentTask = taskSimplex.IsNullOrEmpty() || TrackingTaskSimpleName.IsNullOrEmpty() ? true : taskSimplex == TrackingTaskSimpleName;
+                if (!isFeedbackToCurrentTask)
+                {
+                    logger.Warn($"Feedback TaskSimplex={taskSimplex} is not match to TrackingTaskSimplex={TrackingTaskSimpleName}");
+                    return false;
+                }
+
                 if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                 {
-                    await Task.Delay(1);
-                    WaitACTIONFinishReportedMRE.Set();
-
-                    if (lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.Destination == Vehicle.states.Last_Visited_Node)
+                    bool isReachLastSubGoal = lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == Vehicle.states.Last_Visited_Node;
+                    if (isReachLastSubGoal)
                     {
                         lastTaskDonwloadToAGV = null;
+                        Vehicle.NavigationState.ResetNavigationPoints();
                     }
-                    Vehicle.NavigationState.ResetNavigationPoints();
+                    WaitACTIONFinishReportedMRE.Set();
                 }
+                if (taskStatus == TASK_RUN_STATUS.ACTION_START)
+                {
+                    WaitActionStartReportedMRE.Set();
+                }
+                if (taskStatus == TASK_RUN_STATUS.NAVIGATING)
+                {
+                    WaitNavigatingReportedMRE.Set();
+                }
+                return true;
             }
             catch (Exception ex)
             {
                 logger.Error(ex);
+                return false;
             }
         }
     }

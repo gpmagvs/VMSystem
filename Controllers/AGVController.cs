@@ -53,7 +53,12 @@ namespace VMSystem.Controllers
 
                 if (VMSManager.GetAGVByName(AGVName, out var agv))
                 {
-                    await agv.TaskExecuter.HandleVehicleTaskStatusFeedback(feedbackData);
+                    bool feedbackConfirmed = await agv.TaskExecuter.HandleVehicleTaskStatusFeedback(feedbackData);
+                    if (!feedbackConfirmed)
+                    {
+                        return Ok(new { ReturnCode = 2, Message = "Feedback Not Confirmed" });
+                    }
+
                     int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
                     return Ok(new { ReturnCode = confirmed_code, Message = "" });
                 }
@@ -216,7 +221,7 @@ namespace VMSystem.Controllers
 
                 var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
                 trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
-                bool allowLeve = response.ActionConfirm ==LEAVE_WORKSTATION_ACTION.OK;
+                bool allowLeve = response.ActionConfirm == LEAVE_WORKSTATION_ACTION.OK;
                 if (!allowLeve)
                 {
                     trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");

@@ -1,6 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Notify;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -12,6 +14,91 @@ namespace VMSystem.Dispatch.Regions
 {
     public class RegionManager
     {
+
+
+        public static Dictionary<MapRegion, clsRegionControlState> RegionsStates { get; set; } = new Dictionary<MapRegion, clsRegionControlState>();
+
+        public class clsRegionControlState
+        {
+            public clsRegionControlState(MapRegion region)
+            {
+                Region = region;
+                Task.Run(() => WatchEnterableState());
+            }
+
+            public readonly MapRegion Region;
+
+            private bool _IsEnterable { get; set; } = false;
+
+            public IEnumerable<IAGV> BookingRegionVehicles { get; private set; } = new List<IAGV>();
+
+            public bool IsEnterable
+            {
+                get => _IsEnterable;
+                private set
+                {
+                    if (_IsEnterable != value)
+                    {
+                        _IsEnterable = value;
+                        if (_IsEnterable && WaitingForEnterVehicles.Any())
+                        {
+                            WaitingForEnterVehicles.FirstOrDefault().Value.allowEnterSignal.Set();
+                        }
+                        NotifyServiceHelper.INFO($"[{Region.Name}] 現在 {(_IsEnterable ? "可進入!" : "不可進入")}");
+                    }
+                }
+            }
+
+            private async Task WatchEnterableState()
+            {
+                while (true)
+                {
+                    await Task.Delay(10);
+                    bool _IsEnterable()
+                    {
+                        BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name));
+                        int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
+                        return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
+                    }
+                    IsEnterable = _IsEnterable();
+                }
+            }
+
+
+            public ConcurrentDictionary<IAGV, clsVehicleWaitingState> WaitingForEnterVehicles { get; set; } = new ConcurrentDictionary<IAGV, clsVehicleWaitingState>();
+
+            public void JoinWaitingForEnter(IAGV agv, CancellationToken token)
+            {
+                if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
+                {
+                    state.allowEnterSignal.Reset();
+                    state.token = token;
+                }
+                else
+                {
+                    WaitingForEnterVehicles.TryAdd(agv, new clsVehicleWaitingState
+                    {
+                        startWaitTime = DateTime.Now,
+                        allowEnterSignal = new ManualResetEvent(false),
+                        token = token
+                    });
+                }
+            }
+            public class clsVehicleWaitingState
+            {
+                public DateTime startWaitTime { get; set; }
+                public ManualResetEvent allowEnterSignal { get; set; }
+                public CancellationToken token = new CancellationToken();
+            }
+
+        }
+
+        public static void Initialze()
+        {
+            RegionsStates = StaMap.Map.Regions.ToDictionary(_region => _region, _region => new clsRegionControlState(_region));
+        }
+
+
         public static IEnumerable<MapRegion> GetRegions()
         {
             return StaMap.Map.Regions;
@@ -65,56 +152,46 @@ namespace VMSystem.Dispatch.Regions
 
         }
 
-        internal static bool IsRegionEnterable(IAGV WannaEntryRegionVehicle, MapRegion regionQuery, out List<string> inRegionVehicles)
+        internal static async Task StartWaitToEntryRegion(IAGV agv, MapRegion region, CancellationToken token)
         {
-            inRegionVehicles = new List<string>();
-            // 取得當前區域
-            MapRegion _Region = StaMap.Map.Regions.FirstOrDefault(reg => reg.Name == regionQuery.Name);
-            if (_Region == null)
-                return true;
-
-            List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(WannaEntryRegionVehicle).ToList();
-
-            try
+            var regionGet = GetRegionControlState(region);
+            regionGet?.JoinWaitingForEnter(agv, token);
+            await Task.Run(() =>
             {
-                //搜尋其他會通過會停在該區域的車輛
-                List<IAGV> goToRegionVehicles = otherVehicles.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                             .Where(agv => _IsTraving(agv.CurrentRunningTask()) || _IsInThisRegion(agv))
-                                                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == regionQuery.Name))
-                                                             .ToList();
-                //如果該區域已經有車輛在該區域，且該區域已經達到最大容量
-                if (goToRegionVehicles.Any() && goToRegionVehicles.Count() >= _Region.MaxVehicleCapacity)
+                agv.OnTaskCancel += (sender, taskName) =>
                 {
-                    inRegionVehicles = goToRegionVehicles.Select(agv => agv.Name).ToList();
-                    return false;
-                }
-
-            }
-            catch (Exception ex)
-            {
-                LOG.ERROR(ex.Message, ex);
-            }
-            inRegionVehicles = otherVehicles.Where(agv => agv.currentMapPoint.GetRegion().Name == regionQuery.Name)
-                                                                                 .Select(agv => agv.Name).ToList();
-
-            var currentWillEntryRegionVehicleNames = _Region.ReserveRegionVehicles.Where(vehicleName => vehicleName != WannaEntryRegionVehicle.Name);
-            return inRegionVehicles.Count() < _Region.MaxVehicleCapacity && currentWillEntryRegionVehicleNames.Count() < _Region.MaxVehicleCapacity;
-
-
-            bool _IsTraving(TaskBase taskBase)
-            {
-                return taskBase.Stage == VehicleMovementStage.Traveling ||
-                    taskBase.Stage == VehicleMovementStage.Traveling_To_Source ||
-                    taskBase.Stage == VehicleMovementStage.Traveling_To_Destine ||
-                    taskBase.Stage == VehicleMovementStage.Traveling_To_Region_Wait_Point;
-            }
-
-            bool _IsInThisRegion(IAGV agv)
-            {
-                return agv.currentMapPoint.GetRegion().Name == _Region.Name;
-            }
+                    regionGet.WaitingForEnterVehicles[agv].allowEnterSignal.Set();
+                };
+                regionGet.WaitingForEnterVehicles[agv].allowEnterSignal.WaitOne();
+                regionGet.WaitingForEnterVehicles.TryRemove(agv, out _);
+            });
         }
 
+
+        private static clsRegionControlState GetRegionControlState(MapRegion region)
+        {
+            KeyValuePair<MapRegion, clsRegionControlState> regionGet = RegionsStates.FirstOrDefault(kp => kp.Key.Name == region.Name);
+            if (regionGet.Value == null)
+                return null;
+            return regionGet.Value;
+        }
+
+        internal static bool IsRegionEnterable(IAGV WannaEntryRegionVehicle, MapRegion regionQuery)
+        {
+            var regionGet = GetRegionControlState(regionQuery);
+            if (regionGet == null)
+                return true;
+            return regionGet.IsEnterable;
+        }
+
+        internal static List<string> GetInRegionVehiclesNames(MapRegion regionQuery)
+        {
+            var regionGet = GetRegionControlState(regionQuery);
+            if (regionGet == null)
+                return new List<string>();
+
+            return regionGet.BookingRegionVehicles.Select(agv => agv.Name).ToList();
+        }
     }
 
     public static class Extensions

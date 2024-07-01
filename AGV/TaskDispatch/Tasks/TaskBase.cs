@@ -71,7 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public clsTaskDownloadData TaskDonwloadToAGV { protected set; get; } = new clsTaskDownloadData();
         public IAGV Agv { get; }
         public MapPoint AGVCurrentMapPoint => this.Agv.currentMapPoint;
-        public clsTaskDto OrderData { get; }
+        public clsTaskDto OrderData { get; } = new clsTaskDto();
         public string TaskSimple => TaskName + $"-{TaskSequence}";
 
         public Action<clsTaskDownloadData> OnTaskDownloadToAGV;
@@ -192,7 +192,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public virtual async Task SendTaskToAGV()
         {
-
             if (IsTaskCanceled)
                 return;
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
@@ -312,17 +311,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public virtual async void CancelTask()
         {
-            _TaskCancelTokenSource.Cancel();
-            IsTaskCanceled = true;
-            this.Dispose();
-            await SendCancelRequestToAGV();
-            TrafficWaitingState.SetStatusNoWaiting();
+            try
+            {
+                _TaskCancelTokenSource.Cancel();
+                IsTaskCanceled = true;
+                this.Dispose();
+                await SendCancelRequestToAGV();
+                TrafficWaitingState.SetStatusNoWaiting();
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex);
+
+            }
         }
 
         internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
         {
-            await Agv.TaskExecuter.TaskCycleStop(this.OrderData?.TaskName);
-            return new SimpleRequestResponse();
+            try
+            {
+                await Agv?.TaskExecuter?.TaskCycleStop(this.OrderData?.TaskName);
+                return new SimpleRequestResponse();
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex);
+                throw ex;
+            }
         }
 
         internal void Replan(List<int> tags)
