@@ -39,6 +39,8 @@ namespace VMSystem.AGV
         internal ManualResetEvent WaitActionStartReportedMRE = new ManualResetEvent(false);
         private SemaphoreSlim TaskExecuteSemaphoreSlim = new SemaphoreSlim(1, 1);
 
+        public event EventHandler<FeedbackData> OnActionFinishReported;
+
         private int sequence = 0;
 
         public TaskExecuteHelper(clsAGV vehicle)
@@ -47,7 +49,12 @@ namespace VMSystem.AGV
             logger = NLog.LogManager.GetLogger($"TaskExecuteHelper/{vehicle.Name}");
             logger.Trace("TaskExecuterHelper instance created");
         }
-
+        public void Init()
+        {
+            ExecutingTaskName = "";
+            TrackingTaskSimpleName = "";
+            lastTaskDonwloadToAGV = null;
+        }
         /// <summary>
         /// 任務下發給車輛
         /// </summary>
@@ -285,44 +292,49 @@ namespace VMSystem.AGV
 
         internal async Task<bool> HandleVehicleTaskStatusFeedback(FeedbackData feedbackData)
         {
-            try
+            return await Task.Run(() =>
             {
-                TASK_RUN_STATUS taskStatus = feedbackData.TaskStatus;
-                logger.Info($"Vehicle Task Status Feedback ({taskStatus.ToString()}): {feedbackData.ToJson()}");
-                string taskName = feedbackData.TaskName;
-                string taskSimplex = feedbackData.TaskSimplex;
-                bool isFeedbackToCurrentTask = taskSimplex.IsNullOrEmpty() || TrackingTaskSimpleName.IsNullOrEmpty() ? true : taskSimplex == TrackingTaskSimpleName;
-                if (!isFeedbackToCurrentTask)
+                try
                 {
-                    logger.Warn($"Feedback TaskSimplex={taskSimplex} is not match to TrackingTaskSimplex={TrackingTaskSimpleName}");
+                    TASK_RUN_STATUS taskStatus = feedbackData.TaskStatus;
+                    logger.Info($"Vehicle Task Status Feedback ({taskStatus.ToString()}): {feedbackData.ToJson()}");
+                    string taskName = feedbackData.TaskName;
+                    string taskSimplex = feedbackData.TaskSimplex;
+                    bool isFeedbackToCurrentTask = taskSimplex.IsNullOrEmpty() || TrackingTaskSimpleName.IsNullOrEmpty() ? true : taskSimplex == TrackingTaskSimpleName;
+                    if (!isFeedbackToCurrentTask)
+                    {
+                        logger.Warn($"Feedback TaskSimplex={taskSimplex} is not match to TrackingTaskSimplex={TrackingTaskSimpleName}");
+                        return false;
+                    }
+
+                    if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
+                    {
+                        OnActionFinishReported?.Invoke(this, feedbackData);
+                        bool isReachLastSubGoal = lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == Vehicle.states.Last_Visited_Node;
+                        if (isReachLastSubGoal)
+                        {
+                            lastTaskDonwloadToAGV = null;
+                            Vehicle.NavigationState.ResetNavigationPoints();
+                        }
+                        WaitACTIONFinishReportedMRE.Set();
+                    }
+                    if (taskStatus == TASK_RUN_STATUS.ACTION_START)
+                    {
+                        WaitActionStartReportedMRE.Set();
+                    }
+                    if (taskStatus == TASK_RUN_STATUS.NAVIGATING)
+                    {
+                        WaitNavigatingReportedMRE.Set();
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
                     return false;
                 }
+            });
 
-                if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
-                {
-                    bool isReachLastSubGoal = lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == Vehicle.states.Last_Visited_Node;
-                    if (isReachLastSubGoal)
-                    {
-                        lastTaskDonwloadToAGV = null;
-                        Vehicle.NavigationState.ResetNavigationPoints();
-                    }
-                    WaitACTIONFinishReportedMRE.Set();
-                }
-                if (taskStatus == TASK_RUN_STATUS.ACTION_START)
-                {
-                    WaitActionStartReportedMRE.Set();
-                }
-                if (taskStatus == TASK_RUN_STATUS.NAVIGATING)
-                {
-                    WaitNavigatingReportedMRE.Set();
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex);
-                return false;
-            }
         }
     }
 }

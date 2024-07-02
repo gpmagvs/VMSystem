@@ -59,10 +59,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     while (SequenceTaskQueue.Count > 0)
                     {
-                        await Task.Delay(200);
+                        await Task.Delay(100);
+                        Agv.TaskExecuter.Init();
                         Agv.NavigationState.StateReset();
                         _CurrnetTaskFinishResetEvent.Reset();
-                        var task = SequenceTaskQueue.Dequeue();
+                        TaskBase task = SequenceTaskQueue.Dequeue();
 
                         task.TaskName = OrderData.TaskName;
                         task.TaskSequence = CompleteTaskStack.Count + 1;
@@ -89,10 +90,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             throw new Exception(dispatch_result.alarm_code.ToString());
                         }
 
-                        _CurrnetTaskFinishResetEvent.WaitOne();
                         task.Dispose();
                         task.ActionFinishInvoke();
-
 
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
@@ -106,7 +105,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     }
 
-                    _SetOrderAsFinishState();
+                     _SetOrderAsFinishState();
                     if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
                     {
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
@@ -229,7 +228,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
             MAIN_STATUS _state_when_action_finish = GetAgvMainState();
-            if (RunningTask.IsAGVReachDestine && _state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging)
+            if (RunningTask.IsAGVReachDestine && (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging))
             {
                 RunningTask.ActionFinishInvoke();
                 _CurrnetTaskFinishResetEvent.Set();
@@ -307,7 +306,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
-             MCSCIMService.TaskReporter((OrderData, 7));
+            MCSCIMService.TaskReporter((OrderData, 7));
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.WARNING, taskName: OrderData.TaskName);
         }
 

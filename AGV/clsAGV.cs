@@ -14,6 +14,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.StopRegion;
 using NLog;
+using System.Diagnostics;
 using System.Net.NetworkInformation;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -236,7 +237,31 @@ namespace VMSystem.AGV
                             //    noRegistedByConflicCheck.Add(previousMapPoint);
                             //}
                             //else
-                            StaMap.UnRegistPoint(Name, previousTag);
+                            Task.Run(async() =>
+                            {
+                                try
+                                {
+
+                                    await StaMap.UnRegistPoint(Name, previousTag);
+
+                                    IEnumerable<int> registedTags = StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName == this.Name).Select(kp => kp.Key);
+                                    IEnumerable<int> regitedButNotInNavigationTags = registedTags.Where(tag => !NavigationState.NextNavigtionPoints.GetTagCollection().Contains(tag));
+
+                                    if (regitedButNotInNavigationTags.Any())
+                                    {
+                                        foreach (var tag in regitedButNotInNavigationTags)
+                                        {
+                                            await StaMap.UnRegistPoint(Name, tag);
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger.Error(ex);
+                                }
+                            });
+                           
+
                         }
 
                         StaMap.RegistPoint(Name, value, out string Registerrmsg);
@@ -503,7 +528,7 @@ namespace VMSystem.AGV
                             //availabilityHelper.UpdateAGVMainState(main_state);
                             continue;
                         }
-                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > 10)
+                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > (Debugger.IsAttached ? 60 : 10))
                         {
                             connected = false;
                         }

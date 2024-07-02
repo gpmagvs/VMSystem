@@ -73,7 +73,10 @@ namespace VMSystem.VMS
 
                         using (AGVSDatabase db = new AGVSDatabase())
                         {
-                            db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName).DesignatedAGVName = AGV.Name;
+                            var model=db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
+                            model.DesignatedAGVName = AGV.Name;
+                            model.need_change_agv = _taskDto.need_change_agv;
+                            model.transfer_task_stage= _taskDto.transfer_task_stage;
                             await db.SaveChanges();
                         }
                         //    await MCSCIMService.TaskReporter((_taskDto, 1));

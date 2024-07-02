@@ -55,6 +55,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 UpdateMoveStateMessage($"退出-[{stationPt.Graph.Display}]...");
                 StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
                 await base.SendTaskToAGV();
+                await WaitAGVTaskDone();
             }
             catch (Exception ex)
             {
@@ -62,7 +63,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 throw ex;
             }
         }
-
+        public override bool IsThisTaskDone(FeedbackData feedbackData)
+        {
+            if (!base.IsThisTaskDone(feedbackData))
+                return false;
+            return feedbackData.PointIndex == 1;
+        }
         public override async void UpdateMoveStateMessage(string msg)
         {
             await Task.Delay(1000);

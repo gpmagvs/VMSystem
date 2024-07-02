@@ -66,17 +66,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
-            // await StaMap.UnRegistPointsOfAGVRegisted(Agv);
-            //if (TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
-            //{
-            //    int currentTag = Agv.currentMapPoint.TagNumber;
-            //    await StaMap.UnRegistPoint(Agv.Name, currentTag);
-            //    NotifyServiceHelper.WARNING($"[!] {Agv.Name} 進入設備解除 {currentTag} 註冊");
-            //}
             UpdateEQActionMessageDisplay();
             ChangeWorkStationMoveStateBackwarding();
             await base.SendTaskToAGV();
+            await WaitAGVTaskDone();
         }
+
+        public override bool IsThisTaskDone(FeedbackData feedbackData)
+        {
+            if(!base.IsThisTaskDone(feedbackData))
+                return false;
+            return feedbackData.PointIndex == 0;
+        }
+
         private async Task ChangeWorkStationMoveStateBackwarding()
         {
             await Task.Delay(1500);

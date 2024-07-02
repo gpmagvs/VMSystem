@@ -32,15 +32,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             throw new NotImplementedException();
         }
-        public override Task SendTaskToAGV()
+        public override async Task SendTaskToAGV()
         {
 
             Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
             MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
             UpdateMoveStateMessage($"進入充電站-[{stationPt.Graph.Display}]...");
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
-            return base.SendTaskToAGV();
+            await base.SendTaskToAGV();
+            await WaitAGVTaskDone();
         }
+
+        public override bool IsThisTaskDone(FeedbackData feedbackData)
+        {
+            if (!base.IsThisTaskDone(feedbackData))
+                return false;
+            return feedbackData.PointIndex == 1;
+        }
+
         public override async void UpdateMoveStateMessage(string msg)
         {
             await Task.Delay(1000);
@@ -51,4 +60,4 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             throw new NotImplementedException();
         }
     }
-   }
+}

@@ -260,7 +260,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             Message = parts_accept.message,
                             ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
-                        },new clsMapPoint[0]);
+                        }, new clsMapPoint[0]);
                     }
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
@@ -343,6 +343,34 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             clsTaskDownloadData _replanTask = TaskDonwloadToAGV.Clone();
             _replanTask.Trajectory = tags.Select(tag => StaMap.GetPointByTagNumber(tag)).Select(mapPt => MapPointToTaskPoint(mapPt)).ToArray();
             SendTaskToAGV(_replanTask);
+        }
+        private ManualResetEvent _WaitAGVTaskDoneMRE = new ManualResetEvent(false);
+
+        protected virtual async Task WaitAGVTaskDone()
+        {
+            _WaitAGVTaskDoneMRE.Reset();
+            
+            void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
+            {
+                if (IsThisTaskDone(feedbackData))
+                {
+                    Agv.TaskExecuter.OnActionFinishReported -= ActionFinishFeedbackHandler;
+                    _WaitAGVTaskDoneMRE.Set();
+                }
+            };
+            void TaskCancelHandler(object sender, string taskName)
+            {
+                Agv.OnTaskCancel -= TaskCancelHandler;
+                _WaitAGVTaskDoneMRE.Set();
+            }
+            Agv.OnTaskCancel += TaskCancelHandler;
+            Agv.TaskExecuter.OnActionFinishReported += ActionFinishFeedbackHandler;
+            _WaitAGVTaskDoneMRE.WaitOne();
+        }
+
+        public virtual bool IsThisTaskDone(FeedbackData feedbackData)
+        {
+            return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
         public virtual void ActionFinishInvoke()

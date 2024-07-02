@@ -17,11 +17,10 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
         public override clsConflicDetectResultWrapper Detect()
         {
-            if (IsAnyVehiclePassRegionPassible(out List<IAGV> confliAGVList))
+            if(!RegionManager.IsRegionEnterable(this.AGVToDetect,entryPtRegion))
             {
                 return new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "")
                 {
-                    ConflicToAGVList = confliAGVList,
                     ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH,
                     Message = $"等待其他車輛通過 {entryPtRegion.Name} 區域"
                 };

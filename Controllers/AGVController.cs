@@ -50,7 +50,6 @@ namespace VMSystem.Controllers
         {
             try
             {
-
                 if (VMSManager.GetAGVByName(AGVName, out var agv))
                 {
                     bool feedbackConfirmed = await agv.TaskExecuter.HandleVehicleTaskStatusFeedback(feedbackData);
@@ -58,7 +57,6 @@ namespace VMSystem.Controllers
                     {
                         return Ok(new { ReturnCode = 2, Message = "Feedback Not Confirmed" });
                     }
-
                     int confirmed_code = await agv.taskDispatchModule.TaskFeedback(feedbackData);
                     return Ok(new { ReturnCode = confirmed_code, Message = "" });
                 }

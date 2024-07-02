@@ -177,7 +177,7 @@ namespace VMSystem.Dispatch.Regions
             regionGet?.JoinWaitingForEnter(agv, token);
             await Task.Run(() =>
             {
-                agv.OnTaskCancel += (sender, taskName) =>
+                void HandleTaskCanceled (object sender, string taskName)
                 {
                     try
                     {
@@ -187,7 +187,12 @@ namespace VMSystem.Dispatch.Regions
                     {
                         Console.WriteLine("Not Waiting.");
                     }
+                    finally
+                    {
+                        agv.OnTaskCancel -= HandleTaskCanceled;
+                    }
                 };
+                agv.OnTaskCancel += HandleTaskCanceled;
                 regionGet.WaitingForEnterVehicles[agv].allowEnterSignal?.WaitOne();
                 regionGet.WaitingForEnterVehicles.TryRemove(agv, out _);
             });
@@ -204,11 +209,14 @@ namespace VMSystem.Dispatch.Regions
 
         internal static bool IsRegionEnterable(IAGV WannaEntryRegionVehicle, MapRegion regionQuery)
         {
+
             var regionGet = GetRegionControlState(regionQuery);
             if (regionGet == null)
                 return true;
 
-            if (WannaEntryRegionVehicle.currentMapPoint.GetRegion().Name == regionQuery.Name)
+            bool isLastNavPathPointInRegion = WannaEntryRegionVehicle.NavigationState.NextNavigtionPoints.Any() && WannaEntryRegionVehicle.NavigationState.NextNavigtionPoints.Last().GetRegion().Name == regionQuery.Name;
+
+            if (isLastNavPathPointInRegion || WannaEntryRegionVehicle.currentMapPoint.GetRegion().Name == regionQuery.Name)
             {
                 return true;
             }
