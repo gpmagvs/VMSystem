@@ -424,7 +424,7 @@ namespace VMSystem.AGV
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
-             MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
+            MCSCIMService.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), 5));
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
@@ -494,7 +494,7 @@ namespace VMSystem.AGV
 
         public string ExecutingTaskName { get; set; } = "";
 
-        
+
         private TASK_RUN_STATUS TaskTrackerQueryOrderStatusCallback(string taskName)
         {
             var _taskEntity = taskList.FirstOrDefault(task => task.TaskName == taskName);

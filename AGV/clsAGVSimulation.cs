@@ -144,7 +144,9 @@ namespace VMSystem.AGV
                     runningSTatus.AGV_Status = _isChargeAction ? clsEnums.MAIN_STATUS.Charging : clsEnums.MAIN_STATUS.IDLE;
 
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+
                     dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
+                    agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                 }
                 catch (Exception ex)
                 {
@@ -159,6 +161,7 @@ namespace VMSystem.AGV
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
+                    agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
                 }
@@ -250,6 +253,7 @@ namespace VMSystem.AGV
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     taskFeedbackData.LastVisitedNode = stationTag;
                     int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+                    agv.TaskExecuter.HandleVehicleTaskStatusFeedback(taskFeedbackData);
                     if (action == ACTION_TYPE.Measure && !homing)
                     {
                         await MeasureSimulation(stationTag);

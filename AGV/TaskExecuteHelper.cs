@@ -250,16 +250,22 @@ namespace VMSystem.AGV
                 };
                 WaitACTIONFinishReportedMRE.Reset();
                 SimpleRequestResponse taskStateResponse = new SimpleRequestResponse();
-                if (CommunicationProtocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
+
+                if (Vehicle.simulationMode)
                 {
-                    taskStateResponse = await Vehicle.AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
+                    Vehicle.AgvSimulation.CancelTask();
                 }
                 else
                 {
-                    taskStateResponse = Vehicle.TcpClientHandler.SendTaskCancelMessage(reset_cmd);
+                    if (CommunicationProtocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
+                    {
+                        taskStateResponse = await Vehicle.AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);
+                    }
+                    else
+                    {
+                        taskStateResponse = Vehicle.TcpClientHandler.SendTaskCancelMessage(reset_cmd);
+                    }
                 }
-
-
                 logger.Info($"Task Cycle Stop To AGV:\n{reset_cmd.ToJson()}");
                 logger.Info($"AGV Response Of Task Cycle Stop:\n{taskStateResponse.ToJson()}");
 
