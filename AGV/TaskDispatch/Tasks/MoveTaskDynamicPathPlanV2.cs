@@ -85,6 +85,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             subStage = Stage;
+            StartRecordTrjectory();
             bool IsRegionNavigationEnabled = TrafficControlCenter.TrafficControlParameters.Basic.MultiRegionNavigation;
             try
             {

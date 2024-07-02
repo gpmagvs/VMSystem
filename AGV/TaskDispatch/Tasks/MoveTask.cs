@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
 using System.Diagnostics.Tracing;
 using System.Net;
+using System.Threading.Tasks;
 using System.Timers;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -699,11 +701,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
             TrajectoryStoreTimer.Enabled = true;
         }
-        public void EndReocrdTrajectory()
+        public async void EndReocrdTrajectory()
         {
             TrajectoryStoreTimer?.Stop();
             TrajectoryStoreTimer?.Dispose();
-            LOG.WARN($"{Agv.Name} End Store trajectory of Task-{OrderData.TaskName}");
+
+            string taskID = OrderData.TaskName;
+            string agvName = Agv.Name;
+            LOG.WARN($"{agvName} End Store trajectory of Task-{taskID}");
+            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
+            var result = await helper.StoreTrajectory(taskID, agvName, _TrajectoryTempStorage.ToJson(Newtonsoft.Json.Formatting.None));
+            if (!result.success)
+            {
+                LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
+            }
         }
 
         /// <summary>
@@ -715,6 +726,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             await StoreTrajectory();
         }
+        protected List<clsTrajCoordination> _TrajectoryTempStorage = new List<clsTrajCoordination>();
+
         private async Task StoreTrajectory()
         {
             if (IsTaskCanceled)
@@ -722,18 +735,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 EndReocrdTrajectory();
                 return;
             }
-            string taskID = OrderData.TaskName;
-            string agvName = Agv.Name;
+
             double x = Agv.states.Coordination.X;
             double y = Agv.states.Coordination.Y;
             double theta = Agv.states.Coordination.Theta;
-
-            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-            var result = await helper.StoreTrajectory(taskID, agvName, x, y, theta);
-            if (!result.success)
-            {
-                LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
-            }
+            _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
         }
 
     }
