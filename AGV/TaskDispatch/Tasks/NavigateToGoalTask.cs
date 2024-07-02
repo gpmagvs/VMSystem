@@ -114,7 +114,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
             //create clsTaskDownloadData and send to AGV
-            TaskDownloadRequestResponse agvResponse = await Agv.TaskExecuter.TaskDownload(this, new clsTaskDownloadData
+            (TaskDownloadRequestResponse agvResponse, clsMapPoint[] trajectory)= await Agv.TaskExecuter.TaskDownload(this, new clsTaskDownloadData
             {
                 Action_Type = ACTION_TYPE.None,
                 CST = new clsCST[] { new clsCST { CST_ID = OrderData.Carrier_ID, CST_Type = OrderData.CST_TYPE == 200 ? CST_TYPE.Tray : CST_TYPE.Rack } },

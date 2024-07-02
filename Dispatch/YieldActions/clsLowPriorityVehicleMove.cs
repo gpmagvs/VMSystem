@@ -77,29 +77,30 @@ namespace VMSystem.Dispatch.YieldActions
                     var pathPredictOfHPV = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(pointOfHPV, finalPtOfHPV, constrainsOfHPVPath);
                     cannotStopPoints.AddRange(pathPredictOfHPV);
                     cannotStopPoints.AddRange(_GetConstrainsOfLPVStopPoint());
+                    cannotStopPoints.Add(_LowProrityVehicle.currentMapPoint);
                     cannotStopPoints = cannotStopPoints.Where(pt => !pt.IsAvoid).DistinctBy(pt => pt.TagNumber).ToList();
 
                     var canStopPointCandicates = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.IsVirtualPoint && !cannotStopPoints.GetTagCollection().Contains(pt.TagNumber))
                                                                          .ToList();
-
+                    canStopPointCandicates = canStopPointCandicates.Where(pt=>pt.TagNumber!=_LowProrityVehicle.currentMapPoint.TagNumber).ToList();
                     // Find Avoid Point In Low Priority Vehicle current Region   from canStopPointCandicates
                     MapRegion regionOfLPV = _LowProrityVehicle.currentMapPoint.GetRegion();
 
-                    List<MapPoint> avaliableAvoidPoints = canStopPointCandicates.Where(pt => pt.IsAvoid && IsPointReachable(pt)).ToList();
+                    //List<MapPoint> avaliableAvoidPoints = canStopPointCandicates.Where(pt => pt.IsAvoid && IsPointReachable(pt)).ToList();
 
 
 
-                    avaliableAvoidPoints = avaliableAvoidPoints.OrderBy(pt => pt.CalculateDistance(_LowProrityVehicle.currentMapPoint)).ToList();
+                    //avaliableAvoidPoints = avaliableAvoidPoints.OrderBy(pt => pt.CalculateDistance(_LowProrityVehicle.currentMapPoint)).ToList();
 
-                    if (avaliableAvoidPoints.Any())
-                    {
-                        IEnumerable<IEnumerable<MapPoint>> PathToAvoidPoints = avaliableAvoidPoints.Select(pt => GetPathToStopPoint(pt)).ToList();
-                        IEnumerable<MapPoint> pathToAvoidPoint = PathToAvoidPoints.FirstOrDefault(path => path != null);
-                        if (pathToAvoidPoint != null)
-                            return pathToAvoidPoint.Last();
-                        else
-                            return null;
-                    }
+                    //if (avaliableAvoidPoints.Any())
+                    //{
+                    //    IEnumerable<IEnumerable<MapPoint>> PathToAvoidPoints = avaliableAvoidPoints.Select(pt => GetPathToStopPoint(pt)).ToList();
+                    //    IEnumerable<MapPoint> pathToAvoidPoint = PathToAvoidPoints.FirstOrDefault(path => path != null);
+                    //    if (pathToAvoidPoint != null)
+                    //        return pathToAvoidPoint.Last();
+                    //    else
+                    //        return null;
+                    //}
 
                     IEnumerable<IEnumerable<MapPoint>> pathes = canStopPointCandicates.Select(pt => GetPathToStopPoint(pt)).ToList();
                     if (pathes.All(path => path == null))

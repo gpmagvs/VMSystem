@@ -15,6 +15,7 @@ using System.Data;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.VMS;
@@ -138,6 +139,7 @@ namespace VMSystem.TrafficControl
                 }
 
                 //addiction check .
+                //await RegionManager.StartWaitToEntryRegion(_RaiseReqAGV, goalPoint.GetRegion(), _RaiseReqAGV.CurrentRunningTask()._TaskCancelTokenSource.Token);
 
                 EnterWorkStationDetection enterWorkStationDetection = new(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
                 clsConflicDetectResultWrapper workstationLeaveAddictionCheckResult = enterWorkStationDetection.Detect();
@@ -161,33 +163,33 @@ namespace VMSystem.TrafficControl
                 if (_isNeedWait)
                 {
                     List<IAGV> conflicVehicles = _result.ConflicToAGVList;
-                    if (conflicStatus == CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH)//干涉
-                    {
-                        bool _isOtherConflicVehicleFar = conflicVehicles.All(_vehicle => IsCycleStopAllow(_vehicle, entryPointOfWorkStation));
-                        if (_isOtherConflicVehicleFar)
-                        {
+                    //if (conflicStatus == CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH)//干涉
+                    //{
+                    //    bool _isOtherConflicVehicleFar = conflicVehicles.All(_vehicle => IsCycleStopAllow(_vehicle, entryPointOfWorkStation));
+                    //    if (_isOtherConflicVehicleFar)
+                    //    {
 
-                            _CycleStopTaskOfOtherVehicle = new Task(async () =>
-                            {
-                                foreach (var conflic_vehicle in conflicVehicles)
-                                {
-                                    await conflic_vehicle.CurrentRunningTask().CycleStopRequestAsync();
-                                }
-                            });
-                            args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-                        }
-                        else
-                        {
-                            args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                            args.Message = _waitMessage;
-                        }
-                    }
-                    else
-                    {
-                        args.WaitSignal.Reset();
-                        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                        args.Message = _waitMessage;
-                    }
+                    //        _CycleStopTaskOfOtherVehicle = new Task(async () =>
+                    //        {
+                    //            foreach (var conflic_vehicle in conflicVehicles)
+                    //            {
+                    //                await conflic_vehicle.CurrentRunningTask().CycleStopRequestAsync();
+                    //            }
+                    //        });
+                    //        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                    //    }
+                    //    else
+                    //    {
+                    //        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
+                    //        args.Message = _waitMessage;
+                    //    }
+                    //}
+                    //else
+                    //{
+                    args.WaitSignal.Reset();
+                    args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
+                    args.Message = _waitMessage;
+                    //}
                 }
                 else
                 {

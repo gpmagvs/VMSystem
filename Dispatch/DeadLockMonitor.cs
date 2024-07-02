@@ -136,22 +136,22 @@ namespace VMSystem.Dispatch
         {
             //決定誰要先移動到避車點
 
-            Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStationOfCurrentRegion(vehicle));
+            //Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStationOfCurrentRegion(vehicle));
 
-            if (parkStationState.Any(pair => pair.Value != null))
-            {
-                var _lpPair = parkStationState.First(pair => pair.Value != null);
-                var _lowProrityVehicle = _lpPair.Key;
-                var avoidPoint = _lpPair.Value;
+            //if (parkStationState.Any(pair => pair.Value != null))
+            //{
+            //    var _lpPair = parkStationState.First(pair => pair.Value != null);
+            //    var _lowProrityVehicle = _lpPair.Key;
+            //    var avoidPoint = _lpPair.Value;
 
-                var _highProrityVehicle = parkStationState.First(pair => pair.Key.Name != _lowProrityVehicle.Name).Key;
-                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
-                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = avoidPoint;
-                _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-                _lowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
-                return _lowProrityVehicle;
-            }
+            //    var _highProrityVehicle = parkStationState.First(pair => pair.Key.Name != _lowProrityVehicle.Name).Key;
+            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
+            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
+            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = avoidPoint;
+            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
+            //    _lowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
+            //    return _lowProrityVehicle;
+            //}
 
             (IAGV lowPriorityVehicle, IAGV highPriorityVehicle) = DeterminPriorityOfVehicles(DeadLockVehicles);
             clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
@@ -276,7 +276,7 @@ namespace VMSystem.Dispatch
 
             if (_IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation))
             {
-                DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
+                await DynamicPathClose(waitingVehicle, vehiclesAtWorkStation);
             }
             if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
             {
@@ -335,7 +335,7 @@ namespace VMSystem.Dispatch
         }
 
 
-        private void DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
+        private async Task DynamicPathClose(IAGV waitingVehicle, IEnumerable<IAGV> vehiclesAtWorkStation)
         {
             MapRectangle CurrentConflicRegion = waitingVehicle.NavigationState.CurrentConflicRegion;
             if (CurrentConflicRegion == null)
@@ -386,7 +386,8 @@ namespace VMSystem.Dispatch
                 StaMap.Map.Points.Values.First(pt => pt.TagNumber == startPtOfPathClose.TagNumber)
                                          .Target.Remove(indexOfEndPt, out _);
 
-                if (StaMap.TryRemovePathDynamic(startPtOfPathClose, endPtOfPathClose, out MapPath path))
+                (bool confirmed, MapPath path) = await StaMap.TryRemovePathDynamic(startPtOfPathClose, endPtOfPathClose);
+                if (confirmed)
                 {
                     TempRemovedMapPathes.Add(new Tuple<IAGV, MapPath>(waitingVehicle, path));
                     NotifyServiceHelper.WARNING($"{waitingVehicle.Name} 與在設備中的車輛({AvoidToVehicle.Name})互相等待! Close Path-{startPtOfPathClose.TagNumber}->{endPtOfPathClose.TagNumber}");

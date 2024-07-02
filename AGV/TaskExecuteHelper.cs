@@ -54,7 +54,7 @@ namespace VMSystem.AGV
         /// <param name="task"></param>
         /// <param name="_TaskDonwloadToAGV"></param>
         /// <returns></returns>
-        internal async Task<TaskDownloadRequestResponse> TaskDownload(TaskBase task, clsTaskDownloadData _TaskDonwloadToAGV)
+        internal async Task<(TaskDownloadRequestResponse response, clsMapPoint[] trajectory)> TaskDownload(TaskBase task, clsTaskDownloadData _TaskDonwloadToAGV)
         {
             try
             {
@@ -95,6 +95,12 @@ namespace VMSystem.AGV
                 if (_TaskDonwloadToAGV.Task_Name != ExecutingTaskName)
                     sequence = 0;
 
+                if (_TaskDonwloadToAGV.ExecutingTrajecory.Length == 1 && _TaskDonwloadToAGV.ExecutingTrajecory.First().Point_ID != Vehicle.states.Last_Visited_Node)
+                {
+                    logger.Error($"Path send to AGV is incorrect!!!!");
+                    return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION }, new clsMapPoint[0]);
+                }
+
                 ExecutingTaskName = task.TaskName;
 
                 clsTaskDto order = task.OrderData;
@@ -121,7 +127,7 @@ namespace VMSystem.AGV
                 if (Vehicle.options.Simulation)
                 {
                     TaskDownloadRequestResponse taskStateResponse = Vehicle.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
-                    return taskStateResponse;
+                    return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
                 }
                 else
                 {
@@ -152,19 +158,19 @@ namespace VMSystem.AGV
                             logger.Warn($"Task is Reject by AGV! ReturnCode={taskStateResponse.ReturnCode}");
                         }
 
-                        return taskStateResponse;
+                        return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
                     }
                     catch (Exception ex)
                     {
                         logger.Error(ex);
-                        return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL };
+                        return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
                     }
                 }
             }
             catch (Exception ex)
             {
                 logger.Error(ex);
-                return new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL };
+                return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
 
             }
             finally

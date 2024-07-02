@@ -260,7 +260,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 //}
 
                 StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
-                var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                (TaskDownloadRequestResponse _result, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(_taskDownloadData);
                 if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                 {
                     if (OnTaskDownloadToAGVButAGVRejected != null)
@@ -327,7 +327,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         StaMap.RegistPoint(Agv.Name, MoveTaskEvent.AGVRequestState.NextSequenceTaskRemainTagList, out string ErrorMessage);
-                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                        (TaskDownloadRequestResponse _result, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(_taskDownloadData);
                         if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
                             if (OnTaskDownloadToAGVButAGVRejected != null)

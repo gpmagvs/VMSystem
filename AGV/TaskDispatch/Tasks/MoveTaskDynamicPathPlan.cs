@@ -192,7 +192,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
 
 
-                        var _result = await _DispatchTaskToAGV(_taskDownloadData);
+                        (TaskDownloadRequestResponse _result, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(_taskDownloadData);
                         if (_result.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
                             if (OnTaskDownloadToAGVButAGVRejected != null)
@@ -322,7 +322,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //        return;
             //}
 
-            var _result = _DispatchTaskToAGV(_taskDto).GetAwaiter().GetResult();
+            (TaskDownloadRequestResponse _result, clsMapPoint[] _trajectory) = _DispatchTaskToAGV(_taskDto).GetAwaiter().GetResult();
             if (_result.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
             {
                 while (Agv.main_state != clsEnums.MAIN_STATUS.RUN)

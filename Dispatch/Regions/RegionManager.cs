@@ -60,7 +60,22 @@ namespace VMSystem.Dispatch.Regions
                         int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
                         return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
                     }
+
+
                     IsEnterable = _IsEnterable();
+
+                    if (!IsEnterable)
+                    {
+                        foreach (var agv in BookingRegionVehicles)
+                        {
+                            if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
+                            {
+                                state.allowEnterSignal.Set();
+                                WaitingForEnterVehicles.TryRemove(agv, out _);
+                            }
+                        }
+
+                    }
                 }
             }
 
@@ -83,6 +98,8 @@ namespace VMSystem.Dispatch.Regions
                         token = token
                     });
                 }
+                if (IsEnterable)
+                    WaitingForEnterVehicles[agv].allowEnterSignal.Set();
             }
             public class clsVehicleWaitingState
             {
@@ -155,14 +172,23 @@ namespace VMSystem.Dispatch.Regions
         internal static async Task StartWaitToEntryRegion(IAGV agv, MapRegion region, CancellationToken token)
         {
             var regionGet = GetRegionControlState(region);
+            if (regionGet == null)
+                return;
             regionGet?.JoinWaitingForEnter(agv, token);
             await Task.Run(() =>
             {
                 agv.OnTaskCancel += (sender, taskName) =>
                 {
-                    regionGet.WaitingForEnterVehicles[agv].allowEnterSignal.Set();
+                    try
+                    {
+                        regionGet.WaitingForEnterVehicles[agv].allowEnterSignal.Set();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Not Waiting.");
+                    }
                 };
-                regionGet.WaitingForEnterVehicles[agv].allowEnterSignal.WaitOne();
+                regionGet.WaitingForEnterVehicles[agv].allowEnterSignal?.WaitOne();
                 regionGet.WaitingForEnterVehicles.TryRemove(agv, out _);
             });
         }
@@ -181,6 +207,12 @@ namespace VMSystem.Dispatch.Regions
             var regionGet = GetRegionControlState(regionQuery);
             if (regionGet == null)
                 return true;
+
+            if (WannaEntryRegionVehicle.currentMapPoint.GetRegion().Name == regionQuery.Name)
+            {
+                return true;
+            }
+
             return regionGet.IsEnterable;
         }
 
@@ -191,6 +223,24 @@ namespace VMSystem.Dispatch.Regions
                 return new List<string>();
 
             return regionGet.BookingRegionVehicles.Select(agv => agv.Name).ToList();
+        }
+
+        internal static bool IsAGVWaitingRegion(IAGV Agv, MapRegion mapRegion)
+        {
+            return RegionsStates.FirstOrDefault(kp => kp.Key.Name == mapRegion.Name).Value.WaitingForEnterVehicles.TryGetValue(Agv, out var state);
+        }
+
+        internal static void SetAGVNoWaitForEnteryRegion(IAGV Agv)
+        {
+            foreach (var region in RegionsStates)
+            {
+                if (region.Value.WaitingForEnterVehicles.TryRemove(Agv, out var state))
+                {
+                    state.allowEnterSignal.Set();
+                    return;
+                }
+
+            }
         }
     }
 

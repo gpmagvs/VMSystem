@@ -200,8 +200,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             //Console.WriteLine("Send To AGV: " + TaskDonwloadToAGV.ToJson());
             if (IsTaskCanceled)
-                return;
-            var agv_response = await _DispatchTaskToAGV(taskData);
+                return; (TaskDownloadRequestResponse agv_response, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(taskData);
             if (agv_response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                 throw new Exceptions.AGVRejectTaskException();
         }
@@ -244,7 +243,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         }
         public List<int> FuturePlanNavigationTags = new List<int>();
-        internal async Task<TaskDownloadRequestResponse> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
+        internal async Task<(TaskDownloadRequestResponse, clsMapPoint[] trajectory)> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
             if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
             {
@@ -257,11 +256,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     if (stopwatch.Elapsed.TotalSeconds > 180)
                     {
                         TrafficWaitingState.SetStatusNoWaiting();
-                        return new TaskDownloadRequestResponse
+                        return (new TaskDownloadRequestResponse
                         {
                             Message = parts_accept.message,
                             ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
-                        };
+                        },new clsMapPoint[0]);
                     }
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
@@ -275,7 +274,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TrafficWaitingState.SetStatusNoWaiting();
             return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
         }
-        protected CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
+        public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
 
         public virtual void UpdateStateDisplayMessage(string msg)

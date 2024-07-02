@@ -40,14 +40,13 @@ namespace VMSystem.Dispatch
             VehicleNavigationState.OnAGVStartWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleStartWaitConflicSolve;
             VehicleNavigationState.OnAGVNoWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleNoWaitConflicSolve;
         }
-
-        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
+        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage)
         {
             try
             {
                 await semaphore.WaitAsync();
-                MapPoint finalMapPoint = taskDto.GetFinalMapPoint(vehicle, stage);
-                var path = await GenNextNavigationPath(vehicle, startPoint, taskDto, stage);
+                MapPoint finalMapPoint = goalPoint;
+                var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage);
                 return path = path == null ? path : path.Clone();
             }
             catch (Exception ex)
@@ -59,13 +58,17 @@ namespace VMSystem.Dispatch
                 await Task.Delay(10);
                 semaphore.Release();
             }
-
         }
-        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
+        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
+        {
+            MapPoint goalPoint = taskDto.GetFinalMapPoint(vehicle, stage);
+            return await MoveToDestineDispatchRequest(vehicle, startPoint, goalPoint, taskDto, stage);
+        }
+        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage)
         {
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
-            MapPoint finalMapPoint = order.GetFinalMapPoint(vehicle, stage);
+            MapPoint finalMapPoint = goalPoint;
             IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>(), vehicle.states.Coordination.Theta);
             IEnumerable<MapPoint> optimizePath_Init = null;
 
@@ -119,7 +122,7 @@ namespace VMSystem.Dispatch
                 {
                     List<MapPoint> path = new();
 
-                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null &&  _path.Last().TagNumber == finalMapPoint.TagNumber && _path.All(pt=>otherAGV.SelectMany(agv=>agv.NavigationState.NextNavigtionPoints).GetTagCollection().Contains(pt.TagNumber)));
+                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber && _path.All(pt => otherAGV.SelectMany(agv => agv.NavigationState.NextNavigtionPoints).GetTagCollection().Contains(pt.TagNumber)));
 
                     if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
                     {
@@ -289,6 +292,11 @@ namespace VMSystem.Dispatch
                     return _conflicRegion != null;
                 }
             }
+
+        }
+        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
+        {
+            return await GenNextNavigationPath(vehicle, startPoint, order.GetFinalMapPoint(vehicle, stage), order, stage);
         }
 
         private static bool WillRotationAtCurrentPointConflicTo(IAGV vehicle, clsTaskDto order, VehicleMovementStage stage, IEnumerable<MapPoint> _path, IEnumerable<IAGV> otherAGV)

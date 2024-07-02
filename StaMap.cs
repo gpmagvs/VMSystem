@@ -562,13 +562,29 @@ namespace VMSystem
             }
             return tags;
         }
-        internal static bool TryRemovePathDynamic(MapPoint fromPt, MapPoint toPt, out MapPath path)
+        private static SemaphoreSlim removePathSemaphoreSlim = new SemaphoreSlim(1, 1);
+        internal static async Task<(bool confirmed, MapPath path)> TryRemovePathDynamic(MapPoint fromPt, MapPoint toPt)
         {
-            string pathID = $"{GetIndexOfPoint(fromPt)}_{GetIndexOfPoint(toPt)}";
-            path = Map.Segments.FirstOrDefault(_path => _path.PathID == pathID);
-            if (path == null)
-                return false;
-            return Map.Segments.Remove(path);
+            try
+            {
+                await removePathSemaphoreSlim.WaitAsync();
+                string pathID = $"{GetIndexOfPoint(fromPt)}_{GetIndexOfPoint(toPt)}";
+                var path = Map.Segments.FirstOrDefault(_path => _path.PathID == pathID);
+                if (path == null)
+                    return (false, null);
+                bool removed = Map.Segments.Remove(path);
+                return (removed, path);
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                removePathSemaphoreSlim.Release();
+
+            }
         }
 
         internal static bool AddPathDynamic(MapPath path)
