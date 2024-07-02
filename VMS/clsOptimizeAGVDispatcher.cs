@@ -62,9 +62,15 @@ namespace VMSystem.VMS
                         IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, List_TaskAGV);
                         if (AGV == null)
                             continue;
+                        else
+                        {
+                            agv = AGV;
+                            _taskDto.DesignatedAGVName = AGV.Name;
+                            _taskDto= ChechGenerateTransferTaskOrNot(AGV,ref _taskDto);
+                        }
 
-                        agv = AGV;
-                        _taskDto.DesignatedAGVName = AGV.Name;
+
+
                         using (AGVSDatabase db = new AGVSDatabase())
                         {
                             db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName).DesignatedAGVName = AGV.Name;
@@ -123,8 +129,6 @@ namespace VMSystem.VMS
                     if (taskDto.transfer_task_stage == 0)
                     {
                         EQAcceptEQType = fromstation_agvtype;
-                        taskDto.need_change_agv = true;
-                        taskDto.transfer_task_stage = 1;
                     }
                     else if (taskDto.transfer_task_stage == 1) { }
                     else if (taskDto.transfer_task_stage == 2)
@@ -160,8 +164,8 @@ namespace VMSystem.VMS
                     }));
                 }
                 await Task.WhenAll(calculateDistanceTasks.ToArray());
-                agvSortedByDistance=agvDistance.OrderByDescending(agv => agv.Key.online_state)
-                                               .Select(kp=>kp.Key)
+                agvSortedByDistance = agvDistance.OrderByDescending(agv => agv.Key.online_state)
+                                               .Select(kp => kp.Key)
                                                .ToList();
 
                 //foreach (var agv in VMSManager.AllAGV)
@@ -225,19 +229,71 @@ namespace VMSystem.VMS
         /// <summary>
         ///  類似 EQTransferTaskManager.CheckEQAcceptAGVType
         /// </summary>
-        /// <param name="AGV"></param>
-        /// <param name="_taskDto"></param>
+        /// <param name="taskDto"></param>
         /// <returns></returns>
-        private async Task<clsTaskDto> ChechGenerateTransferTaskOrNot(IAGV AGV, clsTaskDto _taskDto)
+        private clsTaskDto ChechGenerateTransferTaskOrNot(IAGV AGV ,ref clsTaskDto taskDto)
         {
-            AGV_TYPE to_station_agv_model = EquipmentStore.GetEQAcceptAGVType(_taskDto.To_Station_Tag, int.Parse(_taskDto.To_Slot));
-            _taskDto.To_Station_AGV_Type = to_station_agv_model;
-            if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry || _taskDto.Action == ACTION_TYPE.LoadAndPark)
-                if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
-                    _taskDto.need_change_agv = false;
-                else
-                    _taskDto.need_change_agv = true;
-            return _taskDto;
+            MapPoint goalStation = null;
+            MapPoint FromStation = null;
+            MapPoint ToStation = null;
+            AGV_TYPE EQAcceptEQType = AGV_TYPE.Any;
+            int goalSlotHeight = 0;
+            if (taskDto.Action == ACTION_TYPE.Unload)
+            {
+                goalSlotHeight = int.Parse(taskDto.To_Slot);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
+            }
+            else if (taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.LoadAndPark)
+            {
+                goalSlotHeight = int.Parse(taskDto.To_Slot);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
+                if (EQAcceptEQType != AGV_TYPE.Any || EQAcceptEQType != agv.model)
+                    taskDto.need_change_agv = true;
+            }
+            else if (taskDto.Action == ACTION_TYPE.Carry)
+            {
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
+                StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
+                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation);
+                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation);
+                goalStation = FromStation;
+                goalSlotHeight = int.Parse(taskDto.From_Slot);
+
+                if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
+                    EQAcceptEQType = fromstation_agvtype;
+                else if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype != AGV_TYPE.Any)
+                    EQAcceptEQType = tostation_agvtype;
+                else if (fromstation_agvtype != AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
+                    EQAcceptEQType = fromstation_agvtype;
+                else if (fromstation_agvtype == tostation_agvtype)
+                    EQAcceptEQType = fromstation_agvtype;
+                else // fromstation_agvtype!=tostation_agvtype
+                {
+                    if (taskDto.transfer_task_stage == 0)
+                    {
+                        EQAcceptEQType = fromstation_agvtype;
+                        taskDto.need_change_agv = true;
+                        taskDto.transfer_task_stage = 1;
+                    }
+                    else if (taskDto.transfer_task_stage == 1) { }
+                    else if (taskDto.transfer_task_stage == 2)
+                    {
+                        EQAcceptEQType = tostation_agvtype;
+                    }
+                }
+            }
+            return taskDto;
+
+            //AGV_TYPE to_station_agv_model = EquipmentStore.GetEQAcceptAGVType(_taskDto.To_Station_Tag, int.Parse(_taskDto.To_Slot));
+            //_taskDto.To_Station_AGV_Type = to_station_agv_model;
+            //if (_taskDto.Action == ACTION_TYPE.Load || _taskDto.Action == ACTION_TYPE.Carry || _taskDto.Action == ACTION_TYPE.LoadAndPark)
+            //    if (_taskDto.To_Station_AGV_Type == AGV_TYPE.Any || _taskDto.To_Station_AGV_Type == AGV.model)
+            //        _taskDto.need_change_agv = false;
+            //    else
+            //        _taskDto.need_change_agv = true;
+            //return _taskDto;
         }
     }
 }
