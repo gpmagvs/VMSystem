@@ -68,7 +68,7 @@ namespace VMSystem.Dispatch
 
                             IAGV firstWaitingVehicle = vehicleSearch;
                             IAGV second = _deadLockVehicles.Where(agv => agv.Name != firstWaitingVehicle.Name)
-                                                           .Where(agv => agv.NavigationState.currentConflicToAGV.Name == firstWaitingVehicle.Name)
+                                                           .Where(agv => agv.NavigationState.currentConflicToAGV?.Name == firstWaitingVehicle?.Name)
                                                            .FirstOrDefault();
                             return (firstWaitingVehicle, second);
                         }

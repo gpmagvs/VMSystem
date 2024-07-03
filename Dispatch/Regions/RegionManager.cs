@@ -83,7 +83,7 @@ namespace VMSystem.Dispatch.Regions
                     catch (Exception ex)
                     {
                     }
-                    
+
                 }
             }
 
@@ -185,7 +185,7 @@ namespace VMSystem.Dispatch.Regions
             regionGet?.JoinWaitingForEnter(agv, token);
             await Task.Run(() =>
             {
-                void HandleTaskCanceled (object sender, string taskName)
+                void HandleTaskCanceled(object sender, string taskName)
                 {
                     try
                     {
@@ -243,6 +243,8 @@ namespace VMSystem.Dispatch.Regions
 
         internal static bool IsAGVWaitingRegion(IAGV Agv, MapRegion mapRegion)
         {
+            if (!RegionsStates.Any())
+                return false;
             return RegionsStates.FirstOrDefault(kp => kp.Key.Name == mapRegion.Name).Value.WaitingForEnterVehicles.TryGetValue(Agv, out var state);
         }
 
