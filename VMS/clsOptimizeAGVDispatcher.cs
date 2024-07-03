@@ -30,56 +30,105 @@ namespace VMSystem.VMS
             {
                 try
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(500);
 
-                    List<string> List_TaskAGV = new List<string>();
-
-                    List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => (f.State == TASK_RUN_STATUS.WAIT) && f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
-                    List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.State == TASK_RUN_STATUS.WAIT).Select(task => task.DesignatedAGVName).Distinct().ToList();
-                    List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
-                    List_TaskAGV.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
-                    List_TaskAGV.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
-
-                    List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
-                    List_TaskAGV.AddRange(List_idlecarryAGV);
-
-                    if (_taskList_waiting_and_no_DesignatedAGV.Count == 0)
-                        continue;
-
-                    //將任務依照優先度排序
-                    List<clsTaskDto> taskOrderedByPriority = _taskList_waiting_and_no_DesignatedAGV.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority).ToList();
-                    for (int i = 0; i < taskOrderedByPriority.Count(); i++)
+                    List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
+                    if (_taskList_waiting_and_no_DesignatedAGV.Count > 0)
                     {
-                        var _taskDto = taskOrderedByPriority[i];
-                        if (_taskDto.DesignatedAGVName != "")
-                            continue;
+                        List<string> List_TaskAGV = new List<string>();
+                        List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
+                        List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
+                        List_TaskAGV.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
+                        List_TaskAGV.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
-                        if (_taskDto.TaskName.ToUpper().Contains("HR_CARRY"))
+                        List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
+                        List_TaskAGV.AddRange(List_idlecarryAGV);
+
+
+                        //將任務依照優先度排序            
+                        List<clsTaskDto> taskOrderedByPriority = _taskList_waiting_and_no_DesignatedAGV.OrderBy(t => t.RecieveTime.Ticks).OrderByDescending(task => task.Priority).ToList();
+                        for (int i = 0; i < taskOrderedByPriority.Count(); i++)
                         {
-                            List_TaskAGV.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
-                        }
+                            var _taskDto = taskOrderedByPriority[i];
+                            if (_taskDto.DesignatedAGVName != "")
+                                continue;
 
-                        IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, List_TaskAGV);
-                        if (AGV == null)
-                            continue;
-                        else
+                            if (_taskDto.TaskName.ToUpper().Contains("HR_CARRY"))
+                            {
+                                List_TaskAGV.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
+                            }
+
+                            IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, List_TaskAGV);
+                            if (AGV == null)
+                                continue;
+                            else
+                            {
+                                agv = AGV;
+                                _taskDto.DesignatedAGVName = AGV.Name;
+                                _taskDto = ChechGenerateTransferTaskOrNot(AGV, ref _taskDto);
+                            }
+
+                            using (AGVSDatabase db = new AGVSDatabase())
+                            {
+                                var model = db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
+                                model.DesignatedAGVName = AGV.Name;
+                                model.need_change_agv = _taskDto.need_change_agv;
+                                model.transfer_task_stage = _taskDto.transfer_task_stage;
+                                await db.SaveChanges();
+                            }
+                            await Task.Delay(2000);
+                            //    await MCSCIMService.TaskReporter((_taskDto, 1));
+                        }
+                    }
+                    List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
+                    if (_taskList_running_for_change_agv.Count > 0)
+                    {
+                        for (int i = 0; i < _taskList_running_for_change_agv.Count; i++)
                         {
-                            agv = AGV;
-                            _taskDto.DesignatedAGVName = AGV.Name;
-                            _taskDto= ChechGenerateTransferTaskOrNot(AGV,ref _taskDto);
+                            var runningtask = _taskList_running_for_change_agv[i];
+                            IAGV DesignatedAGV = VMSManager.AllAGV.Where(x => x.Name == runningtask.DesignatedAGVName).Select(x => x).Distinct().FirstOrDefault();
+                            if (DesignatedAGV == null || DesignatedAGV.CurrentRunningTask().Stage != VehicleMovementStage.Traveling_To_Source)
+                                continue;
+                            IEnumerable<IAGV> allagv = VMSManager.AllAGV.Where(x => x.model == DesignatedAGV.model && x.online_state == ONLINE_STATE.ONLINE).Select(x => x).Distinct();
+
+                            Dictionary<IAGV, Task<double>> agv_distance_calculater = allagv.ToDictionary(x => x, y => Task.Run(() =>
+                            {
+                                MapPoint goalStation = null;
+                                StaMap.TryGetPointByTagNumber(int.Parse(runningtask.From_Station), out goalStation);
+                                PathFinder pathFinder = new PathFinder();
+                                var result = pathFinder.FindShortestPath(StaMap.Map, y.currentMapPoint, goalStation, new PathFinder.PathFinderOption
+                                {
+                                    OnlyNormalPoint = false,
+                                    Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra
+                                });
+                                if (result == null)
+                                    return double.MaxValue;
+                                else
+                                    return result.total_travel_distance;
+                            }));
+                            await Task.WhenAll(agv_distance_calculater.Select(x => x.Value));
+
+                            IAGV betteragv = agv_distance_calculater.Where(x => x.Value.Result != double.MaxValue && x.Value.Result < agv_distance_calculater[DesignatedAGV].Result && x.Key.online_state == ONLINE_STATE.ONLINE).OrderBy(dist => dist.Value.Result).Select(x => x.Key).FirstOrDefault();
+
+                            if (betteragv != null)
+                            {
+                                bool betteragv_waitingtask = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
+                                bool betteragv_doingtask = DatabaseCaches.TaskCaches.RunningTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
+                                if (betteragv_waitingtask || betteragv_doingtask)
+                                    continue;
+
+                                DesignatedAGV.CurrentRunningTask().CancelTask();
+                                runningtask.DesignatedAGVName = betteragv.Name;
+                                using (AGVSDatabase db = new AGVSDatabase())
+                                {
+                                    var model = db.tables.Tasks.First(tk => tk.TaskName == runningtask.TaskName);
+                                    model.DesignatedAGVName = runningtask.DesignatedAGVName;
+                                    model.State = TASK_RUN_STATUS.WAIT;
+                                    await db.SaveChanges();
+                                }
+                            }
+                            await Task.Delay(1000);
                         }
-
-
-
-                        using (AGVSDatabase db = new AGVSDatabase())
-                        {
-                            var model=db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
-                            model.DesignatedAGVName = AGV.Name;
-                            model.need_change_agv = _taskDto.need_change_agv;
-                            model.transfer_task_stage= _taskDto.transfer_task_stage;
-                            await db.SaveChanges();
-                        }
-                        //    await MCSCIMService.TaskReporter((_taskDto, 1));
                     }
                 }
                 catch (Exception ex)
@@ -167,7 +216,7 @@ namespace VMSystem.VMS
                     }));
                 }
                 await Task.WhenAll(calculateDistanceTasks.ToArray());
-                agvSortedByDistance = agvDistance.OrderByDescending(agv => agv.Key.online_state)
+                agvSortedByDistance = agvDistance.OrderByDescending(agv => agv.Key.online_state).OrderBy(agv => agv.Value)
                                                .Select(kp => kp.Key)
                                                .ToList();
 
@@ -234,7 +283,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="taskDto"></param>
         /// <returns></returns>
-        private clsTaskDto ChechGenerateTransferTaskOrNot(IAGV AGV ,ref clsTaskDto taskDto)
+        private clsTaskDto ChechGenerateTransferTaskOrNot(IAGV AGV, ref clsTaskDto taskDto)
         {
             MapPoint goalStation = null;
             MapPoint FromStation = null;
