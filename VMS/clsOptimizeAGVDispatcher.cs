@@ -66,17 +66,16 @@ namespace VMSystem.VMS
                         {
                             agv = AGV;
                             _taskDto.DesignatedAGVName = AGV.Name;
-                            _taskDto= ChechGenerateTransferTaskOrNot(AGV,ref _taskDto);
+                            _taskDto = ChechGenerateTransferTaskOrNot(AGV, ref _taskDto);
                         }
-
 
 
                         using (AGVSDatabase db = new AGVSDatabase())
                         {
-                            var model=db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
+                            var model = db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
                             model.DesignatedAGVName = AGV.Name;
                             model.need_change_agv = _taskDto.need_change_agv;
-                            model.transfer_task_stage= _taskDto.transfer_task_stage;
+                            model.transfer_task_stage = _taskDto.transfer_task_stage;
                             await db.SaveChanges();
                         }
                         //    await MCSCIMService.TaskReporter((_taskDto, 1));
@@ -234,7 +233,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="taskDto"></param>
         /// <returns></returns>
-        private clsTaskDto ChechGenerateTransferTaskOrNot(IAGV AGV ,ref clsTaskDto taskDto)
+        private clsTaskDto ChechGenerateTransferTaskOrNot(IAGV AGV, ref clsTaskDto taskDto)
         {
             MapPoint goalStation = null;
             MapPoint FromStation = null;

@@ -180,14 +180,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.Carry)
             {
-                _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
+
+                if (!orderData.IsFromAGV)
                 {
-                    NextAction = ACTION_TYPE.Unload
-                });
-                _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
-                {
-                    NextAction = ACTION_TYPE.None
-                });
+                    _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.Unload
+                    });
+                    _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
+                    {
+                        NextAction = ACTION_TYPE.None
+                    });
+                }
 
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {

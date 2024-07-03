@@ -275,6 +275,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
+        public CancellationTokenSource TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
 
         public virtual void UpdateStateDisplayMessage(string msg)

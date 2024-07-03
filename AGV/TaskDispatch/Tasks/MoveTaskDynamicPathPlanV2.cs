@@ -114,7 +114,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.currentConflicToAGV = null;
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
-                        if (IsPathPassMuiltRegions(_finalMapPoint, out List<MapRegion> regions, out MapRegion NextRegion))
+                        if (IsPathPassMuiltRegions(_finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint) = await GetNextRegionWaitingPoint(regions);
 
@@ -134,7 +134,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 else
                                     _finalMapPoint = waitingPoint;
 
-                                Agv.NavigationState.RegionControlState.NextToGoRegion = NextRegion;
+                                Agv.NavigationState.RegionControlState.NextToGoRegion = nextRegion;
                                 if (_finalMapPoint.TagNumber == Agv.currentMapPoint.TagNumber)
                                 {
                                     break;
@@ -293,6 +293,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 searchStartPt = Agv.currentMapPoint;
                                 break;
                             }
+
+                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
+                            {
+                                CycleStopByWaitingRegionIsEnterable = true;
+                                await Agv.TaskExecuter.TaskCycleStop(OrderData.TaskName);
+                                _previsousTrajectorySendToAGV.Clear();
+                                break;
+                            }
+
                             await Task.Delay(10);
                         }
                         if (CycleStopByWaitingRegionIsEnterable)
@@ -512,6 +521,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
             clsMapPoint[] trajectory = new clsMapPoint[1] { _previsousTrajectorySendToAGV.Last() };
             trajectory.Last().Theta = expectedAngle;
+            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
             await _DispatchTaskToAGV(new clsTaskDownloadData
             {
                 Action_Type = ACTION_TYPE.None,
@@ -726,11 +736,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                                                 .DistinctBy(tag => tag);
 
                 UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
-                if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
-                {
-                    CycleStopByWaitingRegionIsEnterable = true;
-                    CycleStopRequestAsync();
-                }
+
             }
         }
 

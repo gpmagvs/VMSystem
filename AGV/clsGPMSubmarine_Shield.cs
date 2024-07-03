@@ -13,9 +13,5 @@ namespace VMSystem.AGV
         {
         }
 
-        public override Task<object> GetAGVStateFromDB()
-        {
-            return base.GetAGVStateFromDB();
-        }
     }
 }

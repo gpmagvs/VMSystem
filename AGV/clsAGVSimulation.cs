@@ -17,6 +17,7 @@ using System.Drawing;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV
 {
@@ -28,7 +29,6 @@ namespace VMSystem.AGV
         private IAGV agv => dispatcherModule.agv;
         private double[] batteryLevelSim = new double[] { 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
-        private AGVStatusDBHelper agvStateDbHelper = new AGVStatusDBHelper();
         private CancellationTokenSource TaskCancelTokenSource = new CancellationTokenSource();
         private BarcodeMoveArguments _currentBarcodeMoveArgs = new BarcodeMoveArguments();
         private SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(1, 1);
@@ -46,7 +46,7 @@ namespace VMSystem.AGV
         {
             await Task.Delay(1);
             //從資料庫取得狀態數據
-            AGVSystemCommonNet6.clsAGVStateDto agvStates = agvStateDbHelper.GetALL().FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
+            AGVSystemCommonNet6.clsAGVStateDto agvStates = DatabaseCaches.Vehicle.VehicleStates.FirstOrDefault(agv => agv.AGV_Name == this.agv.Name);
 
             if (agvStates != null)
             {
@@ -62,12 +62,6 @@ namespace VMSystem.AGV
             runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
             BatterSimulation();
             ReportRunningStatusSimulation();
-            //Thread thread = new Thread(async () =>
-            //{
-            //    Thread.Sleep(1000);
-
-            //});
-            //thread.Start();
         }
 
         private async Task ReportRunningStatusSimulation()
@@ -532,10 +526,6 @@ namespace VMSystem.AGV
                         batteryLevelSim[0] = 1;
                 }
                 runningSTatus.Electric_Volume = batteryLevelSim;
-                _ = Task.Factory.StartNew(async () =>
-                {
-                    await agvStateDbHelper.UpdateBatteryLevel(agv.Name, batteryLevelSim);
-                });
                 await Task.Delay(1000);
             }
         }

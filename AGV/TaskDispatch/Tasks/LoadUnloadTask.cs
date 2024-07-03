@@ -74,7 +74,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {
-            if(!base.IsThisTaskDone(feedbackData))
+            if (!base.IsThisTaskDone(feedbackData))
                 return false;
             return feedbackData.PointIndex == 0;
         }
@@ -95,7 +95,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 MapPoint fromPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
                 MapPoint toPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
-                sourceDestineString = ActionType == ACTION_TYPE.Load ? $"(來源 {fromPt.Graph.Display})" : $"(終點 {toPt.Graph.Display})";
+                sourceDestineString = ActionType == ACTION_TYPE.Load ? $"(來源 {(OrderData.IsFromAGV ? Agv.Name : fromPt.Graph.Display)})" : $"(終點 {toPt.Graph.Display})";
             }
             actionString = this.ActionType == ACTION_TYPE.Load ? "放貨" : "取貨";
             await Task.Delay(1000);

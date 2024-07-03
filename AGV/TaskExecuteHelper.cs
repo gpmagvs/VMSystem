@@ -310,7 +310,7 @@ namespace VMSystem.AGV
                     if (!isFeedbackToCurrentTask)
                     {
                         logger.Warn($"Feedback TaskSimplex={taskSimplex} is not match to TrackingTaskSimplex={TrackingTaskSimpleName}");
-                        return false;
+                        return true;
                     }
 
                     if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
