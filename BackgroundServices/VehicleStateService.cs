@@ -42,10 +42,10 @@ namespace VMSystem.BackgroundServices
 
             if (VehiclesMileageStoreed.TryGetValue(agv.Name, out (DateTime time, double mileage) lastData))
             {
-                if ((DateTime.Now - lastData.time).TotalSeconds > 10)
+                if ((DateTime.Now - lastData.time).TotalSeconds > 30)
                 {
                     VehicleMaintainService maintainService = _scopeFactory.CreateAsyncScope().ServiceProvider.GetRequiredService<VehicleMaintainService>();
-                    double diffValue = (currentMileage - lastData.mileage) ;
+                    double diffValue = (currentMileage - lastData.mileage);
                     await maintainService.UpdateHorizonMotorCurrentMileageValue(agv.Name, diffValue);
                     VehiclesMileageStoreed[agv.Name] = new(DateTime.Now, currentMileage);
                 }
@@ -79,7 +79,7 @@ namespace VMSystem.BackgroundServices
                             CargoType = agv.states.CargoType,
                             CurrentCarrierID = agv.states.CSTID.Length == 0 ? "" : agv.states.CSTID[0],
                             CurrentLocation = agv.states.Last_Visited_Node.ToString(),
-                            Theta = Math.Round(agv.states.Coordination.Theta,1),
+                            Theta = Math.Round(agv.states.Coordination.Theta, 1),
                             Connected = agv.connected,
                             Group = agv.VMSGroup,
                             Model = agv.model,
@@ -107,22 +107,40 @@ namespace VMSystem.BackgroundServices
                         return dto;
                     };
                     bool haschanaged = false;
+                    Dictionary<string, clsAGVStateDto> changedDtoDict = new();
                     foreach (var agv in VMSManager.AllAGV)
                     {
                         var entity = CreateDTO(agv);
                         var statesCache = DatabaseCaches.Vehicle.VehicleStates.FirstOrDefault(v => v.AGV_Name == entity.AGV_Name);
                         if (statesCache == null)
                             continue;
+
                         if (statesCache.HasChanged(entity))
                         {
-                            context.AgvStates.First(v => v.AGV_Name == entity.AGV_Name).Update(entity);
+                            changedDtoDict.Add(entity.AGV_Name, entity);
+
                             haschanaged = true;
 
                         }
                     }
                     if (haschanaged)
                     {
-                        await context.SaveChangesAsync();
+                        //save 
+                        using (var scope = _scopeFactory.CreateAsyncScope())
+                        {
+                            using (var context = scope.ServiceProvider.GetRequiredService<AGVSDbContext>())
+                            {
+
+                                var toModified = context.AgvStates.Where(v => changedDtoDict.Keys.Contains(v.AGV_Name)).ToList();
+                                foreach (var item in toModified)
+                                {
+                                    item.Update(changedDtoDict[item.AGV_Name]);
+                                }
+                                await context.SaveChangesAsync();
+                            }
+                        }
+                        //null 
+                        changedDtoDict.Clear();
                     }
                     void GetStationsName(IAGV agv, out string current, out string from, out string to)
                     {

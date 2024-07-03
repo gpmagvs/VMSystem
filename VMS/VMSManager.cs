@@ -199,13 +199,9 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(async () =>
             {
-                var database = new AGVSDatabase();
                 while (true)
                 {
                     await Task.Delay(100);
-
-                    await tasksLock.WaitAsync();
-
                     try
                     {
                         foreach (var _agv in VMSManager.AllAGV)
@@ -213,8 +209,8 @@ namespace VMSystem.VMS
                             await Task.Delay(10);
                             if (_agv.taskDispatchModule == null)
                                 continue;
-
-                            var tasks = database.tables.Tasks.AsNoTracking().Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
+                            
+                            var tasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(_task =>  _task.DesignatedAGVName == _agv.Name);
                             _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
                             // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         }
@@ -226,7 +222,6 @@ namespace VMSystem.VMS
                     }
                     finally
                     {
-                        tasksLock.Release();
                     }
 
                 }
@@ -238,9 +233,9 @@ namespace VMSystem.VMS
             await Task.Delay(100);
             while (true)
             {
-                await tasksLock.WaitAsync();
                 try
                 {
+                    await tasksLock.WaitAsync();
                     await Task.Delay(100);
                     if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
                     {
