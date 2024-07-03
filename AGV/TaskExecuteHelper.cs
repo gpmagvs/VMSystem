@@ -316,12 +316,6 @@ namespace VMSystem.AGV
                     if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                     {
                         OnActionFinishReported?.Invoke(this, feedbackData);
-                        bool isReachLastSubGoal = lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == Vehicle.states.Last_Visited_Node;
-                        if (isReachLastSubGoal)
-                        {
-                            lastTaskDonwloadToAGV = null;
-                            Vehicle.NavigationState.ResetNavigationPoints();
-                        }
                         WaitACTIONFinishReportedMRE.Set();
                     }
                     if (taskStatus == TASK_RUN_STATUS.ACTION_START)
