@@ -118,7 +118,8 @@ namespace VMSystem.AGV
 
                     await BarcodeMove(_currentBarcodeMoveArgs, token);
 
-                    if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure)
+                    bool hasAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure;
+                    if (hasAction)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
 
@@ -143,6 +144,7 @@ namespace VMSystem.AGV
                     runningSTatus.IsCharging = _isChargeAction;
                     runningSTatus.AGV_Status = _isChargeAction ? clsEnums.MAIN_STATUS.Charging : clsEnums.MAIN_STATUS.IDLE;
 
+                    _currentBarcodeMoveArgs.Feedback.PointIndex = hasAction ? 0 : _currentBarcodeMoveArgs.Feedback.PointIndex;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
 
                     dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
@@ -159,6 +161,7 @@ namespace VMSystem.AGV
                 {
                     _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
+                    _args.Feedback.PointIndex = 1;
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     dispatcherModule.TaskFeedback(_args.Feedback); //回報任務狀態
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
@@ -543,6 +546,12 @@ namespace VMSystem.AGV
             waitReplanflag = false;
             moveCancelTokenSource?.Cancel();
             TaskCancelTokenSource?.Cancel();
+
+            if (runningSTatus.AGV_Status != clsEnums.MAIN_STATUS.RUN)
+            {
+                _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
+            }
             //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }
 
