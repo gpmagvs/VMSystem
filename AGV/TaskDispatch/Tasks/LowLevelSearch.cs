@@ -26,7 +26,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     ConstrainTags = constrains == null ? new List<int>() : constrains.GetTagCollection().ToList(),
                     Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
                     VehicleCurrentAngle = VehicleCurrentAngle,
-                    Algorithm = PathFinderOption.ALGORITHM.Dijsktra
+                    Algorithm = PathFinderOption.ALGORITHM.DFS
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())

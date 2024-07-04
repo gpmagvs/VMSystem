@@ -40,6 +40,7 @@ namespace VMSystem.AGV
         private SemaphoreSlim TaskExecuteSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         public event EventHandler<FeedbackData> OnActionFinishReported;
+        public event EventHandler<FeedbackData> OnNavigatingReported;
 
         private int sequence = 0;
 
@@ -324,6 +325,7 @@ namespace VMSystem.AGV
                     }
                     if (taskStatus == TASK_RUN_STATUS.NAVIGATING)
                     {
+                        OnNavigatingReported?.Invoke(this, feedbackData);
                         WaitNavigatingReportedMRE.Set();
                     }
                     return true;
