@@ -118,6 +118,10 @@ namespace VMSystem.VMS
                                     continue;
 
                                 DesignatedAGV.CurrentRunningTask().CancelTask();
+                                while (DesignatedAGV.main_state == MAIN_STATUS.RUN)
+                                {
+                                    await Task.Delay(1000);
+                                }
                                 runningtask.DesignatedAGVName = betteragv.Name;
                                 using (AGVSDatabase db = new AGVSDatabase())
                                 {
