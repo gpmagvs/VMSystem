@@ -135,7 +135,6 @@ namespace VMSystem.AGV
                         PathFinder _pathFinder = new PathFinder();
                         var pathInfo = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, ptCandicate, new PathFinder.PathFinderOption
                         {
-                            ConstrainTags = othersAGV.Select(agv => agv.currentMapPoint.TagNumber).ToList(),
                             Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
                             Strategy = PathFinder.PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
                         });

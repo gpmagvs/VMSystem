@@ -276,6 +276,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
+        public CancellationTokenSource TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
         protected bool disposedValue;
 
         public virtual void UpdateStateDisplayMessage(string msg)
@@ -329,6 +330,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                if (Agv == null)
+                {
+                    return new SimpleRequestResponse();
+                }
+
                 await Agv?.TaskExecuter?.TaskCycleStop(this.OrderData?.TaskName);
                 return new SimpleRequestResponse();
             }
@@ -350,7 +356,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected virtual async Task WaitAGVTaskDone()
         {
             _WaitAGVTaskDoneMRE.Reset();
-            
+
             void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
             {
                 if (IsThisTaskDone(feedbackData))

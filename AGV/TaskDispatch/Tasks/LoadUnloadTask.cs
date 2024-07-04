@@ -3,9 +3,11 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
+using VMSystem.VMS;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -13,7 +15,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     {
         private MapPoint EntryPoint = new();
         private MapPoint EQPoint = new();
-
+        private ManualResetEvent WaitAGVReachWorkStationMRE = new ManualResetEvent(false);
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }
@@ -59,9 +61,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             while (detectResult.Result == DETECTION_RESULT.NG)
             {
-                await Task.Delay(1000);
+                await Task.Delay(200);
                 detectResult = enterWorkStationDetection.Detect();
                 UpdateStateDisplayMessage(detectResult.Message);
+                if (IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING || Agv.CurrentRunningTask().TaskName != this.OrderData.TaskName)
+                {
+                    throw new TaskCanceledException();
+                }
             }
 
             Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
@@ -69,12 +75,38 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             UpdateEQActionMessageDisplay();
             ChangeWorkStationMoveStateBackwarding();
             await base.SendTaskToAGV();
+            await WaitAGVReachWorkStationTag();
             await WaitAGVTaskDone();
+        }
+
+        private async Task WaitAGVReachWorkStationTag()
+        {
+            WaitAGVReachWorkStationMRE.Reset();
+            Agv.TaskExecuter.OnNavigatingReported += TaskExecuter_OnNavigatingReported;
+            WaitAGVReachWorkStationMRE.WaitOne();
+        }
+
+        private async void TaskExecuter_OnNavigatingReported(object? sender, FeedbackData e)
+        {
+            if (e.PointIndex == 1 && Agv.currentMapPoint.TagNumber == EQPoint.TagNumber)
+            {
+                Agv.TaskExecuter.OnNavigatingReported -= TaskExecuter_OnNavigatingReported;
+                WaitAGVReachWorkStationMRE.Set();
+                string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
+                NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
+
+                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+                {
+                    await Task.Delay(500);
+                    Agv.NavigationState.ResetNavigationPoints();
+                }
+
+            }
         }
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {
-            if(!base.IsThisTaskDone(feedbackData))
+            if (!base.IsThisTaskDone(feedbackData))
                 return false;
             return feedbackData.PointIndex == 0;
         }
@@ -95,7 +127,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 MapPoint fromPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
                 MapPoint toPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
-                sourceDestineString = ActionType == ACTION_TYPE.Load ? $"(來源 {fromPt.Graph.Display})" : $"(終點 {toPt.Graph.Display})";
+                sourceDestineString = ActionType == ACTION_TYPE.Load ? $"(來源 {(OrderData.IsFromAGV ? Agv.Name : fromPt.Graph.Display)})" : $"(終點 {toPt.Graph.Display})";
             }
             actionString = this.ActionType == ACTION_TYPE.Load ? "放貨" : "取貨";
             await Task.Delay(1000);

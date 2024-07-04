@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Data;
@@ -113,12 +114,13 @@ namespace VMSystem.TrafficControl
 
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
+
             IAGV _RaiseReqAGV = args.Agv;
             Task _CycleStopTaskOfOtherVehicle = null;
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
+
             try
             {
-                _RaiseReqAGV.NavigationState.ResetNavigationPoints();
                 await Task.Delay(100);
                 //await _leaveWorkStaitonReqSemaphore.WaitAsync();
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
@@ -157,53 +159,44 @@ namespace VMSystem.TrafficControl
                                     (_result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG) || _parkResult.Result == DETECTION_RESULT.NG;
 
 
+
+
                 CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;
                 _RaiseReqAGV.NavigationState.IsWaitingForLeaveWorkStation = _isNeedWait;
 
                 if (_isNeedWait)
                 {
+                    NotifyServiceHelper.WARNING($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}尚不允許:{_waitMessage}");
                     List<IAGV> conflicVehicles = _result.ConflicToAGVList;
-                    //if (conflicStatus == CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_NAVIGATING_PATH)//干涉
-                    //{
-                    //    bool _isOtherConflicVehicleFar = conflicVehicles.All(_vehicle => IsCycleStopAllow(_vehicle, entryPointOfWorkStation));
-                    //    if (_isOtherConflicVehicleFar)
-                    //    {
-
-                    //        _CycleStopTaskOfOtherVehicle = new Task(async () =>
-                    //        {
-                    //            foreach (var conflic_vehicle in conflicVehicles)
-                    //            {
-                    //                await conflic_vehicle.CurrentRunningTask().CycleStopRequestAsync();
-                    //            }
-                    //        });
-                    //        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
-                    //    }
-                    //    else
-                    //    {
-                    //        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
-                    //        args.Message = _waitMessage;
-                    //    }
-                    //}
-                    //else
-                    //{
                     args.WaitSignal.Reset();
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
                     args.Message = _waitMessage;
-                    //}
                 }
                 else
                 {
-                    var radius = _RaiseReqAGV.AGVRotaionGeometry.RotationRadius;
-                    var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(entryPointOfWorkStation) <= radius);
-                    List<MapPoint> _navingPointsForbid = new List<MapPoint>();
-                    _navingPointsForbid.AddRange(new List<MapPoint> { _RaiseReqAGV.currentMapPoint, entryPointOfWorkStation });
-                    //_navingPointsForbid.AddRange(forbidPoints.SelectMany(pt => new List<MapPoint>() { entryPointOfWorkStation, pt }));
-                    //_navingPointsForbid = _navingPointsForbid.Distinct().ToList();
-                    _RaiseReqAGV.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
-                    (_RaiseReqAGV.CurrentRunningTask() as LoadUnloadTask)?.UpdateEQActionMessageDisplay();
-                    args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                    await Task.Delay(1000);
+                    if (!StaMap.RegistPoint(_RaiseReqAGV.Name, entryPointOfWorkStation, out string _erMsg))
+                    {
+                        NotifyServiceHelper.WARNING($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}尚不允許!:{_erMsg}");
+                        _isNeedWait = true;
+                        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
+                        args.Message = _erMsg;
+                    }
+                    else
+                    {
+
+                        NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可!");
+                        var radius = _RaiseReqAGV.AGVRotaionGeometry.RotationRadius;
+                        var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(entryPointOfWorkStation) <= radius);
+                        List<MapPoint> _navingPointsForbid = new List<MapPoint>();
+                        _navingPointsForbid.AddRange(new List<MapPoint> { _RaiseReqAGV.currentMapPoint, entryPointOfWorkStation });
+                        _RaiseReqAGV.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
+                        (_RaiseReqAGV.CurrentRunningTask() as LoadUnloadTask)?.UpdateEQActionMessageDisplay();
+                        args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+                    }
 
                 }
+
                 bool _isAcceptAction = args.ActionConfirm == clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
 
                 if (!_isAcceptAction)

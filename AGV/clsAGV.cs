@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
@@ -123,7 +124,6 @@ namespace VMSystem.AGV
 
         public Map map { get; set; }
 
-        public AGVStatusDBHelper AGVStatusDBHelper { get; } = new AGVStatusDBHelper();
         public IAGVTaskDispather taskDispatchModule { get; set; } = new clsAGVTaskDisaptchModule();
         public clsAGVOptions options { get; set; }
 
@@ -237,7 +237,7 @@ namespace VMSystem.AGV
                             //    noRegistedByConflicCheck.Add(previousMapPoint);
                             //}
                             //else
-                            Task.Run(async() =>
+                            Task.Run(async () =>
                             {
                                 try
                                 {
@@ -260,7 +260,7 @@ namespace VMSystem.AGV
                                     logger.Error(ex);
                                 }
                             });
-                           
+
 
                         }
 
@@ -597,57 +597,6 @@ namespace VMSystem.AGV
             });
         }
 
-        public async void UpdateAGVStates(clsRunningStatus status)
-        {
-            this.states = status;
-
-        }
-
-        public async Task<bool> SaveStateToDatabase(clsAGVStateDto dto)
-        {
-            try
-            {
-                var result = await AGVStatusDBHelper.Update(dto);
-                StaMap.TryGetPointByTagNumber(states.Last_Visited_Node, out var point);
-                currentMapPoint = point;
-                return result.confirm;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("SaveStateToDatabase Fail " + ex.Message);
-                await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_AGV_STATUS_WRITE_TO_DB, ALARM_SOURCE.EQP, ALARM_LEVEL.WARNING, Name);
-                return false;
-            }
-
-        }
-
-
-        /// <summary>
-        /// 從資料庫取出資料
-        /// </summary>
-        /// <returns></returns>
-        public virtual async Task<object> GetAGVStateFromDB()
-        {
-            try
-            {
-                this.states = await AGVHttp.GetAsync<clsRunningStatus>($"/api/AGV/RunningState");
-                if (states.Last_Visited_Node != this.states.Last_Visited_Node)
-                {
-                    Console.WriteLine($"{Name}:Last Visited Node : {states.Last_Visited_Node}");
-                }
-                this.states = states;
-                online_state = await GetOnlineState();
-
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                return false;
-            }
-        }
-
-
         private async Task<clsEnums.ONLINE_STATE> GetOnlineState()
         {
             var state_code = await AGVHttp.GetAsync<int>($"/api/AGV/OnlineState");
@@ -855,21 +804,17 @@ namespace VMSystem.AGV
             }
             else
             {
-                var status = AGVStatusDBHelper.GetAGVStateByAGVName(Name);
-                if (status == null)
-                {
+                clsAGVStateDto data = DatabaseCaches.Vehicle.VehicleStates.FirstOrDefault(agv => agv.AGV_Name == Name);
+                if (data == null)
+                    return;
 
-                }
-                else
-                {
-                    int.TryParse(status.CurrentLocation, out int tag);
-                    states.Last_Visited_Node = tag;
-                    previousMapPoint = StaMap.GetPointByTagNumber(tag);
-                    states.Coordination.X = previousMapPoint.X;
-                    states.Coordination.Y = previousMapPoint.Y;
-                    states.Coordination.Theta = previousMapPoint.Direction;
-                    StaMap.RegistPoint(Name, previousMapPoint, out string msg);
-                }
+                int.TryParse(data.CurrentLocation, out int tag);
+                states.Last_Visited_Node = tag;
+                previousMapPoint = StaMap.GetPointByTagNumber(tag);
+                states.Coordination.X = previousMapPoint.X;
+                states.Coordination.Y = previousMapPoint.Y;
+                states.Coordination.Theta = previousMapPoint.Direction;
+                StaMap.RegistPoint(Name, previousMapPoint, out string msg);
             }
         }
 

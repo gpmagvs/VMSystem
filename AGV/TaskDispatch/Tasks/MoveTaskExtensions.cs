@@ -161,7 +161,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
-            bool isPathEndPtIsDestine = _path.Last().TagNumber == finalStopPoint.TagNumber;
+            bool isPathEndPtIsDestine = _path.Last().TagNumber == finalStopPoint?.TagNumber;
 
             if (isPathEndPtIsDestine)
             {

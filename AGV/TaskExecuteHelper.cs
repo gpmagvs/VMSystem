@@ -40,6 +40,7 @@ namespace VMSystem.AGV
         private SemaphoreSlim TaskExecuteSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         public event EventHandler<FeedbackData> OnActionFinishReported;
+        public event EventHandler<FeedbackData> OnNavigatingReported;
 
         private int sequence = 0;
 
@@ -310,18 +311,12 @@ namespace VMSystem.AGV
                     if (!isFeedbackToCurrentTask)
                     {
                         logger.Warn($"Feedback TaskSimplex={taskSimplex} is not match to TrackingTaskSimplex={TrackingTaskSimpleName}");
-                        return false;
+                        return true;
                     }
 
                     if (taskStatus == TASK_RUN_STATUS.ACTION_FINISH)
                     {
                         OnActionFinishReported?.Invoke(this, feedbackData);
-                        bool isReachLastSubGoal = lastTaskDonwloadToAGV != null && lastTaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == Vehicle.states.Last_Visited_Node;
-                        if (isReachLastSubGoal)
-                        {
-                            lastTaskDonwloadToAGV = null;
-                            Vehicle.NavigationState.ResetNavigationPoints();
-                        }
                         WaitACTIONFinishReportedMRE.Set();
                     }
                     if (taskStatus == TASK_RUN_STATUS.ACTION_START)
@@ -330,6 +325,7 @@ namespace VMSystem.AGV
                     }
                     if (taskStatus == TASK_RUN_STATUS.NAVIGATING)
                     {
+                        OnNavigatingReported?.Invoke(this, feedbackData);
                         WaitNavigatingReportedMRE.Set();
                     }
                     return true;

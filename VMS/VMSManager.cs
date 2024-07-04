@@ -116,7 +116,7 @@ namespace VMSystem.VMS
             }
             catch (Exception ex)
             {
-               LOG.Critical("[VMSManager.MaintainSettingInitialize] with exception" + ex);
+                LOG.Critical("[VMSManager.MaintainSettingInitialize] with exception" + ex);
             }
             await database.SaveChanges();
             void AddMaintainSettings(clsAGVStateDto vehicleState)
@@ -199,13 +199,9 @@ namespace VMSystem.VMS
         {
             Task.Factory.StartNew(async () =>
             {
-                var database = new AGVSDatabase();
                 while (true)
                 {
                     await Task.Delay(100);
-
-                    await tasksLock.WaitAsync();
-
                     try
                     {
                         foreach (var _agv in VMSManager.AllAGV)
@@ -213,8 +209,8 @@ namespace VMSystem.VMS
                             await Task.Delay(10);
                             if (_agv.taskDispatchModule == null)
                                 continue;
-
-                            var tasks = database.tables.Tasks.AsNoTracking().Where(_task => (_task.State == TASK_RUN_STATUS.WAIT || _task.State == TASK_RUN_STATUS.NAVIGATING) && _task.DesignatedAGVName == _agv.Name);
+                            
+                            var tasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(_task =>  _task.DesignatedAGVName == _agv.Name);
                             _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
                             // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         }
@@ -226,7 +222,6 @@ namespace VMSystem.VMS
                     }
                     finally
                     {
-                        tasksLock.Release();
                     }
 
                 }
@@ -238,9 +233,9 @@ namespace VMSystem.VMS
             await Task.Delay(100);
             while (true)
             {
-                await tasksLock.WaitAsync();
                 try
                 {
+                    await tasksLock.WaitAsync();
                     await Task.Delay(100);
                     if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
                     {
@@ -693,24 +688,20 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static bool TaskCancel(ref AGVSDbContext dbContext, string task_name)
+        internal static async Task<bool> TaskCancel(string task_name)
         {
-            clsTaskDto taskDto = null;
             try
             {
-                taskDto = dbContext.Tasks.AsNoTracking().FirstOrDefault(tk => tk.TaskName == task_name);
-                if (taskDto == null)
-                    return false;
-
-                string ownerVehicle = taskDto.DesignatedAGVName;
-
-                if (!TryGetAGV(ownerVehicle, out IAGV vehicle))
+                IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.CurrentRunningTask().OrderData.TaskName == task_name);
+                if (vehicle == null)
                 {
-                    taskDto.State = TASK_RUN_STATUS.CANCEL;
-                    WaitingForWriteToTaskDatabaseQueue.Enqueue(taskDto);
-                    return false;
+                    using (AGVSDatabase db = new AGVSDatabase())
+                    {
+                        db.tables.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk => tk.State = TASK_RUN_STATUS.CANCEL);
+                        await db.SaveChanges();
+                    }
+                    return true;
                 }
-
                 vehicle.CancelTask(task_name);
                 return true;
 
@@ -722,10 +713,6 @@ namespace VMSystem.VMS
             }
             finally
             {
-                if (taskDto != null)
-                {
-                    // WaitingForWriteToTaskDatabaseQueue.Enqueue(taskDto);
-                }
             }
 
         }

@@ -54,28 +54,36 @@ namespace VMSystem.Dispatch.Regions
                 while (true)
                 {
                     await Task.Delay(10);
-                    bool _IsEnterable()
+                    try
                     {
-                        BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name));
-                        int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
-                        return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
-                    }
-
-
-                    IsEnterable = _IsEnterable();
-
-                    if (!IsEnterable)
-                    {
-                        foreach (var agv in BookingRegionVehicles)
+                        bool _IsEnterable()
                         {
-                            if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
-                            {
-                                state.allowEnterSignal.Set();
-                                WaitingForEnterVehicles.TryRemove(agv, out _);
-                            }
+                            BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name))
+                                                                     .ToList();
+                            int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
+                            return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
                         }
 
+
+                        IsEnterable = _IsEnterable();
+
+                        if (!IsEnterable)
+                        {
+                            foreach (var agv in BookingRegionVehicles)
+                            {
+                                if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
+                                {
+                                    state.allowEnterSignal.Set();
+                                    WaitingForEnterVehicles.TryRemove(agv, out _);
+                                }
+                            }
+
+                        }
                     }
+                    catch (Exception ex)
+                    {
+                    }
+
                 }
             }
 
@@ -177,7 +185,7 @@ namespace VMSystem.Dispatch.Regions
             regionGet?.JoinWaitingForEnter(agv, token);
             await Task.Run(() =>
             {
-                void HandleTaskCanceled (object sender, string taskName)
+                void HandleTaskCanceled(object sender, string taskName)
                 {
                     try
                     {
@@ -235,6 +243,8 @@ namespace VMSystem.Dispatch.Regions
 
         internal static bool IsAGVWaitingRegion(IAGV Agv, MapRegion mapRegion)
         {
+            if (!RegionsStates.Any())
+                return false;
             return RegionsStates.FirstOrDefault(kp => kp.Key.Name == mapRegion.Name).Value.WaitingForEnterVehicles.TryGetValue(Agv, out var state);
         }
 

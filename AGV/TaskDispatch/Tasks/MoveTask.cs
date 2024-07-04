@@ -690,57 +690,69 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        System.Timers.Timer? TrajectoryStoreTimer;
 
-        protected void StartRecordTrjectory()
+        protected async Task StartRecordTrjectory()
         {
-            TrajectoryStoreTimer = new System.Timers.Timer()
+            TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
+            await Task.Run(async () =>
             {
-                Interval = 1000
-            };
-            TrajectoryStoreTimer.Elapsed += TrajectoryStoreTimer_Elapsed;
-            TrajectoryStoreTimer.Enabled = true;
+
+                try
+                {
+                    while (true)
+                    {
+                        await Task.Delay(1000);
+                        if (TrajectoryRecordCancelTokenSource.IsCancellationRequested)
+                            return;
+
+                        double x = Agv.states.Coordination.X;
+                        double y = Agv.states.Coordination.Y;
+                        double theta = Agv.states.Coordination.Theta;
+
+                        if (!_IsCoordinationChanged(x, y))
+                            continue;
+
+                        _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
+
+
+                        bool _IsCoordinationChanged(double currentX, double currentY)
+                        {
+                            if (!_TrajectoryTempStorage.Any())
+                                return true;
+                            var lastRecord = _TrajectoryTempStorage.Last();
+                            return lastRecord.X != currentX || lastRecord.Y != currentY;
+                        }
+
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                }
+                finally
+                {
+                    await SaveTrajectoryToDatabase();
+                }
+
+                async Task SaveTrajectoryToDatabase()
+                {
+                    string taskID = OrderData.TaskName;
+                    string agvName = Agv.Name;
+                    TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
+                    var result = await helper.StoreTrajectory(taskID, agvName, _TrajectoryTempStorage.ToJson(Newtonsoft.Json.Formatting.None));
+                    if (!result.success)
+                    {
+                        LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
+                    }
+                }
+            });
         }
         public async void EndReocrdTrajectory()
         {
-            TrajectoryStoreTimer?.Stop();
-            TrajectoryStoreTimer?.Dispose();
-
-            string taskID = OrderData.TaskName;
-            string agvName = Agv.Name;
-            LOG.WARN($"{agvName} End Store trajectory of Task-{taskID}");
-            TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-            var result = await helper.StoreTrajectory(taskID, agvName, _TrajectoryTempStorage.ToJson(Newtonsoft.Json.Formatting.None));
-            if (!result.success)
-            {
-                LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
-            }
-        }
-
-        /// <summary>
-        /// 儲存軌跡到資料庫
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void TrajectoryStoreTimer_Elapsed(object? sender, ElapsedEventArgs e)
-        {
-            await StoreTrajectory();
+            TrajectoryRecordCancelTokenSource.Cancel();
         }
         protected List<clsTrajCoordination> _TrajectoryTempStorage = new List<clsTrajCoordination>();
 
-        private async Task StoreTrajectory()
-        {
-            if (IsTaskCanceled)
-            {
-                EndReocrdTrajectory();
-                return;
-            }
-
-            double x = Agv.states.Coordination.X;
-            double y = Agv.states.Coordination.Y;
-            double theta = Agv.states.Coordination.Theta;
-            _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
-        }
 
     }
 }

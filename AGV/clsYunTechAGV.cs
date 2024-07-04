@@ -14,9 +14,5 @@ namespace VMSystem.AGV
             LOG.INFO($"AGV {name} Create. MODEL={model} ");
         }
 
-        public override Task<object> GetAGVStateFromDB()
-        {
-            return base.GetAGVStateFromDB();
-        }
     }
 }

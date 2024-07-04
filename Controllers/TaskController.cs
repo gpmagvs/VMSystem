@@ -27,13 +27,11 @@ namespace VMSystem.Controllers
         {
             try
             {
-                VMSManager.TaskCancel(ref _dbContent, task_name);
-                //_dbContent.SaveChanges();
+                await VMSManager.TaskCancel(task_name);
                 return Ok("done");
             }
             catch (Exception ex)
             {
-
                 throw ex;
             }
         }
@@ -52,7 +50,7 @@ namespace VMSystem.Controllers
         [HttpPost("SettingNoRunRandomCarryHotRunAGVList")]
         public async Task<IActionResult> SettingNoRunRandomCarryHotRunAGVList([FromBody] List<string> agvNameList)
         {
-            VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList=agvNameList;
+            VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList = agvNameList;
             return Ok(true);
         }
 

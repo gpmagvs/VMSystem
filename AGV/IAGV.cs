@@ -56,10 +56,8 @@ namespace VMSystem.AGV
         List<MapPoint> noRegistedByConflicCheck { get; set; }
         List<MapPoint> RegistedByConflicCheck { get; set; }
         MapPoint[] PlanningNavigationMapPoints { get; }
-        Task<object> GetAGVStateFromDB();
 
         int CalculatePathCost(Map map, object toTag);
-        AGVStatusDBHelper AGVStatusDBHelper { get; }
         bool IsTrafficTaskExecuting { get; set; }
         bool IsTrafficTaskFinish { get; set; }
 

@@ -195,8 +195,8 @@ namespace VMSystem.Dispatch
                         {
 
                         }
-
-                        return isTooCloseWithVehicleEntryPointOFWorkStation || otherAGV.Any(_vehicle => _vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
+                        var conflicVehicles= otherAGV.Where(_vehicle => !_vehicle.currentMapPoint.IsCharge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
+                        return isTooCloseWithVehicleEntryPointOFWorkStation || conflicVehicles.Any();
                     }
 
                     #endregion
