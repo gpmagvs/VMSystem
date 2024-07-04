@@ -209,9 +209,12 @@ namespace VMSystem.VMS
                             await Task.Delay(10);
                             if (_agv.taskDispatchModule == null)
                                 continue;
-                            
-                            var tasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(_task =>  _task.DesignatedAGVName == _agv.Name);
-                            _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
+
+                            var taskNamesStored = _agv.taskDispatchModule.taskList.Select(task => task.TaskName).ToList();
+                            var tasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(_task => !taskNamesStored.Contains(_task.TaskName))
+                                                                                  .Where(_task => _task.DesignatedAGVName == _agv.Name);
+                            if (tasks.Any())
+                                _agv.taskDispatchModule.TryAppendTasksToQueue(tasks.ToList());
                             // var endTasks = database.tables.Tasks.Where(_task => (_task.State == TASK_RUN_STATUS.CANCEL || _task.State == TASK_RUN_STATUS.FAILURE) && _task.DesignatedAGVName == _agv.Name).AsNoTracking();
                         }
 

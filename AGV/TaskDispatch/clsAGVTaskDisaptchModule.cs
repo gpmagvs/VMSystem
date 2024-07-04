@@ -260,6 +260,9 @@ namespace VMSystem.AGV
                 if (notInQuqueOrders.Any())
                 {
                     taskList.AddRange(notInQuqueOrders);
+
+                    TryAbortCurrentChargeOrderForCarryOrderGet(notInQuqueOrders);
+
                 }
             }
             catch (Exception ex)
@@ -270,17 +273,25 @@ namespace VMSystem.AGV
             { }
         }
 
-        //public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
-        public virtual List<clsTaskDto> taskList
+        private async void TryAbortCurrentChargeOrderForCarryOrderGet(IEnumerable<clsTaskDto> newOrders)
         {
-            get
+            if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
+                return;
+
+            //determine newOrders has Carry Order
+            if (newOrders.Any(tk => tk.Action == ACTION_TYPE.Carry))
             {
-                List<clsTaskDto> _tasks = new List<clsTaskDto>();
-                _tasks.AddRange(DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(task => task.DesignatedAGVName == this.agv.Name).ToList());
-                _tasks.AddRange(DatabaseCaches.TaskCaches.RunningTasks.Where(task => task.DesignatedAGVName == this.agv.Name).ToList());
-                return _tasks;
+                bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
+                if (isAgvChargeOrderRunning)
+                {
+                    await OrderHandler.CancelOrder("Change Task");
+                    NotifyServiceHelper.INFO($"{agv.Name}-Current Charge has been canceled because of Carry Order Get.");
+                }
             }
         }
+
+        //public virtual List<clsTaskDto> taskList { get; } = new List<clsTaskDto>();
+        public virtual List<clsTaskDto> taskList { get; private set; } = new List<clsTaskDto>();
 
         public List<clsTaskDownloadData> jobs = new List<clsTaskDownloadData>();
 
