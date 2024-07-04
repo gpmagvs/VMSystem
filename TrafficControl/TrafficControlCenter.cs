@@ -148,6 +148,8 @@ namespace VMSystem.TrafficControl
                 _waitMessage += workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.OK ? "" : "\r\n" + workstationLeaveAddictionCheckResult.Message;
 
 
+
+
                 LeaveParkStationConflicDetection _LeaveParkDetector = new LeaveParkStationConflicDetection(goalPoint, _RaiseReqAGV.states.Coordination.Theta, _RaiseReqAGV);
                 clsConflicDetectResultWrapper _parkResult = _LeaveParkDetector.Detect();
                 _waitMessage += _parkResult.Result == DETECTION_RESULT.OK ? "" : "\r\n" + _parkResult.Message;

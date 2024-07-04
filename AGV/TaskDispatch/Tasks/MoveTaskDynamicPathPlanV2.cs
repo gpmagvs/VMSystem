@@ -104,6 +104,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Stopwatch pathConflicStopWatch = new Stopwatch();
                 pathConflicStopWatch.Start();
                 bool isReachNearGoalContinue = false;
+                bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
                 while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                 {
                     await Task.Delay(10);

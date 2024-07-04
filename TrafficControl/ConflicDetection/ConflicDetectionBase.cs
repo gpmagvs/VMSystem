@@ -31,6 +31,11 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
         public virtual clsConflicDetectResultWrapper Detect()
         {
+            if (OtherAGV.Count() == 0)
+            {
+                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
+            }
+
             clsConflicDetectResultWrapper _baseResult = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
             if (IsRegisted(out IAGV registedAGV))
             {
@@ -45,7 +50,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_AGV_BODY;
                 _baseResult.ConflicToAGVList = conflicAGVList;
 
-                _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}";
+                _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}\r\n([{this.GetType().Name}] Body Detection)";
             }
             else if (IsConflicToOtherVehicleRotaionBody(out conflicAGVList))
             {
@@ -53,7 +58,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_AGV_BODY;
                 _baseResult.ConflicToAGVList = conflicAGVList;
 
-                _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}";
+                _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}\r\n([{this.GetType().Name}] Rotation Detection)";
             }
             else if (IsConflicToOtherVehicleNavigatingPath(out Dictionary<IAGV, List<MapRectangle>> conflicState))
             {

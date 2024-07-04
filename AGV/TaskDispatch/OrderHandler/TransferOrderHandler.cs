@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Microservices.ResponseModel;
 using AGVSystemCommonNet6.Microservices.VMS;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using VMSystem.TrafficControl;
 using static SQLite.SQLite3;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -17,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override async Task HandleAGVActionFinishFeedback()
         {
-            if (RunningTask.ActionType == ACTION_TYPE.Load || RunningTask.ActionType == ACTION_TYPE.Unload)
+            if (Agv.CurrentRunningTask().ActionType != ACTION_TYPE.None && (RunningTask.ActionType == ACTION_TYPE.Load || RunningTask.ActionType == ACTION_TYPE.Unload))
             {
                 await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(RunningTask.DestineTag, RunningTask.ActionType);
 
@@ -115,10 +116,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
             }
         }
-        protected override void ActionsWhenOrderCancle()
+        protected override async void ActionsWhenOrderCancle()
         {
-            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
-            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
         }
     }
 

@@ -17,7 +17,12 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
         public override clsConflicDetectResultWrapper Detect()
         {
-            if(!RegionManager.IsRegionEnterable(this.AGVToDetect,entryPtRegion))
+
+            if (AGVToDetect.currentMapPoint.IsCharge && AGVToDetect.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Discharge)
+                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "AGV Leave CHarge Station NO Need LeaveParkStation Detection");
+
+
+            if (!RegionManager.IsRegionEnterable(this.AGVToDetect, entryPtRegion))
             {
                 return new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "")
                 {

@@ -22,7 +22,10 @@ namespace VMSystem.TrafficControl.ConflicDetection
         protected override IEnumerable<IAGV> GetOtherVehicles()
         {
             IEnumerable<IAGV> baseFiltered = base.GetOtherVehicles();
-            return baseFiltered.SkipWhile(agv => agv.currentMapPoint.IsCharge && agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
+            var chargeDetetionAGVList = baseFiltered.Where(agv => agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge).ToList();
+            Console.WriteLine($"chargeDetetionAGVList count:{chargeDetetionAGVList.Count}");
+            return chargeDetetionAGVList;
+            //return baseFiltered.SkipWhile(agv => agv.currentMapPoint.IsCharge && agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
         }
 
     }
