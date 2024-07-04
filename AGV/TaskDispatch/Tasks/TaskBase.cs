@@ -43,6 +43,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         internal ManualResetEvent TaskExecutePauseMRE = new ManualResetEvent(true);
 
+        public TaskDiagnosis taskdiagnosisTool { get; set; } = new TaskDiagnosis();
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
