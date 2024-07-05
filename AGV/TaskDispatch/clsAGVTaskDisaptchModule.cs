@@ -151,6 +151,12 @@ namespace VMSystem.AGV
                 if (any_charge_task_run_or_ready_to_run)
                     continue;
 
+                //新增條件:當任務駐列不為空時不指派充電任務
+
+                bool _IsAnyTaskQueuing = taskList.Where(tk => tk.Action == ACTION_TYPE.Carry).Count() > 0;
+                if (_IsAnyTaskQueuing)
+                    continue;
+
                 if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow() || agv.IsAGVIdlingAtNormalPoint())
                 {
                     if (_charge_forbid_alarm != null)
@@ -261,7 +267,13 @@ namespace VMSystem.AGV
                 {
                     taskList.AddRange(notInQuqueOrders);
 
-                    TryAbortCurrentChargeOrderForCarryOrderGet(notInQuqueOrders);
+                    bool isAnyCarryOrderIn = notInQuqueOrders.Any(tk => tk.Action == ACTION_TYPE.Carry);
+                    if (SystemModes.RunMode == RUN_MODE.RUN && isAnyCarryOrderIn)
+                    {
+
+                        TryAbortCurrentChargeOrderForCarryOrderGet(notInQuqueOrders);
+                        TryCancelAllWaitingForRunChargeOrder();
+                    }
 
                 }
             }
@@ -273,20 +285,48 @@ namespace VMSystem.AGV
             { }
         }
 
+        private async Task TryCancelAllWaitingForRunChargeOrder()
+        {
+            await Task.Delay(100).ContinueWith(async tk =>
+            {
+                try
+                {
+
+                    List<string> taskNamesOfChargeWaiting = taskList.Where(_order => _order.State == TASK_RUN_STATUS.WAIT && _order.Action == ACTION_TYPE.Charge)
+                                                                   .Select(waiting_order => waiting_order.TaskName).ToList();
+                    if (!taskNamesOfChargeWaiting.Any())
+                        return;
+
+                    using (var database = new AGVSDatabase())
+                    {
+                        foreach (var taskName in taskNamesOfChargeWaiting)
+                        {
+                            var dataDto = database.tables.Tasks.FirstOrDefault(task => task.TaskName == taskName);
+                            if (dataDto != null)
+                            {
+                                dataDto.FinishTime = DateTime.Now;
+                                dataDto.State = TASK_RUN_STATUS.CANCEL;
+                                dataDto.FailureReason = "Carry Order Get.Auto Cancel Charge Task";
+                            }
+                        }
+                        await database.SaveChanges();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                    NotifyServiceHelper.WARNING($"嘗試取消駐列中的充電任務過程中發生錯誤({agv.Name})");
+                }
+            });
+        }
+
         private async void TryAbortCurrentChargeOrderForCarryOrderGet(IEnumerable<clsTaskDto> newOrders)
         {
-            if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
-                return;
-
-            //determine newOrders has Carry Order
-            if (newOrders.Any(tk => tk.Action == ACTION_TYPE.Carry))
+            bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
+            if (isAgvChargeOrderRunning)
             {
-                bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
-                if (isAgvChargeOrderRunning)
-                {
-                    await OrderHandler.CancelOrder("Change Task");
-                    NotifyServiceHelper.INFO($"{agv.Name}-Current Charge has been canceled because of Carry Order Get.");
-                }
+                await OrderHandler.CancelOrder("Change Task");
+                NotifyServiceHelper.INFO($"{agv.Name}-Current Charge has been canceled because of Carry Order Get.");
             }
         }
 
