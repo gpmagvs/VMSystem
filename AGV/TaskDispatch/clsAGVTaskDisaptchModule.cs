@@ -301,6 +301,8 @@ namespace VMSystem.AGV
                     {
                         foreach (var taskName in taskNamesOfChargeWaiting)
                         {
+                            taskList.Remove(taskList.First(tk => tk.TaskName == taskName));
+
                             var dataDto = database.tables.Tasks.FirstOrDefault(task => task.TaskName == taskName);
                             if (dataDto != null)
                             {
