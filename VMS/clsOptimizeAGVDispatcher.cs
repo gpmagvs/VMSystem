@@ -35,14 +35,14 @@ namespace VMSystem.VMS
                     List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
                     if (_taskList_waiting_and_no_DesignatedAGV.Count > 0)
                     {
-                        List<string> List_TaskAGV = new List<string>();
+                        List<string> CannotAssignOrderAGVNames = new List<string>();
                         List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
                         List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
-                        List_TaskAGV.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
-                        List_TaskAGV.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
+                        CannotAssignOrderAGVNames.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
+                        //CannotAssignOrderAGVNames.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
-                        List_TaskAGV.AddRange(List_idlecarryAGV);
+                        CannotAssignOrderAGVNames.AddRange(List_idlecarryAGV);
 
 
                         //將任務依照優先度排序            
@@ -55,10 +55,10 @@ namespace VMSystem.VMS
 
                             if (_taskDto.TaskName.ToUpper().Contains("HR_CARRY"))
                             {
-                                List_TaskAGV.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
+                                CannotAssignOrderAGVNames.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
                             }
 
-                            IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, List_TaskAGV);
+                            IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
                             if (AGV == null)
                                 continue;
                             else

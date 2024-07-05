@@ -27,7 +27,8 @@ namespace VMSystem
 
         internal static void ConsoleInit()
         {
-            Console.Title = "GPM-車輛管理系統(VMS)";
+            var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            Console.Title = $"GPM-車輛管理系統(VMS)-v.{appVersion}";
         }
 
         internal static async void DBInit(WebApplicationBuilder builder, WebApplication app)

@@ -11,7 +11,6 @@ using VMSystem;
 using VMSystem.BackgroundServices;
 using VMSystem.Services;
 
-
 Startup.ConfigurationInit();
 
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
