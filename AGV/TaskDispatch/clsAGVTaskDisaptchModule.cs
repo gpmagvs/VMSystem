@@ -401,6 +401,17 @@ namespace VMSystem.AGV
                                     continue;
                                 }
                                 var _ExecutingTask = taskOrderedByPriority.First();
+
+
+                                //double check with database
+                                bool IsOrderReallyWaitingExcute = DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(dto => dto.DesignatedAGVName == agv.Name && dto.TaskName == _ExecutingTask.TaskName);
+
+                                if (!IsOrderReallyWaitingExcute)
+                                {
+                                    taskList.Remove(taskList.First(t => t.TaskName == _ExecutingTask.TaskName));
+                                    continue;
+                                }
+
                                 ALARMS alarm_code = ALARMS.NONE;
 
                                 (bool autoSearchConfrim, ALARMS autoSearch_alarm_code) = await CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);

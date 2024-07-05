@@ -917,25 +917,28 @@ namespace VMSystem.AGV
         public void CancelTask(string task_name)
         {
 
+            RemoveTask(task_name);
             TaskBase currentTask = this.CurrentRunningTask();
             bool isTaskExecuting = currentTask.TaskName == task_name;
             OnTaskCancel?.Invoke(this, task_name);
             if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
                 currentTask.CancelTask();
-            else
-            {
-                RemoveTask(task_name);
-            }
-
             void RemoveTask(string task_name)
             {
-                var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
-                if (taskDto != null)
+                try
                 {
-                    taskDto.State = TASK_RUN_STATUS.CANCEL;
-                    VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
+                    var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
+                    if (taskDto != null)
+                    {
+                        taskDto.State = TASK_RUN_STATUS.CANCEL;
+                        VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
+                    }
+                    taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
                 }
-                taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
             }
         }
     }
