@@ -135,5 +135,25 @@ namespace VMSystem.Controllers
             agv.AgvSimulation.runningSTatus.Electric_Volume[0] = lv;
             return Ok();
         }
+        [HttpGet("UnRecoveryAlarmSimulation")]
+        public async Task<IActionResult> UnRecoveryAlarmSimulation(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.UnRecoveryAlarmRaise();
+            return Ok();
+        }
+        [HttpGet("Initialize")]
+        public async Task<IActionResult> Initialize(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.Initialize();
+            return Ok();
+        }
     }
 }
