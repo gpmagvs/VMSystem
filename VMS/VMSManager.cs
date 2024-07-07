@@ -691,7 +691,7 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static async Task<bool> TaskCancel(string task_name)
+        internal static async Task<bool> TaskCancel(string task_name, string reason)
         {
             try
             {
@@ -705,7 +705,7 @@ namespace VMSystem.VMS
                     }
                     return true;
                 }
-                vehicle.CancelTask(task_name);
+                await vehicle.CancelTaskAsync(task_name, reason);
                 return true;
 
             }

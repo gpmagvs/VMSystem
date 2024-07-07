@@ -23,11 +23,11 @@ namespace VMSystem.Controllers
         }
 
         [HttpGet("Cancel")]
-        public async Task<IActionResult> Cancel(string task_name)
+        public async Task<IActionResult> Cancel(string task_name, string reason = "")
         {
             try
             {
-                await VMSManager.TaskCancel(task_name);
+                await VMSManager.TaskCancel(task_name, reason);
                 return Ok("done");
             }
             catch (Exception ex)

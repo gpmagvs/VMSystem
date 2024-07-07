@@ -401,6 +401,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                 Agv.NavigationState.StateReset();
+                InvokeTaskDoneEvent();
             }
 
 

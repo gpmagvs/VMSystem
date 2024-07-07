@@ -61,6 +61,7 @@ namespace VMSystem.AGV
         public event EventHandler<int> OnMapPointChanged;
         public static event EventHandler<(IAGV agv, double currentMileage)> OnMileageChanged;
         public event EventHandler<string> OnTaskCancel;
+        public event EventHandler OnAGVStatusDown;
 
         public IAGV.BATTERY_STATUS batteryStatus
         {
@@ -199,6 +200,10 @@ namespace VMSystem.AGV
             {
                 if (value != _main_state)
                 {
+                    if (value == MAIN_STATUS.DOWN)
+                    {
+                        OnAGVStatusDown?.Invoke(this, EventArgs.Empty);
+                    }
                     availabilityHelper?.UpdateAGVMainState(value);
                     StopRegionHelper?.UpdateStopRegionData(value, states.Last_Visited_Node.ToString());
                     _main_state = value;
@@ -914,32 +919,46 @@ namespace VMSystem.AGV
 
         }
 
-        public void CancelTask(string task_name)
+        public async Task CancelTaskAsync(string task_name, string reason)
         {
-
-            RemoveTask(task_name);
-            TaskBase currentTask = this.CurrentRunningTask();
-            bool isTaskExecuting = currentTask.TaskName == task_name;
-            OnTaskCancel?.Invoke(this, task_name);
-            if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
-                currentTask.CancelTask();
-            void RemoveTask(string task_name)
+            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason);
+            if (confirmed)
             {
-                try
+                TaskBase currentTask = this.CurrentRunningTask();
+                bool isTaskExecuting = currentTask.TaskName == task_name;
+                OnTaskCancel?.Invoke(this, task_name);
+                if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
+                    currentTask.CancelTask();
+
+                currentTask.OnTaskDone += (sender, e) =>
                 {
-                    var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
-                    if (taskDto != null)
+                    RemoveTask(task_name);
+                    void RemoveTask(string task_name)
                     {
-                        taskDto.State = TASK_RUN_STATUS.CANCEL;
-                        VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
+                        try
+                        {
+                            var taskDto = taskDispatchModule.taskList.FirstOrDefault(tk => tk.TaskName == task_name);
+                            if (taskDto != null)
+                            {
+                                taskDto.State = TASK_RUN_STATUS.CANCEL;
+                                VMSManager.HandleTaskDBChangeRequestRaising(this, taskDto);
+                            }
+                            taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex);
+                        }
                     }
-                    taskDispatchModule.taskList.RemoveAll(task => task.TaskName == task_name);
-                }
-                catch (Exception ex)
-                {
-                    logger.Error(ex);
-                }
+                };
+
+
             }
+        }
+
+        private void CurrentTask_OnTaskDone(object? sender, EventArgs e)
+        {
+            throw new NotImplementedException();
         }
     }
 }

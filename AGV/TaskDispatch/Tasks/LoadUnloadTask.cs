@@ -16,6 +16,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private MapPoint EntryPoint = new();
         private MapPoint EQPoint = new();
         private ManualResetEvent WaitAGVReachWorkStationMRE = new ManualResetEvent(false);
+
+
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
         }
@@ -55,30 +57,56 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
-            EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);
-
-            clsConflicDetectResultWrapper detectResult = enterWorkStationDetection.Detect();
-
-            while (detectResult.Result == DETECTION_RESULT.NG)
+            try
             {
-                await Task.Delay(200);
-                detectResult = enterWorkStationDetection.Detect();
-                UpdateStateDisplayMessage(detectResult.Message);
-                if (IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING || Agv.CurrentRunningTask().TaskName != this.OrderData.TaskName)
+                EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);
+
+                clsConflicDetectResultWrapper detectResult = enterWorkStationDetection.Detect();
+
+                while (detectResult.Result == DETECTION_RESULT.NG)
                 {
-                    throw new TaskCanceledException();
+                    await Task.Delay(200);
+                    detectResult = enterWorkStationDetection.Detect();
+                    UpdateStateDisplayMessage(detectResult.Message);
+                    if (IsTaskCanceled || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING || Agv.CurrentRunningTask().TaskName != this.OrderData.TaskName)
+                    {
+                        throw new TaskCanceledException();
+                    }
                 }
+
+                Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
+                Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
+                UpdateEQActionMessageDisplay();
+                ChangeWorkStationMoveStateBackwarding();
+                Agv.OnAGVStatusDown += HandleAGVStatusDown;
+                await base.SendTaskToAGV();
+                if (AgvStatusDownFlag)
+                    return;
+                await WaitAGVReachWorkStationTag();
+                if (AgvStatusDownFlag)
+                    return;
+                await WaitAGVTaskDone();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+            finally
+            {
+                if (!AgvStatusDownFlag)
+                {
+                    await TryRotationToAvoidAngle();
+                }
+                InvokeTaskDoneEvent();
             }
 
-            Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
-            Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
-            UpdateEQActionMessageDisplay();
-            ChangeWorkStationMoveStateBackwarding();
-            await base.SendTaskToAGV();
-            await WaitAGVReachWorkStationTag();
-            await WaitAGVTaskDone();
         }
 
+        protected override void HandleAGVStatusDown(object? sender, EventArgs e)
+        {
+            WaitAGVReachWorkStationMRE.Set();
+            base.HandleAGVStatusDown(sender, e);
+        }
         private async Task WaitAGVReachWorkStationTag()
         {
             WaitAGVReachWorkStationMRE.Reset();
@@ -103,6 +131,74 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             }
         }
+
+        /// <summary>
+        /// 轉向避車角度設定
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        private async Task TryRotationToAvoidAngle()
+        {
+
+
+
+            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
+            {
+                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+                WaitAGVReachWorkStationMRE.Set();
+            }
+            try
+            {
+                logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
+
+
+                clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
+                int currentTag = trajectory.First().Point_ID;
+                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                trajectory.First().Theta = avoidTheta;
+                clsTaskDownloadData taskObj = new clsTaskDownloadData
+                {
+                    Action_Type = ACTION_TYPE.None,
+                    Destination = Agv.currentMapPoint.TagNumber,
+                    Task_Name = this.TaskName,
+                    Trajectory = trajectory
+                };
+
+                SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, avoidTheta, Agv);
+                clsConflicDetectResultWrapper _resultWarp = spinDetection.Detect();
+
+                if (_resultWarp.Result != DETECTION_RESULT.OK)
+                {
+                    logger.Info($"Wait Spin To Avoid Theta Allow..\r\n{_resultWarp.Message}");
+                    NotifyServiceHelper.INFO($"{Agv.Name} 退出設備後轉向避車角度不允許，如路徑衝突將進入正常避車流程，");
+                    return;
+                }
+                Agv.NavigationState.UpdateNavigationPoints(trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
+                WaitAGVReachWorkStationMRE.Reset();
+                Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
+                string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
+                logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
+                (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj);
+                if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
+                    logger.Info($"{Agv.Name} turn to avoid angle task download success.");
+                else
+                {
+                    logger.Warn($"{Agv.Name} turn to avoid angle task download  failed.");
+                    return;
+                }
+                WaitAGVReachWorkStationMRE.WaitOne();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+            finally
+            {
+                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+                Agv.NavigationState.ResetNavigationPoints();
+            }
+        }
+
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {

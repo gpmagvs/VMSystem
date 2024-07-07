@@ -90,10 +90,11 @@ namespace VMSystem.AGV
         int currentFloor { get; set; }
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
-        void CancelTask(string task_name);
+        Task CancelTaskAsync(string task_name, string reason);
 
         event EventHandler<string> OnTaskCancel;
         event EventHandler<int> OnMapPointChanged;
+        event EventHandler OnAGVStatusDown;
 
         TaskExecuteHelper TaskExecuter { get; set; }
     }

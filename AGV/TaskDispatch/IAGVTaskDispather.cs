@@ -19,7 +19,6 @@ namespace VMSystem.AGV.TaskDispatch
         Task Run();
         List<clsTaskDto> taskList { get; }
         Task<int> TaskFeedback(FeedbackData feedbackData);
-        Task<string> CancelTask(bool unRegistPoints = true);
         Task<SimpleRequestResponse> PostTaskRequestToAGVAsync(clsTaskDownloadData request);
         void DispatchTrafficTask(clsTaskDownloadData task_download_data);
         WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY AGVWaitingYouNotify(IAGV agv);

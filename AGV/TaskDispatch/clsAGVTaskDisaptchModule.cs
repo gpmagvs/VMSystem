@@ -153,7 +153,7 @@ namespace VMSystem.AGV
 
                 //新增條件:當任務駐列不為空時不指派充電任務
 
-                bool _IsAnyTaskQueuing = taskList.Where(tk => tk.Action == ACTION_TYPE.Carry).Count() > 0;
+                bool _IsAnyTaskQueuing = DatabaseCaches.TaskCaches.InCompletedTasks.Where(tk => tk.DesignatedAGVName == agv.Name && tk.Action == ACTION_TYPE.Carry).Count() > 0;
                 if (_IsAnyTaskQueuing)
                     continue;
 
@@ -629,12 +629,6 @@ namespace VMSystem.AGV
             TaskDBHelper.Add(_ExecutingTask);
         }
 
-        public async Task<string> CancelTask(bool unRegistPoints = true)
-        {
-            this.OrderHandler.CancelOrder();
-            return "";
-            //return await TaskStatusTracker.CancelOrder(unRegistPoints);
-        }
         private List<IAGV> WaitingForYieldedAGVList = new List<IAGV>();
         public WAITING_FOR_MOVE_AGV_CONFLIC_ACTION_REPLY AGVWaitingYouNotify(IAGV waiting_for_move_agv)
         {

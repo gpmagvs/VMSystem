@@ -392,6 +392,10 @@ namespace VMSystem.TrafficControl
             output.AddRange(pathPoints.Clone());
             output = output.DistinctBy(pt => pt.TagNumber).ToList();
             NextNavigtionPointsForPathCalculation = NextNavigtionPoints = output;
+            if (NextNavigtionPoints.Count() == 1)
+            {
+
+            }
         }
 
         public void ResetNavigationPoints()

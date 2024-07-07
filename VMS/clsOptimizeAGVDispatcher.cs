@@ -39,6 +39,13 @@ namespace VMSystem.VMS
                         List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
                         List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
                         CannotAssignOrderAGVNames.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
+
+                        //若當下是搬運動作且是還不是前往目的地放貨的 不可接任務
+                        CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
+                                         .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && agv.CurrentRunningTask().Stage != VehicleMovementStage.Traveling_To_Destine)
+                                         .Select(agv => agv.Name));
+
+
                         //CannotAssignOrderAGVNames.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
@@ -80,60 +87,60 @@ namespace VMSystem.VMS
                             //    await MCSCIMService.TaskReporter((_taskDto, 1));
                         }
                     }
-                    List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
-                    if (_taskList_running_for_change_agv.Count > 0)
-                    {
-                        for (int i = 0; i < _taskList_running_for_change_agv.Count; i++)
-                        {
-                            var runningtask = _taskList_running_for_change_agv[i];
-                            IAGV DesignatedAGV = VMSManager.AllAGV.Where(x => x.Name == runningtask.DesignatedAGVName).Select(x => x).Distinct().FirstOrDefault();
-                            if (DesignatedAGV == null || DesignatedAGV.CurrentRunningTask().Stage != VehicleMovementStage.Traveling_To_Source)
-                                continue;
-                            IEnumerable<IAGV> allagv = VMSManager.AllAGV.Where(x => x.model == DesignatedAGV.model && x.online_state == ONLINE_STATE.ONLINE).Select(x => x).Distinct();
+                    //List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
+                    //if (_taskList_running_for_change_agv.Count > 0)
+                    //{
+                    //    for (int i = 0; i < _taskList_running_for_change_agv.Count; i++)
+                    //    {
+                    //        var runningtask = _taskList_running_for_change_agv[i];
+                    //        IAGV DesignatedAGV = VMSManager.AllAGV.Where(x => x.Name == runningtask.DesignatedAGVName).Select(x => x).Distinct().FirstOrDefault();
+                    //        if (DesignatedAGV == null || DesignatedAGV.CurrentRunningTask().Stage != VehicleMovementStage.Traveling_To_Source)
+                    //            continue;
+                    //        IEnumerable<IAGV> allagv = VMSManager.AllAGV.Where(x => x.model == DesignatedAGV.model && x.online_state == ONLINE_STATE.ONLINE).Select(x => x).Distinct();
 
-                            Dictionary<IAGV, Task<double>> agv_distance_calculater = allagv.ToDictionary(x => x, y => Task.Run(() =>
-                            {
-                                MapPoint goalStation = null;
-                                StaMap.TryGetPointByTagNumber(int.Parse(runningtask.From_Station), out goalStation);
-                                PathFinder pathFinder = new PathFinder();
-                                var result = pathFinder.FindShortestPath(StaMap.Map, y.currentMapPoint, goalStation, new PathFinder.PathFinderOption
-                                {
-                                    OnlyNormalPoint = false,
-                                    Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra
-                                });
-                                if (result == null)
-                                    return double.MaxValue;
-                                else
-                                    return result.total_travel_distance;
-                            }));
-                            await Task.WhenAll(agv_distance_calculater.Select(x => x.Value));
+                    //        Dictionary<IAGV, Task<double>> agv_distance_calculater = allagv.ToDictionary(x => x, y => Task.Run(() =>
+                    //        {
+                    //            MapPoint goalStation = null;
+                    //            StaMap.TryGetPointByTagNumber(int.Parse(runningtask.From_Station), out goalStation);
+                    //            PathFinder pathFinder = new PathFinder();
+                    //            var result = pathFinder.FindShortestPath(StaMap.Map, y.currentMapPoint, goalStation, new PathFinder.PathFinderOption
+                    //            {
+                    //                OnlyNormalPoint = false,
+                    //                Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra
+                    //            });
+                    //            if (result == null)
+                    //                return double.MaxValue;
+                    //            else
+                    //                return result.total_travel_distance;
+                    //        }));
+                    //        await Task.WhenAll(agv_distance_calculater.Select(x => x.Value));
 
-                            IAGV betteragv = agv_distance_calculater.Where(x => x.Value.Result != double.MaxValue && x.Value.Result < agv_distance_calculater[DesignatedAGV].Result && x.Key.online_state == ONLINE_STATE.ONLINE).OrderBy(dist => dist.Value.Result).Select(x => x.Key).FirstOrDefault();
+                    //        IAGV betteragv = agv_distance_calculater.Where(x => x.Value.Result != double.MaxValue && x.Value.Result < agv_distance_calculater[DesignatedAGV].Result && x.Key.online_state == ONLINE_STATE.ONLINE).OrderBy(dist => dist.Value.Result).Select(x => x.Key).FirstOrDefault();
 
-                            if (betteragv != null)
-                            {
-                                bool betteragv_waitingtask = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
-                                bool betteragv_doingtask = DatabaseCaches.TaskCaches.RunningTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
-                                if (betteragv_waitingtask || betteragv_doingtask)
-                                    continue;
+                    //        if (betteragv != null)
+                    //        {
+                    //            bool betteragv_waitingtask = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
+                    //            bool betteragv_doingtask = DatabaseCaches.TaskCaches.RunningTasks.Where(x => x.DesignatedAGVName == betteragv.Name).Select(x => x).Select(x => x).Any();
+                    //            if (betteragv_waitingtask || betteragv_doingtask)
+                    //                continue;
 
-                                DesignatedAGV.CurrentRunningTask().CancelTask();
-                                while (DesignatedAGV.main_state == MAIN_STATUS.RUN)
-                                {
-                                    await Task.Delay(1000);
-                                }
-                                runningtask.DesignatedAGVName = betteragv.Name;
-                                using (AGVSDatabase db = new AGVSDatabase())
-                                {
-                                    var model = db.tables.Tasks.First(tk => tk.TaskName == runningtask.TaskName);
-                                    model.DesignatedAGVName = runningtask.DesignatedAGVName;
-                                    model.State = TASK_RUN_STATUS.WAIT;
-                                    await db.SaveChanges();
-                                }
-                            }
-                            await Task.Delay(1000);
-                        }
-                    }
+                    //            DesignatedAGV.CurrentRunningTask().CancelTask();
+                    //            while (DesignatedAGV.main_state == MAIN_STATUS.RUN)
+                    //            {
+                    //                await Task.Delay(1000);
+                    //            }
+                    //            runningtask.DesignatedAGVName = betteragv.Name;
+                    //            using (AGVSDatabase db = new AGVSDatabase())
+                    //            {
+                    //                var model = db.tables.Tasks.First(tk => tk.TaskName == runningtask.TaskName);
+                    //                model.DesignatedAGVName = runningtask.DesignatedAGVName;
+                    //                model.State = TASK_RUN_STATUS.WAIT;
+                    //                await db.SaveChanges();
+                    //            }
+                    //        }
+                    //        await Task.Delay(1000);
+                    //    }
+                    //}
                 }
                 catch (Exception ex)
                 {

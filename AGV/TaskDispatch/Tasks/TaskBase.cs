@@ -29,6 +29,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public static event EventHandler<PathConflicRequest> OnPathConflicForSoloveRequest;
 
+        public event EventHandler OnTaskDone;
+
         protected Map CurrentMap => StaMap.Map;
 
         public ACTION_TYPE NextAction { get; set; } = ACTION_TYPE.NoAction;
@@ -44,6 +46,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         internal ManualResetEvent TaskExecutePauseMRE = new ManualResetEvent(true);
 
         public TaskDiagnosis taskdiagnosisTool { get; set; } = new TaskDiagnosis();
+
+        protected bool AgvStatusDownFlag = false;
+        protected virtual void HandleAGVStatusDown(object? sender, EventArgs e)
+        {
+            AgvStatusDownFlag = true;
+            Agv.OnAGVStatusDown -= HandleAGVStatusDown;
+            Task.Run(() =>
+            {
+                Agv.CancelTaskAsync(this.OrderData.TaskName, "AGV Status Down");
+                _WaitAGVTaskDoneMRE.Set();
+            });
+        }
         public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
         {
@@ -317,7 +331,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 IsTaskCanceled = true;
                 this.Dispose();
                 await SendCancelRequestToAGV();
-                TrafficWaitingState.SetStatusNoWaiting();
             }
             catch (Exception ex)
             {
@@ -351,7 +364,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             _replanTask.Trajectory = tags.Select(tag => StaMap.GetPointByTagNumber(tag)).Select(mapPt => MapPointToTaskPoint(mapPt)).ToArray();
             SendTaskToAGV(_replanTask);
         }
-        private ManualResetEvent _WaitAGVTaskDoneMRE = new ManualResetEvent(false);
+        protected ManualResetEvent _WaitAGVTaskDoneMRE = new ManualResetEvent(false);
 
         protected virtual async Task WaitAGVTaskDone()
         {
@@ -384,6 +397,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             FuturePlanNavigationTags.Clear();
             TrafficWaitingState.SetStatusNoWaiting();
+        }
+
+        protected void InvokeTaskDoneEvent()
+        {
+            OnTaskDone?.Invoke(this, EventArgs.Empty);
         }
 
         public void PathConflicSolveRequestInvoke(PathConflicRequest request)

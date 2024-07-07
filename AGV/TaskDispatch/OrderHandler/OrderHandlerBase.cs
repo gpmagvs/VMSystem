@@ -72,8 +72,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             AbortOrder(_alarm);
                         };
-                        var dispatch_result = await task.DistpatchToAGV();
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
+                        var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
                             if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
@@ -105,7 +105,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     }
 
-                     _SetOrderAsFinishState();
+                    _SetOrderAsFinishState();
                     if (OrderData.need_change_agv && this.RunningTask.Stage == VehicleMovementStage.LoadingAtTransferStation)
                     {
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
@@ -257,12 +257,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
-        internal async Task CancelOrder(string reason = "")
+        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "")
         {
+            if (this.OrderData.TaskName != taskName)
+            {
+                return (false, "Task Name Not Match");
+            }
+
             TaskCancelledFlag = true;
             TaskCancelReason = reason;
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
+            return (true, "");
         }
         private void _SetOrderAsRunningState()
         {
@@ -307,7 +313,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
             MCSCIMService.TaskReporter((OrderData, 7));
-            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.WARNING, taskName: OrderData.TaskName);
+            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, taskName: OrderData.TaskName);
         }
 
         internal virtual List<int> GetNavPathTags()

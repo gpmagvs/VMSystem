@@ -84,7 +84,7 @@ namespace VMSystem.BackgroundServices
                             cargo_type = agv.states.CargoType,
                             cst_id = agv.states.CSTID.FirstOrDefault()
                         },
-                        nav_path = isOrderExecuting ? navingTagList : OrderHandler.RunningTask.FuturePlanNavigationTags,
+                        nav_path = isOrderExecuting ? navingTagList : new List<int>(),
                         theta = Math.Round(agv.states.Coordination.Theta, 1),
                         waiting_info = agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState,
                         states = new

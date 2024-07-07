@@ -54,6 +54,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 UpdateMoveStateMessage($"退出-[{stationPt.Graph.Display}]...");
                 StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
+                Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
                 await WaitAGVTaskDone();
             }
