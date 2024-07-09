@@ -12,12 +12,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override async Task HandleAGVActionFinishFeedback()
         {
-
-            if (RunningTask.ActionType == ACTION_TYPE.Unload)
-            {
-                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(RunningTask.DestineTag, RunningTask.ActionType);
-            }
-
             await base.HandleAGVActionFinishFeedback();
         }
         public override async Task StartOrder(IAGV Agv)
@@ -35,7 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
-            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
+            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
 
         }
     }

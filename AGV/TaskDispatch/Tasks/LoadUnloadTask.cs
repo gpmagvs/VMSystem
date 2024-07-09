@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.TrafficControl;
@@ -86,6 +87,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (AgvStatusDownFlag)
                     return;
                 await WaitAGVTaskDone();
+                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(EQPoint.TagNumber, ActionType, Agv.Name);
+
             }
             catch (Exception ex)
             {
@@ -93,6 +96,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+
+
                 bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                                                                      .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
                                                                      .Any();

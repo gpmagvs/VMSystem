@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
+using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using static SQLite.SQLite3;
 
@@ -114,7 +115,8 @@ namespace VMSystem.Services
             {
                 AlarmManagerCenter.AddAlarmAsync(response.AlarmCode, Equipment_Name: taskData.DesignatedAGVName, taskName: taskData.TaskName, level: ALARM_LEVEL.WARNING);
             }
-
+            string agvname = taskData.DesignatedAGVName;
+            NotifyServiceHelper.INFO($"{agvname} {taskData.Action} Action Start Report To AGVS. Alarm Code Response={response.AlarmCode}");
             return response;
         }
     }
