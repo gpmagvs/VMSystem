@@ -165,6 +165,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             if (isPathEndPtIsDestine)
             {
+
+                if (stage == VehicleMovementStage.AvoidPath)
+                {
+                    return path.Last().Direction_Avoid;
+                }
+
                 if (refOrderInfo.Action == ACTION_TYPE.None && stage != VehicleMovementStage.AvoidPath_Park)
                 {
                     var fintailStopPt = StaMap.GetPointByTagNumber(finalStopPoint.TagNumber).Clone();
