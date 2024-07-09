@@ -42,8 +42,8 @@ namespace VMSystem.VMS
 
                         //若當下是搬運動作且是還不是前往目的地放貨的 不可接任務
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
-                                         .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && agv.CurrentRunningTask().Stage != VehicleMovementStage.Traveling_To_Destine)
-                                         .Select(agv => agv.Name));
+                                                 .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Source || agv.CurrentRunningTask().Stage == VehicleMovementStage.WorkingAtSource)) //to source . working
+                                                 .Select(agv => agv.Name));
 
 
                         //CannotAssignOrderAGVNames.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
@@ -90,7 +90,7 @@ namespace VMSystem.VMS
                     //List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
                     //if (_taskList_running_for_change_agv.Count > 0)
                     //{
-                    //    for (int i = 0; i < _taskList_running_for_change_agv.Count; i++)
+                    //    forㄈ (int i = 0; i < _taskList_running_for_change_agv.Count; i++)
                     //    {
                     //        var runningtask = _taskList_running_for_change_agv[i];
                     //        IAGV DesignatedAGV = VMSManager.AllAGV.Where(x => x.Name == runningtask.DesignatedAGVName).Select(x => x).Distinct().FirstOrDefault();
