@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
@@ -312,7 +313,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
-            MCSCIMService.TaskReporter((OrderData, 7));
+            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, 7));
+            if (v.confirm == false)
+                LOG.WARN($"{v.message}");
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, taskName: OrderData.TaskName);
         }
 

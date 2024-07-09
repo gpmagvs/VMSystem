@@ -75,6 +75,9 @@ namespace VMSystem.VMS
                                 _taskDto = ChechGenerateTransferTaskOrNot(AGV, ref _taskDto);
                             }
 
+                            (bool confirm, string message) tr = await AGVSSerivces.TaskReporter((_taskDto, 1));
+                            if (tr.confirm == false)
+                                LOG.WARN($"{tr.message}");
                             using (AGVSDatabase db = new AGVSDatabase())
                             {
                                 var model = db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
@@ -84,7 +87,6 @@ namespace VMSystem.VMS
                                 await db.SaveChanges();
                             }
                             await Task.Delay(2000);
-                            //    await MCSCIMService.TaskReporter((_taskDto, 1));
                         }
                     }
                     //List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
