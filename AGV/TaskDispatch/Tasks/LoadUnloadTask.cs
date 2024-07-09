@@ -93,7 +93,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
-                if (!AgvStatusDownFlag)
+                bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                                                                     .Any();
+
+                if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
                 {
                     await TryRotationToAvoidAngle();
                 }
