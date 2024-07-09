@@ -6,6 +6,8 @@ using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
 
@@ -125,12 +127,19 @@ namespace VMSystem.AGV
                     SourceSlot = int.Parse(order.From_Slot)
                 };
                 sequence += 1;
+
+                //若路徑中包含閃避模式3的點位需確認 下一點的設備PORT是不是有AGV停駐
+                bool changed = DynamicDisableDogeMode3(ref _TaskDonwloadToAGV);
+                if (changed)
+                {
+                    NotifyServiceHelper.WARNING($"{Vehicle.Name} 導航路徑原有閃避模式3點位動態調整為0。(因設備內有其他車輛)");
+                }
                 string _newTaskSimplex = ExecutingTaskName + "_" + sequence;
                 _TaskDonwloadToAGV.Task_Sequence = sequence;
                 _TaskDonwloadToAGV.Task_Simplex = _newTaskSimplex;
                 lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
-
                 TrackingTaskSimpleName = _newTaskSimplex;
+
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
                 {
@@ -203,6 +212,37 @@ namespace VMSystem.AGV
                 logger.Info($"Task Download To AGV:\n{logObject.ToJson()}");
             }
         }
+
+        private bool DynamicDisableDogeMode3(ref clsTaskDownloadData taskDonwloadToAGV)
+        {
+            bool hasAnyDodgeModeOfPointEuqal3 = taskDonwloadToAGV.Trajectory.Any(pt => pt.Control_Mode.Dodge == 3);
+            if (!hasAnyDodgeModeOfPointEuqal3)
+                return false;
+
+            bool hasAfterDodgeMode3HasAgv = false;
+
+            int indexOfDogeMode3Pt = taskDonwloadToAGV.Trajectory.ToList().FindIndex(pt => pt.Control_Mode.Dodge == 3);
+
+            //after DogeMod3Pts 
+            var _trajRef = taskDonwloadToAGV.Trajectory.ToList();
+            var targetEqHasAgvPts = _trajRef.Where(pt => _trajRef.IndexOf(pt) > indexOfDogeMode3Pt)
+                                            .Where(pt => IsTargetEqHasAGV(pt.Point_ID));
+            hasAfterDodgeMode3HasAgv = targetEqHasAgvPts.Any();
+
+            if (!hasAfterDodgeMode3HasAgv)
+                return false;
+
+            taskDonwloadToAGV.Trajectory[indexOfDogeMode3Pt].Control_Mode.Dodge = 0;
+            return true;
+
+            bool IsTargetEqHasAGV(int point_ID)
+            {
+                var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Vehicle);
+                MapPoint normalPt = StaMap.GetPointByTagNumber(point_ID);
+                return normalPt.TargetWorkSTationsPoints().Any(pt => otherVehicles.Any(agv => agv.currentMapPoint.TagNumber == pt.TagNumber));
+            }
+        }
+
 
         internal async Task EmergencyStop(string TaskName = "")
         {
