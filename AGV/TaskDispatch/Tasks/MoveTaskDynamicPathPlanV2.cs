@@ -76,6 +76,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         VehicleMovementStage subStage = VehicleMovementStage.Not_Start_Yet;
         bool CycleStopByWaitingRegionIsEnterable = false;
+        bool SecondaryPathSearching = false;
+        bool SecondaryPathFound = false;
         private async Task SendTaskToAGV(MapPoint _finalMapPoint)
         {
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -150,6 +152,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
+                            //if (SecondaryPathSearching)//表示第二路徑也沒有辦法通行
+                            //{
+                            //    RestoreClosedPathes();
+                            //    SecondaryPathSearching = false;
+                            //    NotifyServiceHelper.WARNING($"{Agv.Name} Secondary Path Still Not Navigatable。");
+                            //    await Task.Delay(1000);
+                            //    continue;
+                            //}
 
                             if (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
                             {
@@ -172,7 +182,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 continue;
                             }
 
-                            Agv.NavigationState.IsWaitingConflicSolve = true;
+                            //if (SecondaryPathSearching == false && Agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+                            //{
+                            //    SecondaryPathSearching = true;
+                            //    bool confilcPathClosed = await DynamicClosePath();
+                            //    if (confilcPathClosed)
+                            //    {
+                            //        SecondaryPathSearching = true;
+                            //        await CycleStopRequestAsync();
+                            //        _previsousTrajectorySendToAGV.Clear();
+                            //        continue;
+                            //    }
+                            //}
+
+                            if (Agv.main_state == clsEnums.MAIN_STATUS.IDLE && pathConflicStopWatch.Elapsed.TotalSeconds > 3)
+                                Agv.NavigationState.IsWaitingConflicSolve = true;
 
                             if (Agv.NavigationState.currentConflicToAGV != null && RegionManager.IsAGVWaitingRegion(Agv.NavigationState.currentConflicToAGV, Agv.currentMapPoint.GetRegion()))
                             {
@@ -183,6 +207,29 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 Agv.NavigationState.AvoidActionState.IsAvoidRaising = false;
                                 Agv.NavigationState.IsWaitingConflicSolve = false;
+
+                                if (Agv.NavigationState.currentConflicToAGV?.main_state == clsEnums.MAIN_STATUS.RUN)
+                                {
+                                    await Task.Delay(1000);
+                                    NotifyServiceHelper.INFO($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
+                                    await SendCancelRequestToAGV();
+                                    _previsousTrajectorySendToAGV.Clear();
+                                    continue;
+                                }
+
+                                //try get secondary path
+                                if (await DynamicClosePath())
+                                {
+                                    var _secondaryPathResponse = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, Agv.currentMapPoint, _finalMapPoint, OrderData, Stage));
+                                    if (_secondaryPathResponse != null && _secondaryPathResponse.Any())
+                                    {
+                                        NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
+                                        await SendCancelRequestToAGV();
+                                        _previsousTrajectorySendToAGV.Clear();
+                                        continue;
+                                    }
+                                }
+
                                 subStage = Agv.NavigationState.AvoidActionState.AvoidAction == ACTION_TYPE.None ? VehicleMovementStage.AvoidPath : VehicleMovementStage.AvoidPath_Park;
                                 searchStartPt = Agv.currentMapPoint;
                                 await SendCancelRequestToAGV();
@@ -200,6 +247,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             continue;
                         }
+
+                        SecondaryPathSearching = false;
                         RestoreClosedPathes();
                         Agv.NavigationState.AvoidActionState.Reset();
                         Agv.NavigationState.IsWaitingConflicSolve = false;
@@ -210,7 +259,25 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         var nextGoal = nextPath.Last();
                         var remainPath = nextPath.Where(pt => nextPath.IndexOf(nextGoal) >= nextPath.IndexOf(nextGoal));
                         nextPath.First().Direction = int.Parse(Math.Round(Agv.states.Coordination.Theta) + "");
-                        nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
+
+                        try
+                        {
+                            bool isNextGoalIsAvoidPtDestine = subStage == VehicleMovementStage.AvoidPath && nextPath.LastOrDefault() != null && nextPath.Last().TagNumber == Agv.NavigationState.AvoidActionState.AvoidPt?.TagNumber;
+                            if (isNextGoalIsAvoidPtDestine)
+                            {
+                                nextPath.Last().Direction = nextPath.Last().Direction_Avoid;
+                            }
+                            else
+                            {
+                                nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
+                        }
+
+
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
@@ -352,6 +419,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     if (IsTaskCanceled)
                         throw new TaskCanceledException();
+
+
                     if (subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park)
                     {
                         subStage = Stage;
@@ -517,7 +586,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             UpdateMoveStateMessage($"角度確認({expectedAngle})...");
             return error < 5;
         }
-
         private async Task FinalStopThetaAdjuctProcess(double expectedAngle)
         {
             Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
@@ -725,7 +793,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
         }
-
         private async void Agv_OnMapPointChanged(object? sender, int e)
         {
             var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
