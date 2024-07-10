@@ -51,7 +51,7 @@ namespace VMSystem.BackgroundServices
                             {
                                 logger.LogCritical($"Vehicle {vehicle.Name} has path conflic with {string.Join(",", conflicVehicles.Select(agv => agv.Name))}");
                                 AlarmManagerCenter.AddAlarmAsync(ALARMS.VEHICLES_TRAJECTORY_CONFLIC, level: ALARM_LEVEL.WARNING);
-                               vehicle.CurrentRunningTask().CycleStopRequestAsync();
+                                vehicle.CurrentRunningTask().CycleStopRequestAsync();
                             }
                             //vehicle.TaskExecuter.EmergencyStop();
                             //foreach (var conflicVehicle in conflicVehicles)
@@ -62,7 +62,7 @@ namespace VMSystem.BackgroundServices
                         }
                         else
                         {
-                            vehicle.CurrentRunningTask().TaskExecutePauseMRE.Set();
+                            //vehicle.CurrentRunningTask().TaskExecutePauseMRE.Set();
                         }
                     };
                 }

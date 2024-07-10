@@ -56,8 +56,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     workstationTag = OrderData.need_change_agv && TransferStage == TransferStage.MoveToTransferStationLoad ?
                         OrderData.TransferToTag : OrderData.To_Station_Tag;
                 }
-
-                FinalStopTheta = Tools.CalculateWorkStationStopAngle(workstationTag, entryPoint.TagNumber == workstationTag ? -1 : entryPoint.TagNumber);
+                try
+                {
+                    FinalStopTheta = Tools.CalculateWorkStationStopAngle(workstationTag, entryPoint.TagNumber == workstationTag ? -1 : entryPoint.TagNumber);
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                    FinalStopTheta = entryPoint.Direction;
+                }
             }
         }
 

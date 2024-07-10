@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -126,7 +127,6 @@ namespace VMSystem.AGV
                     DestineSlot = int.Parse(order.To_Slot),
                     SourceSlot = int.Parse(order.From_Slot)
                 };
-                sequence += 1;
 
                 //若路徑中包含閃避模式3的點位需確認 下一點的設備PORT是不是有AGV停駐
                 bool changed = DynamicDisableDogeMode3(ref _TaskDonwloadToAGV);
@@ -134,11 +134,14 @@ namespace VMSystem.AGV
                 {
                     NotifyServiceHelper.WARNING($"{Vehicle.Name} 導航路徑原有閃避模式3點位動態調整為0。(因設備內有其他車輛)");
                 }
-                string _newTaskSimplex = ExecutingTaskName + "_" + sequence;
-                _TaskDonwloadToAGV.Task_Sequence = sequence;
+
+                int _sequence = int.Parse(sequence + "");
+                string _newTaskSimplex = ExecutingTaskName + "_" + _sequence;
+                _TaskDonwloadToAGV.Task_Sequence = _sequence;
                 _TaskDonwloadToAGV.Task_Simplex = _newTaskSimplex;
                 lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
                 TrackingTaskSimpleName = _newTaskSimplex;
+                sequence += 1;
 
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
@@ -294,7 +297,7 @@ namespace VMSystem.AGV
 
                 if (Vehicle.simulationMode)
                 {
-                    Vehicle.AgvSimulation.CancelTask();
+                    Vehicle.AgvSimulation.CancelTask(100);
                 }
                 else
                 {

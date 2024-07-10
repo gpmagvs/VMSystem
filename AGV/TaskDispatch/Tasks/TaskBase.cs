@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Notify;
 using NLog;
 using System.Diagnostics;
 using System.Security.Claims;
@@ -444,6 +445,26 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(300);
                 PassedTags.Add(Agv.currentMapPoint.TagNumber);
             });
+        }
+        internal bool NavigationPausing { get; set; } = false;
+
+        /// <summary>
+        /// 暫停當前導航
+        /// </summary>
+        internal void NavigationPause(string reason)
+        {
+            NavigationPausing = true;
+            NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({reason})");
+            TaskExecutePauseMRE.Reset();
+        }
+        /// <summary>
+        /// 暫停當前導航
+        /// </summary>
+        internal void NavigationResume()
+        {
+            NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續");
+            TaskExecutePauseMRE.Set();
+            NavigationPausing = false;
         }
     }
 

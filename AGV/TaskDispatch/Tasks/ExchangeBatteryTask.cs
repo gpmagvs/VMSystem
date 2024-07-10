@@ -57,6 +57,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
              MapPointToTaskPoint(destinMapPoint,index:1)
             };
         }
+        public override bool IsThisTaskDone(FeedbackData feedbackData)
+        {
+            if (feedbackData.TaskSimplex != Agv.TaskExecuter.TrackingTaskSimpleName)
+                return false;
+            return feedbackData.PointIndex == 0;
+        }
         public override void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData)
         {
             throw new NotImplementedException();

@@ -55,13 +55,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     bool _agvAlreadyTurnToNextPathDirection = false;
                     while (!IsAGVReachGoal(DestineTag, checkTheta: true) || _sequenceIndex == 0)
                     {
-                        if (token.IsCancellationRequested)
+                        if (token.IsCancellationRequested || Agv.main_state == clsEnums.MAIN_STATUS.DOWN || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                             token.ThrowIfCancellationRequested();
-                        if (Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                        {
-                            TrafficWaitingState.SetStatusNoWaiting();
-                            break;
-                        }
+
                         bool _findPath = false;
                         clsPathInfo optimzePath = null;
                         while ((optimzePath = CalculateOptimizedPath(pathStartTagToCal, true)) == null)
@@ -368,7 +364,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 if (_waitMovePauseResume || movePause)
                 {
-
                     await WaitPauseResume();
                     return true;
                 }

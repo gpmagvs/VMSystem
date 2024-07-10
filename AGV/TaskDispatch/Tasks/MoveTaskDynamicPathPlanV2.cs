@@ -109,6 +109,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
                 while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                 {
+                    TaskExecutePauseMRE.WaitOne();
                     await Task.Delay(10);
                     if (IsTaskAborted())
                         throw new TaskCanceledException();
@@ -305,7 +306,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.IsWaitingConflicSolve = false;
                         Agv.NavigationState.UpdateNavigationPoints(nextPath);
                         await Task.Delay(100);
-                        TaskExecutePauseMRE.WaitOne();
                         (TaskDownloadRequestResponse responseOfVehicle, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
@@ -372,6 +372,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             await Task.Delay(10);
                         }
+
+                        if (NavigationPausing)
+                        {
+                            Agv.NavigationState.ResetNavigationPoints();
+                            StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            continue;
+                        }
+
                         if (CycleStopByWaitingRegionIsEnterable)
                         {
                             subStage = Stage;
