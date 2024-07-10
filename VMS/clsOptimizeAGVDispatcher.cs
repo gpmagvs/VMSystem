@@ -64,7 +64,9 @@ namespace VMSystem.VMS
                             {
                                 CannotAssignOrderAGVNames.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
                             }
-
+                            (bool confirm, string message) mcs = await AGVSSerivces.TaskReporter((_taskDto,MCSCIMService.TaskStatus.wait_to_assign));
+                            if (mcs.confirm == false)
+                                LOG.WARN($"{mcs.message}");
                             IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
                             if (AGV == null)
                                 continue;
@@ -75,6 +77,9 @@ namespace VMSystem.VMS
                                 _taskDto = ChechGenerateTransferTaskOrNot(AGV, ref _taskDto);
                             }
 
+                            (bool confirm, string message) tr = await AGVSSerivces.TaskReporter((_taskDto, MCSCIMService.TaskStatus.assgined));
+                            if (tr.confirm == false)
+                                LOG.WARN($"{tr.message}");
                             using (AGVSDatabase db = new AGVSDatabase())
                             {
                                 var model = db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
@@ -84,7 +89,6 @@ namespace VMSystem.VMS
                                 await db.SaveChanges();
                             }
                             await Task.Delay(2000);
-                            //    await MCSCIMService.TaskReporter((_taskDto, 1));
                         }
                     }
                     //List<clsTaskDto> _taskList_running_for_change_agv = DatabaseCaches.TaskCaches.RunningTasks.ToList();
