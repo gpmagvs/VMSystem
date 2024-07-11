@@ -28,7 +28,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     NotifyServiceHelper.INFO($"{Agv.Name} Start Go To Destine({destinePt.Graph.Display}) Of Carry Order");
                     await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(this.Agv.Name, OrderData.From_Station_Tag, OrderData.To_Station_Tag);
                 }
-                //clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode);

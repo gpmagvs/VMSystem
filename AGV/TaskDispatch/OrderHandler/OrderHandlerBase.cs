@@ -94,7 +94,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
 
                         task.Dispose();
-                        task.ActionFinishInvoke();
+                        task.ActionFinishInvoke(task);
 
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
@@ -322,7 +322,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
             RaiseTaskDtoChange(this, OrderData);
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, 7));
+            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, taskName: OrderData.TaskName);
