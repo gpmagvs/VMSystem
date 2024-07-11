@@ -447,12 +447,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             });
         }
         internal bool NavigationPausing { get; set; } = false;
-
+        internal string PauseNavigationReason { get; set; } = "";
         /// <summary>
         /// 暫停當前導航
         /// </summary>
         internal void NavigationPause(string reason)
         {
+            PauseNavigationReason = reason;
             NavigationPausing = true;
             NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({reason})");
             TaskExecutePauseMRE.Reset();
@@ -464,6 +465,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續");
             TaskExecutePauseMRE.Set();
+            PauseNavigationReason = "";
             NavigationPausing = false;
         }
     }

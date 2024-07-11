@@ -110,6 +110,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                 {
                     TaskExecutePauseMRE.WaitOne();
+                    TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
                     if (IsTaskAborted())
                         throw new TaskCanceledException();
@@ -305,6 +306,30 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         Agv.NavigationState.IsWaitingConflicSolve = false;
                         Agv.NavigationState.UpdateNavigationPoints(nextPath);
+
+                        if (IsPathContainPartsReplacingPt(nextPath, out MapPoint noPassablePt))
+                        {
+                            logger.Trace($"{noPassablePt.Graph.Display} Not passable checkout because eq parts replacing. before. Pause Navigation");
+                            DispatchCenter.OnPtPassableBecausePartsReplaceFinish += (sender, passableTag) =>
+                            {
+                                Task.Run(() =>
+                                {
+                                    if (passableTag == noPassablePt.TagNumber)
+                                    {
+                                        NavigationResume();
+                                        logger.Trace($"{noPassablePt.Graph.Display} now is passable. Resume Navigation");
+                                    }
+                                });
+                            };
+                            NavigationPause($"Wait EQ({noPassablePt.Graph.Display}) Parts Replacing Finish\n[Before Navigation Path Download]");
+                            UpdateStateDisplayMessage(PauseNavigationReason);
+                            await CycleStopRequestAsync();
+                            _previsousTrajectorySendToAGV.Clear();
+                            Agv.NavigationState.ResetNavigationPoints();
+                            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            continue;
+                        }
+
                         await Task.Delay(100);
                         (TaskDownloadRequestResponse responseOfVehicle, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
@@ -375,6 +400,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (NavigationPausing)
                         {
+                            logger.Trace(PauseNavigationReason);
+                            UpdateStateDisplayMessage(PauseNavigationReason);
                             Agv.NavigationState.ResetNavigationPoints();
                             StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             continue;
@@ -482,6 +509,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
+        }
+
+        private bool IsPathContainPartsReplacingPt(List<MapPoint> nextPath, out MapPoint noPassablePt)
+        {
+            var NoPassableTempTags = DispatchCenter.TagListOfInFrontOfPartsReplacingWorkstation;
+
+            noPassablePt = nextPath.FirstOrDefault(pt => NoPassableTempTags.Contains(pt.TagNumber));
+
+            return noPassablePt != null;
         }
 
         public override async Task SendTaskToAGV()

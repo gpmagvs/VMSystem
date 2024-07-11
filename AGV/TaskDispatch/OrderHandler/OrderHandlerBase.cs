@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Dispatch;
 using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
 
@@ -53,7 +54,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             _ = Task.Run(async () =>
             {
-
+                //
+                SyncTrafficStateFromAGVSystem();
                 this.Agv = Agv;
                 _SetOrderAsRunningState();
                 try
@@ -159,6 +161,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             });
         }
+
+        private async Task SyncTrafficStateFromAGVSystem()
+        {
+            logger.Trace($"DispatchCenter.SyncTrafficStateFromAGVSystemInvoke Invoke");
+            await DispatchCenter.SyncTrafficStateFromAGVSystemInvoke();
+        }
+
         private SemaphoreSlim _HandleTaskStateFeedbackSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         public void LoadingAtTransferStationTaskFinishInvoke()

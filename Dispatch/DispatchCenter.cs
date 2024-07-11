@@ -3,7 +3,9 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Notify;
+using NLog;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
@@ -27,6 +29,8 @@ namespace VMSystem.Dispatch
         /// Key:設備TAG, Value: IAGV集合
         /// </summary>
         public static ConcurrentDictionary<int, List<IAGV>> AGVNavigationPauseStore = new ConcurrentDictionary<int, List<IAGV>>();
+        internal static event EventHandler<int> OnPtPassableBecausePartsReplaceFinish;
+        private static Logger logger = LogManager.GetLogger("DispatchCenterLog");
         public static void Initialize()
         {
             TrafficDeadLockMonitor.StartAsync();
@@ -44,6 +48,7 @@ namespace VMSystem.Dispatch
             }
             catch (Exception ex)
             {
+                logger.Error(ex);
                 return null;
             }
             finally
@@ -359,67 +364,31 @@ namespace VMSystem.Dispatch
             }
             return constrains;
         }
-        private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
+
+
+        internal static async Task SyncTrafficStateFromAGVSystemInvoke()
         {
-            List<int> _temporarilyClosedTags = TagListOfInFrontOfPartsReplacingWorkstation;
-            List<int> _indexOfBlockedTag = _temporarilyClosedTags.Select(tag => path.ToList().FindIndex(pt => pt.TagNumber == tag)).ToList();
-
-            if (_indexOfBlockedTag.All(index => index == -1))
+            try
             {
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
-                return path;
+                List<int> partsReplacingEqTags = await AGVSSerivces.TRAFFICS.GetTagsOfEQPartsReplacing();
+                foreach (var tag in partsReplacingEqTags)
+                {
+                    AddWorkStationInPartsReplacing(tag);
+                }
+                logger.Trace($"SyncTrafficStateFromAGVSystemInvoke done");
             }
-
-            _indexOfBlockedTag = _indexOfBlockedTag.OrderBy(_index => _index).ToList();
-            var firstBlockedTagIndex = _indexOfBlockedTag.FirstOrDefault(index => index != -1);
-            var tagBlocked = path.ToList()[firstBlockedTagIndex].TagNumber;
-            var indexOfTagBlockedInList = TagListOfInFrontOfPartsReplacingWorkstation.IndexOf(tagBlocked);
-
-            var workStationTag = TagListOfWorkstationInPartsReplacing[indexOfTagBlockedInList];
-            var blockedWorkStation = StaMap.GetPointByTagNumber(workStationTag);
-
-            if (VehicleToEntry.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING)
+            catch (Exception ex)
             {
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING;
-
-                for (int i = firstBlockedTagIndex; i >= 0; i--)
-                {
-                    var newPath = path.Take(i);
-                    if (!newPath.Last().IsVirtualPoint)
-                        return newPath;
-                }
-                return null;
-                //return path.Take(firstBlockedTagIndex);
-            }
-            else
-            {
-                bool IsBlockedTagClosing()
-                {
-                    return TagListOfInFrontOfPartsReplacingWorkstation.Contains(path.ToList()[firstBlockedTagIndex].TagNumber);
-
-                }
-                while (IsBlockedTagClosing())
-                {
-                    if (VehicleToEntry.CurrentRunningTask().IsTaskCanceled)
-                        return null;
-
-                    VehicleToEntry.CurrentRunningTask().UpdateMoveStateMessage($"等待設備維修-[{blockedWorkStation.Graph.Display}]..");
-                    await Task.Delay(1000);
-                }
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
-                return await WorkStationPartsReplacingControl(VehicleToEntry, path);
-                //return path;
+                logger.Error(ex);
             }
         }
-
         internal static void AddWorkStationInPartsReplacing(int workstationTag)
         {
 
-
+            MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
             if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
             {
                 TagListOfWorkstationInPartsReplacing.Add(workstationTag);
-                MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
                 TagListOfInFrontOfPartsReplacingWorkstation.AddRange(eqPoint.TargetNormalPoints().GetTagCollection());
                 NotifyTagsNotPassable();
             }
@@ -439,7 +408,7 @@ namespace VMSystem.Dispatch
                         AGVNavigationPauseStore.TryAdd(workstationTag, new List<IAGV>());
                     }
                     AGVNavigationPauseStore[workstationTag].Add(_vehicle);
-                    _vehicle.CurrentRunningTask().NavigationPause("Wait EQ Parts Replacing Finish");
+                    _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish");
                     _vehicle.CurrentRunningTask().CycleStopRequestAsync();
                 }
             }
@@ -454,7 +423,13 @@ namespace VMSystem.Dispatch
             }
             TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
             MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
-            var tagsOfEqEntry = eqPoint.TargetNormalPoints().GetTagCollection();
+            List<int> tagsOfEqEntry = eqPoint.TargetNormalPoints().GetTagCollection().ToList();
+
+            foreach (var tag in tagsOfEqEntry)
+            {
+                OnPtPassableBecausePartsReplaceFinish?.Invoke("", tag);
+            }
+
             TagListOfInFrontOfPartsReplacingWorkstation = TagListOfInFrontOfPartsReplacingWorkstation.Where(tag => !tagsOfEqEntry.Contains(tag)).ToList();
             NotifyTagsNotPassable();
 
@@ -474,13 +449,18 @@ namespace VMSystem.Dispatch
             if (TagListOfInFrontOfPartsReplacingWorkstation.Any())
             {
                 string tagsDisplayOfClosedByEqPartsReplace = string.Join(",", TagListOfInFrontOfPartsReplacingWorkstation);
-                NotifyServiceHelper.WARNING($"當前因設備零件更換而封閉Tag={tagsDisplayOfClosedByEqPartsReplace}");
+                string logmsg = $"當前因設備零件更換而封閉Tag={tagsDisplayOfClosedByEqPartsReplace}";
+                logger.Trace(logmsg);
+                NotifyServiceHelper.WARNING(logmsg);
             }
             else
             {
-                NotifyServiceHelper.SUCCESS($"目前沒有因設備零件更換而封閉的Tag");
+                string logmsg = $"目前沒有因設備零件更換而封閉的Tag";
+                logger.Trace(logmsg);
+                NotifyServiceHelper.SUCCESS(logmsg);
             }
         }
+
     }
 
     public static class Extensions

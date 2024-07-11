@@ -64,7 +64,7 @@ namespace VMSystem.VMS
                             {
                                 CannotAssignOrderAGVNames.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
                             }
-                            (bool confirm, string message) mcs = await AGVSSerivces.TaskReporter((_taskDto,MCSCIMService.TaskStatus.wait_to_assign));
+                            (bool confirm, string message) mcs = await AGVSSerivces.TaskReporter((_taskDto, MCSCIMService.TaskStatus.wait_to_assign));
                             if (mcs.confirm == false)
                                 LOG.WARN($"{mcs.message}");
                             IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
@@ -285,10 +285,10 @@ namespace VMSystem.VMS
             {
                 if (AGVListRemoveTaskAGV.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
                     return AGVListRemoveTaskAGV.FirstOrDefault();
-                else
-                {
-                    return AGVListRemoveTaskAGV.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE || agv.main_state == clsEnums.MAIN_STATUS.Charging);
-                }
+                //else
+                //{
+                //    return AGVListRemoveTaskAGV.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE || agv.main_state == clsEnums.MAIN_STATUS.Charging);
+                //}
             }
             return AGVListRemoveTaskAGV.First();
         }
