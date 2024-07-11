@@ -216,6 +216,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     NotifyServiceHelper.INFO($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
                                     await SendCancelRequestToAGV();
                                     _previsousTrajectorySendToAGV.Clear();
+                                    searchStartPt = Agv.currentMapPoint;
                                     continue;
                                 }
 
@@ -228,6 +229,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                         NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
                                         await SendCancelRequestToAGV();
                                         _previsousTrajectorySendToAGV.Clear();
+                                        searchStartPt = Agv.currentMapPoint;
                                         continue;
                                     }
                                 }
@@ -331,6 +333,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         await Task.Delay(100);
+
                         (TaskDownloadRequestResponse responseOfVehicle, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
@@ -425,13 +428,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             return error > 25;
                         }
                     }
+                    catch (PathNotDefinedException ex)
+                    {
+                        NotifyServiceHelper.ERROR($"[{Agv.Name}] {ex.Message}");
+                        logger.Error(ex, $"嘗試發送不存在之路徑給{Agv.Name} :{ex.Message},Cycle Stop and Replan...");
+                        await CycleStopRequestAsync();
+                        searchStartPt = Agv.currentMapPoint;
+                        _previsousTrajectorySendToAGV.Clear();
+                        await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                        continue;
+                    }
                     catch (TaskCanceledException ex)
                     {
                         throw ex;
                     }
                     catch (Exception ex)
                     {
-                        LOG.ERROR(ex.Message, ex);
+                        logger.Error(ex);
                         continue;
                     }
 

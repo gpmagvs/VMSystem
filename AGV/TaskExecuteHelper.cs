@@ -2,12 +2,14 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.Exceptions;
 using VMSystem.VMS;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
@@ -112,6 +114,13 @@ namespace VMSystem.AGV
                     return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION }, new clsMapPoint[0]);
                 }
 
+
+                bool allPathExist = CheckPathesExistOnMap(_TaskDonwloadToAGV.ExecutingTrajecory, out int fromTag, out int toTag);
+                if (!allPathExist)
+                {
+                    throw new PathNotDefinedException($"Path From {fromTag} To {toTag} is not exist in route");
+                }
+
                 ExecutingTaskName = task.TaskName;
 
                 clsTaskDto order = task.OrderData;
@@ -187,6 +196,10 @@ namespace VMSystem.AGV
                     }
                 }
             }
+            catch (PathNotDefinedException ex)
+            {
+                throw ex;
+            }
             catch (Exception ex)
             {
                 logger.Error(ex);
@@ -214,6 +227,54 @@ namespace VMSystem.AGV
                 };
                 logger.Info($"Task Download To AGV:\n{logObject.ToJson()}");
             }
+        }
+
+        /// <summary>
+        /// 檢查是否有不存在於圖資設定的路線
+        /// </summary>
+        /// <param name="executingTrajecory"></param>
+        /// <returns></returns>
+        private bool CheckPathesExistOnMap(clsMapPoint[] executingTrajecory, out int fromTag, out int toTag)
+        {
+            fromTag = 0;
+            toTag = 0;
+            if (executingTrajecory.Length < 2)
+                return true;
+
+            //0,1
+
+            for (int i = 1; i < executingTrajecory.Length; i++)
+            {
+                int endTag = -1;
+                int startTag = -1;
+                try
+                {
+                    endTag = executingTrajecory[i].Point_ID;
+                    startTag = executingTrajecory[i - 1].Point_ID;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                MapPoint startPT = StaMap.GetPointByTagNumber(startTag);
+                MapPoint endPT = StaMap.GetPointByTagNumber(endTag);
+
+                int startPtIndex = StaMap.GetIndexOfPoint(startPT);
+                int endPtIndex = StaMap.GetIndexOfPoint(endPT);
+
+                if (startPtIndex == -1 || endPtIndex == -1)
+                    return false;
+
+                bool pathExist = StaMap.Map.Segments.Any(path => path.StartPtIndex == startPtIndex && path.EndPtIndex == endPtIndex);
+                if (!pathExist)
+                {
+                    fromTag = startTag;
+                    toTag = endTag;
+
+                    return false;
+                }
+            }
+            return true;
         }
 
         private bool DynamicDisableDogeMode3(ref clsTaskDownloadData taskDonwloadToAGV)
