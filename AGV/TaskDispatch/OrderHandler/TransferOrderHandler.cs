@@ -32,7 +32,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, 3));
+            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
             if (OrderData.need_change_agv)

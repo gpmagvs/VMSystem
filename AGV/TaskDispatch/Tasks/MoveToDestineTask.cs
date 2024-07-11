@@ -21,7 +21,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                //clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode);

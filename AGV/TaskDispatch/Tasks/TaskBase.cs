@@ -6,8 +6,11 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using NLog;
 using System.Diagnostics;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Claims;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.TrafficControl;
@@ -393,8 +396,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual void ActionFinishInvoke()
+        public virtual void ActionFinishInvoke(TaskBase task = null)
         {
+            if (task != null)
+            {
+                MCSCIMService.TaskStatus taskstate = MCSCIMService.TaskStatus.start;
+                if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                {
+                    taskstate = MCSCIMService.TaskStatus.at_source_wait_in;
+                }
+                else if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                {
+                    taskstate = MCSCIMService.TaskStatus.at_destination_wait_in;
+                }
+                else
+                    taskstate = MCSCIMService.TaskStatus.ignore;                
+                 
+                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate));
+                v.Wait();
+                if (v.Result.confirm == false)
+                    LOG.WARN($"{v.Result.message}");
+            }
             FuturePlanNavigationTags.Clear();
             TrafficWaitingState.SetStatusNoWaiting();
         }

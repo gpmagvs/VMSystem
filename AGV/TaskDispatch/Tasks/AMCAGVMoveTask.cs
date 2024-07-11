@@ -176,7 +176,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override void ActionFinishInvoke()
+        public override void ActionFinishInvoke(TaskBase task = null)
         {
             _waitTaskFinish.Set();
             base.ActionFinishInvoke();
