@@ -269,15 +269,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             bool isNextGoalIsAvoidPtDestine = subStage == VehicleMovementStage.AvoidPath && nextPath.LastOrDefault() != null && nextPath.Last().TagNumber == Agv.NavigationState.AvoidActionState.AvoidPt?.TagNumber;
                             if (isNextGoalIsAvoidPtDestine)
                             {
-                                nextPath.Last().Direction = nextPath.Last().Direction_Avoid;
+                                double theta = StaMap.GetPointByTagNumber(nextPath.Last().TagNumber).Direction_Avoid;
+                                logger.Trace($"避車動作且下一終點為避車點，停車角度=避車角度=>{theta}");
+                                nextPath.Last().Direction = theta;
                             }
                             else
                             {
                                 nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
                             }
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
+                            logger.Error(ex, $"嘗試決定終點(Tag={nextPath.Last().TagNumber})之停車角度時發生例外");
                             nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
                         }
 
