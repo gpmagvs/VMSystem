@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.Dispatch;
@@ -314,6 +315,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (IsPathContainPartsReplacingPt(nextPath, out MapPoint noPassablePt))
                         {
+                            CancellationTokenSource waitCancle = new CancellationTokenSource();
                             logger.Trace($"{noPassablePt.Graph.Display} Not passable checkout because eq parts replacing. before. Pause Navigation");
                             DispatchCenter.OnPtPassableBecausePartsReplaceFinish += (sender, passableTag) =>
                             {
@@ -322,10 +324,42 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     if (passableTag == noPassablePt.TagNumber)
                                     {
                                         NavigationResume();
+                                        waitCancle.Cancel();
                                         logger.Trace($"{noPassablePt.Graph.Display} now is passable. Resume Navigation");
                                     }
                                 });
                             };
+
+                            //如果被封的點位不是終點,設一個等待時間上限並避開該點繞行
+                            if (noPassablePt.TagNumber != finalMapPoint.TagNumber)
+                            {
+                                logger.Info($"{Agv.Name} 開始等待 {noPassablePt.TagNumber}可通行(30s)");
+                                waitCancle.CancelAfter(TimeSpan.FromSeconds(30));
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        await Task.Delay(30000, waitCancle.Token);
+                                    }
+                                    catch (TaskCanceledException ex)
+                                    {
+
+                                    }
+                                    finally
+                                    {
+                                        if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
+                                        {
+                                            logger.Info($"{Agv.Name} Wait {noPassablePt.TagNumber} 可通行已逾時(30s),開始繞行!");
+                                            Agv.NavigationState.LastWaitingForPassableTimeoutPt = noPassablePt;
+                                            NavigationResume();
+                                        }
+                                        else
+                                        {
+                                            //因為導航繼續而結束等待
+                                        }
+                                    }
+                                });
+                            }
                             NavigationPause($"Wait EQ({noPassablePt.Graph.Display}) Parts Replacing Finish\n[Before Navigation Path Download]");
                             UpdateStateDisplayMessage(PauseNavigationReason);
                             await CycleStopRequestAsync();
@@ -410,6 +444,37 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             UpdateStateDisplayMessage(PauseNavigationReason);
                             Agv.NavigationState.ResetNavigationPoints();
                             StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            CancellationTokenSource waitCancle = new CancellationTokenSource();
+                            MapPoint blockedPt = Agv.NavigationState.LastWaitingForPassableTimeoutPt;
+                            if (blockedPt.TagNumber != finalMapPoint.TagNumber)
+                            {
+                                logger.Info($"{Agv.Name} 開始等待 {blockedPt.TagNumber}可通行(30s)[導航途中CYCLE STOP]");
+                                waitCancle.CancelAfter(TimeSpan.FromSeconds(30));
+                                _ = Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        await Task.Delay(60000, waitCancle.Token);
+                                    }
+                                    catch (TaskCanceledException ex)
+                                    {
+
+                                    }
+                                    finally
+                                    {
+                                        if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
+                                        {
+                                            logger.Info($"{Agv.Name} Wait {blockedPt.TagNumber} 可通行已逾時(30s),開始繞行![導航途中CYCLE STOP]");
+                                            Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedPt;
+                                            NavigationResume();
+                                        }
+                                        else
+                                        {
+                                            //因為導航繼續而結束等待
+                                        }
+                                    }
+                                });
+                            }
                             continue;
                         }
 

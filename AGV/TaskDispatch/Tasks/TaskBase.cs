@@ -331,10 +331,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+
                 _TaskCancelTokenSource.Cancel();
                 IsTaskCanceled = true;
                 this.Dispose();
                 await SendCancelRequestToAGV();
+                NavigationResume();
             }
             catch (Exception ex)
             {
@@ -473,8 +475,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <summary>
         /// 暫停當前導航
         /// </summary>
-        internal void NavigationPause(string reason)
+        internal void NavigationPause(string reason, MapPoint blockedMapPoint = null)
         {
+            if (blockedMapPoint != null)
+                Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedMapPoint;
             PauseNavigationReason = reason;
             NavigationPausing = true;
             NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({reason})");

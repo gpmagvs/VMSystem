@@ -353,6 +353,7 @@ namespace VMSystem.Dispatch
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
+
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
                 if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
@@ -362,6 +363,7 @@ namespace VMSystem.Dispatch
             {
                 //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
             }
+            constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
             return constrains;
         }
 
@@ -401,6 +403,7 @@ namespace VMSystem.Dispatch
             {
                 var frontPoints = StaMap.GetPointByTagNumber(workstationTag).TargetNormalPoints();
                 var blockedTag = frontPoints.First().TagNumber;
+                MapPoint blockedMapPoint = StaMap.GetPointByTagNumber(blockedTag);
                 foreach (var _vehicle in cycleStopVehicles)
                 {
                     if (!AGVNavigationPauseStore.ContainsKey(workstationTag))
@@ -408,7 +411,7 @@ namespace VMSystem.Dispatch
                         AGVNavigationPauseStore.TryAdd(workstationTag, new List<IAGV>());
                     }
                     AGVNavigationPauseStore[workstationTag].Add(_vehicle);
-                    _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish");
+                    _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
                     _vehicle.CurrentRunningTask().CycleStopRequestAsync();
                 }
             }
