@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Material;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using NLog;
@@ -405,13 +406,25 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     taskstate = MCSCIMService.TaskStatus.at_source_wait_in;
                 }
+                else if (task.Stage == VehicleMovementStage.WorkingAtSource)
+                {
+                    MaterialInstallStatus cargoinstall = MaterialInstallStatus.OK;
+                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
+                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
+                }
                 else if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
                     taskstate = MCSCIMService.TaskStatus.at_destination_wait_in;
                 }
+                else if (task.Stage == VehicleMovementStage.WorkingAtDestination)
+                {
+                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], materialType: cargotype, materialCondition: MaterialCondition.Done);
+                }
                 else
-                    taskstate = MCSCIMService.TaskStatus.ignore;                
-                 
+                    taskstate = MCSCIMService.TaskStatus.ignore;
+
                 Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate));
                 v.Wait();
                 if (v.Result.confirm == false)
