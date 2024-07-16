@@ -278,13 +278,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RaiseTaskDtoChange(this, OrderData);
         }
 
-        private void _SetOrderAsCancelState(string taskCancelReason)
+        private async void _SetOrderAsCancelState(string taskCancelReason)
         {
             RunningTask.CancelTask();
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
+            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
+            if (v.confirm == false)
+                LOG.WARN($"{v.message}");
             RaiseTaskDtoChange(this, OrderData);
             OnTaskCanceled?.Invoke(this, this);
         }

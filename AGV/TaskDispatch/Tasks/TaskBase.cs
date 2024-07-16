@@ -401,34 +401,60 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (task != null)
             {
-                MCSCIMService.TaskStatus taskstate = MCSCIMService.TaskStatus.start;
-                if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                try
                 {
-                    taskstate = MCSCIMService.TaskStatus.at_source_wait_in;
-                }
-                else if (task.Stage == VehicleMovementStage.WorkingAtSource)
-                {
-                    MaterialInstallStatus cargoinstall = MaterialInstallStatus.OK;
-                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
-                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
-                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
-                }
-                else if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
-                {
-                    taskstate = MCSCIMService.TaskStatus.at_destination_wait_in;
-                }
-                else if (task.Stage == VehicleMovementStage.WorkingAtDestination)
-                {
-                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
-                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], materialType: cargotype, materialCondition: MaterialCondition.Done);
-                }
-                else
-                    taskstate = MCSCIMService.TaskStatus.ignore;
+                    MCSCIMService.TaskStatus taskstate = MCSCIMService.TaskStatus.None;
+                    if (task.Stage < VehicleMovementStage.Traveling_To_Source)
+                    {
+                        taskstate = MCSCIMService.TaskStatus.wait_to_source;
+                    }
+                    else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                    {
+                        taskstate = MCSCIMService.TaskStatus.at_source_wait_in;
+                    }
+                    else if (task.Stage == VehicleMovementStage.WorkingAtSource)
+                    {
+                        taskstate = MCSCIMService.TaskStatus.wait_to_dest;
+                    }
+                    else if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                    {
+                        taskstate = MCSCIMService.TaskStatus.at_destination_wait_in;
+                    }
+                    else if (task.Stage == VehicleMovementStage.WorkingAtDestination)
+                    {
+                        taskstate = MCSCIMService.TaskStatus.wait_to_complete;
+                    }
+                    else
+                        taskstate = MCSCIMService.TaskStatus.ignore;
 
-                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate));
-                v.Wait();
-                if (v.Result.confirm == false)
-                    LOG.WARN($"{v.Result.message}");
+                    Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate)); // 各段任務結束上報
+                    v.Wait();
+                    if (v.Result.confirm == false)
+                        LOG.WARN($"{v.Result.message}");
+                }
+                catch (Exception ex)
+                {
+                    LOG.WARN($"{ex.Message}");
+                }
+                try
+                {
+                    if (task.Stage == VehicleMovementStage.WorkingAtSource)
+                    {
+                        MaterialInstallStatus cargoinstall = MaterialInstallStatus.OK;
+                        MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                        MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
+                        MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
+                    }
+                    else if (task.Stage == VehicleMovementStage.WorkingAtDestination)
+                    {
+                        MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                        MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], materialType: cargotype, materialCondition: MaterialCondition.Done);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LOG.WARN($"{ex.Message}");
+                }
             }
             FuturePlanNavigationTags.Clear();
             TrafficWaitingState.SetStatusNoWaiting();

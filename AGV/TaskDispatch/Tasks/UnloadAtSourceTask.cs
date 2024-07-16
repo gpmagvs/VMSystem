@@ -1,7 +1,9 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -43,7 +45,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                //clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport( OrderData.From_Station_Tag, this, OrderData.Action);
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode);
