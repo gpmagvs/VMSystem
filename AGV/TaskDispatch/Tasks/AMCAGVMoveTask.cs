@@ -176,10 +176,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override void ActionFinishInvoke(TaskBase task = null)
+        public override (bool continuetask, clsTaskDto task) ActionFinishInvoke()
         {
             _waitTaskFinish.Set();
-            base.ActionFinishInvoke();
+            return base.ActionFinishInvoke();
         }
         private List<clsTaskDto> SplitOrder(clsTaskDto orderData)
         {

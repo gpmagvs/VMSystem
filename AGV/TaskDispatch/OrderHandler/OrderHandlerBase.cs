@@ -92,7 +92,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
 
                         task.Dispose();
-                        task.ActionFinishInvoke(task);
+                        (bool continuetask, clsTaskDto task) taskchange = task.ActionFinishInvoke();
+                        if (taskchange.continuetask == false)
+                        {
+                            _SetOrderAsFaiiureState("ActionFinishInvoke error", ALARMS.NONE);
+                            return;
+                        }
+                        if (taskchange.task != null)
+                            RaiseTaskDtoChange(this, taskchange.task);
 
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
@@ -231,7 +238,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             MAIN_STATUS _state_when_action_finish = GetAgvMainState();
             if (RunningTask.IsAGVReachDestine && (_state_when_action_finish == MAIN_STATUS.IDLE || _state_when_action_finish == MAIN_STATUS.Charging))
             {
-                RunningTask.ActionFinishInvoke();
+                // RunningTask.ActionFinishInvoke();
                 _CurrnetTaskFinishResetEvent.Set();
             }
             else if (_state_when_action_finish == MAIN_STATUS.DOWN)
@@ -285,7 +292,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
+            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
             RaiseTaskDtoChange(this, OrderData);
