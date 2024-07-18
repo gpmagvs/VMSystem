@@ -50,7 +50,7 @@ namespace VMSystem.AGV
         private DateTime LastNonNoOrderTime;
         private bool _IsChargeTaskCreating;
         private bool _IsChargeStatesChecking = false;
-        private Logger logger;
+        private NLog.Logger logger;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
@@ -392,6 +392,7 @@ namespace VMSystem.AGV
                     return AGV_ORDERABLE_STATUS.NO_ORDER;
                 if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
                     return AGV_ORDERABLE_STATUS.EXECUTING;
+
                 return AGV_ORDERABLE_STATUS.EXECUTABLE;
             }
             catch (Exception ex)
@@ -413,7 +414,11 @@ namespace VMSystem.AGV
                         switch (OrderExecuteState)
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
-                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
+                                OrderHandler.RunningTask.UpdateStateDisplayMessage("任務指派中...");
+
+                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT)
+                                                                    .OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
+
                                 taskOrderedByPriority = taskOrderedByPriority.Where(tk => tk.DesignatedAGVName == agv.Name).ToList();
                                 if (!taskOrderedByPriority.Any())
                                 {
@@ -422,6 +427,19 @@ namespace VMSystem.AGV
                                 }
                                 var _ExecutingTask = taskOrderedByPriority.First();
 
+                                if (_ExecutingTask.From_Station != agv.Name && agv.IsAGVCargoStatusCanNotGoToCharge())
+                                {
+
+                                    _ExecutingTask.DesignatedAGVName = "";
+                                    _ExecutingTask.StartTime = DateTime.MinValue;
+                                    this.OrderHandler.RaiseTaskDtoChange(this, _ExecutingTask);
+                                    await Task.Delay(200);
+                                    while (DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(tk => tk.TaskName == _ExecutingTask.TaskName && tk.DesignatedAGVName == agv.Name))
+                                    {
+                                        await Task.Delay(100);
+                                    }
+                                    taskList.Remove(_ExecutingTask);
+                                }
 
                                 //double check with database
                                 bool IsOrderReallyWaitingExcute = DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(dto => dto.DesignatedAGVName == agv.Name && dto.TaskName == _ExecutingTask.TaskName);
@@ -519,6 +537,7 @@ namespace VMSystem.AGV
             OrderHandler.OnTaskCanceled -= OrderHandler_OnTaskCanceled;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.INFO($"任務-{e.OrderData.TaskName} 已取消.");
+
         }
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)
