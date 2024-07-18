@@ -384,7 +384,7 @@ namespace VMSystem.Dispatch
                 logger.Error(ex);
             }
         }
-        internal static void AddWorkStationInPartsReplacing(int workstationTag)
+        internal static async void AddWorkStationInPartsReplacing(int workstationTag)
         {
 
             MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
@@ -396,7 +396,7 @@ namespace VMSystem.Dispatch
             }
 
             var cycleStopVehicles = VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                     .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)))
+                                                     .Where(agv => agv.NavigationState.NextNavigtionPoints.Skip(1).ToList().Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)))
                                                      .ToList();
 
             if (cycleStopVehicles.Any())
@@ -411,8 +411,14 @@ namespace VMSystem.Dispatch
                         AGVNavigationPauseStore.TryAdd(workstationTag, new List<IAGV>());
                     }
                     AGVNavigationPauseStore[workstationTag].Add(_vehicle);
-                    _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
-                    _vehicle.CurrentRunningTask().CycleStopRequestAsync();
+
+                    _ = Task.Run(async () =>
+                    {
+                        _vehicle.CurrentRunningTask().CycleStopRequestAsync();
+                        _vehicle.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+                        _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
+                    });
+
                 }
             }
 
