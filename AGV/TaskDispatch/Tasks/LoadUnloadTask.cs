@@ -96,10 +96,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+                //bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                //                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                //                                                     .Any();
 
-
-                bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
                                                                      .Any();
 
                 if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
@@ -132,10 +133,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
 
-                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+                await Task.Delay(500);
+                Agv.NavigationState.ResetNavigationPoints();
+                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
                 {
-                    await Task.Delay(500);
-                    Agv.NavigationState.ResetNavigationPoints();
+                    (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
+                    if (confirmed)
+                    {
+                        //Notify
+                        NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                    }
                 }
 
             }

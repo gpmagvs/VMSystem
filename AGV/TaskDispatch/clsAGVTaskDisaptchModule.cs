@@ -158,13 +158,32 @@ namespace VMSystem.AGV
                 if (_IsAnyTaskQueuing)
                     continue;
 
-                if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow() || agv.IsAGVIdlingAtNormalPoint())
+                if (IsAGVIdleNeedCharge(out string caseDescription))
                 {
+                    logger.Info($"AGV {agv.Name} Auto Dispatch Charge Order.  Reason={caseDescription}");
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                     _charge_forbid_alarm = null;
                     CreateChargeTask();
                 }
+
+                bool IsAGVIdleNeedCharge(out string caseDescription)
+                {
+                    caseDescription = "";
+
+                    if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow())
+                    {
+                        caseDescription = $"AGV在充電站內電量低於閥值且主狀態非充電中(當前狀態={agv.main_state})";
+                        return true;
+                    }
+                    if (agv.IsAGVIdlingAtNormalPoint())
+                    {
+                        caseDescription = "AGV在一般點位且電量低於閥值";
+                        return true;
+                    }
+                    return false;
+                }
+
             }
         }
         // 原本自動充電相關function 如之後沒問題可刪
@@ -487,11 +506,11 @@ namespace VMSystem.AGV
         }
         private async void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
-            OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish; 
+            OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), MCSCIMService.TaskStatus.completed));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
-            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);            
+            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
