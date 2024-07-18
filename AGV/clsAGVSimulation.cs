@@ -611,5 +611,17 @@ namespace VMSystem.AGV
             runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
             runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
         }
+
+        internal void MounteCargo(string cargoID)
+        {
+            runningSTatus.Cargo_Status = 1;
+            runningSTatus.CSTID = new string[1] { cargoID };
+        }
+
+        internal void RemoveCargo()
+        {
+            runningSTatus.Cargo_Status = 0;
+            runningSTatus.CSTID = new string[1] { "" };
+        }
     }
 }
