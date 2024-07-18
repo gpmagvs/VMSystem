@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
@@ -114,6 +115,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
                         LoadingAtTransferStationTaskFinishInvoke();
                     }
+                }
+                catch (VMSExceptionAbstract ex)
+                {
+                    logger.Error(ex);
+                    _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
+                    ActionsWhenOrderCancle();
+                    RunningTask.Dispose();
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -325,7 +334,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
-            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, taskName: OrderData.TaskName);
+            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
         }
 
         internal virtual List<int> GetNavPathTags()

@@ -78,7 +78,7 @@ namespace VMSystem.AGV
 
         bool IsAGVIdlingAtNormalPoint();
 
-        bool IsAGVCargoStatusCanNotGoToCharge();
+        bool IsAGVHasCargoOrHasCargoID();
         Task<(bool confirm, string message)> Locating(clsLocalizationVM localizationVM);
         Task<bool> SpeedRecovertRequest();
         Task<bool> SpeedSlowRequest();

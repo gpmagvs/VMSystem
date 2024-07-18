@@ -16,6 +16,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
+            if (Agv.IsAGVHasCargoOrHasCargoID())
+            {
+                _SetOrderAsFaiiureState("AGV車上有貨物或有帳籍資料時不可執行取貨任務", ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
+                return;
+            }
             clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Unload);
             if (result.confirm)
             {

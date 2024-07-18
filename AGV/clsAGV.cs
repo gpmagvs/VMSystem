@@ -834,7 +834,7 @@ namespace VMSystem.AGV
             return main_state == MAIN_STATUS.IDLE && currentMapPoint.StationType == STATION_TYPE.Normal;
         }
 
-        public bool IsAGVCargoStatusCanNotGoToCharge()
+        public bool IsAGVHasCargoOrHasCargoID()
         {
             return states.Cargo_Status == 1 || states.CSTID.Any(id => id != "");
         }

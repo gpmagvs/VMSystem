@@ -179,6 +179,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 return (false, ex.Alarm_Code);
             }
+            catch (VMSExceptionAbstract ex)
+            {
+                throw ex;
+            }
             catch (Exception ex)
             {
                 logger.Error(ex);

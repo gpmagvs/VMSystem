@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
@@ -58,6 +59,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
+            if (ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
+            {
+                throw new UnloadButAGVHasCargoException();
+
+            }
+            if (ActionType == ACTION_TYPE.Load && !Agv.IsAGVHasCargoOrHasCargoID())
+            {
+                throw new LoadButAGVNoCargoException();
+            }
             try
             {
                 EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);

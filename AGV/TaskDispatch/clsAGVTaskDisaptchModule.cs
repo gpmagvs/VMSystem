@@ -139,7 +139,7 @@ namespace VMSystem.AGV
                     continue;
 
                 await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
-                if (agv.IsAGVCargoStatusCanNotGoToCharge() && !agv.currentMapPoint.IsCharge)
+                if (agv.IsAGVHasCargoOrHasCargoID() && !agv.currentMapPoint.IsCharge)
                 {
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
@@ -427,7 +427,7 @@ namespace VMSystem.AGV
                                 }
                                 var _ExecutingTask = taskOrderedByPriority.First();
 
-                                if (_ExecutingTask.From_Station != agv.Name && agv.IsAGVCargoStatusCanNotGoToCharge())
+                                if (_ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
                                 {
 
                                     _ExecutingTask.DesignatedAGVName = "";

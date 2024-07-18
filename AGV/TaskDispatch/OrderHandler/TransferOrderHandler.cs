@@ -23,6 +23,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         public override async Task StartOrder(IAGV Agv)
         {
+            if (Agv.IsAGVHasCargoOrHasCargoID() && this.OrderData.From_Station != Agv.Name)
+            {
+                _SetOrderAsFaiiureState("AGV車上有貨物或有帳籍資料,且來源非AGV時不可執行搬運任務", ALARMS.CANNOT_DISPATCH_CARRY_TASK_WHEN_AGV_HAS_CARGO);
+                return;
+            }
+
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
