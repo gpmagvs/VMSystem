@@ -449,7 +449,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     MaterialInstallStatus cargoinstall = (Agv.states.Cargo_Status == 0) ? MaterialInstallStatus.NG : MaterialInstallStatus.OK;
                     MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
-                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
+                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == "" || OrderData.Carrier_ID == null || OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
                     if (cargoinstall != MaterialInstallStatus.OK)
