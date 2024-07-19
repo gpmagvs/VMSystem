@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.Sys;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ using VMSystem.BackgroundServices;
 using VMSystem.Services;
 
 Startup.ConfigurationInit();
-
+EnvironmentVariables.AddUserVariable("VMSInstall", Environment.CurrentDirectory);
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 try
 {

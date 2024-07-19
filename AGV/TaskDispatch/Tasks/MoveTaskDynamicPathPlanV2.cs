@@ -90,6 +90,25 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             subStage = Stage;
             StartRecordTrjectory();
             bool IsRegionNavigationEnabled = TrafficControlCenter.TrafficControlParameters.Basic.MultiRegionNavigation;
+            CancellationTokenSource waitCanPassPtPassableCancle = new CancellationTokenSource();
+            MapPoint currentNonPassableByEQPartsReplacing = new MapPoint("", 0);
+            void EQFinishPartsReplacedHandler(object sender, int passableTag)
+            {
+                if (currentNonPassableByEQPartsReplacing == null)
+                    return;
+                Task.Run(() =>
+                {
+
+                    if (passableTag == currentNonPassableByEQPartsReplacing.TagNumber)
+                    {
+                        NavigationResume(isResumeByWaitTimeout: false);
+                        waitCanPassPtPassableCancle.Cancel();
+                        logger.Trace($"{currentNonPassableByEQPartsReplacing.Graph.Display} now is passable. Resume Navigation");
+                    }
+                });
+            };
+
+
             try
             {
 
@@ -114,7 +133,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
                     if (IsTaskAborted())
-                        throw new TaskCanceledException();
+                    {
+                        if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                            throw new AGVStatusDownException();
+                        else
+                            throw new TaskCanceledException();
+                    }
                     try
                     {
                         Agv.NavigationState.currentConflicToAGV = null;
@@ -313,33 +337,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.IsWaitingConflicSolve = false;
                         Agv.NavigationState.UpdateNavigationPoints(nextPath);
 
-                        if (IsPathContainPartsReplacingPt(nextPath, out MapPoint noPassablePt))
+                        if (IsPathContainPartsReplacingPt(nextPath, out currentNonPassableByEQPartsReplacing))
                         {
-                            CancellationTokenSource waitCancle = new CancellationTokenSource();
-                            logger.Trace($"{noPassablePt.Graph.Display} Not passable checkout because eq parts replacing. before. Pause Navigation");
-                            DispatchCenter.OnPtPassableBecausePartsReplaceFinish += (sender, passableTag) =>
-                            {
-                                Task.Run(() =>
-                                {
-                                    if (passableTag == noPassablePt.TagNumber)
-                                    {
-                                        NavigationResume();
-                                        waitCancle.Cancel();
-                                        logger.Trace($"{noPassablePt.Graph.Display} now is passable. Resume Navigation");
-                                    }
-                                });
-                            };
+                            logger.Trace($"{currentNonPassableByEQPartsReplacing.Graph.Display} Not passable checkout because eq parts replacing. before. Pause Navigation");
+
+                            DispatchCenter.OnPtPassableBecausePartsReplaceFinish += EQFinishPartsReplacedHandler;
 
                             //如果被封的點位不是終點,設一個等待時間上限並避開該點繞行
-                            if (noPassablePt.TagNumber != finalMapPoint.TagNumber)
+                            if (currentNonPassableByEQPartsReplacing.TagNumber != finalMapPoint.TagNumber)
                             {
-                                logger.Info($"{Agv.Name} 開始等待 {noPassablePt.TagNumber}可通行(30s)");
-                                waitCancle.CancelAfter(TimeSpan.FromSeconds(30));
+                                waitCanPassPtPassableCancle = new CancellationTokenSource();
+                                int _waitTimeout = TrafficControlCenter.TrafficControlParameters.Navigation.TimeoutWhenWaitPtPassableByEqPartReplacing;
+                                logger.Info($"{Agv.Name} 開始等待 {currentNonPassableByEQPartsReplacing.TagNumber}可通行({_waitTimeout}s)");
+                                TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
+                                waitCanPassPtPassableCancle.CancelAfter(ts);
                                 _ = Task.Run(async () =>
                                 {
                                     try
                                     {
-                                        await Task.Delay(30000, waitCancle.Token);
+                                        Stopwatch sw = Stopwatch.StartNew();
+                                        while (!waitCanPassPtPassableCancle.IsCancellationRequested)
+                                        {
+                                            await Task.Delay(1000, waitCanPassPtPassableCancle.Token);
+                                            if (!NavigationPausing)
+                                                return;
+                                            UpdateStateDisplayMessage(PauseNavigationReason + $"({sw.Elapsed.ToString(@"mm\:ss")}/{ts.ToString(@"mm\:ss")})");
+                                        }
                                     }
                                     catch (TaskCanceledException ex)
                                     {
@@ -347,20 +370,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     }
                                     finally
                                     {
+                                        DispatchCenter.OnPtPassableBecausePartsReplaceFinish -= EQFinishPartsReplacedHandler;
+
                                         if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
                                         {
-                                            logger.Info($"{Agv.Name} Wait {noPassablePt.TagNumber} 可通行已逾時(30s),開始繞行!");
-                                            Agv.NavigationState.LastWaitingForPassableTimeoutPt = noPassablePt;
-                                            NavigationResume();
+                                            logger.Info($"{Agv.Name} Wait {currentNonPassableByEQPartsReplacing.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行!");
+                                            Agv.NavigationState.LastWaitingForPassableTimeoutPt = currentNonPassableByEQPartsReplacing;
+                                            NavigationResume(isResumeByWaitTimeout: true);
                                         }
                                         else
                                         {
+
                                             //因為導航繼續而結束等待
                                         }
                                     }
                                 });
                             }
-                            NavigationPause($"Wait EQ({noPassablePt.Graph.Display}) Parts Replacing Finish\n[Before Navigation Path Download]");
+                            NavigationPause(isPauseWhenNavigating: false, $"Wait EQ({currentNonPassableByEQPartsReplacing.Graph.Display}) Parts Replacing Finish\n[Before Navigation Path Download]");
                             UpdateStateDisplayMessage(PauseNavigationReason);
                             await CycleStopRequestAsync();
                             _previsousTrajectorySendToAGV.Clear();
@@ -438,45 +464,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             await Task.Delay(10);
                         }
 
-                        if (NavigationPausing)
-                        {
-                            logger.Trace(PauseNavigationReason);
-                            UpdateStateDisplayMessage(PauseNavigationReason);
-                            Agv.NavigationState.ResetNavigationPoints();
-                            StaMap.UnRegistPointsOfAGVRegisted(Agv);
-                            CancellationTokenSource waitCancle = new CancellationTokenSource();
-                            MapPoint blockedPt = Agv.NavigationState.LastWaitingForPassableTimeoutPt;
-                            if (blockedPt.TagNumber != finalMapPoint.TagNumber)
-                            {
-                                logger.Info($"{Agv.Name} 開始等待 {blockedPt.TagNumber}可通行(30s)[導航途中CYCLE STOP]");
-                                waitCancle.CancelAfter(TimeSpan.FromSeconds(30));
-                                _ = Task.Run(async () =>
-                                {
-                                    try
-                                    {
-                                        await Task.Delay(60000, waitCancle.Token);
-                                    }
-                                    catch (TaskCanceledException ex)
-                                    {
 
-                                    }
-                                    finally
-                                    {
-                                        if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
-                                        {
-                                            logger.Info($"{Agv.Name} Wait {blockedPt.TagNumber} 可通行已逾時(30s),開始繞行![導航途中CYCLE STOP]");
-                                            Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedPt;
-                                            NavigationResume();
-                                        }
-                                        else
-                                        {
-                                            //因為導航繼續而結束等待
-                                        }
-                                    }
-                                });
-                            }
-                            continue;
-                        }
 
                         if (CycleStopByWaitingRegionIsEnterable)
                         {
@@ -585,6 +573,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 TrafficWaitingState.SetStatusNoWaiting();
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
+                DispatchCenter.OnPtPassableBecausePartsReplaceFinish -= EQFinishPartsReplacedHandler;
                 Agv.NavigationState.StateReset();
                 InvokeTaskDoneEvent();
             }
@@ -916,7 +905,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         private bool IsTaskAborted()
         {
-            return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
+            return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING || Agv.main_state == clsEnums.MAIN_STATUS.DOWN);
         }
         private async void Agv_OnMapPointChanged(object? sender, int e)
         {

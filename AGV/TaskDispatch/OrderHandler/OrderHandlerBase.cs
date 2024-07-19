@@ -341,6 +341,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.State = TASK_RUN_STATUS.FAILURE;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = FailReason;
+
+            if (alarm == ALARMS.AGV_STATUS_DOWN)
+            {
+                var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
+                OrderData.FailureReason = agvAlarmsDescription;
+            }
+
             RaiseTaskDtoChange(this, OrderData);
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
             if (v.confirm == false)

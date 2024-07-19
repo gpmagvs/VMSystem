@@ -346,21 +346,7 @@ namespace VMSystem.AGV
             public FeedbackData Feedback = new FeedbackData();
         }
 
-        internal void UnRecoveryAlarmRaise()
-        {
-            runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[1]
-            {
-                 new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode()
-                 {
-                      Alarm_Level =  1,
-                       Alarm_Category=2,
-                        Alarm_Description ="緊急停止",
-                        Alarm_Description_EN="EMO",
-                         Alarm_ID = 6699,
-                 }
-            };
-            CancelTask(100);
-        }
+
         private async Task ReportTaskStateToEQSimulator(ACTION_TYPE ActionType, string EQName)
         {
             try
@@ -560,7 +546,38 @@ namespace VMSystem.AGV
                 await Task.Delay(1000);
             }
         }
-
+        internal void UnRecoveryAlarmRaise()
+        {
+            runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[1]
+            {
+                 new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode()
+                 {
+                      Alarm_Level =  1,
+                       Alarm_Category=2,
+                        Alarm_Description ="緊急停止",
+                        Alarm_Description_EN="EMO",
+                         Alarm_ID = 6699,
+                 }
+            };
+            CancelTask(100);
+        }
+        internal void EMO()
+        {
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.DOWN;
+            runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[1]
+            {
+                 new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode()
+                 {
+                      Alarm_Level =  1,
+                       Alarm_Category=2,
+                        Alarm_Description ="緊急停止",
+                        Alarm_Description_EN="EMO",
+                         Alarm_ID = 20,
+                 }
+            };
+            CancelTask(delay: 10);
+            agv.AGVOfflineFromAGV(out string msg);
+        }
         internal void CancelTask(int delay = 1000)
         {
             Task.Run(async () =>
@@ -582,6 +599,25 @@ namespace VMSystem.AGV
             //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }
 
+
+
+        internal void Initialize()
+        {
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
+            runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
+        }
+
+        internal void MounteCargo(string cargoID)
+        {
+            runningSTatus.Cargo_Status = 1;
+            runningSTatus.CSTID = new string[1] { cargoID };
+        }
+
+        internal void RemoveCargo()
+        {
+            runningSTatus.Cargo_Status = 0;
+            runningSTatus.CSTID = new string[1] { "" };
+        }
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -609,24 +645,6 @@ namespace VMSystem.AGV
             // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
-        }
-
-        internal void Initialize()
-        {
-            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-            runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
-        }
-
-        internal void MounteCargo(string cargoID)
-        {
-            runningSTatus.Cargo_Status = 1;
-            runningSTatus.CSTID = new string[1] { cargoID };
-        }
-
-        internal void RemoveCargo()
-        {
-            runningSTatus.Cargo_Status = 0;
-            runningSTatus.CSTID = new string[1] { "" };
         }
     }
 }

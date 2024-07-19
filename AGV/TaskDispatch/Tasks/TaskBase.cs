@@ -336,12 +336,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
-
                 _TaskCancelTokenSource.Cancel();
                 IsTaskCanceled = true;
                 this.Dispose();
                 await SendCancelRequestToAGV();
-                NavigationResume();
+                NavigationResume(isResumeByWaitTimeout: false);
             }
             catch (Exception ex)
             {
@@ -556,21 +555,79 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <summary>
         /// 暫停當前導航
         /// </summary>
-        internal void NavigationPause(string reason, MapPoint blockedMapPoint = null)
+        internal async void NavigationPause(bool isPauseWhenNavigating, string descritption, MapPoint blockedMapPoint = null)
         {
             if (blockedMapPoint != null)
                 Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedMapPoint;
-            PauseNavigationReason = reason;
+            PauseNavigationReason = descritption;
             NavigationPausing = true;
-            NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({reason})");
+            NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({descritption})");
             TaskExecutePauseMRE.Reset();
+
+            if (isPauseWhenNavigating)
+            {
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    await Task.Delay(1000);
+                }
+                logger.Trace(PauseNavigationReason);
+                UpdateStateDisplayMessage(PauseNavigationReason);
+                Agv.NavigationState.ResetNavigationPoints();
+                StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                var waitCanPassPtPassableCancle = new CancellationTokenSource();
+                if (blockedMapPoint.TagNumber != DestineTag)
+                {
+                    int _waitTimeout = TrafficControlCenter.TrafficControlParameters.Navigation.TimeoutWhenWaitPtPassableByEqPartReplacing;
+                    logger.Info($"{Agv.Name} 開始等待 {blockedMapPoint.TagNumber}可通行({_waitTimeout}s)[導航途中CYCLE STOP]");
+                    TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
+                    waitCanPassPtPassableCancle.CancelAfter(ts);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            Stopwatch sw = Stopwatch.StartNew();
+                            while (!waitCanPassPtPassableCancle.IsCancellationRequested)
+                            {
+
+                                await Task.Delay(1000, waitCanPassPtPassableCancle.Token);
+                                if (!NavigationPausing)
+                                    return;
+                                UpdateStateDisplayMessage(PauseNavigationReason + $"({sw.Elapsed.ToString(@"mm\:ss")}/{ts.ToString(@"mm\:ss")})");
+
+                            }
+                        }
+                        catch (TaskCanceledException ex)
+                        {
+
+                        }
+                        finally
+                        {
+                            if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
+                            {
+                                logger.Info($"{Agv.Name} Wait {blockedMapPoint.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行![導航途中CYCLE STOP]");
+                                Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedMapPoint;
+                                NavigationResume(isResumeByWaitTimeout: true);
+                            }
+                            else
+                            {
+                                //因為導航繼續而結束等待
+                            }
+                        }
+                    });
+                }
+            }
+
         }
         /// <summary>
         /// 暫停當前導航
         /// </summary>
-        internal void NavigationResume()
+        internal void NavigationResume(bool isResumeByWaitTimeout)
         {
-            NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續");
+            if (!isResumeByWaitTimeout)
+            {
+                Agv.NavigationState.LastWaitingForPassableTimeoutPt = null;
+            }
+            NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續({(isResumeByWaitTimeout ? "因等待超時" : "解除路徑封閉")})");
             TaskExecutePauseMRE.Set();
             PauseNavigationReason = "";
             NavigationPausing = false;

@@ -363,7 +363,8 @@ namespace VMSystem.Dispatch
             {
                 //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
             }
-            constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
+            if (MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt != null)
+                constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
             return constrains;
         }
 
@@ -414,9 +415,8 @@ namespace VMSystem.Dispatch
 
                     _ = Task.Run(async () =>
                     {
+                        _vehicle.CurrentRunningTask().NavigationPause(isPauseWhenNavigating: true, $"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
                         _vehicle.CurrentRunningTask().CycleStopRequestAsync();
-                        _vehicle.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
-                        _vehicle.CurrentRunningTask().NavigationPause($"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
                     });
 
                 }
@@ -447,7 +447,7 @@ namespace VMSystem.Dispatch
             {
                 foreach (var agv in navigationPausingAgvList)
                 {
-                    agv.CurrentRunningTask().NavigationResume();
+                    agv.CurrentRunningTask().NavigationResume(false);
                 }
                 AGVNavigationPauseStore.TryRemove(workstationTag, out _);
             }

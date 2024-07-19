@@ -6,6 +6,8 @@ namespace VMSystem.TrafficControl
     {
         public clsAGVTaskControlConfigs Basic { get; set; } = new clsAGVTaskControlConfigs();
 
+        public clsNavigationConfigs Navigation { get; set; } = new clsNavigationConfigs();
+
         public clsVehicleGeometryExpands VehicleGeometryExpands { get; set; } = new clsVehicleGeometryExpands();
 
         public bool DisableChargeStationEntryPointWhenNavigation { get; set; } = true;
@@ -42,6 +44,13 @@ namespace VMSystem.TrafficControl
             public double LengthExpandWhenRotation { get; set; } = 1.2;
         }
 
+        public class clsNavigationConfigs
+        {
+            /// <summary>
+            /// 等待因設備零件更換而無法通行的點位之等待時間上限 ,Unit:sec
+            /// </summary>
+            public int TimeoutWhenWaitPtPassableByEqPartReplacing { get; set; } = 30;
+        }
         public class clsVehicleGeometryExpand
         {
             public double Length { get; set; } = 1.0;

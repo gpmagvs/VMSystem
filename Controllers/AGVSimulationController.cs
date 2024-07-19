@@ -145,6 +145,18 @@ namespace VMSystem.Controllers
             agv.AgvSimulation.UnRecoveryAlarmRaise();
             return Ok();
         }
+
+        [HttpGet("EMO")]
+        public async Task<IActionResult> EMO(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.EMO();
+            return Ok();
+        }
+
         [HttpGet("Initialize")]
         public async Task<IActionResult> Initialize(string AGVName)
         {
