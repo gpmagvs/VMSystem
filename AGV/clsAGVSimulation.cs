@@ -140,7 +140,12 @@ namespace VMSystem.AGV
                         {
                             await Task.Delay(1000);
                         }
-
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                        {
+                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                        }
+                        else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
+                            _CargoStateSimulate(ACTION_TYPE.Load, "");
                         await _BackToHome(_currentBarcodeMoveArgs, token);
                     }
 
@@ -166,7 +171,6 @@ namespace VMSystem.AGV
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
                 {
-                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
                     _args.orderTrajectory = _args.orderTrajectory.Reverse();
                     _args.Feedback.PointIndex = 1;
                     _args.Feedback.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
@@ -174,6 +178,7 @@ namespace VMSystem.AGV
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
+                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
 
                 }
 
