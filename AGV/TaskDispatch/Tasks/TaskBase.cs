@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Material;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -403,29 +404,105 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual void ActionFinishInvoke(TaskBase task = null)
+        public virtual (bool continuetask, clsTaskDto task) ActionFinishInvoke()
         {
-            if (task != null)
+            (bool continuetask, clsTaskDto task) result = (true, null);
+
+            try
             {
-                MCSCIMService.TaskStatus taskstate = MCSCIMService.TaskStatus.start;
-                if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                MCSCIMService.TaskStatus taskstate = MCSCIMService.TaskStatus.None;
+                if (this.Stage < VehicleMovementStage.Traveling_To_Source)
+                {
+                    taskstate = MCSCIMService.TaskStatus.wait_to_source;
+                }
+                else if (this.Stage == VehicleMovementStage.Traveling_To_Source)
                 {
                     taskstate = MCSCIMService.TaskStatus.at_source_wait_in;
                 }
-                else if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                else if (this.Stage == VehicleMovementStage.WorkingAtSource)
+                {
+                    taskstate = MCSCIMService.TaskStatus.wait_to_dest;
+                }
+                else if (this.Stage == VehicleMovementStage.Traveling_To_Destine)
                 {
                     taskstate = MCSCIMService.TaskStatus.at_destination_wait_in;
+                }
+                else if (this.Stage == VehicleMovementStage.WorkingAtDestination)
+                {
+                    taskstate = MCSCIMService.TaskStatus.wait_to_complete;
                 }
                 else
                     taskstate = MCSCIMService.TaskStatus.ignore;
 
-                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate));
+                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate)); // 各段任務結束上報
                 v.Wait();
                 if (v.Result.confirm == false)
                     LOG.WARN($"{v.Result.message}");
             }
+            catch (Exception ex)
+            {
+                LOG.WARN($"{ex.Message}");
+            }
+            try
+            {
+                if (this.Stage == VehicleMovementStage.WorkingAtSource)
+                {
+                    MaterialInstallStatus cargoinstall = (Agv.states.Cargo_Status == 0) ? MaterialInstallStatus.NG : MaterialInstallStatus.OK;
+                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
+                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
+                        TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
+                    if (cargoinstall != MaterialInstallStatus.OK)
+                    {
+                        LOG.Critical("[ActionFinishInvoke] cargo not install");
+                        CancelTask();
+                        result.continuetask = false;
+                    }
+                    else if (idmatch == MaterialIDStatus.NG)
+                    {
+                        try
+                        {
+                            Task<(bool confirm, string message, object obj)> r = AGVSSerivces.GetNGPort();
+                            r.Wait();
+                            clsTransferMaterial ngport = (clsTransferMaterial)r.Result.obj;
+                            if (ngport != null)
+                            {
+                                OrderData.To_Station = ngport.TargetStation;
+                                result.task = OrderData;
+                            }
+                            else
+                            {
+                                LOG.Critical("[ActionFinishInvoke] No NG port can use, task fail");
+                                CancelTask();
+                                //AlarmManagerCenter.AddAlarmAsync(,);
+                                result.continuetask = false;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            LOG.Critical($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
+                            CancelTask();
+                            //AlarmManagerCenter.AddAlarmAsync(,ALARM_LEVEL.WARNING);
+                            result.continuetask = false;
+                        }
+                    }
+                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
+                        TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
+                }
+                else if (this.Stage == VehicleMovementStage.WorkingAtDestination)
+                {
+                    MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
+                    MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, materialType: cargotype, materialCondition: MaterialCondition.Done);
+                }
+            }
+            catch (Exception ex)
+            {
+                LOG.WARN($"{ex.Message}");
+                result.continuetask = false;
+            }
             FuturePlanNavigationTags.Clear();
             TrafficWaitingState.SetStatusNoWaiting();
+            return result;
         }
 
         protected void InvokeTaskDoneEvent()
