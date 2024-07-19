@@ -29,12 +29,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (Agv.states.Cargo_Status != 0)
                 {
-                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: Cargo_Status!=0", AGVSystemCommonNet6.Alarm.ALARMS.CANNOT_DISPATCH_CHARGE_TASK_WHEN_AGV_HAS_CARGO);
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: Cargo_Status!=0", AGVSystemCommonNet6.Alarm.ALARMS.CannotAssignChargeJobBecauseWrongCargoStatus);
                     return;
                 }
                 if (Agv.states.CSTID != null && Agv.states.CSTID.Any(str => str != ""))
                 {
-                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: CSTID not empty", AGVSystemCommonNet6.Alarm.ALARMS.CANNOT_DISPATCH_CHARGE_TASK_WHEN_AGV_HAS_CARGO);
+                    _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason: CSTID not empty", AGVSystemCommonNet6.Alarm.ALARMS.CannotAssignChargeJobBecauseWrongCargoStatus);
                     return;
                 }
             }
@@ -46,8 +46,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             int chargeStationTag = OrderData.To_Station_Tag;
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
             bool _isAnyVehicleGoToStation = otherAGVList.Any(agv => agv.CurrentRunningTask().OrderData?.To_Station_Tag == chargeStationTag);
-            bool _isAnyVehicleAtStation = otherAGVList.Any(agv=>agv.currentMapPoint.TagNumber == chargeStationTag);
-            return  ! _isAnyVehicleGoToStation  && !_isAnyVehicleAtStation;
+            bool _isAnyVehicleAtStation = otherAGVList.Any(agv => agv.currentMapPoint.TagNumber == chargeStationTag);
+            return !_isAnyVehicleGoToStation && !_isAnyVehicleAtStation;
         }
     }
 
