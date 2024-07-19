@@ -427,7 +427,7 @@ namespace VMSystem.AGV
                                 }
                                 var _ExecutingTask = taskOrderedByPriority.First();
 
-                                if (_ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
+                                if (_ExecutingTask.Action == ACTION_TYPE.Carry && _ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
                                 {
 
                                     _ExecutingTask.DesignatedAGVName = "";

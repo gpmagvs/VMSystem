@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
+using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
 using System.Threading.Tasks;
@@ -335,6 +336,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
             AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
+
+            if (OrderData.Action == ACTION_TYPE.Carry)
+            {
+                MapPoint sourceEQPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+                MapPoint destineEQPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+                var orderFailureNotify = new
+                {
+                    classify = "carry-order-failure",
+                    message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {FailReason}",
+                    message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {FailReason}",
+                };
+                NotifyServiceHelper.ERROR(orderFailureNotify.ToJson(Newtonsoft.Json.Formatting.None));
+            }
         }
 
         internal virtual List<int> GetNavPathTags()
