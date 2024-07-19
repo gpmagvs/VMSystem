@@ -15,6 +15,7 @@ using VMSystem.Services;
 Startup.ConfigurationInit();
 EnvironmentVariables.AddUserVariable("VMSInstall", Environment.CurrentDirectory);
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+logger.Info("VMSystem Program Start");
 try
 {
     var builder = WebApplication.CreateBuilder(args);
