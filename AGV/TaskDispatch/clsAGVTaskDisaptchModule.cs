@@ -439,6 +439,7 @@ namespace VMSystem.AGV
                                         await Task.Delay(100);
                                     }
                                     taskList.Remove(_ExecutingTask);
+                                    continue;
                                 }
 
                                 //double check with database
