@@ -336,35 +336,51 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
-            RunningTask.CancelTask();
-            UnRegistPoints();
-            OrderData.State = TASK_RUN_STATUS.FAILURE;
-            OrderData.FinishTime = DateTime.Now;
-            OrderData.FailureReason = FailReason;
-
-            if (alarm == ALARMS.AGV_STATUS_DOWN)
+            try
             {
-                var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
-                OrderData.FailureReason = agvAlarmsDescription;
-            }
 
-            RaiseTaskDtoChange(this, OrderData);
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
-            if (v.confirm == false)
-                LOG.WARN($"{v.message}");
-            AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
+                RunningTask.CancelTask();
+                UnRegistPoints();
+                OrderData.State = TASK_RUN_STATUS.FAILURE;
+                OrderData.FinishTime = DateTime.Now;
+                OrderData.FailureReason = FailReason;
 
-            if (OrderData.Action == ACTION_TYPE.Carry)
-            {
-                MapPoint sourceEQPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
-                MapPoint destineEQPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
-                var orderFailureNotify = new
+                if (alarm == ALARMS.AGV_STATUS_DOWN)
                 {
-                    classify = "carry-order-failure",
-                    message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {FailReason}",
-                    message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {FailReason}",
-                };
-                NotifyServiceHelper.ERROR(orderFailureNotify.ToJson(Newtonsoft.Json.Formatting.None));
+                    var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
+                    OrderData.FailureReason = agvAlarmsDescription;
+                }
+
+                RaiseTaskDtoChange(this, OrderData);
+                (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
+                if (v.confirm == false)
+                    LOG.WARN($"{v.message}");
+
+                try
+                {
+                    AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
+                }
+                catch (Exception ex)
+                {
+                    logger.Fatal(ex);
+                }
+
+                if (OrderData.Action == ACTION_TYPE.Carry)
+                {
+                    MapPoint sourceEQPt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+                    MapPoint destineEQPt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+                    var orderFailureNotify = new
+                    {
+                        classify = "carry-order-failure",
+                        message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {FailReason}",
+                        message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {FailReason}",
+                    };
+                    NotifyServiceHelper.ERROR(orderFailureNotify.ToJson(Newtonsoft.Json.Formatting.None));
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
             }
         }
 
