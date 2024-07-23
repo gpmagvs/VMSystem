@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
+using NLog;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
@@ -17,7 +18,7 @@ namespace VMSystem.Dispatch.Regions
 
 
         public static Dictionary<MapRegion, clsRegionControlState> RegionsStates { get; set; } = new Dictionary<MapRegion, clsRegionControlState>();
-
+        private static Logger logger;
         public class clsRegionControlState
         {
             public clsRegionControlState(MapRegion region)
@@ -243,9 +244,16 @@ namespace VMSystem.Dispatch.Regions
 
         internal static bool IsAGVWaitingRegion(IAGV Agv, MapRegion mapRegion)
         {
-            if (!RegionsStates.Any())
+            try
+            {
+                if (!RegionsStates.Any())
+                    return false;
+                return RegionsStates.FirstOrDefault(kp => kp.Key.Name == mapRegion.Name).Value.WaitingForEnterVehicles.TryGetValue(Agv, out var state);
+            }
+            catch (Exception ex)
+            {
                 return false;
-            return RegionsStates.FirstOrDefault(kp => kp.Key.Name == mapRegion.Name).Value.WaitingForEnterVehicles.TryGetValue(Agv, out var state);
+            }
         }
 
         internal static void SetAGVNoWaitForEnteryRegion(IAGV Agv)

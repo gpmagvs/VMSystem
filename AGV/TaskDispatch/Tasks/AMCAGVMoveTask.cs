@@ -135,15 +135,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     TrafficWaitingState.SetDisplayMessage("進入電梯...");
                     break;
                 case ELEVATOR_ENTRY_STATUS.ENTER_ELEVATOR:
+
                     while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                     {
-
                         if (_TaskCancelTokenSource.IsCancellationRequested)
                             return;
                         TrafficWaitingState.SetDisplayMessage($"等待AGV停車於電梯");
                         await Task.Delay(1000);
                     }
+                    TrafficWaitingState.SetStatusNoWaiting();
                     int nextFloor = 1;
+
+                    //Random setting floor to simulation
                     while ((nextFloor = new Random(DateTime.Now.Second).Next(1, 6)) == Agv.currentFloor)
                     {
                         if (_TaskCancelTokenSource.IsCancellationRequested)
@@ -152,6 +155,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     TrafficWaitingState.SetDisplayMessage($"等待電梯抵達[{nextFloor}]樓..");
                     await Elevator.GoTo(nextFloor);
+                    TrafficWaitingState.SetDisplayMessage($"進入電梯[{nextFloor}]");
                     TrafficWaitingState.SetStatusNoWaiting();
                     Agv.currentFloor = nextFloor;
                     _ = Task.Run(async () =>

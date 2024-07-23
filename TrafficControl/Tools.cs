@@ -417,23 +417,31 @@ namespace VMSystem.TrafficControl
 
         internal static double CalculateWorkStationStopAngle(int workstationTag, int speficEntryTag = -1)
         {
-            var workStation = StaMap.GetPointByTagNumber(workstationTag);
-            var indexsOfTarget = workStation.Target.Keys;
-            IEnumerable<MapPoint> secondaryPoints = indexsOfTarget.Select(_index => StaMap.GetPointByIndex(_index));
-            if (secondaryPoints.Count() == 0)
-                return 0;
-            MapPoint _fromPoint = null;
-            if (speficEntryTag != -1)
+            try
             {
-                _fromPoint = secondaryPoints.FirstOrDefault(pt => pt.TagNumber == speficEntryTag);
+
+                var workStation = StaMap.GetPointByTagNumber(workstationTag);
+                var indexsOfTarget = workStation.Target.Keys;
+                IEnumerable<MapPoint> secondaryPoints = indexsOfTarget.Select(_index => StaMap.GetPointByIndex(_index));
+                if (secondaryPoints.Count() == 0)
+                    return 0;
+                MapPoint _fromPoint = null;
+                if (speficEntryTag != -1)
+                {
+                    _fromPoint = secondaryPoints.FirstOrDefault(pt => pt.TagNumber == speficEntryTag);
+                }
+                else
+                {
+                    _fromPoint = secondaryPoints.FirstOrDefault();
+                }
+                PointF _fromP = new PointF((float)_fromPoint.X, (float)_fromPoint.Y);
+                PointF _toP = new PointF((float)workStation.X, (float)workStation.Y);
+                return CalculationForwardAngle(_fromP, _toP);
             }
-            else
+            catch (Exception ex)
             {
-                _fromPoint = secondaryPoints.FirstOrDefault();
+                throw ex;
             }
-            PointF _fromP = new PointF((float)_fromPoint.X, (float)_fromPoint.Y);
-            PointF _toP = new PointF((float)workStation.X, (float)workStation.Y);
-            return CalculationForwardAngle(_fromP, _toP);
         }
 
         /// <summary>

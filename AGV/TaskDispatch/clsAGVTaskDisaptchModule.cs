@@ -50,7 +50,7 @@ namespace VMSystem.AGV
         private DateTime LastNonNoOrderTime;
         private bool _IsChargeTaskCreating;
         private bool _IsChargeStatesChecking = false;
-        private Logger logger;
+        private NLog.Logger logger;
 
         private AGV_ORDERABLE_STATUS previous_OrderExecuteState = AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
         private bool _IsChargeTaskNotExcutableCauseCargoExist = false;
@@ -139,7 +139,7 @@ namespace VMSystem.AGV
                     continue;
 
                 await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
-                if (agv.IsAGVCargoStatusCanNotGoToCharge() && !agv.currentMapPoint.IsCharge)
+                if (agv.IsAGVHasCargoOrHasCargoID() && !agv.currentMapPoint.IsCharge)
                 {
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
@@ -158,13 +158,32 @@ namespace VMSystem.AGV
                 if (_IsAnyTaskQueuing)
                     continue;
 
-                if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow() || agv.IsAGVIdlingAtNormalPoint())
+                if (IsAGVIdleNeedCharge(out string caseDescription))
                 {
+                    logger.Info($"AGV {agv.Name} Auto Dispatch Charge Order.  Reason={caseDescription}");
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                     _charge_forbid_alarm = null;
                     CreateChargeTask();
                 }
+
+                bool IsAGVIdleNeedCharge(out string caseDescription)
+                {
+                    caseDescription = "";
+
+                    if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow())
+                    {
+                        caseDescription = $"AGV在充電站內電量低於閥值且主狀態非充電中(當前狀態={agv.main_state})";
+                        return true;
+                    }
+                    if (agv.IsAGVIdlingAtNormalPoint())
+                    {
+                        caseDescription = "AGV在一般點位且電量低於閥值";
+                        return true;
+                    }
+                    return false;
+                }
+
             }
         }
         // 原本自動充電相關function 如之後沒問題可刪
@@ -328,7 +347,7 @@ namespace VMSystem.AGV
             bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
             if (isAgvChargeOrderRunning)
             {
-                await OrderHandler.CancelOrder("Change Task");
+                await OrderHandler.CancelOrder(OrderHandler.OrderData.TaskName, "Change Task");
                 NotifyServiceHelper.INFO($"{agv.Name}-Current Charge has been canceled because of Carry Order Get.");
             }
         }
@@ -373,6 +392,7 @@ namespace VMSystem.AGV
                     return AGV_ORDERABLE_STATUS.NO_ORDER;
                 if (taskList.Any(tk => tk.State == TASK_RUN_STATUS.NAVIGATING && tk.DesignatedAGVName == agv.Name) || agv.main_state == clsEnums.MAIN_STATUS.RUN)
                     return AGV_ORDERABLE_STATUS.EXECUTING;
+
                 return AGV_ORDERABLE_STATUS.EXECUTABLE;
             }
             catch (Exception ex)
@@ -394,7 +414,11 @@ namespace VMSystem.AGV
                         switch (OrderExecuteState)
                         {
                             case AGV_ORDERABLE_STATUS.EXECUTABLE:
-                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT).OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
+                                OrderHandler.RunningTask.UpdateStateDisplayMessage("任務指派中...");
+
+                                var taskOrderedByPriority = taskList.Where(tk => tk.State == TASK_RUN_STATUS.WAIT)
+                                                                    .OrderByDescending(task => task.Priority).OrderBy(task => task.RecieveTime).ToList();
+
                                 taskOrderedByPriority = taskOrderedByPriority.Where(tk => tk.DesignatedAGVName == agv.Name).ToList();
                                 if (!taskOrderedByPriority.Any())
                                 {
@@ -403,6 +427,20 @@ namespace VMSystem.AGV
                                 }
                                 var _ExecutingTask = taskOrderedByPriority.First();
 
+                                if (_ExecutingTask.Action == ACTION_TYPE.Carry && _ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
+                                {
+
+                                    _ExecutingTask.DesignatedAGVName = "";
+                                    _ExecutingTask.StartTime = DateTime.MinValue;
+                                    this.OrderHandler.RaiseTaskDtoChange(this, _ExecutingTask);
+                                    await Task.Delay(200);
+                                    while (DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(tk => tk.TaskName == _ExecutingTask.TaskName && tk.DesignatedAGVName == agv.Name))
+                                    {
+                                        await Task.Delay(100);
+                                    }
+                                    taskList.Remove(_ExecutingTask);
+                                    continue;
+                                }
 
                                 //double check with database
                                 bool IsOrderReallyWaitingExcute = DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(dto => dto.DesignatedAGVName == agv.Name && dto.TaskName == _ExecutingTask.TaskName);
@@ -487,11 +525,11 @@ namespace VMSystem.AGV
         }
         private async void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
-            OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish; 
+            OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), MCSCIMService.TaskStatus.completed));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
-            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);            
+            taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
 
@@ -500,6 +538,7 @@ namespace VMSystem.AGV
             OrderHandler.OnTaskCanceled -= OrderHandler_OnTaskCanceled;
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.INFO($"任務-{e.OrderData.TaskName} 已取消.");
+
         }
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)

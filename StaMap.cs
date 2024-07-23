@@ -172,8 +172,15 @@ namespace VMSystem
 
         internal static int GetIndexOfPoint(MapPoint mapPoint)
         {
-            int index = Map.Points.FirstOrDefault(k => k.Value.TagNumber == mapPoint.TagNumber).Key;
-            return index;
+            try
+            {
+                int index = Map.Points.FirstOrDefault(k => k.Value.TagNumber == mapPoint.TagNumber).Key;
+                return index;
+            }
+            catch (Exception ex)
+            {
+                return -1;
+            }
         }
         internal static bool RegistPoint(string Name, IEnumerable<int> Tags, out string error_message)
         {

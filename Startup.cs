@@ -4,8 +4,10 @@ using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using NLog;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -93,6 +95,38 @@ namespace VMSystem
             });
             TrafficControlCenter.Initialize();
             RegionManager.Initialze();
+
+
+            NotifyServiceHelper.OnMessage += NotifyServiceHelper_OnMessage;
+
+        }
+
+        private static void NotifyServiceHelper_OnMessage(object? sender, NotifyServiceHelper.NotifyMessage notifyMessage)
+        {
+            Logger _logger = LogManager.GetLogger("NotifierLog");
+            Task.Run(() =>
+            {
+                string msg = notifyMessage.message;
+                switch (notifyMessage.type)
+                {
+                    case NotifyServiceHelper.NotifyMessage.NOTIFY_TYPE.info:
+                        _logger.Info(msg);
+                        break;
+                    case NotifyServiceHelper.NotifyMessage.NOTIFY_TYPE.warning:
+                        _logger.Warn(msg);
+                        break;
+                    case NotifyServiceHelper.NotifyMessage.NOTIFY_TYPE.error:
+                        _logger.Error(msg);
+                        break;
+                    case NotifyServiceHelper.NotifyMessage.NOTIFY_TYPE.success:
+                        _logger.Info(msg);
+                        break;
+                    default:
+                        break;
+                }
+
+                //
+            });
         }
     }
 }

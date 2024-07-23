@@ -19,6 +19,8 @@ namespace VMSystem.AGV
 {
     public partial class clsAGVTaskDisaptchModule
     {
+
+        private static SemaphoreSlim autoSearchSemaphoreSlim = new SemaphoreSlim(1, 1);
         /// <summary>
         /// 
         /// </summary>
@@ -47,114 +49,127 @@ namespace VMSystem.AGV
 
         protected virtual async Task<(bool confirm, MapPoint optimized_workstation, ALARMS alarm_code)> SearchDestineStation(ACTION_TYPE action)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            MapPoint optimized_workstation = null;
-            ALARMS alarm_code = ALARMS.NONE;
-
-            var alarm_code_if_occur = action == ACTION_TYPE.Charge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
-
-            if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge)
-            {
-                alarm_code = ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH;
-                return (false, null, alarm_code);
-            }
-            var map_points = StaMap.Map.Points.Values.ToList();
-            List<MapPoint> workstations = new List<MapPoint>();
-            if (action == ACTION_TYPE.Park)
-                workstations = StaMap.GetParkableStations();
-            if (action == ACTION_TYPE.Charge)
-            {
-                workstations = StaMap.GetChargeableStations(this.agv);
-                var response = await AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name);
-                Console.WriteLine(stopwatch.Elapsed.TotalMilliseconds);
-                stopwatch.Restart();
-                if (!response.confirm)
-                {
-                    alarm_code = ALARMS.INVALID_CHARGE_STATION;
-                    return (false, null, alarm_code);
-                }
-                workstations = workstations.Where(station => response.usableChargeStationTags.Contains(station.TagNumber)).ToList();
-            }
-
-
-            var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.agv);
-            var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
-
-            List<clsTaskDto> charge_task_assign_to_others_agv = othersAGV.SelectMany(agv => agv.taskDispatchModule.taskList)
-                                                                         .Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING || tk.State == TASK_RUN_STATUS.WAIT)).ToList();
-
-            var charge_station_tag_assign_to_others_agv = charge_task_assign_to_others_agv.Select(tk => tk.To_Station_Tag).ToList();
-            var charge_stations_tag_occupied = othersAGV.Where(agv => agv.currentMapPoint.IsCharge).Select(agv => agv.currentMapPoint.TagNumber).ToList();
-
-            var all_using_charge_station_tags = new List<int>();
-            all_using_charge_station_tags.AddRange(charge_station_tag_assign_to_others_agv);
-            all_using_charge_station_tags.AddRange(charge_stations_tag_occupied);
-            all_using_charge_station_tags = all_using_charge_station_tags.Distinct().ToList();
-
-            workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));
-
-            if (workstations.Count == 0)
-            {
-                alarm_code = alarm_code_if_occur;
-                return (false, null, alarm_code);
-            }
-            if (workstations.Count == 1)
-            {
-                return (true, workstations.First(), ALARMS.NONE);
-            }
-
-
-            List<Task<(MapPoint, double)>> _tasks = new();
-            foreach (var station in workstations)
-            {
-                _tasks.Add(Task.Run(async () =>
-                {
-                    await Task.Delay(10);
-                    PathFinder _pathFinder = new PathFinder();
-                    double distance = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, station,new PathFinderOption
-                    {
-                        Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
-                    }).total_travel_distance;
-                    return (station, distance);
-                }));
-            }
-            var distanceCalculateReuslts = await Task.WhenAll(_tasks);
-
-            Dictionary<MapPoint, double> distance_of_destine = distanceCalculateReuslts.ToDictionary(obj => obj.Item1, obj => obj.Item2);
-
-            var ordered = distance_of_destine.OrderBy(kp => kp.Value);
             try
             {
-                List<Task<(MapPoint, clsPathInfo)>> _findPathTasks = new();
+                await autoSearchSemaphoreSlim.WaitAsync();
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                MapPoint optimized_workstation = null;
+                ALARMS alarm_code = ALARMS.NONE;
 
-                foreach (var station in ordered)
+                var alarm_code_if_occur = action == ACTION_TYPE.Charge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
+
+                if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge)
                 {
-                    MapPoint ptCandicate = station.Key;
-                    _findPathTasks.Add(Task.Run(() =>
+                    alarm_code = ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH;
+                    return (false, null, alarm_code);
+                }
+                var map_points = StaMap.Map.Points.Values.ToList();
+                List<MapPoint> workstations = new List<MapPoint>();
+                if (action == ACTION_TYPE.Park)
+                    workstations = StaMap.GetParkableStations();
+                if (action == ACTION_TYPE.Charge)
+                {
+                    workstations = StaMap.GetChargeableStations(this.agv);
+                    var response = await AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name);
+                    Console.WriteLine(stopwatch.Elapsed.TotalMilliseconds);
+                    stopwatch.Restart();
+                    if (!response.confirm)
                     {
+                        alarm_code = ALARMS.INVALID_CHARGE_STATION;
+                        return (false, null, alarm_code);
+                    }
+                    workstations = workstations.Where(station => response.usableChargeStationTags.Contains(station.TagNumber)).ToList();
+                }
+
+
+                var othersAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.agv);
+                var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
+
+                List<clsTaskDto> charge_task_assign_to_others_agv = othersAGV.SelectMany(agv => agv.taskDispatchModule.taskList)
+                                                                             .Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING || tk.State == TASK_RUN_STATUS.WAIT)).ToList();
+
+                var charge_station_tag_assign_to_others_agv = charge_task_assign_to_others_agv.Select(tk => tk.To_Station_Tag).ToList();
+                var charge_stations_tag_occupied = othersAGV.Where(agv => agv.currentMapPoint.IsCharge).Select(agv => agv.currentMapPoint.TagNumber).ToList();
+
+                var all_using_charge_station_tags = new List<int>();
+                all_using_charge_station_tags.AddRange(charge_station_tag_assign_to_others_agv);
+                all_using_charge_station_tags.AddRange(charge_stations_tag_occupied);
+                all_using_charge_station_tags = all_using_charge_station_tags.Distinct().ToList();
+
+                workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));
+
+                if (workstations.Count == 0)
+                {
+                    alarm_code = alarm_code_if_occur;
+                    return (false, null, alarm_code);
+                }
+                if (workstations.Count == 1)
+                {
+                    return (true, workstations.First(), ALARMS.NONE);
+                }
+
+
+                List<Task<(MapPoint, double)>> _tasks = new();
+                foreach (var station in workstations)
+                {
+                    _tasks.Add(Task.Run(async () =>
+                    {
+                        await Task.Delay(10);
                         PathFinder _pathFinder = new PathFinder();
-                        var pathInfo = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, ptCandicate, new PathFinder.PathFinderOption
+                        double distance = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, station, new PathFinderOption
                         {
                             Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
-                            Strategy = PathFinder.PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
-                        });
-                        return (ptCandicate, pathInfo);
+                        }).total_travel_distance;
+                        return (station, distance);
                     }));
                 }
-                (MapPoint, clsPathInfo)[] pathFindResults = await Task.WhenAll(_findPathTasks);
-                if (pathFindResults.All(par => par.Item2 == null))
-                    return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
-                else
+                var distanceCalculateReuslts = await Task.WhenAll(_tasks);
+
+                Dictionary<MapPoint, double> distance_of_destine = distanceCalculateReuslts.ToDictionary(obj => obj.Item1, obj => obj.Item2);
+
+                var ordered = distance_of_destine.OrderBy(kp => kp.Value);
+                try
                 {
-                    optimized_workstation = pathFindResults.First(k => k.Item2 != null).Item1;
-                    return (true, optimized_workstation, ALARMS.NONE);
+                    List<Task<(MapPoint, clsPathInfo)>> _findPathTasks = new();
+
+                    foreach (var station in ordered)
+                    {
+                        MapPoint ptCandicate = station.Key;
+                        _findPathTasks.Add(Task.Run(() =>
+                        {
+                            PathFinder _pathFinder = new PathFinder();
+                            var pathInfo = _pathFinder.FindShortestPath(StaMap.Map, agv.currentMapPoint, ptCandicate, new PathFinder.PathFinderOption
+                            {
+                                Algorithm = PathFinderOption.ALGORITHM.Dijsktra,
+                                Strategy = PathFinder.PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE
+                            });
+                            return (ptCandicate, pathInfo);
+                        }));
+                    }
+                    (MapPoint, clsPathInfo)[] pathFindResults = await Task.WhenAll(_findPathTasks);
+                    if (pathFindResults.All(par => par.Item2 == null))
+                        return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
+                    else
+                    {
+                        optimized_workstation = pathFindResults.First(k => k.Item2 != null).Item1;
+                        return (true, optimized_workstation, ALARMS.NONE);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LOG.ERROR(ex.Message, ex);
+                    return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
                 }
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.Message, ex);
-                return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
+                throw ex;
             }
+            finally
+            {
+                autoSearchSemaphoreSlim.Release();
+            }
+
         }
 
         /// <summary>

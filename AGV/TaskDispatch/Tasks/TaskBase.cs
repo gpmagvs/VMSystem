@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Material;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Microservices.MCS;
 using Newtonsoft.Json;
 using NLog;
@@ -181,6 +182,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 return (false, ex.Alarm_Code, "AGV REJECT TASK");
             }
+            catch (VMSExceptionAbstract ex)
+            {
+                throw ex;
+            }
             catch (Exception ex)
             {
                 logger.Error(ex);
@@ -337,6 +342,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 IsTaskCanceled = true;
                 this.Dispose();
                 await SendCancelRequestToAGV();
+                NavigationResume(isResumeByWaitTimeout: false);
             }
             catch (Exception ex)
             {
@@ -444,7 +450,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     MaterialInstallStatus cargoinstall = (Agv.states.Cargo_Status == 0) ? MaterialInstallStatus.NG : MaterialInstallStatus.OK;
                     MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
-                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
+                    MaterialIDStatus idmatch = (OrderData.Carrier_ID == "" || OrderData.Carrier_ID == null || OrderData.Carrier_ID == Agv.states.CSTID[0]) ? MaterialIDStatus.OK : MaterialIDStatus.NG;
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
                     if (cargoinstall != MaterialInstallStatus.OK)
@@ -548,6 +554,88 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(300);
                 PassedTags.Add(Agv.currentMapPoint.TagNumber);
             });
+        }
+        internal bool NavigationPausing { get; set; } = false;
+        internal string PauseNavigationReason { get; set; } = "";
+        /// <summary>
+        /// 暫停當前導航
+        /// </summary>
+        internal async void NavigationPause(bool isPauseWhenNavigating, string descritption, MapPoint blockedMapPoint = null)
+        {
+            if (blockedMapPoint != null)
+                Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedMapPoint;
+            PauseNavigationReason = descritption;
+            NavigationPausing = true;
+            NotifyServiceHelper.WARNING($"{Agv.Name} 導航動作暫停中 ({descritption})");
+            TaskExecutePauseMRE.Reset();
+
+            if (isPauseWhenNavigating)
+            {
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                {
+                    await Task.Delay(1000);
+                }
+                logger.Trace(PauseNavigationReason);
+                UpdateStateDisplayMessage(PauseNavigationReason);
+                Agv.NavigationState.ResetNavigationPoints();
+                StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                var waitCanPassPtPassableCancle = new CancellationTokenSource();
+                if (blockedMapPoint.TagNumber != DestineTag)
+                {
+                    int _waitTimeout = TrafficControlCenter.TrafficControlParameters.Navigation.TimeoutWhenWaitPtPassableByEqPartReplacing;
+                    logger.Info($"{Agv.Name} 開始等待 {blockedMapPoint.TagNumber}可通行({_waitTimeout}s)[導航途中CYCLE STOP]");
+                    TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
+                    waitCanPassPtPassableCancle.CancelAfter(ts);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            Stopwatch sw = Stopwatch.StartNew();
+                            while (!waitCanPassPtPassableCancle.IsCancellationRequested)
+                            {
+
+                                await Task.Delay(1000, waitCanPassPtPassableCancle.Token);
+                                if (!NavigationPausing)
+                                    return;
+                                UpdateStateDisplayMessage(PauseNavigationReason + $"({sw.Elapsed.ToString(@"mm\:ss")}/{ts.ToString(@"mm\:ss")})");
+
+                            }
+                        }
+                        catch (TaskCanceledException ex)
+                        {
+
+                        }
+                        finally
+                        {
+                            if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
+                            {
+                                logger.Info($"{Agv.Name} Wait {blockedMapPoint.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行![導航途中CYCLE STOP]");
+                                Agv.NavigationState.LastWaitingForPassableTimeoutPt = blockedMapPoint;
+                                NavigationResume(isResumeByWaitTimeout: true);
+                            }
+                            else
+                            {
+                                //因為導航繼續而結束等待
+                            }
+                        }
+                    });
+                }
+            }
+
+        }
+        /// <summary>
+        /// 暫停當前導航
+        /// </summary>
+        internal void NavigationResume(bool isResumeByWaitTimeout)
+        {
+            if (!isResumeByWaitTimeout)
+            {
+                Agv.NavigationState.LastWaitingForPassableTimeoutPt = null;
+            }
+            NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續({(isResumeByWaitTimeout ? "因等待超時" : "解除路徑封閉")})");
+            TaskExecutePauseMRE.Set();
+            PauseNavigationReason = "";
+            NavigationPausing = false;
         }
     }
 

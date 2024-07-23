@@ -2,10 +2,15 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.Exceptions;
+using VMSystem.VMS;
 using WebSocketSharp;
 using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
 
@@ -109,6 +114,13 @@ namespace VMSystem.AGV
                     return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION }, new clsMapPoint[0]);
                 }
 
+
+                bool allPathExist = CheckPathesExistOnMap(_TaskDonwloadToAGV.ExecutingTrajecory, out int fromTag, out int toTag);
+                if (!allPathExist)
+                {
+                    throw new PathNotDefinedException($"Path From {fromTag} To {toTag} is not exist in route");
+                }
+
                 ExecutingTaskName = task.TaskName;
 
                 clsTaskDto order = task.OrderData;
@@ -124,13 +136,22 @@ namespace VMSystem.AGV
                     DestineSlot = int.Parse(order.To_Slot),
                     SourceSlot = int.Parse(order.From_Slot)
                 };
-                sequence += 1;
-                string _newTaskSimplex = ExecutingTaskName + "_" + sequence;
-                _TaskDonwloadToAGV.Task_Sequence = sequence;
+
+                //若路徑中包含閃避模式3的點位需確認 下一點的設備PORT是不是有AGV停駐
+                bool changed = DynamicDisableDogeMode3(ref _TaskDonwloadToAGV);
+                if (changed)
+                {
+                    NotifyServiceHelper.WARNING($"{Vehicle.Name} 導航路徑原有閃避模式3點位動態調整為0。(因設備內有其他車輛)");
+                }
+
+                int _sequence = int.Parse(sequence + "");
+                string _newTaskSimplex = ExecutingTaskName + "_" + _sequence;
+                _TaskDonwloadToAGV.Task_Sequence = _sequence;
                 _TaskDonwloadToAGV.Task_Simplex = _newTaskSimplex;
                 lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
-
                 TrackingTaskSimpleName = _newTaskSimplex;
+                sequence += 1;
+
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
                 {
@@ -175,6 +196,10 @@ namespace VMSystem.AGV
                     }
                 }
             }
+            catch (PathNotDefinedException ex)
+            {
+                throw ex;
+            }
             catch (Exception ex)
             {
                 logger.Error(ex);
@@ -203,6 +228,85 @@ namespace VMSystem.AGV
                 logger.Info($"Task Download To AGV:\n{logObject.ToJson()}");
             }
         }
+
+        /// <summary>
+        /// 檢查是否有不存在於圖資設定的路線
+        /// </summary>
+        /// <param name="executingTrajecory"></param>
+        /// <returns></returns>
+        private bool CheckPathesExistOnMap(clsMapPoint[] executingTrajecory, out int fromTag, out int toTag)
+        {
+            fromTag = 0;
+            toTag = 0;
+            if (executingTrajecory.Length < 2)
+                return true;
+
+            //0,1
+
+            for (int i = 1; i < executingTrajecory.Length; i++)
+            {
+                int endTag = -1;
+                int startTag = -1;
+                try
+                {
+                    endTag = executingTrajecory[i].Point_ID;
+                    startTag = executingTrajecory[i - 1].Point_ID;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                MapPoint startPT = StaMap.GetPointByTagNumber(startTag);
+                MapPoint endPT = StaMap.GetPointByTagNumber(endTag);
+
+                int startPtIndex = StaMap.GetIndexOfPoint(startPT);
+                int endPtIndex = StaMap.GetIndexOfPoint(endPT);
+
+                if (startPtIndex == -1 || endPtIndex == -1)
+                    return false;
+
+                bool pathExist = StaMap.Map.Segments.Any(path => path.StartPtIndex == startPtIndex && path.EndPtIndex == endPtIndex);
+                if (!pathExist)
+                {
+                    fromTag = startTag;
+                    toTag = endTag;
+
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private bool DynamicDisableDogeMode3(ref clsTaskDownloadData taskDonwloadToAGV)
+        {
+            bool hasAnyDodgeModeOfPointEuqal3 = taskDonwloadToAGV.Trajectory.Any(pt => pt.Control_Mode.Dodge == 3);
+            if (!hasAnyDodgeModeOfPointEuqal3)
+                return false;
+
+            bool hasAfterDodgeMode3HasAgv = false;
+
+            int indexOfDogeMode3Pt = taskDonwloadToAGV.Trajectory.ToList().FindIndex(pt => pt.Control_Mode.Dodge == 3);
+
+            //after DogeMod3Pts 
+            var _trajRef = taskDonwloadToAGV.Trajectory.ToList();
+            var targetEqHasAgvPts = _trajRef.Where(pt => _trajRef.IndexOf(pt) > indexOfDogeMode3Pt)
+                                            .Where(pt => IsTargetEqHasAGV(pt.Point_ID));
+            hasAfterDodgeMode3HasAgv = targetEqHasAgvPts.Any();
+
+            if (!hasAfterDodgeMode3HasAgv)
+                return false;
+
+            taskDonwloadToAGV.Trajectory[indexOfDogeMode3Pt].Control_Mode.Dodge = 0;
+            return true;
+
+            bool IsTargetEqHasAGV(int point_ID)
+            {
+                var otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Vehicle);
+                MapPoint normalPt = StaMap.GetPointByTagNumber(point_ID);
+                return normalPt.TargetWorkSTationsPoints().Any(pt => otherVehicles.Any(agv => agv.currentMapPoint.TagNumber == pt.TagNumber));
+            }
+        }
+
 
         internal async Task EmergencyStop(string TaskName = "")
         {
@@ -254,7 +358,7 @@ namespace VMSystem.AGV
 
                 if (Vehicle.simulationMode)
                 {
-                    Vehicle.AgvSimulation.CancelTask();
+                    Vehicle.AgvSimulation.CancelTask(100);
                 }
                 else
                 {

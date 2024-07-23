@@ -46,8 +46,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             int chargeStationTag = OrderData.To_Station_Tag;
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
             bool _isAnyVehicleGoToStation = otherAGVList.Any(agv => agv.CurrentRunningTask().OrderData?.To_Station_Tag == chargeStationTag);
-            bool _isAnyVehicleAtStation = otherAGVList.Any(agv=>agv.currentMapPoint.TagNumber == chargeStationTag);
-            return  ! _isAnyVehicleGoToStation  && !_isAnyVehicleAtStation;
+            bool _isAnyVehicleAtStation = otherAGVList.Any(agv => agv.currentMapPoint.TagNumber == chargeStationTag);
+            return !_isAnyVehicleGoToStation && !_isAnyVehicleAtStation;
         }
     }
 

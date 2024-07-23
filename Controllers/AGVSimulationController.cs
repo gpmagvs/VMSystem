@@ -145,6 +145,18 @@ namespace VMSystem.Controllers
             agv.AgvSimulation.UnRecoveryAlarmRaise();
             return Ok();
         }
+
+        [HttpGet("EMO")]
+        public async Task<IActionResult> EMO(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.EMO();
+            return Ok();
+        }
+
         [HttpGet("Initialize")]
         public async Task<IActionResult> Initialize(string AGVName)
         {
@@ -153,6 +165,40 @@ namespace VMSystem.Controllers
                 return BadRequest();
 
             agv.AgvSimulation.Initialize();
+            return Ok();
+        }
+
+
+        /// <summary>
+        /// 模擬裝載貨物
+        /// </summary>
+        /// <param name="AGVName"></param>
+        /// <param name="cargoID"></param>
+        /// <returns></returns>
+        [HttpGet("CargoMounted")]
+        public async Task<IActionResult> CargoMounted(string AGVName, string cargoID)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.MounteCargo(cargoID);
+            return Ok();
+        }
+
+        /// <summary>
+        /// 模擬移除貨物
+        /// </summary>
+        /// <param name="AGVName"></param>
+        /// <returns></returns>
+        [HttpGet("CargoRemove")]
+        public async Task<IActionResult> CargoRemove(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+
+            agv.AgvSimulation.RemoveCargo();
             return Ok();
         }
     }

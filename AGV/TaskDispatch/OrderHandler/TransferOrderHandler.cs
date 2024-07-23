@@ -19,19 +19,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override async Task HandleAGVActionFinishFeedback()
         {
-            if (Agv.CurrentRunningTask().ActionType != ACTION_TYPE.None && (RunningTask.ActionType == ACTION_TYPE.Load || RunningTask.ActionType == ACTION_TYPE.Unload))
-            {
-                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(RunningTask.DestineTag, RunningTask.ActionType);
-
-                if (RunningTask.ActionType == ACTION_TYPE.Unload)
-                {
-                    await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(this.Agv.Name, OrderData.From_Station_Tag, OrderData.To_Station_Tag);
-                }
-            }
             await base.HandleAGVActionFinishFeedback();
         }
         public override async Task StartOrder(IAGV Agv)
         {
+            if (Agv.IsAGVHasCargoOrHasCargoID() && this.OrderData.From_Station != Agv.Name)
+            {
+                _SetOrderAsFaiiureState("AGV車上有貨物或有帳籍資料,且來源非AGV時不可執行搬運任務", ALARMS.CANNOT_DISPATCH_CARRY_TASK_WHEN_AGV_HAS_CARGO);
+                return;
+            }
+
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
@@ -120,8 +117,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         protected override async void ActionsWhenOrderCancle()
         {
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load);
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload);
+            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload, Agv.Name);
         }
     }
 

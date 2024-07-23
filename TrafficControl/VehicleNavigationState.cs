@@ -331,6 +331,10 @@ namespace VMSystem.TrafficControl
         /// 當前衝突的區塊
         /// </summary>
         public MapRectangle CurrentConflicRegion { get; internal set; } = new();
+        /// <summary>
+        /// 當前因為等待可通行但超時的點位
+        /// </summary>
+        public MapPoint LastWaitingForPassableTimeoutPt { get; internal set; } = new MapPoint("", 0);
 
         private async Task _WaitLeaveWorkStationTimeToolongDetection()
         {
@@ -422,9 +426,9 @@ namespace VMSystem.TrafficControl
             RegionControlState.IsWaitingForEntryRegion = false;
             IsConflicWithVehicleAtWorkStation = IsConflicSolving = IsWaitingConflicSolve = RegionControlState.IsWaitingForEntryRegion = false;
             CancelSpinAtPointRequest();
+            LastWaitingForPassableTimeoutPt = new MapPoint("", 0);
             currentConflicToAGV = null;
             AvoidActionState.Reset();
-
         }
 
         internal void CancelSpinAtPointRequest()

@@ -3,13 +3,17 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Notify;
+using NLog;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using static VMSystem.TrafficControl.VehicleNavigationState;
 
@@ -18,22 +22,15 @@ namespace VMSystem.Dispatch
     public static class DispatchCenter
     {
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
-        internal static event EventHandler<int> OnWorkStationStartPartsReplace;
-        internal static event EventHandler<int> OnWorkStationFinishPartsReplace;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
-        internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation
-        {
-            get
-            {
-                lock (TagListOfWorkstationInPartsReplacing)
-                {
-                    return TagListOfWorkstationInPartsReplacing.SelectMany(tag =>
-                                                StaMap.GetPointByTagNumber(tag).Target.Keys.Select(index => StaMap.GetPointByIndex(index).TagNumber)).ToList();
-                }
-            }
-        }
+        internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation = new List<int>();
         public static DeadLockMonitor TrafficDeadLockMonitor = new DeadLockMonitor();
-
+        /// <summary>
+        /// Key:設備TAG, Value: IAGV集合
+        /// </summary>
+        public static ConcurrentDictionary<int, List<IAGV>> AGVNavigationPauseStore = new ConcurrentDictionary<int, List<IAGV>>();
+        internal static event EventHandler<int> OnPtPassableBecausePartsReplaceFinish;
+        private static Logger logger = LogManager.GetLogger("DispatchCenterLog");
         public static void Initialize()
         {
             TrafficDeadLockMonitor.StartAsync();
@@ -51,6 +48,7 @@ namespace VMSystem.Dispatch
             }
             catch (Exception ex)
             {
+                logger.Error(ex);
                 return null;
             }
             finally
@@ -195,7 +193,7 @@ namespace VMSystem.Dispatch
                         {
 
                         }
-                        var conflicVehicles= otherAGV.Where(_vehicle => !_vehicle.currentMapPoint.IsCharge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
+                        var conflicVehicles = otherAGV.Where(_vehicle => !_vehicle.currentMapPoint.IsCharge && _vehicle.AGVRotaionGeometry.IsIntersectionTo(_path.Last().GetCircleArea(ref vehicle, 1.1)));
                         return isTooCloseWithVehicleEntryPointOFWorkStation || conflicVehicles.Any();
                     }
 
@@ -355,6 +353,7 @@ namespace VMSystem.Dispatch
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
+
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
                 if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
@@ -364,102 +363,111 @@ namespace VMSystem.Dispatch
             {
                 //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
             }
+            if (MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt != null)
+                constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
             return constrains;
         }
-        private static async Task<IEnumerable<MapPoint>> WorkStationPartsReplacingControl(IAGV VehicleToEntry, IEnumerable<MapPoint> path)
+
+
+        internal static async Task SyncTrafficStateFromAGVSystemInvoke()
         {
-            List<int> _temporarilyClosedTags = TagListOfInFrontOfPartsReplacingWorkstation;
-            List<int> _indexOfBlockedTag = _temporarilyClosedTags.Select(tag => path.ToList().FindIndex(pt => pt.TagNumber == tag)).ToList();
-
-            if (_indexOfBlockedTag.All(index => index == -1))
+            try
             {
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
-                return path;
+                List<int> partsReplacingEqTags = await AGVSSerivces.TRAFFICS.GetTagsOfEQPartsReplacing();
+                foreach (var tag in partsReplacingEqTags)
+                {
+                    AddWorkStationInPartsReplacing(tag);
+                }
+                logger.Trace($"SyncTrafficStateFromAGVSystemInvoke done");
             }
-
-            _indexOfBlockedTag = _indexOfBlockedTag.OrderBy(_index => _index).ToList();
-            var firstBlockedTagIndex = _indexOfBlockedTag.FirstOrDefault(index => index != -1);
-            var tagBlocked = path.ToList()[firstBlockedTagIndex].TagNumber;
-            var indexOfTagBlockedInList = TagListOfInFrontOfPartsReplacingWorkstation.IndexOf(tagBlocked);
-
-            var workStationTag = TagListOfWorkstationInPartsReplacing[indexOfTagBlockedInList];
-            var blockedWorkStation = StaMap.GetPointByTagNumber(workStationTag);
-
-            if (VehicleToEntry.NavigationState.State != VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING)
+            catch (Exception ex)
             {
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.WAIT_TAG_PASSABLE_BY_EQ_PARTS_REPLACING;
-
-                for (int i = firstBlockedTagIndex; i >= 0; i--)
-                {
-                    var newPath = path.Take(i);
-                    if (!newPath.Last().IsVirtualPoint)
-                        return newPath;
-                }
-                return null;
-                //return path.Take(firstBlockedTagIndex);
-            }
-            else
-            {
-                bool IsBlockedTagClosing()
-                {
-                    return TagListOfInFrontOfPartsReplacingWorkstation.Contains(path.ToList()[firstBlockedTagIndex].TagNumber);
-
-                }
-                while (IsBlockedTagClosing())
-                {
-                    if (VehicleToEntry.CurrentRunningTask().IsTaskCanceled)
-                        return null;
-
-                    VehicleToEntry.CurrentRunningTask().UpdateMoveStateMessage($"等待設備維修-[{blockedWorkStation.Graph.Display}]..");
-                    await Task.Delay(1000);
-                }
-                VehicleToEntry.NavigationState.State = VehicleNavigationState.NAV_STATE.RUNNING;
-                return await WorkStationPartsReplacingControl(VehicleToEntry, path);
-                //return path;
+                logger.Error(ex);
             }
         }
-
-        internal static void AddWorkStationInPartsReplacing(int workstationTag)
+        internal static async void AddWorkStationInPartsReplacing(int workstationTag)
         {
-            if (TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
+
+            MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
+            if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
             {
-                OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
-                return;
+                TagListOfWorkstationInPartsReplacing.Add(workstationTag);
+                TagListOfInFrontOfPartsReplacingWorkstation.AddRange(eqPoint.TargetNormalPoints().GetTagCollection());
+                NotifyTagsNotPassable();
             }
-            TagListOfWorkstationInPartsReplacing.Add(workstationTag);
 
             var cycleStopVehicles = VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                             .Where(agv => agv.NavigationState.NextNavigtionPoints.Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)));
+                                                     .Where(agv => agv.NavigationState.NextNavigtionPoints.Skip(1).ToList().Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)))
+                                                     .ToList();
 
             if (cycleStopVehicles.Any())
             {
                 var frontPoints = StaMap.GetPointByTagNumber(workstationTag).TargetNormalPoints();
                 var blockedTag = frontPoints.First().TagNumber;
+                MapPoint blockedMapPoint = StaMap.GetPointByTagNumber(blockedTag);
                 foreach (var _vehicle in cycleStopVehicles)
                 {
-                    Task.Run(() =>
+                    if (!AGVNavigationPauseStore.ContainsKey(workstationTag))
                     {
-                        bool cycleStopNeed = _vehicle.NavigationState.NextNavigtionPoints.ToList().FindIndex(pt => pt.TagNumber == blockedTag) > 1;
-                        if (cycleStopNeed)
-                        {
-                            _vehicle.CurrentRunningTask().CycleStopRequestAsync();
-                        }
+                        AGVNavigationPauseStore.TryAdd(workstationTag, new List<IAGV>());
+                    }
+                    AGVNavigationPauseStore[workstationTag].Add(_vehicle);
+
+                    _ = Task.Run(async () =>
+                    {
+                        _vehicle.CurrentRunningTask().NavigationPause(isPauseWhenNavigating: true, $"Wait EQ({eqPoint.Graph.Display}) Parts Replacing Finish", blockedMapPoint);
+                        _vehicle.CurrentRunningTask().CycleStopRequestAsync();
                     });
+
                 }
             }
 
-            OnWorkStationStartPartsReplace?.Invoke("", workstationTag);
         }
 
         internal static void RemoveWorkStationInPartsReplacing(int workstationTag)
         {
             if (!TagListOfWorkstationInPartsReplacing.Contains(workstationTag))
             {
-                OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
                 return;
             }
             TagListOfWorkstationInPartsReplacing.Remove(workstationTag);
-            OnWorkStationFinishPartsReplace?.Invoke("", workstationTag);
+            MapPoint eqPoint = StaMap.GetPointByTagNumber(workstationTag);
+            List<int> tagsOfEqEntry = eqPoint.TargetNormalPoints().GetTagCollection().ToList();
+
+            foreach (var tag in tagsOfEqEntry)
+            {
+                OnPtPassableBecausePartsReplaceFinish?.Invoke("", tag);
+            }
+
+            TagListOfInFrontOfPartsReplacingWorkstation = TagListOfInFrontOfPartsReplacingWorkstation.Where(tag => !tagsOfEqEntry.Contains(tag)).ToList();
+            NotifyTagsNotPassable();
+
+
+            if (AGVNavigationPauseStore.TryGetValue(workstationTag, out List<IAGV> navigationPausingAgvList))
+            {
+                foreach (var agv in navigationPausingAgvList)
+                {
+                    agv.CurrentRunningTask().NavigationResume(false);
+                }
+                AGVNavigationPauseStore.TryRemove(workstationTag, out _);
+            }
+        }
+
+        private static void NotifyTagsNotPassable()
+        {
+            if (TagListOfInFrontOfPartsReplacingWorkstation.Any())
+            {
+                string tagsDisplayOfClosedByEqPartsReplace = string.Join(",", TagListOfInFrontOfPartsReplacingWorkstation);
+                string logmsg = $"當前因設備零件更換而封閉Tag={tagsDisplayOfClosedByEqPartsReplace}";
+                logger.Trace(logmsg);
+                NotifyServiceHelper.WARNING(logmsg);
+            }
+            else
+            {
+                string logmsg = $"目前沒有因設備零件更換而封閉的Tag";
+                logger.Trace(logmsg);
+                NotifyServiceHelper.SUCCESS(logmsg);
+            }
         }
 
     }

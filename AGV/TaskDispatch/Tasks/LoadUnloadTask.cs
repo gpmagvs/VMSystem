@@ -1,8 +1,10 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.TrafficControl;
@@ -57,6 +59,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
+            if (ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
+            {
+                throw new UnloadButAGVHasCargoException();
+
+            }
+            if (ActionType == ACTION_TYPE.Load && !Agv.IsAGVHasCargoOrHasCargoID())
+            {
+                throw new LoadButAGVNoCargoException();
+            }
             try
             {
                 EnterWorkStationDetection enterWorkStationDetection = new(EQPoint, Agv.states.Coordination.Theta, Agv);
@@ -86,6 +97,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (AgvStatusDownFlag)
                     return;
                 await WaitAGVTaskDone();
+                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(EQPoint.TagNumber, ActionType, Agv.Name);
+
             }
             catch (Exception ex)
             {
@@ -93,7 +106,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
-                if (!AgvStatusDownFlag)
+                //bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                //                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                //                                                     .Any();
+
+                bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                                                                     .Any();
+
+                if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
                 {
                     await TryRotationToAvoidAngle();
                 }
@@ -123,10 +143,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
 
-                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+                await Task.Delay(500);
+                Agv.NavigationState.ResetNavigationPoints();
+                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
                 {
-                    await Task.Delay(500);
-                    Agv.NavigationState.ResetNavigationPoints();
+                    (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
+                    if (confirmed)
+                    {
+                        //Notify
+                        NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                    }
                 }
 
             }
