@@ -88,7 +88,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                                 return;
                             }
                             AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
-                            throw new Exception(dispatch_result.alarm_code.ToString());
+                            throw new Exception($"ALARM CODE:{dispatch_result.alarm_code}; message:{dispatch_result.message}");
                         }
 
                         task.Dispose();
