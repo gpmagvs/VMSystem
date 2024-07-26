@@ -386,12 +386,29 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     }
                                 });
                             }
-                            NavigationPause(isPauseWhenNavigating: false, $"Wait EQ({currentNonPassableByEQPartsReplacing.Graph.Display}) Parts Replacing Finish\n[Before Navigation Path Download]");
+                            NavigationPause(isPauseWhenNavigating: false, $"Wait Point-({currentNonPassableByEQPartsReplacing.Graph.Display}) Passable When EQ Parts Replacing Finish.\n[Before Navigation Path Download]");
                             UpdateStateDisplayMessage(PauseNavigationReason);
-                            await CycleStopRequestAsync();
+                            await SendCancelRequestToAGV();
+
+                            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+                            {
+                                if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                                    throw new AGVStatusDownException();
+                                await Task.Delay(100);
+                            }
                             _previsousTrajectorySendToAGV.Clear();
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                                throw new AGVStatusDownException();
+
+                            while (IsPathContainPartsReplacingPt(nextPath, out currentNonPassableByEQPartsReplacing))
+                            {
+                                await DispatchCenter.SyncTrafficStateFromAGVSystemInvoke();
+                                await Task.Delay(1000);
+                            }
+                            NavigationResume(false);
+
                             continue;
                         }
 

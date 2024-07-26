@@ -57,7 +57,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             _ = Task.Run(async () =>
             {
                 //
-                SyncTrafficStateFromAGVSystem();
+                await SyncTrafficStateFromAGVSystem();
                 this.Agv = Agv;
                 _SetOrderAsRunningState();
                 try
@@ -179,7 +179,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             });
         }
 
-        private async Task SyncTrafficStateFromAGVSystem()
+        protected async Task SyncTrafficStateFromAGVSystem()
         {
             logger.Trace($"DispatchCenter.SyncTrafficStateFromAGVSystemInvoke Invoke");
             await DispatchCenter.SyncTrafficStateFromAGVSystemInvoke();
