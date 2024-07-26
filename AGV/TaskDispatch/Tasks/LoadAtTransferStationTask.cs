@@ -25,14 +25,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return 0;
         }
 
-        internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
+        internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
             DestineTag = OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag;
             if (!OrderData.bypass_eq_status_check)
             {
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
-                    return (response.confirm, response.AlarmCode);
+                    return (response.confirm, response.AlarmCode, response.message);
             }
             return await base.DistpatchToAGV();
         }

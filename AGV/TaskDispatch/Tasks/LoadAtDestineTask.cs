@@ -39,14 +39,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-放貨");
         }
 
-        internal override async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
+        internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                //clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData.need_change_agv ? OrderData.TransferToTag : OrderData.To_Station_Tag, this, OrderData.Action);
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
-                    return (response.confirm, response.AlarmCode);
+                    return (response.confirm, response.AlarmCode, response.message);
             }
             return await base.DistpatchToAGV();
         }

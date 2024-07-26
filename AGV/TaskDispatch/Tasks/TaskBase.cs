@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Material;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Microservices.MCS;
+using Newtonsoft.Json;
 using NLog;
 using System.Diagnostics;
 using System.Reflection.Metadata.Ecma335;
@@ -18,6 +19,7 @@ using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
+using static SQLite.SQLite3;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 
@@ -152,7 +154,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 throw new NoPathForNavigatorException();
             return _destine_point;
         }
-        internal virtual async Task<(bool confirmed, ALARMS alarm_code)> DistpatchToAGV()
+        internal virtual async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
             try
             {
@@ -161,24 +163,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 CreateTaskToAGV();
                 await SendTaskToAGV();
                 if (IsTaskCanceled)
-                    return (false, ALARMS.Task_Canceled);
+                    return (false, ALARMS.Task_Canceled, "TASK CANCELED");
                 else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
-                    return (false, ALARMS.AGV_STATUS_DOWN);
+                    return (false, ALARMS.AGV_STATUS_DOWN, "AGV STATUS DOWN");
 
-                return (true, ALARMS.NONE);
+                return (true, ALARMS.NONE, "");
             }
             catch (TaskCanceledException ex)
             {
                 TrafficWaitingState.SetDisplayMessage("任務取消中...");
-                return (false, ALARMS.Task_Canceled);
+                return (false, ALARMS.Task_Canceled, "TASK CANCELED");
             }
             catch (NoPathForNavigatorException ex)
             {
-                return (false, ex.Alarm_Code);
+                return (false, ex.Alarm_Code, "NO PATH NAVIGATION");
             }
             catch (AGVRejectTaskException ex)
             {
-                return (false, ex.Alarm_Code);
+                return (false, ex.Alarm_Code, "AGV REJECT TASK");
             }
             catch (VMSExceptionAbstract ex)
             {
@@ -187,7 +189,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (Exception ex)
             {
                 logger.Error(ex);
-                return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION);
+                return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION, "TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION");
             }
         }
         protected virtual bool IsTaskExecutable()
@@ -463,11 +465,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             Task<(bool confirm, string message, object obj)> r = AGVSSerivces.GetNGPort();
                             r.Wait();
-                            clsTransferMaterial ngport = (clsTransferMaterial)r.Result.obj;
+                            clsTransferMaterial ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(r.Result.obj.ToString());
+                            //clsTransferMaterial ngport = (clsTransferMaterial)r.Result.obj;
                             if (ngport != null)
                             {
-                                OrderData.To_Station = ngport.TargetStation;
+                                OrderData.To_Station = ngport.TargetTag.ToString();
+                                OrderData.To_Slot = ngport.TargetRow.ToString();
                                 result.task = OrderData;
+                                result.continuetask = true;
                             }
                             else
                             {
