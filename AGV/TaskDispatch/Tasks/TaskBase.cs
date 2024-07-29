@@ -126,7 +126,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             set
             {
                 _WaitingForAGV = value;
-                LOG.TRACE($"AGV=[ {string.Join(",", _WaitingForAGV.Select(agv => agv.Name))}] is Waiting For {this.Agv.Name}");
+                logger.Trace($"AGV=[ {string.Join(",", _WaitingForAGV.Select(agv => agv.Name))}] is Waiting For {this.Agv.Name}");
             }
         }
         protected MapPoint GetEntryPointsOfWorkStation(MapPoint _desintWorkStation, MapPoint agv_currentmappoint = null)
@@ -291,7 +291,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
                     if (!parts_accept.confirm)
                     {
-                        LOG.WARN($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
+                        logger.Warn($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
                         await Task.Delay(1000);
                     }
 
@@ -438,11 +438,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate)); // 各段任務結束上報
                 v.Wait();
                 if (v.Result.confirm == false)
-                    LOG.WARN($"{v.Result.message}");
+                    logger.Warn($"{v.Result.message}");
             }
             catch (Exception ex)
             {
-                LOG.WARN($"{ex.Message}");
+                logger.Warn($"{ex.Message}");
             }
             try
             {
@@ -455,7 +455,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
                     if (cargoinstall != MaterialInstallStatus.OK)
                     {
-                        LOG.Critical("[ActionFinishInvoke] cargo not install");
+                        logger.Fatal("[ActionFinishInvoke] cargo not install");
                         CancelTask();
                         result.continuetask = false;
                     }
@@ -476,7 +476,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             else
                             {
-                                LOG.Critical("[ActionFinishInvoke] No NG port can use, task fail");
+                                logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
                                 CancelTask();
                                 //AlarmManagerCenter.AddAlarmAsync(,);
                                 result.continuetask = false;
@@ -484,7 +484,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         catch (Exception ex)
                         {
-                            LOG.Critical($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
+                            logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
                             CancelTask();
                             //AlarmManagerCenter.AddAlarmAsync(,ALARM_LEVEL.WARNING);
                             result.continuetask = false;
@@ -501,7 +501,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                LOG.WARN($"{ex.Message}");
+                logger.Warn($"{ex.Message}");
                 result.continuetask = false;
             }
             FuturePlanNavigationTags.Clear();
