@@ -375,12 +375,27 @@ namespace VMSystem.Dispatch
             {
                 List<int> partsReplacingEqTags = await AGVSSerivces.TRAFFICS.GetTagsOfEQPartsReplacing();
 
-                //過濾出已經完成零件更換的設備TAG
-                List<int> finishedPartsReplacingEqTags = TagListOfWorkstationInPartsReplacing.Where(tag => !partsReplacingEqTags.Contains(tag)).ToList();
-                foreach (var tag in finishedPartsReplacingEqTags)
+                if (!partsReplacingEqTags.Any())//沒有任何設備在進行零件更換
                 {
-                    RemoveWorkStationInPartsReplacing(tag);
+                    List<int> finishedPartsReplacingEqTags = TagListOfWorkstationInPartsReplacing.ToList();
+                    foreach (var tag in finishedPartsReplacingEqTags)
+                    {
+                        RemoveWorkStationInPartsReplacing(tag);
+                    }
+                    TagListOfWorkstationInPartsReplacing.Clear();
+                    TagListOfWorkstationInPartsReplacing.Clear();
                 }
+                else
+                {
+                    //過濾出已經完成零件更換的設備TAG
+
+                    List<int> finishedPartsReplacingEqTags = TagListOfWorkstationInPartsReplacing.Where(tag => !partsReplacingEqTags.Contains(tag)).ToList();
+                    foreach (var tag in finishedPartsReplacingEqTags)
+                    {
+                        RemoveWorkStationInPartsReplacing(tag);
+                    }
+                }
+
                 //過濾出新加入的設備TAG
                 partsReplacingEqTags = partsReplacingEqTags.Where(tag => !TagListOfWorkstationInPartsReplacing.Contains(tag)).ToList();
                 foreach (var tag in partsReplacingEqTags)
