@@ -405,7 +405,9 @@ namespace VMSystem.Dispatch
                 NotifyTagsNotPassable();
             }
 
+            //條件:任務執行中且正在執行移動任務中，並且路徑包含到不可通行的點
             var cycleStopVehicles = VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                                                     .Where(agv => agv.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
                                                      .Where(agv => agv.NavigationState.NextNavigtionPoints.Skip(1).ToList().Any(pt => TagListOfInFrontOfPartsReplacingWorkstation.Contains(pt.TagNumber)))
                                                      .ToList();
 

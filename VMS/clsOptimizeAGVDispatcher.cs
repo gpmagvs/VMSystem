@@ -45,6 +45,11 @@ namespace VMSystem.VMS
                                                  .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Source || agv.CurrentRunningTask().Stage == VehicleMovementStage.WorkingAtSource)) //to source . working
                                                  .Select(agv => agv.Name));
 
+                        //若當下是退出充電站任務 不接任務
+                        CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
+                                                 .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.LeaveFrom_ChargeStation)) //to source . working
+                                                 .Select(agv => agv.Name));
+
 
                         //CannotAssignOrderAGVNames.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
