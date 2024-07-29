@@ -405,9 +405,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual (bool continuetask, clsTaskDto task, string errorMsg) ActionFinishInvoke()
+        public virtual (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
         {
-            (bool continuetask, clsTaskDto task, string errorMsg) result = (true, null, "");
+            (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) result = (true, null, ALARMS.NONE, "");
 
             try
             {
@@ -457,7 +457,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         logger.Fatal("[ActionFinishInvoke] cargo not install");
                         CancelTask();
-                        result.errorMsg = "Cargo Not Installed";
+                        result.errorMsg = "AGV載貨可能發生騎Tray/框(Cargo maybe not mounted on AGV)";
+                        result.alarmCode = ALARMS.UNLOAD_BUT_AGV_NO_CARGO_MOUNTED;
                         result.continuetask = false;
                     }
                     else if (idmatch == MaterialIDStatus.NG)
@@ -480,6 +481,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
                                 CancelTask();
                                 result.errorMsg = "No NG port can use";
+                                result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
                                 //AlarmManagerCenter.AddAlarmAsync(,);
                                 result.continuetask = false;
                             }
@@ -487,6 +489,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         catch (Exception ex)
                         {
                             logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
+                            result.alarmCode = ALARMS.SYSTEM_ERROR;
                             CancelTask();
                             result.errorMsg = $"No NG port can use:{ex.Message}";
                             //AlarmManagerCenter.AddAlarmAsync(,ALARM_LEVEL.WARNING);
@@ -505,6 +508,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (Exception ex)
             {
                 logger.Warn($"{ex.Message}");
+                result.alarmCode = ALARMS.SYSTEM_ERROR;
                 result.errorMsg = $"Code Error:{ex.Message}";
                 result.continuetask = false;
             }

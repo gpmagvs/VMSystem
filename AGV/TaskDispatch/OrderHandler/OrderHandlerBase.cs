@@ -96,10 +96,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
 
                         task.Dispose();
-                        (bool continuetask, clsTaskDto task, string errorMsg) taskchange = task.ActionFinishInvoke();
+                        (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) taskchange = task.ActionFinishInvoke();
                         if (taskchange.continuetask == false)
                         {
-                            _SetOrderAsFaiiureState(taskchange.errorMsg, ALARMS.NONE);
+                            _SetOrderAsFaiiureState(taskchange.errorMsg, taskchange.alarmCode);
                             return;
                         }
                         if (taskchange.task != null)
