@@ -144,6 +144,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     Agv.NavigationState.StateReset();
                     Agv.NavigationState.ResetNavigationPoints();
+                    ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
                 }
 
