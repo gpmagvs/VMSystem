@@ -180,7 +180,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override (bool continuetask, clsTaskDto task) ActionFinishInvoke()
+        public override (bool continuetask, clsTaskDto task, string errorMsg) ActionFinishInvoke()
         {
             _waitTaskFinish.Set();
             return base.ActionFinishInvoke();

@@ -405,9 +405,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual (bool continuetask, clsTaskDto task) ActionFinishInvoke()
+        public virtual (bool continuetask, clsTaskDto task, string errorMsg) ActionFinishInvoke()
         {
-            (bool continuetask, clsTaskDto task) result = (true, null);
+            (bool continuetask, clsTaskDto task, string errorMsg) result = (true, null, "");
 
             try
             {
@@ -457,6 +457,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         logger.Fatal("[ActionFinishInvoke] cargo not install");
                         CancelTask();
+                        result.errorMsg = "Cargo Not Installed";
                         result.continuetask = false;
                     }
                     else if (idmatch == MaterialIDStatus.NG)
@@ -478,6 +479,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
                                 CancelTask();
+                                result.errorMsg = "No NG port can use";
                                 //AlarmManagerCenter.AddAlarmAsync(,);
                                 result.continuetask = false;
                             }
@@ -486,6 +488,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
                             CancelTask();
+                            result.errorMsg = $"No NG port can use:{ex.Message}";
                             //AlarmManagerCenter.AddAlarmAsync(,ALARM_LEVEL.WARNING);
                             result.continuetask = false;
                         }
@@ -502,6 +505,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (Exception ex)
             {
                 logger.Warn($"{ex.Message}");
+                result.errorMsg = $"Code Error:{ex.Message}";
                 result.continuetask = false;
             }
             FuturePlanNavigationTags.Clear();
