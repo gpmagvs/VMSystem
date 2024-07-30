@@ -668,25 +668,27 @@ namespace VMSystem.VMS
 
         internal static void UpdatePartsAGVInfo(string aGVName, string location)
         {
+            var _agvName = aGVName.TrimEnd(new char[1] { ' ' });
+            var _location = location.TrimEnd(new char[1] { ' ' });
             var allPointDisplayTexts = StaMap.Map.Points.Values.Select(pt => pt.Graph.Display);
-            if (!allPointDisplayTexts.Any(txt => txt == location))
+            if (!allPointDisplayTexts.Any(txt => txt == _location))
                 return;
-            if (OthersAGVInfos.TryGetValue(aGVName, out var info))
+            if (OthersAGVInfos.TryGetValue(_agvName, out var info))
             {
-                bool _hasLocationChange = info.Location != location;
-                info.Location = location;
+                bool _hasLocationChange = info.Location != _location;
+                info.Location = _location;
                 if (_hasLocationChange)
                 {
-                    LOG.TRACE($"Parts AGV-{aGVName} Location change to {location}");
+                    LOG.TRACE($"Parts AGV-{_agvName} Location change to {_location}");
                 }
             }
             else
             {
-                LOG.TRACE($"Parts AGV-{aGVName} Location change to {location}");
-                OthersAGVInfos.Add(aGVName, new clsAGVStatusSimple
+                LOG.TRACE($"Parts AGV-{_agvName} Location change to {_location}");
+                OthersAGVInfos.Add(_agvName, new clsAGVStatusSimple
                 {
-                    Location = location,
-                    AGVName = aGVName
+                    Location = _location,
+                    AGVName = _agvName
                 });
             }
         }

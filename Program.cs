@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
@@ -54,6 +55,8 @@ try
     {
         options.UseSqlServer(DBConnection);
     });
+
+
     builder.Services.AddScoped<VehicleOnlineRequestByAGVService>();
     builder.Services.AddScoped<VehicleOnlineBySystemService>();
     builder.Services.AddScoped<VehicleMaintainService>();
@@ -62,6 +65,15 @@ try
     builder.Services.AddHostedService<FrontEndDataCollectionBackgroundService>();
     builder.Services.AddHostedService<EquipmentScopeBackgroundService>();
     builder.Services.AddHostedService<TaskPathConflicDetectionService>();
+
+    if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
+    {
+        builder.Services.AddDbContext<PartsAGVS_InfoContext>(options =>
+        {
+            options.UseSqlServer(AGVSConfigulator.SysConfigs.PartsAGVSDBConnection);
+        });
+        builder.Services.AddHostedService<PartsAGVInfoService>();
+    }
 
     //add signalIR service
     builder.Services.AddSignalR().AddJsonProtocol(options => { options.PayloadSerializerOptions.PropertyNamingPolicy = null; });

@@ -28,20 +28,26 @@ namespace VMSystem.BackgroundServices
                     object data = new object();
                     try
                     {
+
+                        var _VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList();
+
+                        if (PartsAGVInfoService.PartsAGVStatueDtoStored.Any())
+                        {
+                            _VMSStatus.AddRange(PartsAGVInfoService.PartsAGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList());
+                        }
+
                         data = new
                         {
                             AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
                             OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
-                            VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList(),
+                            VMSStatus = _VMSStatus,
                         };
                         if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
                         {
                             data = null;
                             continue;
                         }
-                        _previousData = data;
-                        CancellationTokenSource cts = new CancellationTokenSource();
-                        cts.CancelAfter(3000);
+                        _previousData = data.Clone();
                         await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
                     }
                     catch (Exception ex)

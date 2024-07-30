@@ -17,7 +17,7 @@ namespace VMSystem.Controllers
             {
                 string _AGVName = payload["AGVName"];
                 string _Location = payload["Location"];
-                VMSManager.UpdatePartsAGVInfo(_AGVName, _Location);
+                //VMSManager.UpdatePartsAGVInfo(_AGVName, _Location);
                 return Ok();
             }
             catch (Exception ex)
