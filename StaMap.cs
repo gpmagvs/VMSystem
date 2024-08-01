@@ -17,6 +17,7 @@ using System.Runtime.InteropServices;
 using System.Runtime;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using AGVSystemCommonNet6.MAP.Geometry;
+using NLog;
 
 namespace VMSystem
 {
@@ -47,38 +48,44 @@ namespace VMSystem
         public static Dictionary<int, clsPointRegistInfo> RegistDictionary = new Dictionary<int, clsPointRegistInfo>();
         public static Dictionary<int, Dictionary<int, double>> Dict_AllPointDistance = new Dictionary<int, Dictionary<int, double>>();
         public static event EventHandler<List<MapPoint>> OnPointsDisabled;
-
-
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+        private static SemaphoreSlim _DisablePtChangeDectectProcSemaphore = new SemaphoreSlim(1, 1);
 
         public static void Download()
         {
-
             var _oriPoints = Map?.Points.Values.Clone().ToList();
-
             Map = MapManager.LoadMapFromFile(false, false).Clone();
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             PathFinder.defaultMap = Map;
             DisablePointsChangedDetecter(_oriPoints);
-            Console.WriteLine($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
+            logger.Info($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
 
         private static async Task DisablePointsChangedDetecter(List<MapPoint> oriPoints)
         {
-            if (oriPoints == null)
-                return;
-            await Task.Delay(1);
-            var _newPoints = Map.Points.Values.Clone().ToList();
-
-            var oriPtEnableStatus = oriPoints.ToDictionary(pt => pt, pt => pt.Enable);
-            var newPtEnableStatus = _newPoints.ToDictionary(pt => pt, pt => pt.Enable);
-
-            var changeToDisablePoints = newPtEnableStatus.Where(pt => pt.Value == false && oriPtEnableStatus.First(_pt => _pt.Key.TagNumber == pt.Key.TagNumber).Value == true)
-                                                            .Select(pt => pt.Key); ;
-
-            if (changeToDisablePoints.Any())
+            try
             {
-                LOG.TRACE($" Detect Tags: {string.Join(",", changeToDisablePoints.Select(pt => pt.TagNumber))} changed to DISABLE");
-                OnPointsDisabled?.Invoke("", changeToDisablePoints.ToList());
+                await _DisablePtChangeDectectProcSemaphore.WaitAsync();
+                if (oriPoints == null)
+                    return;
+                var _newPoints = Map.Points.Values.Clone().ToList();
+                var oriPtEnableStatus = oriPoints.ToDictionary(pt => pt, pt => pt.Enable);
+                var newPtEnableStatus = _newPoints.ToDictionary(pt => pt, pt => pt.Enable);
+                var changeToDisablePoints = newPtEnableStatus.Where(pt => pt.Value == false && oriPtEnableStatus.First(_pt => _pt.Key.TagNumber == pt.Key.TagNumber).Value == true)
+                                                                .Select(pt => pt.Key); ;
+                if (changeToDisablePoints.Any())
+                {
+                    logger.Trace($"Detect Tags: {string.Join(",", changeToDisablePoints.Select(pt => pt.TagNumber))} changed to DISABLE");
+                    OnPointsDisabled?.Invoke("", changeToDisablePoints.ToList());
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+            finally
+            {
+                _DisablePtChangeDectectProcSemaphore.Release();
             }
         }
 

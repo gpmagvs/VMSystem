@@ -64,15 +64,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public int SeqIndex = 0;
 
         List<MapPoint> dynamicConstrains = new List<MapPoint>();
-        private async void HandlePointsChangeToDisabled(object? sender, List<MapPoint> disabledPoints)
+        private void HandlePointsChangeToDisabled(object? sender, List<MapPoint> disabledPoints)
         {
-            await Task.Delay(1);
-            var disabledTags = disabledPoints.GetTagCollection();
-            var blockedPointInRemainPath = Agv.NavigationState.NextNavigtionPoints.Where(pt => disabledTags.Contains(pt.TagNumber)).ToList();
-            bool IsRemainPathBeDisable = blockedPointInRemainPath.Any();
-            if (!IsRemainPathBeDisable)
-                return;
-            await CycleStopRequestAsync();
+            Task.Run(async () =>
+            {
+                await Task.Delay(1);
+                var disabledTags = disabledPoints.GetTagCollection();
+                var blockedPointInRemainPath = Agv.NavigationState.NextNavigtionPoints.Where(pt => disabledTags.Contains(pt.TagNumber)).ToList();
+                bool IsRemainPathBeDisable = blockedPointInRemainPath.Any();
+                if (!IsRemainPathBeDisable)
+                    return;
+                await CycleStopRequestAsync();
+            });
         }
 
         VehicleMovementStage subStage = VehicleMovementStage.Not_Start_Yet;
