@@ -5,6 +5,7 @@ using VMSystem.AGV;
 using VMSystem.VMS;
 using VMSystem.TrafficControl;
 using static VMSystem.TrafficControl.clsTrafficControlParameters;
+using NLog;
 
 namespace VMSystem.TrafficControl.ConflicDetection
 {
@@ -13,6 +14,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public readonly MapPoint DetectPoint;
         public readonly IAGV AGVToDetect;
         public readonly double ThetaOfPridiction;
+        protected Logger logger = LogManager.GetLogger("ConflicDetection");
         public virtual clsVehicleGeometryExpand GeometryExpand { get; set; } = new clsVehicleGeometryExpand();
 
         public IEnumerable<IAGV> OtherAGV => GetOtherVehicles();
@@ -31,10 +33,13 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
         public virtual clsConflicDetectResultWrapper Detect()
         {
+            logger.Info($"{this.GetType().Name} Basic Detect start: DetectPoint(Tag)={DetectPoint.TagNumber}/AGV={AGVToDetect.Name}/ThetaOfPridiction={ThetaOfPridiction}.");
+
             if (OtherAGV.Count() == 0)
             {
                 return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
             }
+            logger.Info($"OtherAGV={OtherAGV.GetNames()}");
 
             clsConflicDetectResultWrapper _baseResult = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
             if (IsRegisted(out IAGV registedAGV))
@@ -49,7 +54,6 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 _baseResult.Result = DETECTION_RESULT.NG;
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_AGV_BODY;
                 _baseResult.ConflicToAGVList = conflicAGVList;
-
                 _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}\r\n([{this.GetType().Name}] Body Detection)";
             }
             else if (IsConflicToOtherVehicleRotaionBody(out conflicAGVList))
@@ -57,7 +61,6 @@ namespace VMSystem.TrafficControl.ConflicDetection
                 _baseResult.Result = DETECTION_RESULT.NG;
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_AGV_BODY;
                 _baseResult.ConflicToAGVList = conflicAGVList;
-
                 _baseResult.Message = $"Point({DetectPoint.GetName()}) is conflic to {conflicAGVList.GetNames()}\r\n([{this.GetType().Name}] Rotation Detection)";
             }
             else if (IsConflicToOtherVehicleNavigatingPath(out Dictionary<IAGV, List<MapRectangle>> conflicState))
@@ -70,6 +73,13 @@ namespace VMSystem.TrafficControl.ConflicDetection
             else
             {
                 _baseResult.Result = DETECTION_RESULT.OK;
+            }
+
+            logger.Info($"Detect result: {(_baseResult.Result == DETECTION_RESULT.OK ? "OK" : "NG")},ConflicStatusCode: {_baseResult.ConflicStatusCode.ToString()}, Message: {(_baseResult.Result == DETECTION_RESULT.OK ? "" : _baseResult.Message)}");
+            //log ConflicToAGVList
+            if (_baseResult.ConflicToAGVList.Any())
+            {
+                logger.Info($"ConflicToAGVList: {_baseResult.ConflicToAGVList.GetNames()}");
             }
             return _baseResult;
         }
@@ -126,7 +136,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
 
 
 
-        protected MapRectangle GetRectangleOfDetectPoint()
+        protected virtual MapRectangle GetRectangleOfDetectPoint()
         {
             double x = DetectPoint.X;
             double y = DetectPoint.Y;

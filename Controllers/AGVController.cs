@@ -209,6 +209,7 @@ namespace VMSystem.Controllers
                 IAGV agv = VMSManager.GetAGVByName(AGVName);
 
                 var entryTag = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory.First().Point_ID;
+
                 var EntryPointOfEQ = StaMap.GetPointByTagNumber(entryTag);
 
                 var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg()
