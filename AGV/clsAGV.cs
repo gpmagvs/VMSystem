@@ -230,7 +230,7 @@ namespace VMSystem.AGV
                         logger.Info($"[{Name}]-Tag Location Change to {value.TagNumber} (Previous : {previousTag})");
                         if (value.IsEquipment && !TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
                         {
-                            NotifyServiceHelper.INFO($"AGV {Name} 抵達{value.Graph.Display},系統設置入口點({previousMapPoint.Graph.Display})不可解除註冊!");
+                            //NotifyServiceHelper.INFO($"AGV {Name} 抵達{value.Graph.Display},系統設置入口點({previousMapPoint.Graph.Display})不可解除註冊!");
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;
                             return;
@@ -254,7 +254,7 @@ namespace VMSystem.AGV
                                     IEnumerable<int> registedTags = StaMap.RegistDictionary.Where(kp => kp.Value.RegisterAGVName == this.Name).Select(kp => kp.Key);
                                     IEnumerable<int> regitedButNotInNavigationTags = registedTags.Where(tag => !NavigationState.NextNavigtionPoints.GetTagCollection().Contains(tag));
 
-                                    if (regitedButNotInNavigationTags.Any())
+                                    if (regitedButNotInNavigationTags.Any() && this.CurrentRunningTask().ActionType == ACTION_TYPE.None)
                                     {
                                         foreach (var tag in regitedButNotInNavigationTags)
                                         {

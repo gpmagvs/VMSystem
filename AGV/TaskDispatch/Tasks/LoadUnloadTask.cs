@@ -143,7 +143,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
 
-                await Task.Delay(500);
+                await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
                 if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
                 {

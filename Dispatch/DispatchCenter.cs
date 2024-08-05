@@ -33,14 +33,30 @@ namespace VMSystem.Dispatch
         private static Logger logger = LogManager.GetLogger("DispatchCenterLog");
         public static void Initialize()
         {
+            _LockCountMonitor();
             TrafficDeadLockMonitor.StartAsync();
             VehicleNavigationState.OnAGVStartWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleStartWaitConflicSolve;
             VehicleNavigationState.OnAGVNoWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleNoWaitConflicSolve;
+
+        }
+        private async static Task _LockCountMonitor()
+        {
+            while (true)
+            {
+                //int cnt1 = TrafficControlCenter._leaveWorkStaitonReqSemaphore.CurrentCount;
+                //if (cnt1 == 0)
+                //    Console.WriteLine($"Count of TrafficControlCenter._leaveWorkStaitonReqSemaphore = {cnt1}");
+                //int cnt2 = semaphore.CurrentCount;
+                //if (cnt2 == 0)
+                //    Console.WriteLine($"Count of TrafficControlCenter._leaveWorkStaitonReqSemaphore = {cnt2}");
+                await Task.Delay(100);
+            }
         }
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage)
         {
             try
             {
+                await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync();
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage);
@@ -53,6 +69,11 @@ namespace VMSystem.Dispatch
             }
             finally
             {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(200);
+                    TrafficControlCenter._leaveWorkStaitonReqSemaphore.Release();
+                });
                 await Task.Delay(10);
                 semaphore.Release();
             }

@@ -114,6 +114,17 @@ namespace VMSystem.TrafficControl
 
         private List<MapRectangle> _CreatePathOcuupyRegions(List<MapPoint> _nexNavPts, bool isUseForCalculate)
         {
+            bool istBackToMainPathFromEQ = false;
+
+            try
+            {
+                istBackToMainPathFromEQ = _nexNavPts.Last().StationType == MapPoint.STATION_TYPE.Normal && _nexNavPts.First().StationType != MapPoint.STATION_TYPE.Normal;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+
             var output = new List<MapRectangle>() { Vehicle.AGVRealTimeGeometery };
             if (RegionControlState.IsWaitingForEntryRegion)
                 return new List<MapRectangle> { Vehicle.AGVRealTimeGeometery };
@@ -137,6 +148,10 @@ namespace VMSystem.TrafficControl
             double _WidthExpandRatio = isAtWorkStation ? 0.8 : 1;
             var vWidth = Vehicle.options.VehicleWidth / 100.0 + (containNarrowPath ? 0.0 : 0);
             var vLength = Vehicle.options.VehicleLength / 100.0 + (containNarrowPath ? 0.0 : 0);
+            if (istBackToMainPathFromEQ)
+            {
+                vLength = vLength * 10000000;
+            }
             var vLengthExpanded = vLength * _GeometryExpandRatio;
 
             var rotationSquareLen = vLength * _GeoExpandParam.LengthExpandWhenRotation;

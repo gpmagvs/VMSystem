@@ -116,7 +116,7 @@ namespace VMSystem.Services
                 AlarmManagerCenter.AddAlarmAsync(response.AlarmCode, Equipment_Name: taskData.DesignatedAGVName, taskName: taskData.TaskName, level: ALARM_LEVEL.WARNING);
             }
             string agvname = taskData.DesignatedAGVName;
-            NotifyServiceHelper.INFO($"{agvname} {taskData.Action} Action Start Report To AGVS. Alarm Code Response={response.AlarmCode}");
+            //NotifyServiceHelper.INFO($"{agvname} {taskData.Action} Action Start Report To AGVS. Alarm Code Response={response.AlarmCode}");
             return response;
         }
     }

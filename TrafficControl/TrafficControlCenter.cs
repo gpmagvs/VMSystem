@@ -29,7 +29,7 @@ namespace VMSystem.TrafficControl
     public partial class TrafficControlCenter
     {
         public static List<clsWaitingInfo> AGVWaitingQueue = new List<clsWaitingInfo>();
-        private static SemaphoreSlim _leaveWorkStaitonReqSemaphore = new SemaphoreSlim(1, 1);
+        internal static SemaphoreSlim _leaveWorkStaitonReqSemaphore = new SemaphoreSlim(1, 1);
         internal static clsTrafficControlParameters TrafficControlParameters { get; set; } = new clsTrafficControlParameters();
         private static FileSystemWatcher TrafficControlParametersChangedWatcher;
 
@@ -117,12 +117,10 @@ namespace VMSystem.TrafficControl
 
             IAGV _RaiseReqAGV = args.Agv;
             Task _CycleStopTaskOfOtherVehicle = null;
-            var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
-
             try
             {
-                await Task.Delay(100);
-                //await _leaveWorkStaitonReqSemaphore.WaitAsync();
+                await _leaveWorkStaitonReqSemaphore.WaitAsync();
+                var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
                 string _waitMessage = "";
@@ -187,11 +185,49 @@ namespace VMSystem.TrafficControl
                     else
                     {
 
-                        NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可!");
+                        //NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可!");
                         var radius = _RaiseReqAGV.AGVRotaionGeometry.RotationRadius;
                         var forbidPoints = StaMap.Map.Points.Values.Where(pt => pt.CalculateDistance(entryPointOfWorkStation) <= radius);
                         List<MapPoint> _navingPointsForbid = new List<MapPoint>();
-                        _navingPointsForbid.AddRange(new List<MapPoint> { _RaiseReqAGV.currentMapPoint, entryPointOfWorkStation });
+                        _navingPointsForbid.Add(_RaiseReqAGV.currentMapPoint);
+                        _navingPointsForbid.Add(entryPointOfWorkStation);
+
+                        //計算AGV若抵達進入點，車體長度延伸1.2倍後，車體涵蓋範圍會與那些路徑重疊
+                        List<MapRectangle> agvConverRegions = Tools.GetPathRegionsWithRectangle(_navingPointsForbid, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength * 1.2 / 100.0);
+
+                        List<MapPath> intersectionPathes = StaMap.Map.Segments.Where(seg => IsIntersection(seg)).ToList();
+                        bool IsIntersection(MapPath seg)
+                        {
+                            MapPoint _startPt = StaMap.GetPointByIndex(seg.StartPtIndex);
+                            MapPoint _endPt = StaMap.GetPointByIndex(seg.EndPtIndex);
+                            if (_startPt.StationType != STATION_TYPE.Normal || _startPt.StationType != STATION_TYPE.Normal)
+                                return false;
+                            var _pathRectangle = Tools.GetPathRegionsWithRectangle(new List<MapPoint>() { _startPt, _endPt }, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength / 100.0);
+                            return _pathRectangle.Any(reg => reg.IsIntersectionTo(agvConverRegions.First()));
+                        }
+                        List<int> addictionRegistedTags = new List<int>();
+                        foreach (MapPath _path in intersectionPathes)
+                        {
+                            MapPoint _startPt = StaMap.GetPointByIndex(_path.StartPtIndex);
+                            MapPoint _endPt = StaMap.GetPointByIndex(_path.EndPtIndex);
+                            if (_startPt.StationType == STATION_TYPE.Normal)
+                            {
+
+                                bool registedResult1 = StaMap.RegistPoint(_RaiseReqAGV.Name, _startPt, out _);
+                                if (registedResult1)
+                                    addictionRegistedTags.Add(_startPt.TagNumber);
+                            }
+                            if (_endPt.StationType == STATION_TYPE.Normal)
+                            {
+                                bool registedResult2 = StaMap.RegistPoint(_RaiseReqAGV.Name, _endPt, out _);
+                                if (registedResult2)
+                                    addictionRegistedTags.Add(_endPt.TagNumber);
+                            }
+                        }
+
+                        addictionRegistedTags = addictionRegistedTags.Distinct().OrderBy(t => t).ToList();
+                        //log addictionRegistedTags
+                        NotifyServiceHelper.INFO($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可! 額外註冊點:{string.Join(",", addictionRegistedTags)}");
                         _RaiseReqAGV.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                         (_RaiseReqAGV.CurrentRunningTask() as LoadUnloadTask)?.UpdateEQActionMessageDisplay();
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
@@ -204,7 +240,6 @@ namespace VMSystem.TrafficControl
                 if (!_isAcceptAction)
                 {
                     _RaiseReqAGV.NavigationState.ResetNavigationPoints();
-                    await Task.Delay(200);
                 }
                 else if (_CycleStopTaskOfOtherVehicle != null)
                 {
@@ -220,7 +255,7 @@ namespace VMSystem.TrafficControl
             }
             finally
             {
-                //_leaveWorkStaitonReqSemaphore.Release();
+                _leaveWorkStaitonReqSemaphore.Release();
             }
 
             #region region method
