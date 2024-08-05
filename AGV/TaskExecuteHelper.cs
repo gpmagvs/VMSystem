@@ -317,6 +317,11 @@ namespace VMSystem.AGV
                 TimeStamp = DateTime.Now,
             };
             SimpleRequestResponse taskStateResponse = new SimpleRequestResponse();
+            if (Vehicle.simulationMode)
+            {
+                Vehicle.AgvSimulation.EMO();
+                return;
+            }
             if (CommunicationProtocol == AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 taskStateResponse = await Vehicle.AGVHttp.PostAsync<SimpleRequestResponse, clsCancelTaskCmd>($"/api/TaskDispatch/Cancel", reset_cmd);

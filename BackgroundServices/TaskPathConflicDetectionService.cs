@@ -1,4 +1,5 @@
 ﻿
+using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV;
@@ -44,7 +45,25 @@ namespace VMSystem.BackgroundServices
 
                         IEnumerable<IAGV> conflicVehicles = otherVehicles.Where(agv => agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
                                                                          .Where(agv => trajectoryRunning(agv).GetTagCollection().Intersect(trajectoryRunning(vehicle).GetTagCollection()).Any());
+                        IEnumerable<IAGV> conflicVehicles_BodyCollision = otherVehicles.Where(agv => vehicle.NavigationState.NextPathOccupyRegions.Count > 1)
+                                                                                       .Where(agv => vehicle.NavigationState.NextPathOccupyRegions.Any(reg => reg.IsIntersectionTo(agv.AGVRealTimeGeometery)));
+                        if (conflicVehicles_BodyCollision.Any())
+                        {
+                            if (conflicVehicles_BodyCollision.Any(v => vehicle.states.Coordination.CalculateDistance(v.states.Coordination) < 2))
+                            {
+                                vehicle.main_state = AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN;
+                                AlarmManagerCenter.AddAlarmAsync(ALARMS.Path_Conflic_But_Dispatched, Equipment_Name: vehicle.Name, location: vehicle.currentMapPoint.Graph.Display, taskName: vehicle.CurrentRunningTask().OrderData.TaskName, level: ALARM_LEVEL.ALARM);
+                                vehicle.TaskExecuter.EmergencyStop();
+                                await Task.Delay(1000);
+                            }
+                            else
+                            {
+                                AlarmManagerCenter.AddAlarmAsync(ALARMS.Path_Conflic_But_Dispatched, Equipment_Name: vehicle.Name, location: vehicle.currentMapPoint.Graph.Display, taskName: vehicle.CurrentRunningTask().OrderData.TaskName, level: ALARM_LEVEL.WARNING);
+                                vehicle.CurrentRunningTask().CycleStopRequestAsync();
+                                await Task.Delay(1000);
+                            }
 
+                        }
                         if (conflicVehicles.Any())
                         {
                             if (vehicle.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
