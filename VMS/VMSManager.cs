@@ -702,7 +702,12 @@ namespace VMSystem.VMS
                 {
                     using (AGVSDatabase db = new AGVSDatabase())
                     {
-                        db.tables.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk => tk.State = TASK_RUN_STATUS.CANCEL);
+                        db.tables.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk =>
+                        {
+                            tk.FinishTime = DateTime.Now;
+                            tk.FailureReason = reason;
+                            tk.State = TASK_RUN_STATUS.CANCEL;
+                        });
                         await db.SaveChanges();
                     }
                     return true;

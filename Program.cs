@@ -65,6 +65,7 @@ try
     builder.Services.AddHostedService<FrontEndDataCollectionBackgroundService>();
     builder.Services.AddHostedService<EquipmentScopeBackgroundService>();
     builder.Services.AddHostedService<TaskPathConflicDetectionService>();
+    builder.Services.AddHostedService<OrderStateMonitorBackgroundService>();
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
