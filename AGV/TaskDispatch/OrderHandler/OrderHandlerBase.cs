@@ -331,6 +331,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                      Agv.currentMapPoint.Graph.Display
                 });
+                PartsAGVSHelper.RegistStationRequestToAGVS(new List<string>()
+                {
+                    Agv.currentMapPoint.Graph.Display
+                });
             }
 
         }

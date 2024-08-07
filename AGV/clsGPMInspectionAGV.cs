@@ -21,11 +21,29 @@ namespace VMSystem.AGV
                     base.online_state = value;
                     Task.Run(async () =>
                     {
-                        bool registedSuccess = false;
-                        base.logger.Info($"Try Unregist Regions To Parts System when Online State Changed to {value}");
-                        while (!(registedSuccess = await TrafficControl.PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>() { this.currentMapPoint.Graph.Display })))
+                        CancellationTokenSource cts = new CancellationTokenSource();
+                        cts.CancelAfter(TimeSpan.FromSeconds(5));
+                        if (value == ONLINE_STATE.OFFLINE)
                         {
-                            await Task.Delay(1000);
+                            bool unRegistedSuccess = false;
+                            base.logger.Info($"Try Unregist Regions To Parts System when Online State Changed to {value}");
+                            while (!(unRegistedSuccess = await TrafficControl.PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>() { this.currentMapPoint.Graph.Display })))
+                            {
+                                if (cts.IsCancellationRequested)
+                                    break;
+                                await Task.Delay(1000);
+                            }
+                        }
+                        else
+                        {
+                            (bool confirm, string message, string responseJson) result = (false, "", "");
+                            while (!result.confirm)
+                            {
+                                result = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(new List<string> { this.currentMapPoint.Graph.Display });
+                                if (cts.IsCancellationRequested)
+                                    break;
+                                await Task.Delay(1000);
+                            }
                         }
                     });
                 }

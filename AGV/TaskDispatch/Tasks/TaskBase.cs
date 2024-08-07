@@ -279,6 +279,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 while (!parts_accept.confirm)
                 {
+                    if (IsTaskCanceled)
+                    {
+                        throw new TaskCanceledException();
+                    }
+                    if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                    {
+                        throw new AGVStatusDownException();
+                    }
                     if (stopwatch.Elapsed.TotalSeconds > 180)
                     {
                         TrafficWaitingState.SetStatusNoWaiting();
