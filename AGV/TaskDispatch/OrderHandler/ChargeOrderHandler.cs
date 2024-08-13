@@ -1,6 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 using static SQLite.SQLite3;
@@ -44,9 +46,23 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private bool IsChargeStationUsableCheck(IAGV Agv)
         {
             int chargeStationTag = OrderData.To_Station_Tag;
+            MapPoint _mapPoint = StaMap.GetPointByTagNumber(chargeStationTag);
+
             var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(Agv);
-            bool _isAnyVehicleGoToStation = otherAGVList.Any(agv => agv.CurrentRunningTask().OrderData?.To_Station_Tag == chargeStationTag);
-            bool _isAnyVehicleAtStation = otherAGVList.Any(agv => agv.currentMapPoint.TagNumber == chargeStationTag);
+            List<IAGV> gotoSameStationVehicles = otherAGVList.Where(agv => agv.CurrentRunningTask().OrderData?.To_Station_Tag == chargeStationTag).ToList();
+            bool _isAnyVehicleGoToStation = gotoSameStationVehicles.Any();
+            List<IAGV> alreadyAtSameChargeStationVehicles = otherAGVList.Where(agv => agv.currentMapPoint.TagNumber == chargeStationTag).ToList();
+            bool _isAnyVehicleAtStation = alreadyAtSameChargeStationVehicles.Any();
+
+            if (_isAnyVehicleGoToStation)
+            {
+                logger.Warn($"{gotoSameStationVehicles.GetNames()} already has task go to charge station [{_mapPoint.Graph.Display}]");
+            }
+            if (_isAnyVehicleAtStation)
+            {
+                logger.Warn($"{alreadyAtSameChargeStationVehicles.GetNames()} already at charge station [{_mapPoint.Graph.Display}]");
+            }
+
             return !_isAnyVehicleGoToStation && !_isAnyVehicleAtStation;
         }
     }
