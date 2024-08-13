@@ -1,24 +1,11 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.HttpTools;
-using AGVSystemCommonNet6.MAP;
-using Newtonsoft.Json;
-using System.IO.Compression;
 using AGVSystemCommonNet6.Configuration;
-using System.Xml.Linq;
-using Newtonsoft.Json.Linq;
-using System;
-using VMSystem.TrafficControl;
-using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Notify;
+using NLog;
 using VMSystem.AGV;
 using VMSystem.VMS;
-using AGVSystemCommonNet6.Log;
-using System.Diagnostics.Eventing.Reader;
-using System.Runtime.InteropServices;
-using System.Runtime;
-using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using AGVSystemCommonNet6.MAP.Geometry;
-using NLog;
-using AGVSystemCommonNet6.Notify;
 
 namespace VMSystem
 {
@@ -51,7 +38,6 @@ namespace VMSystem
         public static event EventHandler<List<MapPoint>> OnPointsDisabled;
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private static SemaphoreSlim _DisablePtChangeDectectProcSemaphore = new SemaphoreSlim(1, 1);
-
         public static void Download()
         {
             var _oriPoints = Map?.Points.Values.Clone().ToList();
@@ -250,7 +236,7 @@ namespace VMSystem
                     mapPoint.RegistInfo = new clsPointRegistInfo("System");
                     RegistDictionary.Remove(TagNumber, out clsPointRegistInfo _info);
                     RegistDictionary.Add(TagNumber, mapPoint.RegistInfo);
-                    //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                    //logger.Trace($"{Name} Regist Tag {TagNumber}");
                     return true;
                 }
                 if (RegistDictionary.ContainsKey(TagNumber))
@@ -260,15 +246,15 @@ namespace VMSystem
                     if (_success)
                     {
 
-                        //LOG.TRACE($"{RegistDictionary.ToJson()}");
+                        //logger.Trace($"{RegistDictionary.ToJson()}");
 
                         //TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
-                        //LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                        //logger.Trace($"{Name} Regist Tag {TagNumber}");
                     }
                     else
                     {
                         error_message = $"Tag {TagNumber} is registed by [{registerName}]";
-                        //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
+                        //logger.Trace($"{Name} Regist Tag {TagNumber} Fail:{error_message}");
 
                     }
                     return _success;
@@ -279,13 +265,13 @@ namespace VMSystem
                     bool registSuccess = RegistDictionary.TryAdd(TagNumber, mapPoint.RegistInfo);
                     if (registSuccess)
                     {
-                        LOG.TRACE($"{Name} Regist Tag {TagNumber}");
+                        logger.Trace($"{Name} Regist Tag {TagNumber}");
                         //if (registNearPoints)
                         //    RegistNearPoints(Name, mapPoint);
                     }
                     else
                     {
-                        //LOG.TRACE($"{Name} Regist Tag {TagNumber} Fail");
+                        //logger.Trace($"{Name} Regist Tag {TagNumber} Fail");
                     }
                     return registSuccess;
                 }
@@ -330,7 +316,7 @@ namespace VMSystem
                 {
                     RegistDictionary.Remove(TagNumber, out var _);
                     mapPoint.RegistInfo = new clsPointRegistInfo();
-                    LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                    logger.Trace($"{Name} UnRegist Tag {TagNumber}");
                     return (true, "");
                 }
                 if (RegistDictionary.ContainsKey(TagNumber))
@@ -339,7 +325,7 @@ namespace VMSystem
                     //if (mapPt != null && mapPt.GetCircleArea(ref agv, 0.5).IsIntersectionTo(agv.AGVRotaionGeometry))
                     //{
                     //    var msg = $"Too Near Point cannot unregist-{Name}";
-                    //    LOG.TRACE(msg);
+                    //    logger.Trace(msg);
                     //    return (false, msg);
                     //}
 
@@ -354,7 +340,7 @@ namespace VMSystem
                         RegistDictionary.Remove(TagNumber, out var _);
                         OnTagUnregisted?.Invoke("", TagNumber);
                         TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
-                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                        logger.Trace($"{Name} UnRegist Tag {TagNumber}");
 
                         //var nearRegistedPoints = RegistDictionary.Where(pair => pair.Value.NearRegistInfo.RegistByPointTag == TagNumber).Select(p => p.Key);
 
@@ -370,7 +356,7 @@ namespace VMSystem
                     else
                     {
                         error_message = $"Tag {TagNumber} cannont be unregisted because it registed by [{registerName}]";
-                        LOG.TRACE($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
+                        logger.Trace($"{Name} UnRegist Tag {TagNumber} Fail: {error_message}");
                     }
 
                     return (allow_remove, error_message);
@@ -378,14 +364,14 @@ namespace VMSystem
                 else
                 {
                     OnTagUnregisted?.Invoke("", TagNumber);
-                    //LOG.TRACE($"{Name} UnRegist Tag {TagNumber}");
+                    //logger.Trace($"{Name} UnRegist Tag {TagNumber}");
                     return (true, "");
                 }
             }
             catch (Exception ex)
             {
                 var error_message = ex.Message;
-                LOG.WARN($"{Name} UnRegist Tag {TagNumber} Fail : {error_message}");
+                logger.Warn($"{Name} UnRegist Tag {TagNumber} Fail : {error_message}");
                 return (false, error_message);
             }
             finally
@@ -469,7 +455,7 @@ namespace VMSystem
             }
             catch (Exception ex)
             {
-                LOG.Critical(ex);
+                logger.Fatal(ex);
                 return false;
             }
         }
