@@ -50,6 +50,10 @@ namespace VMSystem.TrafficControl
             /// 等待因設備零件更換而無法通行的點位之等待時間上限 ,Unit:sec
             /// </summary>
             public int TimeoutWhenWaitPtPassableByEqPartReplacing { get; set; } = 30;
+            /// <summary>
+            /// 背景監視碰撞發生 
+            /// </summary>
+            public bool PathConflicBackgroundMonitor { get; set; } = true;
         }
         public class clsVehicleGeometryExpand
         {

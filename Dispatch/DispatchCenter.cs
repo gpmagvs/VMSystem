@@ -33,7 +33,7 @@ namespace VMSystem.Dispatch
         private static Logger logger = LogManager.GetLogger("DispatchCenterLog");
         public static void Initialize()
         {
-            _LockCountMonitor();
+            //_LockCountMonitor();
             TrafficDeadLockMonitor.StartAsync();
             VehicleNavigationState.OnAGVStartWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleStartWaitConflicSolve;
             VehicleNavigationState.OnAGVNoWaitConflicSolve += TrafficDeadLockMonitor.HandleVehicleNoWaitConflicSolve;

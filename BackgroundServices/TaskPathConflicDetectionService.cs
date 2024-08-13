@@ -25,6 +25,9 @@ namespace VMSystem.BackgroundServices
                 {
                     await Task.Delay(1);
 
+                    if (!TrafficControlCenter.TrafficControlParameters.Navigation.PathConflicBackgroundMonitor)
+                        continue;
+
                     //監視每一台車當前的軌跡，若有軌跡衝突則進行處理
                     foreach (var vehicle in VMSManager.AllAGV)
                     {
