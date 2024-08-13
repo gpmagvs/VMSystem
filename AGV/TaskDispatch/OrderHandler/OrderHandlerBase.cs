@@ -35,6 +35,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public bool TaskCancelledFlag { get; private set; } = false;
         public bool TaskAbortedFlag { get; private set; } = false;
 
+        public ALARMS AlarmWhenTaskAborted;
+
         public bool TrafficControlling { get; private set; } = false;
         public string TaskCancelReason { get; private set; } = "";
         public string TaskAbortReason { get; private set; } = "";
@@ -91,8 +93,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                                 }
                                 return;
                             }
-                            AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
-                            throw new Exception($"ALARM CODE:{dispatch_result.alarm_code}; message:{dispatch_result.message}");
+                            throw new VMSException()
+                            {
+                                Alarm_Code = dispatch_result.alarm_code
+                            };
+                            //AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
                         }
 
                         task.Dispose();
@@ -123,6 +128,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
                         LoadingAtTransferStationTaskFinishInvoke();
                     }
+                }
+                catch (VMSException ex)
+                {
+                    logger.Error(ex);
+                    _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
+                    ActionsWhenOrderCancle();
+                    RunningTask.Dispose();
+                    return;
                 }
                 catch (VMSExceptionAbstract ex)
                 {
@@ -162,7 +175,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         TaskCancelledFlag = false;
                         logger.Warn($"Task Aborted!.{TaskCancelReason}");
-                        _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? ALARMS.Task_Aborted : ALARMS.AGV_STATUS_DOWN);
+                        _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? AlarmWhenTaskAborted : ALARMS.AGV_STATUS_DOWN);
                         ActionsWhenOrderCancle();
                         isTaskFail = true;
                         await AbortOrder(Agv.states.Alarm_Code);
@@ -198,7 +211,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
             try
             {
-                logger.Info($"{RunningTask.Agv.Name} 任務回報 => {feedbackData.ToJson()}");
+                logger.Info($"{Agv.Name} 任務回報 => {feedbackData.ToJson()}");
                 _ = Task.Run(async () =>
                 {
                     if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
@@ -271,13 +284,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         internal async Task AbortOrder(ALARMS agvsAlarm)
         {
-            AGVSystemCommonNet6.Alarm.clsAlarmDto _alarmDto = await AlarmManagerCenter.AddAlarmAsync(agvsAlarm);
+            AlarmWhenTaskAborted = agvsAlarm;
             TaskAbortedFlag = true;
-            TaskAbortReason = _alarmDto.Description;
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
-
-
         }
         internal async Task AbortOrder(AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] alarm_Code)
         {
@@ -344,12 +354,24 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
+                clsAlarmDto alarmDto = new clsAlarmDto();
+                try
+                {
+                    if (alarm != ALARMS.AGV_STATUS_DOWN)
+                    {
+                        alarmDto = await AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv?.currentMapPoint.Graph.Display, Equipment_Name: Agv?.Name, taskName: OrderData.TaskName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Fatal(ex);
+                }
 
                 RunningTask.CancelTask();
                 UnRegistPoints();
                 OrderData.State = TASK_RUN_STATUS.FAILURE;
                 OrderData.FinishTime = DateTime.Now;
-                OrderData.FailureReason = FailReason;
+                OrderData.FailureReason = $"[{alarmDto.AlarmCode}] {alarmDto.Description_Zh}({alarmDto.Description_En})";
 
                 if (alarm == ALARMS.AGV_STATUS_DOWN)
                 {
@@ -362,15 +384,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (v.confirm == false)
                     LOG.WARN($"{v.message}");
 
-                try
-                {
-                    if (alarm != ALARMS.AGV_STATUS_DOWN)
-                        AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
-                }
-                catch (Exception ex)
-                {
-                    logger.Fatal(ex);
-                }
 
                 if (OrderData.Action == ACTION_TYPE.Carry)
                 {
