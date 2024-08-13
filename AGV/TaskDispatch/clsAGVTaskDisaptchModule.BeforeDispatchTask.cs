@@ -21,13 +21,14 @@ namespace VMSystem.AGV
     {
 
         private static SemaphoreSlim autoSearchSemaphoreSlim = new SemaphoreSlim(1, 1);
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="_ExecutingTask"></param>
         /// <param name="alarm_code"></param>
         /// <returns></returns>
-        private async Task<(bool confrim, ALARMS alarm_code)> CheckTaskOrderContentAndTryFindBestWorkStation(clsTaskDto _ExecutingTask)
+        public async Task<(bool confrim, ALARMS alarm_code)> CheckTaskOrderContentAndTryFindBestWorkStation(clsTaskDto _ExecutingTask)
         {
             if (!IsTaskContentCorrectCheck(_ExecutingTask, out int tag, out var _alarm_code))
                 return (false, _alarm_code);

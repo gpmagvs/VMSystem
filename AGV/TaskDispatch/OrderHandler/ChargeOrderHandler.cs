@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
@@ -21,12 +22,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public override async Task StartOrder(IAGV Agv)
         {
 
-            if (!IsChargeStationUsableCheck(Agv))
-            {
-                _SetOrderAsFaiiureState("ChargeOrder Start Fail, Reason:  Destine Charge Station Can't Use", AGVSystemCommonNet6.Alarm.ALARMS.Destine_Charge_Station_Has_AGV);
-                return;
-            }
-
             if (Agv.model != AGV_TYPE.SUBMERGED_SHIELD)
             {
                 if (Agv.states.Cargo_Status != 0)
@@ -40,11 +35,30 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     return;
                 }
             }
+            if (!IsChargeStationUsableCheck(Agv, out string errMsg))
+            {
+                AlarmManagerCenter.AddAlarmAsync(ALARMS.Destine_Charge_Station_Has_AGV, Equipment_Name: Agv.Name, location: OrderData.To_Station, taskName: OrderData.TaskName, level: ALARM_LEVEL.WARNING);
+                int oriTag = OrderData.To_Station_Tag;
+                OrderData.To_Station = "-1";
+                (bool confirm, ALARMS alarm_code) = await Agv.taskDispatchModule.CheckTaskOrderContentAndTryFindBestWorkStation(OrderData);
+                if (confirm)
+                {
+                    logger.Trace($"Try change charge station to go (From Tag {oriTag}->{OrderData.To_Station_Tag})");
+                }
+                else
+                {
+                    _SetOrderAsFaiiureState(errMsg, AGVSystemCommonNet6.Alarm.ALARMS.Destine_Charge_Station_Has_AGV);
+                    return;
+                }
+
+                //return;
+            }
             await base.StartOrder(Agv);
         }
 
-        private bool IsChargeStationUsableCheck(IAGV Agv)
+        private bool IsChargeStationUsableCheck(IAGV Agv, out string message)
         {
+            message = "";
             int chargeStationTag = OrderData.To_Station_Tag;
             MapPoint _mapPoint = StaMap.GetPointByTagNumber(chargeStationTag);
 
@@ -56,13 +70,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (_isAnyVehicleGoToStation)
             {
-                logger.Warn($"{gotoSameStationVehicles.GetNames()} already has task go to charge station [{_mapPoint.Graph.Display}]");
+                message = $"{gotoSameStationVehicles.GetNames()} already has task go to charge station [{_mapPoint.Graph.Display}]";
+                logger.Warn(message);
             }
             if (_isAnyVehicleAtStation)
             {
-                logger.Warn($"{alreadyAtSameChargeStationVehicles.GetNames()} already at charge station [{_mapPoint.Graph.Display}]");
+                message = $"{alreadyAtSameChargeStationVehicles.GetNames()} already at charge station [{_mapPoint.Graph.Display}]";
+                logger.Warn(message);
             }
-
             return !_isAnyVehicleGoToStation && !_isAnyVehicleAtStation;
         }
     }

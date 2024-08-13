@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.MAP;
 using System.Text.Json.Serialization;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
@@ -32,6 +33,8 @@ namespace VMSystem.AGV.TaskDispatch
 
         public void TryAppendTasksToQueue(List<clsTaskDto> tasksCollection);
         void AsyncTaskQueueFromDatabase();
+
+        Task<(bool confrim, ALARMS alarm_code)> CheckTaskOrderContentAndTryFindBestWorkStation(clsTaskDto _ExecutingTask);
     }
 
     public class clsWaitingInfo
