@@ -363,7 +363,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 try
                 {
-                    AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
+                    if (alarm != ALARMS.AGV_STATUS_DOWN)
+                        AlarmManagerCenter.AddAlarmAsync(alarm, level: ALARM_LEVEL.ALARM, location: Agv.currentMapPoint.Graph.Display, Equipment_Name: Agv.Name, taskName: OrderData.TaskName);
                 }
                 catch (Exception ex)
                 {
@@ -377,8 +378,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     var orderFailureNotify = new
                     {
                         classify = "carry-order-failure",
-                        message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {FailReason}",
-                        message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {FailReason}",
+                        message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {OrderData.FailureReason}",
+                        message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {OrderData.FailureReason}",
                     };
                     NotifyServiceHelper.ERROR(orderFailureNotify.ToJson(Newtonsoft.Json.Formatting.None));
                 }
