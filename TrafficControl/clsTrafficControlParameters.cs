@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.Configuration;
+using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.TrafficControl
 {
@@ -46,6 +47,14 @@ namespace VMSystem.TrafficControl
 
         public class clsNavigationConfigs
         {
+            public Dictionary<string, string> Notes { get; set; } = new Dictionary<string, string>
+            {
+                { "PathPlanAlgorithm","0:Dijsktral, 1:DFS" }
+            };
+            /// <summary>
+            /// 路徑規劃演算法(0:Dijsktral, 1:DFS)
+            /// </summary>
+            public PathFinderOption.ALGORITHM PathPlanAlgorithm { get; set; } = PathFinderOption.ALGORITHM.DFS;
             /// <summary>
             /// 等待因設備零件更換而無法通行的點位之等待時間上限 ,Unit:sec
             /// </summary>

@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.MAP;
+using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -20,13 +21,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             public static IEnumerable<MapPoint> GetOptimizedMapPoints(MapPoint StartPoint, MapPoint GoalPoint, IEnumerable<MapPoint>? constrains, double VehicleCurrentAngle = double.MaxValue)
             {
                 PathFinder _pathFinder = new PathFinder();
+                var algorithm = TrafficControlCenter.TrafficControlParameters.Navigation.PathPlanAlgorithm;
+
                 clsPathInfo _pathInfo = _pathFinder.FindShortestPath(_Map, StartPoint, GoalPoint, new PathFinderOption
                 {
                     OnlyNormalPoint = true,
                     ConstrainTags = constrains == null ? new List<int>() : constrains.GetTagCollection().ToList(),
                     Strategy = PathFinderOption.STRATEGY.MINIMAL_ROTATION_ANGLE,
                     VehicleCurrentAngle = VehicleCurrentAngle,
-                    Algorithm = PathFinderOption.ALGORITHM.DFS
+                    Algorithm = algorithm
                 });
 
                 if (_pathInfo == null || !_pathInfo.stations.Any())
