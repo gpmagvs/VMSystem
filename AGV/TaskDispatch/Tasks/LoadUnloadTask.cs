@@ -165,9 +165,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <exception cref="NotImplementedException"></exception>
         private async Task TryRotationToAvoidAngle()
         {
-
-
-
             void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
             {
                 Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
@@ -190,12 +187,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Trajectory = trajectory
                 };
 
-                SpinOnPointDetection spinDetection = new SpinOnPointDetection(Agv.currentMapPoint, avoidTheta, Agv);
-                clsConflicDetectResultWrapper _resultWarp = spinDetection.Detect();
-
-                if (_resultWarp.Result != DETECTION_RESULT.OK)
+                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.AGVRealTimeGeometery))
+                                                     .ToList();
+                if (bodyOverlapingVehicles.Any())
                 {
-                    logger.Info($"Wait Spin To Avoid Theta Allow..\r\n{_resultWarp.Message}");
+                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
                     NotifyServiceHelper.INFO($"{Agv.Name} 退出設備後轉向避車角度不允許，如路徑衝突將進入正常避車流程，");
                     return;
                 }
