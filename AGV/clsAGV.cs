@@ -18,6 +18,7 @@ using AGVSystemCommonNet6.StopRegion;
 using NLog;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
+using System.Runtime.CompilerServices;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
@@ -48,6 +49,21 @@ namespace VMSystem.AGV
             logger.Info($"AGV {name} Create. MODEL={model} ");
             NavigationState.logger = logger;
             NavigationState.Vehicle = this;
+
+            if (options.Simulation)
+            {
+                online_state = ONLINE_STATE.ONLINE;
+                TagSetup();
+            }
+        }
+
+        private void TagSetup()
+        {
+            Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                AgvSimulation.SetTag(options.InitTag);
+            });
         }
 
         public VehicleNavigationState NavigationState { get; set; } = new VehicleNavigationState();

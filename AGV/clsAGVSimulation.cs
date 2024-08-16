@@ -646,5 +646,13 @@ namespace VMSystem.AGV
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
+
+        internal void SetTag(int tag)
+        {
+            agv.AgvSimulation.runningSTatus.Last_Visited_Node = tag;
+            var _mapPoint = StaMap.GetPointByTagNumber(tag);
+            agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
+            agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+        }
     }
 }

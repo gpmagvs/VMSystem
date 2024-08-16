@@ -146,6 +146,8 @@ namespace VMSystem.VMS
 
         private static clsAGVOptions CreateOptions(clsAGVStateDto agvDto)
         {
+            int previousTag = 0;
+            int.TryParse(agvDto.CurrentLocation, out previousTag);
             return new clsAGVOptions
             {
                 Enabled = agvDto.Enabled,
@@ -155,7 +157,7 @@ namespace VMSystem.VMS
                 VehicleLength = agvDto.VehicleLength,
                 Simulation = agvDto.Simulation,
                 Protocol = agvDto.Protocol,
-                InitTag = agvDto.InitTag,
+                InitTag = previousTag,
                 BatteryOptions = new clsBatteryOptions
                 {
                     LowLevel = agvDto.LowBatLvThreshold,
