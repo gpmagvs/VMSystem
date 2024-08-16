@@ -30,8 +30,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapPointToTaskPoint(destinMapPoint,index:1)
             };
             MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { AGVCurrentMapPoint.TagNumber, destinMapPoint.TagNumber }, null, false);
-
-
         }
         public override async Task SendTaskToAGV()
         {
@@ -60,7 +58,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-
+                logger.Fatal(ex.Message + ex.StackTrace);
                 throw ex;
             }
         }
@@ -90,17 +88,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         private async Task WaitLeaveWorkStationAllowable(clsLeaveFromWorkStationConfirmEventArg args)
         {
-            clsLeaveFromWorkStationConfirmEventArg result = new clsLeaveFromWorkStationConfirmEventArg();
-            while ((result = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(args)).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+            try
             {
-                TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), result.Message);
-                await Task.Delay(1000);
-                if (IsTaskCanceled || disposedValue || args.Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+
+                clsLeaveFromWorkStationConfirmEventArg result = new clsLeaveFromWorkStationConfirmEventArg();
+                while ((result = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(args)).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
                 {
-                    throw new TaskCanceledException();
+                    TrafficWaitingState.SetStatusWaitingConflictPointRelease(new List<int>(), result.Message);
+                    await Task.Delay(1000);
+                    if (IsTaskCanceled || disposedValue || args.Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    {
+                        throw new TaskCanceledException();
+                    }
                 }
+                TrafficWaitingState.SetStatusNoWaiting();
             }
-            TrafficWaitingState.SetStatusNoWaiting();
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
+                logger.Error(ex.Message + ex.StackTrace);
+                throw ex;
+            }
 
         }
 

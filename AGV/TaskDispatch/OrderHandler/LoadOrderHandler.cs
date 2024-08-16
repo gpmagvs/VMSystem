@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Microservices.ResponseModel;
 using static SQLite.SQLite3;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using RosSharp.RosBridgeClient.MessageTypes.Geometry;
+using AGVSystemCommonNet6;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -89,7 +90,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
-            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+                    logger.Info("LoadOrderHandler-ActionsWhenOrderCancle :" + response.ToJson());
+                }
+                catch (Exception ex)
+                {
+                    logger.Fatal(ex);
+                    throw ex;
+
+                }
+            });
 
         }
 

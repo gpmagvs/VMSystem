@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.AGVDispatch;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Log;
@@ -117,8 +118,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         protected override async void ActionsWhenOrderCancle()
         {
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
-            await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload, Agv.Name);
+            try
+            {
+                clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+                logger.Info(response1.ToJson());
+                clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.From_Station_Tag, ACTION_TYPE.Unload, Agv.Name);
+                logger.Info(response2.ToJson());
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
     }
 

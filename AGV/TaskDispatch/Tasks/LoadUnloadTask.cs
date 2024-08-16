@@ -87,6 +87,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
                 Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
+
                 UpdateEQActionMessageDisplay();
                 ChangeWorkStationMoveStateBackwarding();
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
@@ -97,6 +98,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (AgvStatusDownFlag)
                     return;
                 await WaitAGVTaskDone();
+                logger.Info("LUDLD Action End.");
                 await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(EQPoint.TagNumber, ActionType, Agv.Name);
 
             }
@@ -110,12 +112,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 //                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
                 //                                                     .Any();
 
-                bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                                                                     .Any();
-
-                if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
+                try
                 {
-                    await TryRotationToAvoidAngle();
+
+                    bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                                                                         .Any();
+
+                    if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
+                    {
+                        await TryRotationToAvoidAngle();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
                 }
                 InvokeTaskDoneEvent();
             }
