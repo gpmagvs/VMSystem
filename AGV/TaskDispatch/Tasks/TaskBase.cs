@@ -163,10 +163,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
                 await SendTaskToAGV();
-                if (IsTaskCanceled)
-                    return (false, ALARMS.Task_Canceled, "TASK CANCELED");
-                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                     return (false, ALARMS.AGV_STATUS_DOWN, "AGV STATUS DOWN");
+                else if (IsTaskCanceled)
+                    return (false, ALARMS.Task_Canceled, "TASK CANCELED");
 
                 return (true, ALARMS.NONE, "");
             }

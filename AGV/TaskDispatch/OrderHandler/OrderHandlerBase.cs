@@ -83,16 +83,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
-                            if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
-                            {
-                                TaskCancelledFlag = true;
-                                bool isTaskFail = await DetermineTaskState();
-                                if (isTaskFail)
-                                {
-                                    return;
-                                }
-                                return;
-                            }
+                            //if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
+                            //{
+                            //    TaskCancelledFlag = true;
+                            //    bool isTaskFail = await DetermineTaskState();
+                            //    if (isTaskFail)
+                            //    {
+                            //        return;
+                            //    }
+                            //    return;
+                            //}
                             throw new VMSException()
                             {
                                 Alarm_Code = dispatch_result.alarm_code
@@ -373,7 +373,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 OrderData.FinishTime = DateTime.Now;
                 OrderData.FailureReason = $"[{alarmDto.AlarmCode}] {alarmDto.Description_Zh}({alarmDto.Description_En})";
 
-                if (alarm == ALARMS.AGV_STATUS_DOWN)
+                if (alarm == ALARMS.AGV_STATUS_DOWN || Agv.main_state == MAIN_STATUS.DOWN)
                 {
                     var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
                     OrderData.FailureReason = agvAlarmsDescription;
