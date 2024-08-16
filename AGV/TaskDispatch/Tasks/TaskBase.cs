@@ -22,6 +22,7 @@ using static AGVSystemCommonNet6.Microservices.VMS.clsAGVOptions;
 using static SQLite.SQLite3;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
+using AGVSystemCommonNet6.Configuration;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -469,14 +470,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         result.alarmCode = ALARMS.UNLOAD_BUT_AGV_NO_CARGO_MOUNTED;
                         result.continuetask = false;
                     }
-                    else if (idmatch == MaterialIDStatus.NG)
+                    else if (idmatch == MaterialIDStatus.NG && AGVSConfigulator.SysConfigs.EQManagementConfigs.TransferToNGPortWhenCarrierIDMissmatch)
                     {
                         try
                         {
-                            Task<(bool confirm, string message, object obj)> r = AGVSSerivces.GetNGPort();
-                            r.Wait();
-                            clsTransferMaterial ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(r.Result.obj.ToString());
-                            //clsTransferMaterial ngport = (clsTransferMaterial)r.Result.obj;
+                            (bool confirm, string message, object ngPortObject) = AGVSSerivces.GetNGPort().GetAwaiter().GetResult();
+                            clsTransferMaterial ngport = null;
+                            try
+                            {
+                                ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(ngPortObject.ToString());
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex);
+                            }
                             if (ngport != null)
                             {
                                 OrderData.To_Station = ngport.TargetTag.ToString();
@@ -490,7 +497,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 CancelTask();
                                 result.errorMsg = "No NG port can use";
                                 result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
-                                //AlarmManagerCenter.AddAlarmAsync(,);
                                 result.continuetask = false;
                             }
                         }
@@ -500,7 +506,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             result.alarmCode = ALARMS.SYSTEM_ERROR;
                             CancelTask();
                             result.errorMsg = $"No NG port can use:{ex.Message}";
-                            //AlarmManagerCenter.AddAlarmAsync(,ALARM_LEVEL.WARNING);
                             result.continuetask = false;
                         }
                     }
