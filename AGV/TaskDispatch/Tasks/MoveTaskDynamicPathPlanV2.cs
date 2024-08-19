@@ -342,7 +342,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (IsPathContainPartsReplacingPt(nextPath, out currentNonPassableByEQPartsReplacing))
                         {
-                            logger.Trace($"{currentNonPassableByEQPartsReplacing.Graph.Display} Not passable checkout because eq parts replacing. before. Pause Navigation");
+                            MapPoint EQPoint = currentNonPassableByEQPartsReplacing.TargetWorkSTationsPoints().FirstOrDefault();
+                            bool isChangePathAllowed = false;
+                            logger.Trace($"{Agv.Name} 開始等待 {EQPoint?.Graph.Display}完成紙捲更換. Tag {currentNonPassableByEQPartsReplacing.TagNumber}尚無法可通行");
 
                             DispatchCenter.OnPtPassableBecausePartsReplaceFinish += EQFinishPartsReplacedHandler;
 
@@ -351,8 +353,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 waitCanPassPtPassableCancle = new CancellationTokenSource();
                                 int _waitTimeout = TrafficControlCenter.TrafficControlParameters.Navigation.TimeoutWhenWaitPtPassableByEqPartReplacing;
-                                logger.Info($"{Agv.Name} 開始等待 {currentNonPassableByEQPartsReplacing.TagNumber}可通行({_waitTimeout}s)");
-                                TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
+                                logger.Info($"{Agv.Name} 因等待的設備非終點設備， 開始等待倒數 {_waitTimeout}s,若 {EQPoint?.Graph.Display} 紙捲仍未完成更換則進行繞路"); TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
                                 waitCanPassPtPassableCancle.CancelAfter(ts);
                                 _ = Task.Run(async () =>
                                 {
@@ -364,7 +365,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                             await Task.Delay(1000, waitCanPassPtPassableCancle.Token);
                                             if (!NavigationPausing)
                                                 return;
-                                            UpdateStateDisplayMessage(PauseNavigationReason + $"({sw.Elapsed.ToString(@"mm\:ss")}/{ts.ToString(@"mm\:ss")})");
+                                            UpdateStateDisplayMessage(PauseNavigationReason + $"\r\n({sw.Elapsed.ToString(@"mm\:ss")}/{ts.ToString(@"mm\:ss")})");
                                         }
                                     }
                                     catch (TaskCanceledException ex)
@@ -380,6 +381,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                             logger.Info($"{Agv.Name} Wait {currentNonPassableByEQPartsReplacing.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行!");
                                             Agv.NavigationState.LastWaitingForPassableTimeoutPt = currentNonPassableByEQPartsReplacing;
                                             NavigationResume(isResumeByWaitTimeout: true);
+                                            isChangePathAllowed = true;
                                         }
                                         else
                                         {
@@ -389,7 +391,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     }
                                 });
                             }
-                            NavigationPause(isPauseWhenNavigating: false, $"Wait Point-({currentNonPassableByEQPartsReplacing.Graph.Display}) Passable When EQ Parts Replacing Finish.\n[Before Navigation Path Download]");
+
+                            string pauseMsg = $"等待設備[{EQPoint?.Graph.Display}]完成紙捲更換...\r\n(Wait [{EQPoint?.Graph.Display}] Paper roller replace finish...)";
+                            NavigationPause(isPauseWhenNavigating: false, pauseMsg);
                             UpdateStateDisplayMessage(PauseNavigationReason);
                             await SendCancelRequestToAGV();
 
@@ -407,11 +411,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             while (IsPathContainPartsReplacingPt(nextPath, out currentNonPassableByEQPartsReplacing))
                             {
+                                if (isChangePathAllowed)
+                                    break;
                                 await DispatchCenter.SyncTrafficStateFromAGVSystemInvoke();
                                 await Task.Delay(1000);
                             }
-                            NavigationResume(false);
-
+                            NavigationResume(isResumeByWaitTimeout: isChangePathAllowed);
                             continue;
                         }
 
@@ -603,8 +608,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         private bool IsPathContainPartsReplacingPt(List<MapPoint> nextPath, out MapPoint noPassablePt)
         {
-            var NoPassableTempTags = DispatchCenter.TagListOfInFrontOfPartsReplacingWorkstation;
-
+            var NoPassableTempTags = DispatchCenter.TagListOfInFrontOfPartsReplacingWorkstation
+                                                               .ToList();
             noPassablePt = nextPath.FirstOrDefault(pt => NoPassableTempTags.Contains(pt.TagNumber));
 
             return noPassablePt != null;
