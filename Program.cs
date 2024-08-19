@@ -64,6 +64,7 @@ try
     builder.Services.AddHostedService<EquipmentScopeBackgroundService>();
     builder.Services.AddHostedService<TaskPathConflicDetectionService>();
     builder.Services.AddHostedService<OrderStateMonitorBackgroundService>();
+    builder.Services.AddHostedService<PCPerformanceService>();
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
