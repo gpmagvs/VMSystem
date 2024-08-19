@@ -12,7 +12,10 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public LeaveWorkstationConflicDetection(MapPoint DetectPoint, double ThetaOfPridiction, IAGV AGVToDetect) : base(DetectPoint, ThetaOfPridiction, AGVToDetect)
         {
         }
-
+        protected override IEnumerable<IAGV> GetOtherVehicles()
+        {
+            return base.GetOtherVehicles().Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal);
+        }
         public override clsConflicDetectResultWrapper Detect()
         {
             clsConflicDetectResultWrapper baseDetectResult = base.Detect();
