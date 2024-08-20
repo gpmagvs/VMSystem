@@ -152,6 +152,27 @@ namespace VMSystem.AGV
                 TrackingTaskSimpleName = _newTaskSimplex;
                 sequence += 1;
 
+                if (_TaskDonwloadToAGV.ExecutingTrajecory.Length >= 3)
+                {
+                    //check final angle. 
+                    bool IsStopAtDestineTag = _TaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
+                    if (IsStopAtDestineTag)
+                    {
+                        MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
+                        MapPoint destStation = currentStation;
+                        if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                        {
+                            destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                        }
+                        else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                        {
+                            destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                        }
+                        double angle = Tools.CalculationForwardAngle(currentStation, destStation);
+                        _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
+                    }
+                }
+
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
                 {

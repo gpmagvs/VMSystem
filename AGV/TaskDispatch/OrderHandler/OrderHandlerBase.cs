@@ -132,7 +132,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 catch (VMSException ex)
                 {
                     logger.Error(ex);
-                    _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
+                    if (ex.Alarm_Code == ALARMS.Task_Canceled)
+                        _SetOrderAsCancelState(TaskCancelReason);
+                    else
+                        _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
                     ActionsWhenOrderCancle();
                     RunningTask.Dispose();
                     return;
@@ -140,7 +143,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 catch (VMSExceptionAbstract ex)
                 {
                     logger.Error(ex);
-                    _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
+                    if (ex.Alarm_Code == ALARMS.Task_Canceled)
+                        _SetOrderAsCancelState(TaskCancelReason);
+                    else
+                        _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
                     ActionsWhenOrderCancle();
                     RunningTask.Dispose();
                     return;

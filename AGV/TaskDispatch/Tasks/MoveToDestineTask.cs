@@ -26,7 +26,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     var destinePt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
                     NotifyServiceHelper.INFO($"{Agv.Name} Start Go To Destine({destinePt.Graph.Display}) Of Carry Order");
-                    clsAGVSTaskReportResponse responseOfStartTrasferRpt = await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(this.Agv.Name, OrderData.From_Station_Tag, OrderData.To_Station_Tag);
+                    bool isSourceAGV = OrderData.IsFromAGV;
+                    clsAGVSTaskReportResponse responseOfStartTrasferRpt = await AGVSSerivces.TRANSFER_TASK.StartTransferCargoReport(this.Agv.Name, OrderData.From_Station_Tag, OrderData.To_Station_Tag, isSourceAGV);
                     if (!responseOfStartTrasferRpt.confirm)
                     {
                         return (false, responseOfStartTrasferRpt.AlarmCode, responseOfStartTrasferRpt.message);

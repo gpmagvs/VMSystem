@@ -201,6 +201,10 @@ namespace VMSystem.AGV
                 {
                     _online_state = value;
                     NavigationState.StateReset();
+                    if (value == ONLINE_STATE.ONLINE)
+                    {
+                        taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
+                    }
                     //taskDispatchModule.AsyncTaskQueueFromDatabase();
                     if (main_state == clsEnums.MAIN_STATUS.IDLE)
                     {
