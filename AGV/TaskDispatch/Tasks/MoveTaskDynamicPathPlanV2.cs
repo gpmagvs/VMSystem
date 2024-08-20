@@ -394,7 +394,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     }
                                 });
                             }
-
                             string pauseMsg = $"等待設備[{EQPoint?.Graph.Display}]完成紙捲更換...\r\n(Wait [{EQPoint?.Graph.Display}] Paper roller replace finish...)";
                             NavigationPause(isPauseWhenNavigating: false, pauseMsg);
                             UpdateStateDisplayMessage(PauseNavigationReason);
@@ -738,7 +737,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
 
                 MapPoint workStationPoint = StaMap.GetPointByTagNumber(workStationTag);
-                expectedAngle = Tools.CalculationForwardAngle(Agv.currentMapPoint, workStationPoint);
+                MapPoint currentMapPoint = StaMap.GetPointByTagNumber(Agv.currentMapPoint.TagNumber);
+                expectedAngle = Tools.CalculationForwardAngle(currentMapPoint, workStationPoint);
             }
             double angleDifference = expectedAngle - Agv.states.Coordination.Theta;
             if (angleDifference > 180)

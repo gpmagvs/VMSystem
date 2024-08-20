@@ -152,10 +152,10 @@ namespace VMSystem.AGV
                 TrackingTaskSimpleName = _newTaskSimplex;
                 sequence += 1;
 
-                if (_TaskDonwloadToAGV.ExecutingTrajecory.Length >= 3)
+                if (_TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None && _TaskDonwloadToAGV.Trajectory.Length > 0)
                 {
                     //check final angle. 
-                    bool IsStopAtDestineTag = _TaskDonwloadToAGV.ExecutingTrajecory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
+                    bool IsStopAtDestineTag = _TaskDonwloadToAGV.Trajectory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
                     if (IsStopAtDestineTag)
                     {
                         MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);

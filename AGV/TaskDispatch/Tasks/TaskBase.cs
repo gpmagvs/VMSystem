@@ -62,7 +62,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.OnAGVStatusDown -= HandleAGVStatusDown;
             Task.Run(() =>
             {
-                Agv.CancelTaskAsync(this.OrderData.TaskName, "AGV Status Down");
+                var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
+                Agv.CancelTaskAsync(this.OrderData.TaskName, agvAlarmsDescription);
                 _WaitAGVTaskDoneMRE.Set();
             });
         }
