@@ -398,8 +398,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     var orderFailureNotify = new
                     {
                         classify = "carry-order-failure",
-                        message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗: \r\n {OrderData.FailureReason}",
-                        message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:\r\n {OrderData.FailureReason}",
+                        message_Zh = $"搬運任務 [{sourceEQPt.Graph.Display}]->[{destineEQPt.Graph.Display}] 失敗:{OrderData.FailureReason}",
+                        message_En = $"Carry Order From [{sourceEQPt.Graph.Display}] To [{destineEQPt.Graph.Display}] Failure:{OrderData.FailureReason}",
                     };
                     NotifyServiceHelper.ERROR(orderFailureNotify.ToJson(Newtonsoft.Json.Formatting.None));
                 }
