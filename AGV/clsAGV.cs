@@ -158,11 +158,11 @@ namespace VMSystem.AGV
                     {
                         logger.Warn($"Ping Fail({options.HostIP})");
                         string location = currentMapPoint == null ? states.Last_Visited_Node + "" : currentMapPoint.Name;
-                        AlarmManagerCenter.AddAlarmAsync(ALARMS.PING_CHECK_FAIL, Equipment_Name: Name, location: location, level: ALARM_LEVEL.WARNING);
+                        AlarmManagerCenter.AddAlarmAsync(ALARMS.VMSDisconnectwithVehicle, Equipment_Name: Name, location: location, level: ALARM_LEVEL.WARNING);
                     }
                     else
                     {
-                        AlarmManagerCenter.SetAlarmCheckedAsync(Name, ALARMS.PING_CHECK_FAIL, "SystemAuto");
+                        AlarmManagerCenter.SetAlarmCheckedAsync(Name, ALARMS.VMSDisconnectwithVehicle, "SystemAuto");
                     }
                 }
             }
