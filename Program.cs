@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
+using KGSWebAGVSystemAPI.Models;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,15 @@ try
             options.UseSqlServer(AGVSConfigulator.SysConfigs.PartsAGVSDBConnection);
         });
         builder.Services.AddHostedService<PartsAGVInfoService>();
+    }
+
+    if (AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem)
+    {
+        builder.Services.AddDbContext<WebAGVSystemContext>(options =>
+        {
+            options.UseSqlServer(AGVSConfigulator.SysConfigs.KGSWebAGVSystemDBConnection);
+        });
+        builder.Services.AddHostedService<KGSVehicleStatusSyncBackgroundService>();
     }
 
     //add signalIR service
