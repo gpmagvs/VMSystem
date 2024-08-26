@@ -1,0 +1,26 @@
+2024-08-23 16:21:53.4877 Info Registered target NLog.Targets.FileTarget(Name=each-logger)
+2024-08-23 16:21:53.4877 Info Registered target NLog.Targets.FileTarget(Name=vehicle-state)
+2024-08-23 16:21:53.4877 Info Registered target NLog.Targets.FileTarget(Name=all-in-one)
+2024-08-23 16:21:53.5185 Info Registered target NLog.Targets.FileTarget(Name=ownFile-web)
+2024-08-23 16:21:53.5185 Info Registered target NLog.Targets.ConsoleTarget(Name=console-log)
+2024-08-23 16:21:53.5185 Info Registered target NLog.Targets.FileTarget(Name=efcore)
+2024-08-23 16:21:53.5613 Info NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 5.3.2.2526. Product version: 5.3.2+8d52d4f3fcdbd84beae3442e1fdc8125598ed81f. GlobalAssemblyCache: False
+2024-08-23 16:21:53.6000 Info Validating config: Targets=6, ConfigItems=113, FilePath=C:\GPM Worksapce\AGV_Project\Codes\VMSystem\bin\Debug\net6.0\NLog.config
+2024-08-23 16:21:53.6275 Info Configuration initialized.
+2024-08-23 16:21:54.0540 Info Validating config: Targets=6, ConfigItems=113, FilePath=C:\GPM Worksapce\AGV_Project\Codes\VMSystem\bin\Debug\net6.0\NLog.config
+2024-08-23 16:21:54.3284 Info Shutdown() called. Logger closing...
+2024-08-23 16:21:54.3284 Info Closing old configuration.
+2024-08-23 16:21:54.4040 Info Logger has been closed down.
+2024-08-23 16:21:59.8920 Info Registered target NLog.Targets.FileTarget(Name=each-logger)
+2024-08-23 16:21:59.8920 Info Registered target NLog.Targets.FileTarget(Name=vehicle-state)
+2024-08-23 16:21:59.9118 Info Registered target NLog.Targets.FileTarget(Name=all-in-one)
+2024-08-23 16:21:59.9230 Info Registered target NLog.Targets.FileTarget(Name=ownFile-web)
+2024-08-23 16:21:59.9230 Info Registered target NLog.Targets.ConsoleTarget(Name=console-log)
+2024-08-23 16:21:59.9398 Info Registered target NLog.Targets.FileTarget(Name=efcore)
+2024-08-23 16:21:59.9693 Info NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 5.3.2.2526. Product version: 5.3.2+8d52d4f3fcdbd84beae3442e1fdc8125598ed81f. GlobalAssemblyCache: False
+2024-08-23 16:21:59.9908 Info Validating config: Targets=6, ConfigItems=113, FilePath=C:\GPM Worksapce\AGV_Project\Codes\VMSystem\bin\Debug\net6.0\NLog.config
+2024-08-23 16:22:00.0072 Info Configuration initialized.
+2024-08-23 16:22:00.3158 Info Validating config: Targets=6, ConfigItems=113, FilePath=C:\GPM Worksapce\AGV_Project\Codes\VMSystem\bin\Debug\net6.0\NLog.config
+2024-08-23 16:22:00.3839 Info Shutdown() called. Logger closing...
+2024-08-23 16:22:00.3839 Info Closing old configuration.
+2024-08-23 16:22:00.4122 Info Logger has been closed down.

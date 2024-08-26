@@ -487,7 +487,9 @@ namespace VMSystem.AGV
             logger.Trace($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
-            RaiseOffLineRequestWhenSystemStartAsync();
+
+            if (!IsStatusSyncFromThirdPartySystem)
+                RaiseOffLineRequestWhenSystemStartAsync();
         }
 
         private void RaiseOffLineRequestWhenSystemStartAsync()

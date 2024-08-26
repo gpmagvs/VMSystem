@@ -46,15 +46,15 @@ namespace VMSystem.BackgroundServices
 
         private async Task ReportVehicleState(Agvinfo agvInfo)
         {
+            string agvName = "AGV_" + agvInfo.Agvid.ToString("X3");
             //search from gpm
-            if (VMSManager.TryGetAGV(agvInfo.Agvname, out IAGV gpmAGVInstance))
+            if (VMSManager.TryGetAGV(agvName, out IAGV gpmAGVInstance))
             {
                 gpmAGVInstance.AgvID = agvInfo.Agvid;
                 gpmAGVInstance.states = CreateStateData(agvInfo);
                 gpmAGVInstance.online_state = (AGVSystemCommonNet6.clsEnums.ONLINE_STATE)agvInfo.Agvmode;
                 gpmAGVInstance.connected = agvInfo.AgvconnectStatus == 1;
                 gpmAGVInstance.taskDispatchModule.OrderHandler.OrderData.TaskName = agvInfo.DoTaskName; //把任務ID灌入
-
                 //決定是否有在執行任務
                 gpmAGVInstance.taskDispatchModule.OrderExecuteState = DetermineOrderExecuteState(agvInfo, gpmAGVInstance);
             }

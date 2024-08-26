@@ -374,8 +374,10 @@ namespace VMSystem.AGV
         public virtual async Task Run()
         {
             if (!agv.IsStatusSyncFromThirdPartySystem)
+            {
                 TaskAssignWorker();
-            CheckAutoCharge();
+                CheckAutoCharge();
+            }
         }
         private AGV_ORDERABLE_STATUS GetAGVReceiveOrderStatus()
         {
