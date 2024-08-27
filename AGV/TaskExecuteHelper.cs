@@ -158,17 +158,26 @@ namespace VMSystem.AGV
                     bool IsStopAtDestineTag = _TaskDonwloadToAGV.Trajectory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
                     if (IsStopAtDestineTag)
                     {
-                        MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
-                        MapPoint destStation = currentStation;
-                        if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                        double angle = 0;
+                        if (Vehicle.model == clsEnums.AGV_TYPE.INSPECTION_AGV && order.Action == ACTION_TYPE.ExchangeBattery)
                         {
-                            destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            var destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            angle = destStation.Direction;
                         }
-                        else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                        else
                         {
-                            destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                            MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
+                            MapPoint destStation = currentStation;
+                            if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            }
+                            else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                            }
+                            angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         }
-                        double angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
                     }
                 }
