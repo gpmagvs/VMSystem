@@ -31,7 +31,7 @@ namespace VMSystem.BackgroundServices
 
                 while (true)
                 {
-                    var agvInfos = dbcontext.Agvinfos.AsNoTracking().ToList();
+                    var agvInfos = dbcontext.AGVInfo.AsNoTracking().ToList();
 
                     foreach (var agvInfo in agvInfos)
                     {
@@ -44,16 +44,16 @@ namespace VMSystem.BackgroundServices
 
         }
 
-        private async Task ReportVehicleState(Agvinfo agvInfo)
+        private async Task ReportVehicleState(AGVInfo agvInfo)
         {
-            string agvName = "AGV_" + agvInfo.Agvid.ToString("X3");
+            string agvName = "AGV_" + agvInfo.AGVID.ToString("X3");
             //search from gpm
             if (VMSManager.TryGetAGV(agvName, out IAGV gpmAGVInstance))
             {
-                gpmAGVInstance.AgvID = agvInfo.Agvid;
+                gpmAGVInstance.AgvID = agvInfo.AGVID;
                 gpmAGVInstance.states = CreateStateData(agvInfo);
-                gpmAGVInstance.online_state = (AGVSystemCommonNet6.clsEnums.ONLINE_STATE)agvInfo.Agvmode;
-                gpmAGVInstance.connected = agvInfo.AgvconnectStatus == 1;
+                gpmAGVInstance.online_state = (AGVSystemCommonNet6.clsEnums.ONLINE_STATE)agvInfo.AGVMode;
+                gpmAGVInstance.connected = agvInfo.AGVConnectStatus == 1;
                 gpmAGVInstance.taskDispatchModule.OrderHandler.OrderData.TaskName = agvInfo.DoTaskName; //把任務ID灌入
                 //決定是否有在執行任務
                 gpmAGVInstance.taskDispatchModule.OrderExecuteState = DetermineOrderExecuteState(agvInfo, gpmAGVInstance);
@@ -61,7 +61,7 @@ namespace VMSystem.BackgroundServices
 
         }
 
-        private clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS DetermineOrderExecuteState(Agvinfo agvInfo, IAGV gpmAGVInstance)
+        private clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS DetermineOrderExecuteState(AGVInfo agvInfo, IAGV gpmAGVInstance)
         {
             if (gpmAGVInstance.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN)
                 return clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR;
@@ -72,7 +72,7 @@ namespace VMSystem.BackgroundServices
                 if (agvInfo.DoTaskName != null && agvInfo.DoTaskName != "")
                 {
 
-                    var runningTask = dbcontext.ExecutingTasks.AsNoTracking().FirstOrDefault(order => order.Name == agvInfo.DoTaskName);
+                    var runningTask = dbcontext.ExecutingTask.AsNoTracking().FirstOrDefault(order => order.Name == agvInfo.DoTaskName);
                     if (runningTask != null)
                     {
                         var orderData = new AGVSystemCommonNet6.AGVDispatch.clsTaskDto
@@ -80,8 +80,8 @@ namespace VMSystem.BackgroundServices
                             Action = (ACTION_TYPE)int.Parse(runningTask.ActionType),
                             DesignatedAGVName = gpmAGVInstance.Name,
                             DispatcherName = runningTask.AssignUserName,
-                            Carrier_ID = runningTask.Cstid,
-                            CST_TYPE = (int)runningTask.Csttype,
+                            Carrier_ID = runningTask.CSTID,
+                            CST_TYPE = (int)runningTask.CSTType,
                             From_Station = StaMap.GetPointByIndex((int)runningTask.FromStationId).TagNumber + "",
                             To_Station = StaMap.GetPointByIndex((int)runningTask.ToStationId).TagNumber + "",
                             TaskName = runningTask.Name
@@ -102,22 +102,23 @@ namespace VMSystem.BackgroundServices
 
         }
 
-        private clsRunningStatus CreateStateData(Agvinfo agvInfo)
+        private clsRunningStatus CreateStateData(AGVInfo agvInfo)
         {
             clsRunningStatus status = new clsRunningStatus();
-            status.AGV_Status = (AGVSystemCommonNet6.clsEnums.MAIN_STATUS)agvInfo.AgvmainStatus;
+            status.AGV_Status = (AGVSystemCommonNet6.clsEnums.MAIN_STATUS)agvInfo.AGVMainStatus;
             try
             {
                 MapPoint currentMapPoint = StaMap.Map.Points[(int)agvInfo.CurrentPos];
                 status.Last_Visited_Node = currentMapPoint.TagNumber;
                 status.Coordination.X = currentMapPoint.X;
                 status.Coordination.Y = currentMapPoint.Y;
+                status.Coordination.Theta = 0;
             }
             catch (Exception ex)
             {
             }
             status.Electric_Volume = new double[2] { (double)agvInfo.Battery, (double)agvInfo.Battery2 };
-            status.CSTID = new string[1] { agvInfo.Cstid };
+            status.CSTID = new string[1] { agvInfo.CSTID };
             return status;
         }
     }
