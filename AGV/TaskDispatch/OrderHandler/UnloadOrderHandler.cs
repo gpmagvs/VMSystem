@@ -34,7 +34,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void ActionsWhenOrderCancle()
         {
-            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+            AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
 
         }
     }

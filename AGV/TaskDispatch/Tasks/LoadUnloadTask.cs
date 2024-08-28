@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
@@ -99,7 +100,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return;
                 await WaitAGVTaskDone();
                 logger.Info("LUDLD Action End.");
-                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(EQPoint.TagNumber, ActionType, Agv.Name);
+                if (this.ActionType == ACTION_TYPE.Unload)
+                    await UpdateActualCarrierIDFromAGVStateReported(OrderData.TaskName, Agv.states.CSTID[0]);
+                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, EQPoint.TagNumber, ActionType, Agv.Name);
 
             }
             catch (Exception ex)
@@ -131,7 +134,31 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
         }
+        static SemaphoreSlim taskTableUseSemaphorse = new SemaphoreSlim(1, 1);
+        protected static async Task UpdateActualCarrierIDFromAGVStateReported(string taskName, string carrierID)
+        {
+            try
+            {
+                await taskTableUseSemaphorse.WaitAsync();
+                using (var db = new AGVSDatabase())
+                {
+                    var order = db.tables.Tasks.FirstOrDefault(order => order.TaskName == taskName);
+                    if (order != null)
+                    {
+                        order.Actual_Carrier_ID = carrierID;
+                        await db.SaveChanges();
+                    }
 
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                taskTableUseSemaphorse.Release();
+            }
+        }
         protected override void HandleAGVStatusDown(object? sender, EventArgs e)
         {
             WaitAGVReachWorkStationMRE.Set();
