@@ -51,6 +51,11 @@ namespace VMSystem.AGV
             NavigationState.logger = logger;
             NavigationState.Vehicle = this;
 
+            //重置座標
+            states.Last_Visited_Node = options.InitTag;
+            MapPoint previousPt = StaMap.GetPointByTagNumber(options.InitTag);
+            states.Coordination = new clsCoordination(previousPt.X, previousPt.Y, previousPt.Direction);
+            this.states = states;
             if (options.Simulation)
             {
                 online_state = ONLINE_STATE.ONLINE;
