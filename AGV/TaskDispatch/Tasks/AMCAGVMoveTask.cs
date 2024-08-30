@@ -124,6 +124,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return true;
         }
 
+        protected override bool IsAGVReachGoal(int goal_id, bool justAlmostReachGoal = false, bool checkTheta = false)
+        {
+            MapPoint goalPoint = StaMap.GetPointByTagNumber(goal_id);
+            double distanceToGoal = goalPoint.CalculateDistance(Agv.states.Coordination);
+
+            if (distanceToGoal > 0.3)
+            {
+                logger.Warn($"距離終點({goal_id},({goalPoint.X},{goalPoint.Y})) 距離 {distanceToGoal}, 大於確認閥值(0.3m)");
+                return false;
+            }
+
+            return base.IsAGVReachGoal(goal_id, justAlmostReachGoal, checkTheta);
+        }
         private async Task ElevatorTaskControl()
         {
             switch (ElevatorStatus)
