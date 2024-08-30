@@ -162,17 +162,35 @@ namespace VMSystem.AGV
                         double angle = 0;
                         MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
                         MapPoint destStation = currentStation;
-                        if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                        if (task.OrderData.Action == ACTION_TYPE.None)
                         {
                             destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            angle = destStation.Direction;
                         }
-                        else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                        else
                         {
-                            destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+
+                            if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            }
+                            else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                            }
+                            angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         }
-                        angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
                     }
+                    else if (_TaskDonwloadToAGV.Trajectory.Length > 1)
+                    {
+                        //停車角度為倒數第二個點往最後一個點的朝向角度
+                        clsMapPoint ptLastSecond = _TaskDonwloadToAGV.Trajectory[_TaskDonwloadToAGV.Trajectory.Length - 2];
+                        clsMapPoint ptLast = _TaskDonwloadToAGV.Trajectory.Last();
+                        double angle = Tools.CalculationForwardAngle(new clsCoordination(ptLastSecond.X, ptLastSecond.Y, 0), new clsCoordination(ptLast.X, ptLast.Y, 0));
+                        _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
+                    }
+
                 }
 
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
