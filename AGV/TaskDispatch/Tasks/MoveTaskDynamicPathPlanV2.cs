@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
+using MessagePack;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Linq;
@@ -134,6 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
                 while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                 {
+                    bool isGoWaitPointByNormalTravaling = false;
                     TaskExecutePauseMRE.WaitOne();
                     TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
@@ -151,7 +153,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
                         if (IsPathPassMuiltRegions(_finalMapPoint, out List<MapRegion> regions, out _))
                         {
-                            (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint) = await GetNextRegionWaitingPoint(regions);
+                            (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
 
                             if (conofirmed)
                             {
@@ -205,7 +207,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             await Task.Delay(10);
                             bool _isConflicSolved = false;
 
-                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
+                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point &&
+                                !isGoWaitPointByNormalTravaling&&
+                                RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
                                 //等待衝突的途中，發現區域可進入了
                                 await CycleStopRequestAsync();
@@ -489,7 +493,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 break;
                             }
 
-                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
+                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point  &&
+                                                                 !isGoWaitPointByNormalTravaling &&
+                                                                 RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
                                 CycleStopByWaitingRegionIsEnterable = true;
                                 await Agv.TaskExecuter.TaskCycleStop(OrderData.TaskName);
@@ -810,33 +816,55 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY;
 
-        private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint)> GetNextRegionWaitingPoint(List<MapRegion> regions)
+        private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint, bool isGoWaitPointByNormalSegmentTravaling)> GetNextRegionWaitingPoint(List<MapRegion> regions)
         {
 
-            List<MapRegion> regionsFiltered = regions.Where(reg => reg.Name != Agv.NavigationState.RegionControlState.NextToGoRegion?.Name).ToList();
-            if (regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg)))
-                return (false, null, null);
+            List<MapRegion> regionsFiltered = regions.Where(reg => reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
+            bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
+            if (isAllRegionNowIsEntrable)
+            {
+                MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
+                //_NextRegion
+                if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
+                    return (false, null, null,true);
+                int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
+                MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
+                if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
+                    return (true, _NextRegion, _nextPoint, true);
+                else
+                {
+                    var _nextNextRegion = regionsFiltered.FirstOrDefault(region => region.Name != _NextRegion.Name && region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN);
+                    if (_nextNextRegion != null)
+                    {
+                        _nextTag = _SelectTagOfWaitingPoint(_nextNextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
+                        _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
+                        return (true, _nextNextRegion, _nextPoint, true);
+                    }
+                    else
+                        return (false, null, null, true);
+                }
+            }
 
             MapRegion NextRegion = regionsFiltered.FirstOrDefault(reg => !RegionManager.IsRegionEnterable(Agv, reg));
 
             if (NextRegion == null)
-                return (false, null, null);
+                return (false, null, null, true);
 
             TryGetWaitingPointSelectStregy(NextRegion, RegionManager.GetInRegionVehiclesNames(NextRegion), out SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy);
             if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SAME_REGION)
             {
                 this.WaitPointSelectStrategy = WaitPointSelectStrategy;
-                return (false, null, null);
+                return (false, null, null, true);
             }
 
             if (WaitPointSelectStrategy == SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING)
             {
                 //NotifyServiceHelper.INFO($"通過區域-[{NextRegion.Name}]可跟車!");
-                return (false, null, null);
+                return (false, null, null, true);
             }
             int tagOfWaitingForEntryRegion = _SelectTagOfWaitingPoint(NextRegion, WaitPointSelectStrategy);
             MapPoint waitingPoint = StaMap.GetPointByTagNumber(tagOfWaitingForEntryRegion);
-            return (true, NextRegion, waitingPoint);
+            return (true, NextRegion, waitingPoint, false);
         }
 
         //summery this function 
