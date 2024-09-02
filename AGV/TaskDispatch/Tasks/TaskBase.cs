@@ -518,7 +518,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, materialType: cargotype, materialCondition: MaterialCondition.Done);
-                    clsStationInfoManager.UpdateStationInfo(OrderData, cargotype, OrderData.Carrier_ID);
+                    clsStationInfoManager.UpdateStationInfo(OrderData, cargotype, OrderData.Actual_Carrier_ID);
                 }
             }
             catch (Exception ex)
