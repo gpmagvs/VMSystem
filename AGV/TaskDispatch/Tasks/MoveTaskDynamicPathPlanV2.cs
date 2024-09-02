@@ -813,9 +813,31 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint)> GetNextRegionWaitingPoint(List<MapRegion> regions)
         {
 
-            List<MapRegion> regionsFiltered = regions.Where(reg => reg.Name != Agv.NavigationState.RegionControlState.NextToGoRegion?.Name).ToList();
-            if (regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg)))
-                return (false, null, null);
+            List<MapRegion> regionsFiltered = regions.Where(reg => reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
+            bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
+            if (isAllRegionNowIsEntrable)
+            {
+                MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
+                //_NextRegion
+                if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
+                    return (false, null, null);
+                int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
+                MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
+                if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
+                    return (true, _NextRegion, _nextPoint);
+                else
+                {
+                    var _nextNextRegion = regionsFiltered.FirstOrDefault(region => region.Name != _NextRegion.Name && region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN);
+                    if (_nextNextRegion != null)
+                    {
+                        _nextTag = _SelectTagOfWaitingPoint(_nextNextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
+                        _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
+                        return (true, _nextNextRegion, _nextPoint);
+                    }
+                    else
+                        return (false, null, null);
+                }
+            }
 
             MapRegion NextRegion = regionsFiltered.FirstOrDefault(reg => !RegionManager.IsRegionEnterable(Agv, reg));
 
