@@ -43,6 +43,7 @@ namespace VMSystem.AGV
         public clsAGV(string name, clsAGVOptions options)
         {
             this.options = options;
+            IsStatusSyncFromThirdPartySystem = AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem;
             Name = name;
             TaskExecuter = new TaskExecuteHelper(this);
             logger = LogManager.GetLogger($"AGVLog/{name}");
@@ -50,6 +51,11 @@ namespace VMSystem.AGV
             NavigationState.logger = logger;
             NavigationState.Vehicle = this;
 
+            //重置座標
+            states.Last_Visited_Node = options.InitTag;
+            MapPoint previousPt = StaMap.GetPointByTagNumber(options.InitTag);
+            states.Coordination = new clsCoordination(previousPt.X, previousPt.Y, previousPt.Direction);
+            this.states = states;
             if (options.Simulation)
             {
                 online_state = ONLINE_STATE.ONLINE;
@@ -68,7 +74,7 @@ namespace VMSystem.AGV
 
         public VehicleNavigationState NavigationState { get; set; } = new VehicleNavigationState();
         public virtual clsEnums.VMS_GROUP VMSGroup { get; set; } = clsEnums.VMS_GROUP.GPM_FORK;
-
+        public int AgvID { get; set; } = 0;
         public bool simulationMode => options.Simulation;
         public string Name { get; set; }
         public virtual AGV_TYPE model { get; set; } = AGV_TYPE.FORK;
@@ -145,6 +151,7 @@ namespace VMSystem.AGV
         public IAGVTaskDispather taskDispatchModule { get; set; } = new clsAGVTaskDisaptchModule();
         public clsAGVOptions options { get; set; }
 
+        public bool IsStatusSyncFromThirdPartySystem { get; set; } = false;
         private bool _pingSuccess = true;
         public bool pingSuccess
         {
@@ -485,7 +492,9 @@ namespace VMSystem.AGV
             logger.Trace($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
-            RaiseOffLineRequestWhenSystemStartAsync();
+
+            if (!IsStatusSyncFromThirdPartySystem)
+                RaiseOffLineRequestWhenSystemStartAsync();
         }
 
         private void RaiseOffLineRequestWhenSystemStartAsync()
@@ -643,6 +652,13 @@ namespace VMSystem.AGV
                 online_state = clsEnums.ONLINE_STATE.ONLINE;
                 return true;
             }
+
+            if (IsStatusSyncFromThirdPartySystem)
+            {
+                KGSWebAGVSystemAPI.Vehicle.AGVAPI.ONLINE(AgvID + "");
+                return true;
+            }
+
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
@@ -666,6 +682,13 @@ namespace VMSystem.AGV
         public bool AGVOfflineFromAGVS(out string message)
         {
             message = string.Empty;
+
+            if (IsStatusSyncFromThirdPartySystem)
+            {
+                KGSWebAGVSystemAPI.Vehicle.AGVAPI.OFFLINE(this.AgvID + "");
+                return true;
+            }
+
             online_mode_req = ONLINE_STATE.OFFLINE;
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {

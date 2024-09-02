@@ -151,26 +151,46 @@ namespace VMSystem.AGV
                 lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
                 TrackingTaskSimpleName = _newTaskSimplex;
                 sequence += 1;
+                bool IsAMVAGV = Vehicle.model == clsEnums.AGV_TYPE.INSPECTION_AGV;
 
-                if (_TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None && _TaskDonwloadToAGV.Trajectory.Length > 0)
+                if (!IsAMVAGV && _TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None && _TaskDonwloadToAGV.Trajectory.Length > 0)
                 {
                     //check final angle. 
                     bool IsStopAtDestineTag = _TaskDonwloadToAGV.Trajectory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
                     if (IsStopAtDestineTag)
                     {
+                        double angle = 0;
                         MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
                         MapPoint destStation = currentStation;
-                        if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                        if (task.OrderData.Action == ACTION_TYPE.None)
                         {
                             destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            angle = destStation.Direction;
                         }
-                        else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                        else
                         {
-                            destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+
+                            if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                            }
+                            else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                            {
+                                destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                            }
+                            angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         }
-                        double angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
                     }
+                    else if (_TaskDonwloadToAGV.Trajectory.Length > 1)
+                    {
+                        //停車角度為倒數第二個點往最後一個點的朝向角度
+                        clsMapPoint ptLastSecond = _TaskDonwloadToAGV.Trajectory[_TaskDonwloadToAGV.Trajectory.Length - 2];
+                        clsMapPoint ptLast = _TaskDonwloadToAGV.Trajectory.Last();
+                        double angle = Tools.CalculationForwardAngle(new clsCoordination(ptLastSecond.X, ptLastSecond.Y, 0), new clsCoordination(ptLast.X, ptLast.Y, 0));
+                        _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
+                    }
+
                 }
 
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
@@ -224,7 +244,10 @@ namespace VMSystem.AGV
             catch (Exception ex)
             {
                 logger.Error(ex);
-                return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
+                return (new TaskDownloadRequestResponse
+                {
+                    ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL
+                }, new clsMapPoint[0]);
 
             }
             finally

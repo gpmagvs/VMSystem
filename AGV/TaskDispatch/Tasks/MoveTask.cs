@@ -596,7 +596,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        protected bool IsAGVReachGoal(int goal_id, bool justAlmostReachGoal = false, bool checkTheta = false)
+        protected virtual bool IsAGVReachGoal(int goal_id, bool justAlmostReachGoal = false, bool checkTheta = false)
         {
             CancellationTokenSource _cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 

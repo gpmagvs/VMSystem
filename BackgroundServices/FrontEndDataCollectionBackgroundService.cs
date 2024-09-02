@@ -7,6 +7,7 @@ using static AGVSystemCommonNet6.clsEnums;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6;
 using Newtonsoft.Json;
+using AGVSystemCommonNet6.Configuration;
 
 namespace VMSystem.BackgroundServices
 {
@@ -42,10 +43,15 @@ namespace VMSystem.BackgroundServices
                             OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                             VMSStatus = _VMSStatus,
                         };
-                        if (JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
+
+                        if (!AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem && JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
                         {
                             data = null;
                             continue;
+                        }
+                        else
+                        {
+                            await Task.Delay(300);
                         }
                         _previousData = data.Clone();
                         await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);

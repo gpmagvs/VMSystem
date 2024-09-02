@@ -27,12 +27,14 @@ namespace VMSystem.AGV
             HIGH,
         }
         Task Run();
+        bool IsStatusSyncFromThirdPartySystem { get; set; }
 
         NLog.Logger logger { get; set; }
         AvailabilityHelper availabilityHelper { get; }
         VMS_GROUP VMSGroup { get; set; }
         AGV_TYPE model { get; set; }
         string Name { get; set; }
+        int AgvID { get; set; }
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }

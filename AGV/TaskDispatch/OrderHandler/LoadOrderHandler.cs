@@ -97,7 +97,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 try
                 {
-                    var response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+                    var response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
                     logger.Info("LoadOrderHandler-ActionsWhenOrderCancle :" + response.ToJson());
                 }
                 catch (Exception ex)
