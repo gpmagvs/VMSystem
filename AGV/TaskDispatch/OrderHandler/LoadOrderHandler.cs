@@ -23,6 +23,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 _SetOrderAsFaiiureState("AGV車上沒有貨物或有帳籍資料時不可執行放貨任務", ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO);
                 return;
             }
+            else
+                OrderData.Carrier_ID = Agv.states.CSTID[0];
+
             if (OrderData.need_change_agv == true) // 參考 TransferOrderHandler.StartOrder 尋找可用轉運站
             {
                 // TODO 把可用的轉換站存在這listTransferStation
