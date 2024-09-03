@@ -564,7 +564,7 @@ namespace VMSystem.AGV
                             //availabilityHelper.UpdateAGVMainState(main_state);
                             continue;
                         }
-                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > (Debugger.IsAttached ? 60 : 10))
+                        if ((DateTime.Now - lastTimeAliveCheckTime).TotalSeconds > (Debugger.IsAttached ? 60 : 20))
                         {
                             connected = false;
                         }
