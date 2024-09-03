@@ -48,5 +48,16 @@ namespace VMSystem.Controllers
         {
             VMSManager.Tests.AGVTaskFeedfackReportT1TimeoutSimulationFlag = enable;
         }
+
+        [HttpGet("GetVMSAppInfo")]
+        public async Task<IActionResult> GetVMSAppInfo()
+        {
+            var appVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            var _info = new
+            {
+                AppVersion = appVersion,
+            };
+            return Ok(_info);
+        }
     }
 }
