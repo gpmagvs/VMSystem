@@ -43,6 +43,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
+                if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
+                    OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);

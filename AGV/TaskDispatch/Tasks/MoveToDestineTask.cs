@@ -33,6 +33,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         return (false, responseOfStartTrasferRpt.AlarmCode, responseOfStartTrasferRpt.message);
                     }
                 }
+                if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
+                    OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
