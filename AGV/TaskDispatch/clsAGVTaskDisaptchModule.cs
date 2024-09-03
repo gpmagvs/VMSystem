@@ -594,7 +594,7 @@ namespace VMSystem.AGV
             {
                 Action = ACTION_TYPE.Charge,
                 TaskName = $"Charge-{agv.Name}_{DateTime.Now.ToString("yyMMdd_HHmmssff")}",
-                DispatcherName = "VMS_Idle",
+                DispatcherName = "",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,
                 To_Station = chargeStationTag + ""
