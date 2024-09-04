@@ -83,6 +83,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (_agv == null)
                 throw new NotFoundAGVException($"{orderData.DesignatedAGVName} not exist at system");
 
+            if (_agv.IsAGVHasCargoOrHasCargoID() == true)
+                orderData.Actual_Carrier_ID = _agv.states.CSTID[0];
+
             var _queue = new Queue<TaskBase>();
             MapPoint _agv_current_map_point = _agv.currentMapPoint;
             if (IsAGVAtWorkStation(_agv))

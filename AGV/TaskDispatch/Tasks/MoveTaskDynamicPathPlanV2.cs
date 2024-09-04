@@ -208,7 +208,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             bool _isConflicSolved = false;
 
                             if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point &&
-                                !isGoWaitPointByNormalTravaling&&
+                                !isGoWaitPointByNormalTravaling &&
                                 RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
                                 //等待衝突的途中，發現區域可進入了
@@ -493,7 +493,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 break;
                             }
 
-                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point  &&
+                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point &&
                                                                  !isGoWaitPointByNormalTravaling &&
                                                                  RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
@@ -826,7 +826,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
                 //_NextRegion
                 if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
-                    return (false, null, null,true);
+                    return (false, null, null, true);
+
+                if (_NextRegion.InRegionVehicles.Count() <= _NextRegion.MaxVehicleCapacity)
+                    return (false, null, null, false);
+
                 int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
                 MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
                 if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)

@@ -512,7 +512,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
-                    //clsStationInfoManager.UpdateStationInfo(OrderData, cargotype,"");
                 }
                 else if (this.Stage == VehicleMovementStage.WorkingAtDestination)
                 {
