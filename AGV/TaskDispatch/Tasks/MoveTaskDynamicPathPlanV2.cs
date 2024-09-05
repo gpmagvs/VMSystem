@@ -137,7 +137,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     bool isGoWaitPointByNormalTravaling = false;
                     TaskExecutePauseMRE.WaitOne();
-                    TrafficWaitingState.SetStatusNoWaiting();
+
+                    if (!Agv.NavigationState.IsWaitingConflicSolve)
+                        TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
                     if (IsTaskAborted())
                     {
@@ -151,7 +153,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.currentConflicToAGV = null;
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
-                        if (IsPathPassMuiltRegions(_finalMapPoint, out List<MapRegion> regions, out _))
+                        if (IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
 
@@ -208,7 +210,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             bool _isConflicSolved = false;
 
                             if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point &&
-                                !isGoWaitPointByNormalTravaling&&
+                                !isGoWaitPointByNormalTravaling &&
                                 RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
                                 //等待衝突的途中，發現區域可進入了
@@ -493,7 +495,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 break;
                             }
 
-                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point  &&
+                            if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point &&
                                                                  !isGoWaitPointByNormalTravaling &&
                                                                  RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
@@ -585,6 +587,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
                         subStage = Stage;
                         await SendTaskToAGV(this.finalMapPoint);
+
                     }
 
                     await Task.Delay(100);
@@ -826,7 +829,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
                 //_NextRegion
                 if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
-                    return (false, null, null,true);
+                    return (false, null, null, true);
                 int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
                 MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
                 if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
@@ -955,16 +958,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        private bool IsPathPassMuiltRegions(MapPoint finalMapPoint, out List<MapRegion> regions, out MapRegion NextRegion)
+        private bool IsPathPassMuiltRegions(MapPoint startMapPoint, MapPoint finalMapPoint, out List<MapRegion> regions, out MapRegion NextRegion)
         {
             NextRegion = null;
-            MapPoint searchStart = Agv.NavigationState.NextNavigtionPoints.LastOrDefault();
-            searchStart = searchStart == null || Agv.main_state != clsEnums.MAIN_STATUS.RUN ? Agv.currentMapPoint : searchStart;
             MapRegion currentRegion = Agv.currentMapPoint.GetRegion();
 
             try
             {
-                var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(searchStart, finalMapPoint, null);
+                var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(startMapPoint, finalMapPoint, null);
                 regions = _optimizedPath.GetRegions().ToList()
                                                      .Where(reg => reg.Name != currentRegion.Name)
                                                      .ToList();
