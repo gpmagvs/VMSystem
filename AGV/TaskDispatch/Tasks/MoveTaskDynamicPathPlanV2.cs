@@ -830,6 +830,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 //_NextRegion
                 if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
                     return (false, null, null, true);
+
+                if (_NextRegion.InRegionVehicles.Count() <= _NextRegion.MaxVehicleCapacity)
+                    return (false, null, null, false);
+
                 int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
                 MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
                 if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
