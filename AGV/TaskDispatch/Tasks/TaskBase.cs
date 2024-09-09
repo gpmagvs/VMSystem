@@ -83,6 +83,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// 當前任務的階段
         /// </summary>
         public abstract VehicleMovementStage Stage { get; set; }
+        public VehicleMovementStage subStage { get; protected set; } = VehicleMovementStage.Not_Start_Yet;
+
         public TransferStage TransferStage { get; set; } = TransferStage.NO_Transfer;
         public abstract ACTION_TYPE ActionType { get; }
         /// <summary>

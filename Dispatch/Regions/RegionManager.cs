@@ -202,8 +202,17 @@ namespace VMSystem.Dispatch.Regions
                     }
                 };
                 agv.OnTaskCancel += HandleTaskCanceled;
-                regionGet.WaitingForEnterVehicles[agv].allowEnterSignal?.WaitOne();
-                regionGet.WaitingForEnterVehicles.TryRemove(agv, out _);
+                try
+                {
+                    regionGet.WaitingForEnterVehicles[agv].allowEnterSignal?.WaitOne();
+                }
+                catch (Exception ex)
+                {
+                }
+                finally
+                {
+                    regionGet.WaitingForEnterVehicles.TryRemove(agv, out _);
+                }
             });
         }
 

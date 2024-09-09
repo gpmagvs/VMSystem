@@ -79,7 +79,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             });
         }
 
-        VehicleMovementStage subStage = VehicleMovementStage.Not_Start_Yet;
         bool CycleStopByWaitingRegionIsEnterable = false;
         bool SecondaryPathSearching = false;
         bool SecondaryPathFound = false;
@@ -267,6 +266,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                         _previsousTrajectorySendToAGV.Clear();
                                         searchStartPt = Agv.currentMapPoint;
                                         continue;
+                                    }
+                                    else
+                                    {
+                                        RestoreClosedPathes();
                                     }
                                 }
 
@@ -822,7 +825,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint, bool isGoWaitPointByNormalSegmentTravaling)> GetNextRegionWaitingPoint(List<MapRegion> regions)
         {
 
-            List<MapRegion> regionsFiltered = regions.Where(reg => reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
+            List<MapRegion> regionsFiltered = regions.Where(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
             bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
             if (isAllRegionNowIsEntrable)
             {
@@ -831,10 +834,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
                     return (false, null, null, true);
 
-                if (_NextRegion.InRegionVehicles.Count() <= _NextRegion.MaxVehicleCapacity)
-                    return (false, null, null, false);
+                //if (_NextRegion.InRegionVehicles.Count() <= _NextRegion.MaxVehicleCapacity)
+                //    return (false, null, null, false);
 
-                int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
+                int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY);
                 MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
                 if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                     return (true, _NextRegion, _nextPoint, true);
@@ -971,7 +974,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 var _optimizedPath = LowLevelSearch.GetOptimizedMapPoints(startMapPoint, finalMapPoint, null);
                 regions = _optimizedPath.GetRegions().ToList()
-                                                     .Where(reg => reg.Name != currentRegion.Name)
+                                                     .Where(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && reg.RegionType != MapRegion.MAP_REGION_TYPE.FORBID && reg.Name != "" && reg.Name != currentRegion.Name)
                                                      .ToList();
                 if (regions.Any())
                     NextRegion = regions.FirstOrDefault();

@@ -125,10 +125,10 @@ namespace VMSystem.AGV
 
                     MapRegion currentRegion = currentMapPoint.GetRegion();
 
-                    if (currentRegion.Name == NavigationState.RegionControlState.NextToGoRegion.Name) //抵達預計前往的區域
-                    {
-                        NavigationState.RegionControlState.NextToGoRegion = new MapRegion();
-                    }
+                    //if (currentRegion.Name == NavigationState.RegionControlState.NextToGoRegion.Name) //抵達預計前往的區域
+                    //{
+                    //    NavigationState.RegionControlState.NextToGoRegion = new MapRegion();
+                    //}
                 }
 
                 if (value.Odometry != _states.Odometry)

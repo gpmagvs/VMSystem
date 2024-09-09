@@ -432,7 +432,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public static MapPoint GetNearestPointOfRegion(this MapRegion region, IAGV agvToGo)
         {
             var pointsOfRegion = region.GetPointsInRegion();
-            return pointsOfRegion.Where(pt => !pt.IsVirtualPoint)
+            return pointsOfRegion.Where(pt => !pt.IsVirtualPoint && pt.StationType == MapPoint.STATION_TYPE.Normal)
                                  .OrderBy(pt => pt.CalculateDistance(agvToGo.states.Coordination)).First();
         }
 

@@ -162,32 +162,44 @@ namespace VMSystem.AGV
                         double angle = 0;
                         MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
                         MapPoint destStation = currentStation;
-                        if (task.OrderData.Action == ACTION_TYPE.None)
+
+                        if (Vehicle.CurrentRunningTask().subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                         {
-                            destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
-                            angle = destStation.Direction;
+                            angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
+                        }
+                        else if (Vehicle.CurrentRunningTask().subStage == VehicleMovementStage.AvoidPath)
+                        {
+                            angle = destStation.Direction_Avoid;
                         }
                         else
                         {
-
-                            if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                            if (task.OrderData.Action == ACTION_TYPE.None)
                             {
                                 destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                                angle = destStation.Direction;
                             }
-                            else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                            else
                             {
-                                destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+
+                                if (task.Stage == VehicleMovementStage.Traveling_To_Destine)
+                                {
+                                    destStation = StaMap.GetPointByTagNumber(task.OrderData.To_Station_Tag);
+                                }
+                                else if (task.Stage == VehicleMovementStage.Traveling_To_Source)
+                                {
+                                    destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
+                                }
+                                angle = Tools.CalculationForwardAngle(currentStation, destStation);
                             }
-                            angle = Tools.CalculationForwardAngle(currentStation, destStation);
                         }
+
+
                         _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
                     }
                     else if (_TaskDonwloadToAGV.Trajectory.Length > 1)
                     {
                         //停車角度為倒數第二個點往最後一個點的朝向角度
-                        clsMapPoint ptLastSecond = _TaskDonwloadToAGV.Trajectory[_TaskDonwloadToAGV.Trajectory.Length - 2];
-                        clsMapPoint ptLast = _TaskDonwloadToAGV.Trajectory.Last();
-                        double angle = Tools.CalculationForwardAngle(new clsCoordination(ptLastSecond.X, ptLastSecond.Y, 0), new clsCoordination(ptLast.X, ptLast.Y, 0));
+                        double angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
                         _TaskDonwloadToAGV.Trajectory.Last().Theta = angle;
                     }
 
@@ -271,6 +283,14 @@ namespace VMSystem.AGV
                 };
                 logger.Info($"Task Download To AGV:\n{logObject.ToJson()}");
             }
+        }
+
+        private static double GetForwardThetaOfLastPath(clsTaskDownloadData _TaskDonwloadToAGV)
+        {
+            clsMapPoint ptLastSecond = _TaskDonwloadToAGV.Trajectory[_TaskDonwloadToAGV.Trajectory.Length - 2];
+            clsMapPoint ptLast = _TaskDonwloadToAGV.Trajectory.Last();
+            double angle = Tools.CalculationForwardAngle(new clsCoordination(ptLastSecond.X, ptLastSecond.Y, 0), new clsCoordination(ptLast.X, ptLast.Y, 0));
+            return angle;
         }
 
         /// <summary>
