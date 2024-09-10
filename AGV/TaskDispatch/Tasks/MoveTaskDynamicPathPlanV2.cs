@@ -242,6 +242,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                             {
+                                pathConflicStopWatch.Stop();
+                                pathConflicStopWatch.Reset();
+
                                 Agv.NavigationState.AvoidActionState.IsAvoidRaising = false;
                                 Agv.NavigationState.IsWaitingConflicSolve = false;
 
@@ -277,8 +280,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 searchStartPt = Agv.currentMapPoint;
                                 await SendCancelRequestToAGV();
                                 NotifyServiceHelper.INFO($"{Agv.Name} 避車動作開始!");
-                                _finalMapPoint = Agv.NavigationState.AvoidActionState.AvoidPt;
+                                _finalMapPoint = subStage == VehicleMovementStage.AvoidPath ? Agv.NavigationState.AvoidActionState.AvoidPt :
+                                                                                            Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine;
                                 _previsousTrajectorySendToAGV.Clear();
+
+                                //終點是目前位置，要將_seq設為0好讓迴圈不馬上跳出，才可以轉向正確的角度
+                                if (subStage == VehicleMovementStage.AvoidPath_Park && Agv.currentMapPoint.TagNumber == Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine.TagNumber)
+                                    _seq = 0;
+
                                 await Task.Delay(100);
                                 continue;
                                 //Agv.OnMapPointChanged += Agv_OnMapPointChanged;
@@ -293,7 +302,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         SecondaryPathSearching = false;
                         RestoreClosedPathes();
-                        Agv.NavigationState.AvoidActionState.Reset();
+                        if (subStage != VehicleMovementStage.AvoidPath && subStage != VehicleMovementStage.AvoidPath_Park)
+                            Agv.NavigationState.AvoidActionState.Reset();
                         Agv.NavigationState.IsWaitingConflicSolve = false;
                         pathConflicStopWatch.Stop();
                         pathConflicStopWatch.Reset();
@@ -577,6 +587,57 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                     if (subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park)
                     {
+                        if (subStage == VehicleMovementStage.AvoidPath_Park)
+                        {
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+                            MapPoint secondaryPt = Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine;
+                            MapPoint parkPortPt = Agv.NavigationState.AvoidActionState.AvoidPt;
+                            clsMapPoint[] homingTrajectory = new MapPoint[2] { secondaryPt, parkPortPt }.Select(pt => MapPointToTaskPoint(pt)).ToArray();
+
+                            ParkTask parkTask = new ParkTask(this.Agv, this.OrderData);
+                            (TaskDownloadRequestResponse response, clsMapPoint[] trajectory) = await parkTask._DispatchTaskToAGV(new clsTaskDownloadData
+                            {
+                                Action_Type = ACTION_TYPE.Park,
+                                Destination = Agv.NavigationState.AvoidActionState.AvoidPt.TagNumber,
+                                Height = 0,
+                                Task_Name = this.OrderData.TaskName,
+                                Homing_Trajectory = homingTrajectory
+                            });
+
+                            if (response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
+                                throw new AGVRejectTaskException();
+                            Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { secondaryPt, parkPortPt });
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+                            Agv.NavigationState.StateReset();
+                            UpdateStateDisplayMessage($"Wait 3 sec and leave.");
+                            await Task.Delay(3000);
+                            LeaveParkStationConflicDetection detection = new LeaveParkStationConflicDetection(secondaryPt, Agv.states.Coordination.Theta, this.Agv);
+                            clsConflicDetectResultWrapper detectResultWrapper = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
+                            while (detectResultWrapper.Result != DETECTION_RESULT.OK)
+                            {
+                                detectResultWrapper = detection.Detect();
+                                UpdateStateDisplayMessage($"{detectResultWrapper.Message}");
+                                await Task.Delay(1000);
+                            }
+
+                            DischargeTask _leavePortTask = new DischargeTask(this.Agv, this.OrderData);
+
+                            await _leavePortTask._DispatchTaskToAGV(new clsTaskDownloadData
+                            {
+                                Action_Type = ACTION_TYPE.Discharge,
+                                Destination = secondaryPt.TagNumber,
+                                Task_Name = this.OrderData.TaskName,
+                                Homing_Trajectory = homingTrajectory.Reverse().ToArray()
+                            });
+                            Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { parkPortPt, secondaryPt });
+
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
+                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+                            _previsousTrajectorySendToAGV.Clear();
+                        }
+
                         subStage = Stage;
                         await SendTaskToAGV(this.finalMapPoint);
                     }
@@ -831,28 +892,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
                 //_NextRegion
-                if (_NextRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
-                    return (false, null, null, true);
-
-                //if (_NextRegion.InRegionVehicles.Count() <= _NextRegion.MaxVehicleCapacity)
-                //    return (false, null, null, false);
-
-                int _nextTag = _SelectTagOfWaitingPoint(_NextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY);
-                MapPoint _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
-                if (_nextPoint.TagNumber != Agv.currentMapPoint.TagNumber)
-                    return (true, _NextRegion, _nextPoint, true);
-                else
-                {
-                    var _nextNextRegion = regionsFiltered.FirstOrDefault(region => region.Name != _NextRegion.Name && region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN);
-                    if (_nextNextRegion != null)
-                    {
-                        _nextTag = _SelectTagOfWaitingPoint(_nextNextRegion, SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT);
-                        _nextPoint = StaMap.GetPointByTagNumber(_nextTag);
-                        return (true, _nextNextRegion, _nextPoint, true);
-                    }
-                    else
-                        return (false, null, null, true);
-                }
+                var nearstPt = _NextRegion.GetNearestPointOfRegion(this.Agv);
+                return (true, _NextRegion, nearstPt, true);
             }
 
             MapRegion NextRegion = regionsFiltered.FirstOrDefault(reg => !RegionManager.IsRegionEnterable(Agv, reg));

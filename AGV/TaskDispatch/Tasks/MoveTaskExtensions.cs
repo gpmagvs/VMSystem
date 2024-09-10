@@ -436,6 +436,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                  .OrderBy(pt => pt.CalculateDistance(agvToGo.states.Coordination)).First();
         }
 
+        public static IEnumerable<MapPoint> GetParkablePointOfRegion(this MapRegion region, IAGV agvToGo)
+        {
+            var pointsOfRegion = region.GetPointsInRegion();
+            return region.GetPointsInRegion().SelectMany(pt => pt.TargetParkableStationPoints(ref agvToGo));
+        }
+
     }
 
 }

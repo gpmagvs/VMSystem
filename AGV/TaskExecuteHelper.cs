@@ -160,16 +160,22 @@ namespace VMSystem.AGV
                     if (IsStopAtDestineTag)
                     {
                         double angle = 0;
-                        MapPoint currentStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
-                        MapPoint destStation = currentStation;
-
-                        if (Vehicle.CurrentRunningTask().subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
+                        MapPoint navGoalStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);
+                        MapPoint destStation = navGoalStation;
+                        var taskSubStage = Vehicle.CurrentRunningTask().subStage;
+                        if (taskSubStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                         {
-                            angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
+                            angle = navGoalStation.Direction_Avoid;
                         }
-                        else if (Vehicle.CurrentRunningTask().subStage == VehicleMovementStage.AvoidPath)
+                        else if (taskSubStage == VehicleMovementStage.AvoidPath || taskSubStage == VehicleMovementStage.AvoidPath_Park)
                         {
-                            angle = destStation.Direction_Avoid;
+                            if (taskSubStage == VehicleMovementStage.AvoidPath)
+                                angle = destStation.Direction_Avoid;
+                            else
+                            {
+                                destStation = StaMap.GetPointByTagNumber(Vehicle.NavigationState.AvoidActionState.AvoidPt.TagNumber);
+                                angle = destStation.Direction;
+                            }
                         }
                         else
                         {
@@ -189,7 +195,7 @@ namespace VMSystem.AGV
                                 {
                                     destStation = StaMap.GetPointByTagNumber(task.OrderData.From_Station_Tag);
                                 }
-                                angle = Tools.CalculationForwardAngle(currentStation, destStation);
+                                angle = Tools.CalculationForwardAngle(navGoalStation, destStation);
                             }
                         }
 

@@ -60,6 +60,8 @@ namespace VMSystem.TrafficControl
 
         private static void TrafficControlParametersChangedWatcher_Changed(object sender, FileSystemEventArgs e)
         {
+            TrafficControlParametersChangedWatcher.EnableRaisingEvents = false;
+
             string _tempFile = Path.Combine(Path.GetTempPath(), Path.GetFileName(e.FullPath));
             File.Copy(e.FullPath, _tempFile, true);
             var _newTrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(_tempFile));
@@ -69,6 +71,7 @@ namespace VMSystem.TrafficControl
                 LOG.TRACE($"TrafficControlParameters changed:\r\n{TrafficControlParameters.ToJson()}");
             }
             File.Delete(_tempFile);
+            TrafficControlParametersChangedWatcher.EnableRaisingEvents = true;
         }
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();

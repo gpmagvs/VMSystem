@@ -25,6 +25,12 @@ namespace VMSystem.TrafficControl
                 return null;
             return agv.taskDispatchModule.OrderHandler.CompleteTaskStack.ToList().Last();
         }
+        /// <summary>
+        /// 取得除了指定的AGV以外的AGV
+        /// </summary>
+        /// <param name="AGVLIST"></param>
+        /// <param name="FilterOutAGV"></param>
+        /// <returns></returns>
         public static IEnumerable<IAGV> FilterOutAGVFromCollection(this IEnumerable<IAGV> AGVLIST, IAGV FilterOutAGV)
         {
             return AGVLIST.Where(agv => agv != FilterOutAGV);
