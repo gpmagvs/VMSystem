@@ -15,109 +15,8 @@ namespace VMSystem.Dispatch.Regions
 {
     public class RegionManager
     {
-
-
         public static Dictionary<MapRegion, clsRegionControlState> RegionsStates { get; set; } = new Dictionary<MapRegion, clsRegionControlState>();
         private static Logger logger;
-        public class clsRegionControlState
-        {
-            public clsRegionControlState(MapRegion region)
-            {
-                Region = region;
-                Task.Run(() => WatchEnterableState());
-            }
-
-            public readonly MapRegion Region;
-
-            private bool _IsEnterable { get; set; } = false;
-
-            public IEnumerable<IAGV> BookingRegionVehicles { get; private set; } = new List<IAGV>();
-
-            public bool IsEnterable
-            {
-                get => _IsEnterable;
-                private set
-                {
-                    if (_IsEnterable != value)
-                    {
-                        _IsEnterable = value;
-                        if (_IsEnterable && WaitingForEnterVehicles.Any())
-                        {
-                            WaitingForEnterVehicles.FirstOrDefault().Value.allowEnterSignal.Set();
-                        }
-                        NotifyServiceHelper.INFO($"[{Region.Name}] 現在 {(_IsEnterable ? "可進入!" : "不可進入")}");
-                    }
-                }
-            }
-
-            private async Task WatchEnterableState()
-            {
-                while (true)
-                {
-                    await Task.Delay(10);
-                    try
-                    {
-                        bool _IsEnterable()
-                        {
-                            BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name))
-                                                                     .ToList();
-                            int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
-                            return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
-                        }
-
-
-                        IsEnterable = _IsEnterable();
-
-                        if (!IsEnterable)
-                        {
-                            foreach (var agv in BookingRegionVehicles)
-                            {
-                                if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
-                                {
-                                    state.allowEnterSignal.Set();
-                                    WaitingForEnterVehicles.TryRemove(agv, out _);
-                                }
-                            }
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                    }
-
-                }
-            }
-
-
-            public ConcurrentDictionary<IAGV, clsVehicleWaitingState> WaitingForEnterVehicles { get; set; } = new ConcurrentDictionary<IAGV, clsVehicleWaitingState>();
-
-            public void JoinWaitingForEnter(IAGV agv, CancellationToken token)
-            {
-                if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
-                {
-                    state.allowEnterSignal.Reset();
-                    state.token = token;
-                }
-                else
-                {
-                    WaitingForEnterVehicles.TryAdd(agv, new clsVehicleWaitingState
-                    {
-                        startWaitTime = DateTime.Now,
-                        allowEnterSignal = new ManualResetEvent(false),
-                        token = token
-                    });
-                }
-                if (IsEnterable)
-                    WaitingForEnterVehicles[agv].allowEnterSignal.Set();
-            }
-            public class clsVehicleWaitingState
-            {
-                public DateTime startWaitTime { get; set; }
-                public ManualResetEvent allowEnterSignal { get; set; }
-                public CancellationToken token = new CancellationToken();
-            }
-
-        }
 
         public static void Initialze()
         {
@@ -278,6 +177,107 @@ namespace VMSystem.Dispatch.Regions
             }
         }
     }
+
+    public class clsRegionControlState
+    {
+        public clsRegionControlState(MapRegion region)
+        {
+            Region = region;
+            Task.Run(() => WatchEnterableState());
+        }
+
+        public readonly MapRegion Region;
+
+        private bool _IsEnterable { get; set; } = false;
+
+        public IEnumerable<IAGV> BookingRegionVehicles { get; private set; } = new List<IAGV>();
+
+        public bool IsEnterable
+        {
+            get => _IsEnterable;
+            private set
+            {
+                if (_IsEnterable != value)
+                {
+                    _IsEnterable = value;
+                    if (_IsEnterable && WaitingForEnterVehicles.Any())
+                    {
+                        WaitingForEnterVehicles.FirstOrDefault().Value.allowEnterSignal.Set();
+                    }
+                    NotifyServiceHelper.INFO($"[{Region.Name}] 現在 {(_IsEnterable ? "可進入!" : "不可進入")}");
+                }
+            }
+        }
+
+        private async Task WatchEnterableState()
+        {
+            while (true)
+            {
+                await Task.Delay(10);
+                try
+                {
+                    bool _IsEnterable()
+                    {
+                        BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name))
+                                                                 .ToList();
+                        int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
+                        return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
+                    }
+
+
+                    IsEnterable = _IsEnterable();
+
+                    if (!IsEnterable)
+                    {
+                        foreach (var agv in BookingRegionVehicles)
+                        {
+                            if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
+                            {
+                                state.allowEnterSignal.Set();
+                                WaitingForEnterVehicles.TryRemove(agv, out _);
+                            }
+                        }
+
+                    }
+                }
+                catch (Exception ex)
+                {
+                }
+
+            }
+        }
+
+
+        public ConcurrentDictionary<IAGV, clsVehicleWaitingState> WaitingForEnterVehicles { get; set; } = new ConcurrentDictionary<IAGV, clsVehicleWaitingState>();
+
+        public void JoinWaitingForEnter(IAGV agv, CancellationToken token)
+        {
+            if (WaitingForEnterVehicles.TryGetValue(agv, out var state))
+            {
+                state.allowEnterSignal.Reset();
+                state.token = token;
+            }
+            else
+            {
+                WaitingForEnterVehicles.TryAdd(agv, new clsVehicleWaitingState
+                {
+                    startWaitTime = DateTime.Now,
+                    allowEnterSignal = new ManualResetEvent(false),
+                    token = token
+                });
+            }
+            if (IsEnterable)
+                WaitingForEnterVehicles[agv].allowEnterSignal.Set();
+        }
+        public class clsVehicleWaitingState
+        {
+            public DateTime startWaitTime { get; set; }
+            public ManualResetEvent allowEnterSignal { get; set; }
+            public CancellationToken token = new CancellationToken();
+        }
+
+    }
+
 
     public static class Extensions
     {
