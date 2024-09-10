@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using NLog;
 using VMSystem.AGV;
+using VMSystem.Dispatch.Regions;
 using VMSystem.VMS;
 
 namespace VMSystem
@@ -45,6 +46,7 @@ namespace VMSystem
             Dict_AllPointDistance = GetAllPointDistance(Map, 1);
             PathFinder.defaultMap = Map;
             DisablePointsChangedDetecter(_oriPoints);
+            RegionManager.Initialze();
             logger.Info($"圖資載入完成:{Map.Name} ,Version:{Map.Note}");
         }
 

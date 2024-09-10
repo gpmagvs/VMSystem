@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.AGVDispatch;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
@@ -20,6 +21,13 @@ namespace VMSystem.Dispatch.Regions
 
         public static void Initialze()
         {
+            if (RegionsStates.Any())
+            {
+                foreach (var item in RegionsStates)
+                {
+                    item.Value.Dispose();
+                }
+            }
             RegionsStates = StaMap.Map.Regions.ToDictionary(_region => _region, _region => new clsRegionControlState(_region));
         }
 
@@ -178,7 +186,7 @@ namespace VMSystem.Dispatch.Regions
         }
     }
 
-    public class clsRegionControlState
+    public class clsRegionControlState : IDisposable
     {
         public clsRegionControlState(MapRegion region)
         {
@@ -187,6 +195,7 @@ namespace VMSystem.Dispatch.Regions
         }
 
         public readonly MapRegion Region;
+        private bool disposedValue;
 
         private bool _IsEnterable { get; set; } = false;
 
@@ -211,7 +220,7 @@ namespace VMSystem.Dispatch.Regions
 
         private async Task WatchEnterableState()
         {
-            while (true)
+            while (!disposedValue)
             {
                 await Task.Delay(10);
                 try
@@ -245,6 +254,12 @@ namespace VMSystem.Dispatch.Regions
                 }
 
             }
+
+            foreach (var _state in WaitingForEnterVehicles.Values)
+            {
+                _state.allowEnterSignal.Set();
+            }
+            WaitingForEnterVehicles.Clear();
         }
 
 
@@ -276,6 +291,34 @@ namespace VMSystem.Dispatch.Regions
             public CancellationToken token = new CancellationToken();
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: 處置受控狀態 (受控物件)
+                }
+
+                // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
+                // TODO: 將大型欄位設為 Null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: 僅有當 'Dispose(bool disposing)' 具有會釋出非受控資源的程式碼時，才覆寫完成項
+        // ~clsRegionControlState()
+        // {
+        //     // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 
 
