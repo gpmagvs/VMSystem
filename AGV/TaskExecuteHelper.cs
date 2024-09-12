@@ -165,7 +165,7 @@ namespace VMSystem.AGV
                         var taskSubStage = Vehicle.CurrentRunningTask().subStage;
                         if (taskSubStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                         {
-                            angle = navGoalStation.Direction_Avoid;
+                            angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
                         }
                         else if (taskSubStage == VehicleMovementStage.AvoidPath || taskSubStage == VehicleMovementStage.AvoidPath_Park)
                         {
@@ -293,6 +293,10 @@ namespace VMSystem.AGV
 
         private static double GetForwardThetaOfLastPath(clsTaskDownloadData _TaskDonwloadToAGV)
         {
+            if (_TaskDonwloadToAGV.Trajectory.Length < 2)
+                return _TaskDonwloadToAGV.Trajectory.Last().Theta;
+
+
             clsMapPoint ptLastSecond = _TaskDonwloadToAGV.Trajectory[_TaskDonwloadToAGV.Trajectory.Length - 2];
             clsMapPoint ptLast = _TaskDonwloadToAGV.Trajectory.Last();
             double angle = Tools.CalculationForwardAngle(new clsCoordination(ptLastSecond.X, ptLastSecond.Y, 0), new clsCoordination(ptLast.X, ptLast.Y, 0));

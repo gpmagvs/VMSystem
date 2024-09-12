@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
@@ -91,6 +92,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             try
             {
 
+                //如果退出的二次定位點所在區域不允許兩台車 且訂單任務的終點也在該區域內=>則要在PORT內等待至可通行
+                MapPoint secondaryPt = Agv.currentMapPoint.TargetNormalPoints().FirstOrDefault();
+                MapRegion regionToReach = secondaryPt.GetRegion();
+
+                MapPoint nextGoal = null;
+                if (OrderData.Action == ACTION_TYPE.Carry)
+                    nextGoal = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+                else
+                    nextGoal = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+
+                if (_IsNextGoalInRegion(nextGoal, regionToReach))
+                {
+                    bool isRegionEntryable = false;
+                    while (!isRegionEntryable)
+                    {
+                        isRegionEntryable = RegionManager.IsRegionEnterable(Agv, regionToReach);
+                        await Task.Delay(200);
+                        UpdateStateDisplayMessage($"暫停在PORT內等待 [{regionToReach.Name}] 區域可以進入..");
+                        if (IsTaskCanceled || disposedValue || args.Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                        {
+                            throw new TaskCanceledException();
+                        }
+                    }
+                }
+
+
                 clsLeaveFromWorkStationConfirmEventArg result = new clsLeaveFromWorkStationConfirmEventArg();
                 while ((result = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(args)).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
                 {
@@ -110,6 +137,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 throw ex;
             }
 
+        }
+
+        private bool _IsNextGoalInRegion(MapPoint nextGoal, MapRegion regionToReach)
+        {
+            bool isGoalNormalPt = nextGoal.StationType == MapPoint.STATION_TYPE.Normal;
+            if (isGoalNormalPt)
+            {
+                return nextGoal.GetRegion().Name == regionToReach.Name;
+            }
+            else
+            {
+                return nextGoal.TargetNormalPoints().Any(pt => pt.GetRegion().Name == regionToReach.Name) || nextGoal.GetRegion().Name == regionToReach.Name;
+            }
         }
 
         public override void CancelTask()

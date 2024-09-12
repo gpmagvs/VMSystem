@@ -183,7 +183,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         var lastNavigationgoal = Agv.NavigationState.NextNavigtionPoints.LastOrDefault();
                         searchStartPt = lastNavigationgoal == null || Agv.main_state == clsEnums.MAIN_STATUS.IDLE ? Agv.currentMapPoint : lastNavigationgoal;
-                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage));
+                        DispatchCenter.GOAL_SELECT_METHOD goalSelectMethod = subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point ? DispatchCenter.GOAL_SELECT_METHOD.TO_GOAL_DIRECTLY :
+                                                                                                                                             DispatchCenter.GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL;
+                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {

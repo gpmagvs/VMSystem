@@ -21,6 +21,11 @@ namespace VMSystem.Dispatch
 {
     public static class DispatchCenter
     {
+        public enum GOAL_SELECT_METHOD
+        {
+            TO_GOAL_DIRECTLY,
+            TO_POINT_INFRONT_OF_GOAL
+        }
         internal static List<int> TagListOfWorkstationInPartsReplacing { get; private set; } = new List<int>();
         private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
         internal static List<int> TagListOfInFrontOfPartsReplacingWorkstation = new List<int>();
@@ -53,14 +58,14 @@ namespace VMSystem.Dispatch
                 await Task.Delay(100);
             }
         }
-        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage)
+        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
             try
             {
                 await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync();
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
-                var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage);
+                var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
                 return path = path == null ? path : path.Clone();
             }
             catch (Exception ex)
@@ -84,7 +89,7 @@ namespace VMSystem.Dispatch
             MapPoint goalPoint = taskDto.GetFinalMapPoint(vehicle, stage);
             return await MoveToDestineDispatchRequest(vehicle, startPoint, goalPoint, taskDto, stage);
         }
-        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage)
+        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
@@ -177,7 +182,10 @@ namespace VMSystem.Dispatch
                     {
 
                         var pathCandicates = subGoalResults.Where(_p => _p != null);
-
+                        if (goalSelectMethod == GOAL_SELECT_METHOD.TO_GOAL_DIRECTLY && pathCandicates.Any(path => path.Last().TagNumber == finalMapPoint.TagNumber))
+                        {
+                            return pathCandicates.First(path => path.Last().TagNumber == finalMapPoint.TagNumber);
+                        }
                         if (pathCandicates.Count() > 2)
                         {
                             path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
