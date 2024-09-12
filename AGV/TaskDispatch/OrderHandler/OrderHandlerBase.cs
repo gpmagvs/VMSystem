@@ -61,6 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 //
                 await SyncTrafficStateFromAGVSystem();
                 this.Agv = Agv;
+                double beginMileageOfVehicle = Agv.states.Odometry;
                 _SetOrderAsRunningState();
                 try
                 {
@@ -166,6 +167,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
+
+                    double finalMileageOfVehicle = Agv.states.Odometry;
+                    OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
+                    RaiseTaskDtoChange(this, OrderData);
+
                 }
 
                 async Task<bool> DetermineTaskState()
@@ -319,6 +325,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             OrderData.StartTime = DateTime.Now;
             OrderData.State = TASK_RUN_STATUS.NAVIGATING;
+            OrderData.StartLocationTag = Agv.currentMapPoint.TagNumber;
             RaiseTaskDtoChange(this, OrderData);
         }
 

@@ -101,7 +101,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await WaitAGVTaskDone();
                 logger.Info("LUDLD Action End.");
                 if (this.ActionType == ACTION_TYPE.Unload)
-                    await UpdateActualCarrierIDFromAGVStateReported(OrderData.TaskName, Agv.states.CSTID[0]);
+                    UpdateActualCarrierIDFromAGVStateReported();
+                UpdateLDULDTime();
                 await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, EQPoint.TagNumber, ActionType, Agv.Name);
 
             }
@@ -135,29 +136,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         }
         static SemaphoreSlim taskTableUseSemaphorse = new SemaphoreSlim(1, 1);
-        protected static async Task UpdateActualCarrierIDFromAGVStateReported(string taskName, string carrierID)
-        {
-            try
-            {
-                await taskTableUseSemaphorse.WaitAsync();
-                using (var db = new AGVSDatabase())
-                {
-                    var order = db.tables.Tasks.FirstOrDefault(order => order.TaskName == taskName);
-                    if (order != null)
-                    {
-                        order.Actual_Carrier_ID = carrierID;
-                        await db.SaveChanges();
-                    }
 
-                }
-            }
-            catch (Exception)
-            {
-            }
-            finally
-            {
-                taskTableUseSemaphorse.Release();
-            }
+        protected async Task UpdateLDULDTime()
+        {
+
+            if (ActionType == ACTION_TYPE.Load || ActionType == ACTION_TYPE.LoadAndPark)
+                this.OrderData.LoadTime = DateTime.Now;
+            else if (ActionType == ACTION_TYPE.Unload)
+                this.OrderData.UnloadTime = DateTime.Now;
+            RaiseTaskDtoChange(this, this.OrderData);
+
+        }
+
+        protected void UpdateActualCarrierIDFromAGVStateReported()
+        {
+            this.OrderData.Actual_Carrier_ID = Agv.states.CSTID[0];
+            RaiseTaskDtoChange(this, this.OrderData);
         }
         protected override void HandleAGVStatusDown(object? sender, EventArgs e)
         {

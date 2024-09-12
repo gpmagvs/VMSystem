@@ -27,7 +27,7 @@ using AGVSystemCommonNet6.Configuration;
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
 
-    public abstract class TaskBase : IDisposable
+    public abstract class TaskBase : clsTaskDatabaseWriteableAbstract, IDisposable
     {
         public delegate Task<clsMoveTaskEvent> BeforeMoveToNextGoalDelegate(clsMoveTaskEvent args);
         public static BeforeMoveToNextGoalDelegate BeforeMoveToNextGoalTaskDispatch;
