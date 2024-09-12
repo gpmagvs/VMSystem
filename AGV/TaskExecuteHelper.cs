@@ -165,7 +165,11 @@ namespace VMSystem.AGV
                         var taskSubStage = Vehicle.CurrentRunningTask().subStage;
                         if (taskSubStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                         {
-                            angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
+                            MapPoint waitingPt = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Trajectory.Last().Point_ID);
+                            if (waitingPt.UseAvoidThetaWhenStopAtWaitingPointOfEntryRegion)
+                                angle = waitingPt.Direction_Avoid;
+                            else
+                                angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
                         }
                         else if (taskSubStage == VehicleMovementStage.AvoidPath || taskSubStage == VehicleMovementStage.AvoidPath_Park)
                         {
