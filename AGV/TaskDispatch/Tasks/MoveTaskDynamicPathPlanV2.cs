@@ -239,7 +239,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             if (Agv.NavigationState.currentConflicToAGV != null && RegionManager.IsAGVWaitingRegion(Agv.NavigationState.currentConflicToAGV, Agv.currentMapPoint.GetRegion()))
                             {
-                                await DynamicClosePath();
+                                //await DynamicClosePath();
                             }
 
                             if (Agv.NavigationState.AvoidActionState.IsAvoidRaising)
@@ -299,6 +299,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 await SpinAtCurrentPointProcess(_seq);
                             }
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                            //RestoreClosedPathes();
                             continue;
                         }
 
