@@ -602,6 +602,7 @@ namespace VMSystem
                 if (existPath != null)
                     Map.Segments.Remove(existPath);
                 Map.Segments.Add(path);
+                NotifyServiceHelper.INFO($"路徑 {path.ToString()} 已恢復通行");
                 return true;
             }
             catch (Exception ex)

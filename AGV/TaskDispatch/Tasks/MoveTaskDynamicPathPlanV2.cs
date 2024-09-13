@@ -234,7 +234,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             //    }
                             //}
 
-                            if (Agv.main_state == clsEnums.MAIN_STATUS.IDLE && pathConflicStopWatch.Elapsed.TotalSeconds > 3)
+                            if (Agv.main_state == clsEnums.MAIN_STATUS.IDLE && pathConflicStopWatch.Elapsed.TotalSeconds > 3) //無路可走的狀態已經維持超過3秒
                                 Agv.NavigationState.IsWaitingConflicSolve = true;
 
                             if (Agv.NavigationState.currentConflicToAGV != null && RegionManager.IsAGVWaitingRegion(Agv.NavigationState.currentConflicToAGV, Agv.currentMapPoint.GetRegion()))
