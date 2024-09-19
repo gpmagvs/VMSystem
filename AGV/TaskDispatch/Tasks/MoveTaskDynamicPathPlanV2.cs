@@ -149,9 +149,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     try
                     {
+
                         Agv.NavigationState.currentConflicToAGV = null;
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
+
                         if (IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
@@ -235,7 +237,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             //}
 
                             if (Agv.main_state == clsEnums.MAIN_STATUS.IDLE && pathConflicStopWatch.Elapsed.TotalSeconds > 3) //無路可走的狀態已經維持超過3秒
+                            {
                                 Agv.NavigationState.IsWaitingConflicSolve = true;
+                                await Task.Delay(1000);
+                            }
 
                             if (Agv.NavigationState.currentConflicToAGV != null && RegionManager.IsAGVWaitingRegion(Agv.NavigationState.currentConflicToAGV, Agv.currentMapPoint.GetRegion()))
                             {
@@ -649,8 +654,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         MapRegion waitingRegion = Agv.NavigationState.RegionControlState.NextToGoRegion;
                         //NotifyServiceHelper.INFO($"[{Agv.Name}] Start Waiting Region-{waitingRegion.Name} Enterable");
-                        UpdateMoveStateMessage($"等待-{waitingRegion.Name}可進入..");
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
+                        var agvInWaitingRegion = OtherAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == waitingRegion.Name ||
+                                              agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == waitingRegion.Name));
+                        UpdateMoveStateMessage($"等待-{waitingRegion.Name}可進入(等待[{Agv.NavigationState.currentConflicToAGV?.Name}離開])");
                         await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
                         subStage = Stage;
                         await SendTaskToAGV(this.finalMapPoint);

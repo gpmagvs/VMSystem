@@ -309,19 +309,19 @@ namespace VMSystem.Dispatch
             }
             if (_IsWaitForVehicleAtWaitingPointOfAnyRegion(out IAGV vehicleWaitingEntry, out MapRegion _region))
             {
-                MapPoint parkStation = GetParkableStationOfCurrentRegion(waitingVehicle);
-                if (parkStation != null)
-                {
-                    waitingVehicle.NavigationState.AvoidActionState.AvoidPt = parkStation;
-                    waitingVehicle.NavigationState.AvoidActionState.AvoidToVehicle = vehicleWaitingEntry;
-                    waitingVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
-                    waitingVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
-                }
-                else
-                {
-                    clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(waitingVehicle, vehicleWaitingEntry);
-                    var toAvoidVehicle = await lowPriorityWork.StartSolve();
-                }
+                //MapPoint parkStation = GetParkableStationOfCurrentRegion(waitingVehicle);
+                //if (parkStation != null)
+                //{
+                //    waitingVehicle.NavigationState.AvoidActionState.AvoidPt = parkStation;
+                //    waitingVehicle.NavigationState.AvoidActionState.AvoidToVehicle = vehicleWaitingEntry;
+                //    waitingVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
+                //    waitingVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
+                //}
+                //else
+                //{
+                //    clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(waitingVehicle, vehicleWaitingEntry);
+                //    var toAvoidVehicle = await lowPriorityWork.StartSolve();
+                //}
             }
             //是否與停在設備中的車輛互相停等
             bool _IsWaitForVehicleAtWorkStationNear(out IEnumerable<IAGV> vehiclesAtWorkStation)
