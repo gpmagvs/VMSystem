@@ -30,7 +30,6 @@ namespace VMSystem.VMS
     }
     public partial class VMSManager
     {
-        private const string Vehicle_Json_file = @"C:\AGVS\Vehicle.json";
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
@@ -93,7 +92,6 @@ namespace VMSystem.VMS
 
             await Task.WhenAll(tasks);
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
-            VMSSerivces.SaveVMSVehicleGroupSetting(Vehicle_Json_file, JsonConvert.SerializeObject(_object, Formatting.Indented));
             OptimizeAGVDisaptchModule.Run();
             TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
