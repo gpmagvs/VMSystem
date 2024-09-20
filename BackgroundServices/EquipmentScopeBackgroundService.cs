@@ -14,7 +14,7 @@ namespace VMSystem.BackgroundServices
         FileSystemWatcher fileSystemWatcher;
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            UpdateEQInfoFromConfigFile(Path.Combine(AGVSConfigulator.SysConfigs.EQManagementConfigs.EquipmentManagementConfigFolder, "EQConfigs.json"));
+            UpdateEQInfoFromConfigFile(Path.Combine(AGVSConfigulator.SysConfigs.PATHES_STORE[SystemConfigs.PATH_ENUMS.EQ_CONFIGS_FOLDER_PATH], "EQConfigs.json"));
             StartEquipmentConfigFileChangedFileWatch();
         }
 
@@ -26,7 +26,7 @@ namespace VMSystem.BackgroundServices
 
         void StartEquipmentConfigFileChangedFileWatch()
         {
-            string eqConfigFolder = AGVSConfigulator.SysConfigs.EQManagementConfigs.EquipmentManagementConfigFolder;
+            string eqConfigFolder = AGVSConfigulator.SysConfigs.PATHES_STORE[SystemConfigs.PATH_ENUMS.EQ_CONFIGS_FOLDER_PATH];
             string eqConfigFileName = "EQConfigs.json";
             fileSystemWatcher = new FileSystemWatcher(eqConfigFolder, eqConfigFileName);
             fileSystemWatcher.Changed += _FileSystemWatcher_Changed;

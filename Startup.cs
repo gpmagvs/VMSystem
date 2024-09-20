@@ -23,7 +23,9 @@ namespace VMSystem
 
         internal static void ConfigurationInit()
         {
-            AGVSConfigulator.Init();
+            WebApplicationBuilder builder = WebApplication.CreateBuilder();
+            string configRootFolder = builder.Configuration.GetValue<string>("AGVSConfigFolder");
+            AGVSConfigulator.Init(configRootFolder);
             PartsAGVSHelper.LoadParameters("C:\\AGVS\\PartConnection.json");
         }
 
@@ -66,23 +68,6 @@ namespace VMSystem
 
         internal static void StaticFileInit(WebApplication app)
         {
-            var AGVUpdateFileFolder = AGVSystemCommonNet6.Configuration.AGVSConfigulator.SysConfigs.AGVUpdateFileFolder;
-            Directory.CreateDirectory(AGVUpdateFileFolder);
-            var fileProvider = new PhysicalFileProvider(AGVUpdateFileFolder);
-            var requestPath = "/AGVUpdateFiles";
-            app.UseStaticFiles(new StaticFileOptions
-            {
-                FileProvider = fileProvider,
-                RequestPath = requestPath,
-                ServeUnknownFileTypes = true,
-                DefaultContentType = "application/octet-stream",
-            });
-
-            app.UseDirectoryBrowser(new DirectoryBrowserOptions
-            {
-                FileProvider = fileProvider,
-                RequestPath = requestPath
-            });
 
         }
 

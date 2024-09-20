@@ -32,7 +32,7 @@ namespace VMSystem
     public class StaMap
     {
         public static Map Map { get; set; }
-        private static string MapFile => AGVSConfigulator.SysConfigs.MapConfigs.MapFileFullName;
+        private static string MapFile => AGVSConfigulator.SysConfigs.PATHES_STORE[SystemConfigs.PATH_ENUMS.CURRENT_MAP_FILE_PATH];
         internal static event EventHandler<int> OnTagUnregisted;
         public static Dictionary<int, clsPointRegistInfo> RegistDictionary = new Dictionary<int, clsPointRegistInfo>();
         public static Dictionary<int, Dictionary<int, double>> Dict_AllPointDistance = new Dictionary<int, Dictionary<int, double>>();
