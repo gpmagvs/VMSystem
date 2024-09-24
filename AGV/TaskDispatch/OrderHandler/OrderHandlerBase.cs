@@ -84,19 +84,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
-                            //if (dispatch_result.alarm_code == ALARMS.Task_Canceled)
-                            //{
-                            //    TaskCancelledFlag = true;
-                            //    bool isTaskFail = await DetermineTaskState();
-                            //    if (isTaskFail)
-                            //    {
-                            //        return;
-                            //    }
-                            //    return;
-                            //}
-                            throw new VMSException()
+                            throw new VMSException(dispatch_result.message)
                             {
-                                Alarm_Code = dispatch_result.alarm_code
+                                Alarm_Code = dispatch_result.alarm_code == ALARMS.NONE ? ALARMS.SYSTEM_ERROR : dispatch_result.alarm_code
                             };
                             //AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
                         }
