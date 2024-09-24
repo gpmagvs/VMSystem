@@ -8,5 +8,7 @@ namespace VMSystem.Dispatch.Equipment
         public int Tag { get; set; } = 0;
         public AGV_TYPE Accept_AGV_Type { get; set; } = AGV_TYPE.SUBMERGED_SHIELD;
 
+        public List<int> AllowTransferToTags { get; set; } = new();
+
     }
 }

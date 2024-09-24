@@ -68,12 +68,14 @@ namespace VMSystem.BackgroundServices
                     string eqName = keypair.Key;
                     int tag = int.Parse(keypair.Value["TagID"].ToString());
                     int Accept_AGV_Type = int.Parse(keypair.Value["Accept_AGV_Type"].ToString());
-
+                    List<int> AcceptTransferTag = JsonConvert.DeserializeObject<List<int>>(keypair.Value["AcceptTransferTag"] + "");
+                    AcceptTransferTag = AcceptTransferTag == null ? new List<int>() : AcceptTransferTag;
                     return new clsEqInformation()
                     {
                         EqName = eqName,
                         Tag = tag,
-                        Accept_AGV_Type = GetAcceptAGVType(Accept_AGV_Type)
+                        Accept_AGV_Type = GetAcceptAGVType(Accept_AGV_Type),
+                        AllowTransferToTags = AcceptTransferTag
                     };
 
                     AGV_TYPE GetAcceptAGVType(int typeInt)

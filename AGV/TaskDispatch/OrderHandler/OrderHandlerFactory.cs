@@ -126,7 +126,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         NextAction = ACTION_TYPE.Load,
                         TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
                     });
-                    Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
                     _queue.Enqueue(task);
@@ -203,7 +203,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 });
                 if (orderData.need_change_agv)
                 {
-                    Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData).GetAwaiter().GetResult();
+                    Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
                     _queue.Enqueue(task);
@@ -237,15 +237,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             return _queue;
         }
 
-        public static async Task<Dictionary<int, List<int>>> GetTransferStationTag(clsTaskDto orderData)
+        public static Dictionary<int, List<int>> GetTransferStationTag(clsTaskDto orderData)
         {
             Dictionary<int, List<int>> dict = new Dictionary<int, List<int>>(); // key: to station, value: from stations
             List<int> TransferStationTags = new List<int>();
             // 從orderData.To_Station_Tag取得可以去的轉換站Tag
             if (orderData.From_Station_Tag == -1) // 放貨任務
-                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQWIPAcceptTransferTagInfoByTag(orderData.To_Station_Tag);
+                TransferStationTags = EquipmentStore.GetTransferTags(orderData.To_Station_Tag);
             else
-                TransferStationTags = await AGVSSerivces.TRANSFER_TASK.GetEQWIPAcceptTransferTagInfoByTag(orderData.From_Station_Tag);
+                TransferStationTags = EquipmentStore.GetTransferTags(orderData.From_Station_Tag);
 
             if (TransferStationTags.Count() <= 0)
             {

@@ -28,5 +28,17 @@ namespace VMSystem.Dispatch.Equipment
 
             return clsEnums.AGV_TYPE.Null;
         }
+
+        internal static List<int> GetTransferTags(int stationTag)
+        {
+            clsEqInformation eqInfo = EquipmentInfo.Values.FirstOrDefault(eq => eq.Tag == stationTag);
+            if (eqInfo == null)
+            {
+                return new();
+            }
+
+            return eqInfo.AllowTransferToTags;
+
+        }
     }
 }
