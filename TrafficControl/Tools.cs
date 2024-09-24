@@ -512,10 +512,14 @@ namespace VMSystem.TrafficControl
                 return result.total_travel_distance;
         }
 
-        public static AGV_TYPE GetStationAcceptAGVType(MapPoint _workStationPoint)
+        public static AGV_TYPE GetStationAcceptAGVType(MapPoint _workStationPoint, int slotHeight)
         {
-            if (_workStationPoint.StationType == STATION_TYPE.EQ || _workStationPoint.StationType == STATION_TYPE.EQ_LD || _workStationPoint.StationType == STATION_TYPE.EQ_ULD)
-                return EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber);
+            if (slotHeight > 0)
+                return AGV_TYPE.FORK;
+
+            if (_workStationPoint.StationType == STATION_TYPE.EQ || _workStationPoint.StationType == STATION_TYPE.EQ_LD || _workStationPoint.StationType == STATION_TYPE.EQ_ULD ||
+                (_workStationPoint.StationType == STATION_TYPE.Buffer_EQ && slotHeight == 0))
+                return EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber, slotHeight);
             else if (_workStationPoint.StationType == STATION_TYPE.Buffer || _workStationPoint.StationType == STATION_TYPE.Charge_Buffer)
                 return AGV_TYPE.FORK;
             else

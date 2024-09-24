@@ -177,16 +177,20 @@ namespace VMSystem.VMS
             {
                 goalSlotHeight = int.Parse(taskDto.To_Slot);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
-                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation, goalSlotHeight);
             }
             else if (taskDto.Action == ACTION_TYPE.Carry)
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
-                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation);
-                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation);
+
+
+                int fromSlotHeight = int.Parse(taskDto.From_Slot);
+                int toSlotHeight = int.Parse(taskDto.To_Slot);
+
+                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation, fromSlotHeight);
+                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation, toSlotHeight);
                 goalStation = FromStation;
-                goalSlotHeight = int.Parse(taskDto.From_Slot);
 
                 if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
                     EQAcceptEQType = fromstation_agvtype;
@@ -314,13 +318,13 @@ namespace VMSystem.VMS
             {
                 goalSlotHeight = int.Parse(taskDto.To_Slot);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
-                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation, goalSlotHeight);
             }
             else if (taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.LoadAndPark)
             {
                 goalSlotHeight = int.Parse(taskDto.To_Slot);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out goalStation);
-                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation);
+                EQAcceptEQType = Tools.GetStationAcceptAGVType(goalStation, goalSlotHeight);
                 if (EQAcceptEQType != AGV_TYPE.Any || EQAcceptEQType != agv.model)
                     taskDto.need_change_agv = true;
             }
@@ -328,10 +332,11 @@ namespace VMSystem.VMS
             {
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.From_Station), out FromStation);
                 StaMap.TryGetPointByTagNumber(int.Parse(taskDto.To_Station), out ToStation);
-                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation);
-                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation);
-                goalStation = FromStation;
-                goalSlotHeight = int.Parse(taskDto.From_Slot);
+                int fromSlotHeight = int.Parse(taskDto.From_Slot);
+                int toSlotHeight = int.Parse(taskDto.To_Slot);
+
+                AGV_TYPE fromstation_agvtype = Tools.GetStationAcceptAGVType(FromStation, fromSlotHeight);
+                AGV_TYPE tostation_agvtype = Tools.GetStationAcceptAGVType(ToStation, toSlotHeight);
 
                 if (fromstation_agvtype == AGV_TYPE.Any && tostation_agvtype == AGV_TYPE.Any)
                     EQAcceptEQType = fromstation_agvtype;
