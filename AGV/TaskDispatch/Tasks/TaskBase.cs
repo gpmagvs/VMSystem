@@ -653,11 +653,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// </summary>
         internal void NavigationResume(bool isResumeByWaitTimeout)
         {
-            if (!isResumeByWaitTimeout)
+            if (!isResumeByWaitTimeout && Agv != null)
             {
                 Agv.NavigationState.LastWaitingForPassableTimeoutPt = null;
+                NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續({(isResumeByWaitTimeout ? "因等待超時" : "解除路徑封閉")})");
             }
-            NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續({(isResumeByWaitTimeout ? "因等待超時" : "解除路徑封閉")})");
             TaskExecutePauseMRE.Set();
             PauseNavigationReason = "";
             NavigationPausing = false;

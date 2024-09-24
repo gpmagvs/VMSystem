@@ -376,7 +376,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 OrderData.FinishTime = DateTime.Now;
                 OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description_Zh}({alarmDto.Description_En})";
 
-                if (alarm == ALARMS.AGV_STATUS_DOWN || Agv.main_state == MAIN_STATUS.DOWN)
+                if (Agv != null && (alarm == ALARMS.AGV_STATUS_DOWN || Agv?.main_state == MAIN_STATUS.DOWN))
                 {
                     var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
                     OrderData.FailureReason = agvAlarmsDescription;
