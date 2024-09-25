@@ -78,11 +78,12 @@ namespace VMSystem.Dispatch.YieldActions
                     cannotStopPoints.AddRange(pathPredictOfHPV);
                     cannotStopPoints.AddRange(_GetConstrainsOfLPVStopPoint());
                     cannotStopPoints.Add(_LowProrityVehicle.currentMapPoint);
+                    cannotStopPoints.AddRange(_LowProrityVehicle.GetCanNotReachMapPoints()); //加入不可抵達的點位們
                     cannotStopPoints = cannotStopPoints.Where(pt => !pt.IsAvoid).DistinctBy(pt => pt.TagNumber).ToList();
 
                     var canStopPointCandicates = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.IsVirtualPoint && !cannotStopPoints.GetTagCollection().Contains(pt.TagNumber))
                                                                          .ToList();
-                    canStopPointCandicates = canStopPointCandicates.Where(pt=>pt.TagNumber!=_LowProrityVehicle.currentMapPoint.TagNumber).ToList();
+                    canStopPointCandicates = canStopPointCandicates.Where(pt => pt.TagNumber != _LowProrityVehicle.currentMapPoint.TagNumber).ToList();
                     // Find Avoid Point In Low Priority Vehicle current Region   from canStopPointCandicates
                     MapRegion regionOfLPV = _LowProrityVehicle.currentMapPoint.GetRegion();
 
