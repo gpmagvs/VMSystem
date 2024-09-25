@@ -6,6 +6,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     {
         public override ACTION_TYPE OrderAction => ACTION_TYPE.None;
 
+        public override async Task StartOrder(IAGV Agv)
+        {
+            //Agv.model 
+            List<int> cannotGoTags = Agv.model == AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD ?
+                                                    StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+            if (cannotGoTags.Contains(OrderData.To_Station_Tag))
+            {
+                _SetOrderAsFaiiureState($"任務終點為[{Agv.model}]車款不可停車的點位", AGVSystemCommonNet6.Alarm.ALARMS.Destine_Point_Is_Not_Allow_To_Reach);
+                return;
+            }
+
+            await base.StartOrder(Agv);
+        }
         protected override void ActionsWhenOrderCancle()
         {
             base.ActionsWhenOrderCancle();
