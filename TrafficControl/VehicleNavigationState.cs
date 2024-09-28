@@ -159,7 +159,7 @@ namespace VMSystem.TrafficControl
             {
                 double lastAngle = _GetForwardAngle(pathForCalulate.First(), pathForCalulate.Count > 1 ? pathForCalulate[1] : pathForCalulate.First());
                 bool _infrontOfChargeStation = Vehicle.currentMapPoint.TargetWorkSTationsPoints().ToList().Any(pt => pt.IsCharge);
-                if (_calculateTheateDifferent(Vehicle.states.Coordination.Theta, lastAngle) > 5)
+                if (Tools.CalculateTheateDiff(Vehicle.states.Coordination.Theta, lastAngle) > 5)
                 {
                     if (_infrontOfChargeStation)
                     {
@@ -175,7 +175,7 @@ namespace VMSystem.TrafficControl
                     var _endPt = pathForCalulate[i + 1];
                     double forwardAngle = _GetForwardAngle(_startPt, _endPt);
 
-                    if (_calculateTheateDifferent(forwardAngle, lastAngle) > 5)
+                    if (Tools.CalculateTheateDiff(forwardAngle, lastAngle) > 5)
                     {
                         output.Add(Tools.CreateSquare(_startPt, rotationSquareLen));
                     }
@@ -236,12 +236,6 @@ namespace VMSystem.TrafficControl
                 MapPoint ChargeStationPoint = StaMap.GetPointByTagNumber(_runningTask.OrderData.To_Station_Tag);
                 var tagsOfStationEntry = ChargeStationPoint.TargetNormalPoints().Select(pt => pt.TagNumber).ToList();
                 return tagsOfStationEntry.Any() && tagsOfStationEntry.Contains(_nexNavPts.Last().TagNumber);
-            }
-
-            double _calculateTheateDifferent(double angle1, double angle2)
-            {
-                double different = Math.Abs((angle1 - angle2 + 180) % 360 - 180);
-                return different;
             }
 
             #endregion

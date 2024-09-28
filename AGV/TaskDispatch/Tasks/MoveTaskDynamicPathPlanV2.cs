@@ -597,11 +597,33 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         if (subStage == VehicleMovementStage.AvoidPath_Park)
                         {
-                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
-                            Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+
                             MapPoint secondaryPt = Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine;
                             MapPoint parkPortPt = Agv.NavigationState.AvoidActionState.AvoidPt;
                             clsMapPoint[] homingTrajectory = new MapPoint[2] { secondaryPt, parkPortPt }.Select(pt => MapPointToTaskPoint(pt)).ToArray();
+
+
+                            bool IsReachSecondaryPt(out string msg)
+                            {
+                                msg = string.Empty;
+                                bool tagMatch = this.Agv.currentMapPoint.TagNumber == secondaryPt.TagNumber;
+                                msg += tagMatch ? "" : "未抵達,";
+                                bool statusCorrect = this.Agv.main_state == clsEnums.MAIN_STATUS.IDLE;
+                                msg += statusCorrect ? "" : "狀態非閒置,";
+                                bool forwardThetaCorrect = false;
+                                //Agv.states.Coordination.Theta;
+                                double thetaExpect = Tools.CalculationForwardAngle(homingTrajectory[0], homingTrajectory[1]);
+                                forwardThetaCorrect = Tools.CalculateTheateDiff(thetaExpect, Agv.states.Coordination.Theta) < 5;
+                                msg += statusCorrect ? "" : "角度錯誤";
+                                return tagMatch && statusCorrect && forwardThetaCorrect;
+                            }
+
+                            while (!IsReachSecondaryPt(out string msg))
+                            {
+                                await Task.Delay(1000);
+                                UpdateStateDisplayMessage($"Move to Park Station[{msg}]");
+                            }
+
 
                             ParkTask parkTask = new ParkTask(this.Agv, this.OrderData);
                             (TaskDownloadRequestResponse response, clsMapPoint[] trajectory) = await parkTask._DispatchTaskToAGV(new clsTaskDownloadData
@@ -631,7 +653,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
 
                             DischargeTask _leavePortTask = new DischargeTask(this.Agv, this.OrderData);
-
+                            UpdateStateDisplayMessage($"離開停車點");
                             await _leavePortTask._DispatchTaskToAGV(new clsTaskDownloadData
                             {
                                 Action_Type = ACTION_TYPE.Discharge,
@@ -639,6 +661,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 Task_Name = this.OrderData.TaskName,
                                 Homing_Trajectory = homingTrajectory.Reverse().ToArray()
                             });
+
                             Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { parkPortPt, secondaryPt });
 
                             Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();

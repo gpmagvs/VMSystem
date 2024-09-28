@@ -23,14 +23,13 @@ namespace VMSystem.Dispatch.YieldActions
                 IEnumerable<MapPoint> parkablePortPointsInRegion = _LowProrityVehicle.currentMapPoint.GetRegion().GetParkablePointOfRegion(_LowProrityVehicle);
                 if (parkablePortPointsInRegion.Any())
                 {
-                    parkablePortPointsInRegion = parkablePortPointsInRegion.Where(pt => !_PathConflicMaybeWhenMoveTo(pt)); //過濾出移動過去時不會與其他AGV衝突的可停車點。
-                    optimizeParkPort = parkablePortPointsInRegion.ToDictionary(pt => pt, pt => pt.CalculateDistance(_LowProrityVehicle.states.Coordination)) //找離目前位置最近的停車點。
-                                                                 .OrderBy(pt => pt.Value)
-                                                                 .FirstOrDefault()
-                                                                 .Key;
+                    parkablePortPointsInRegion = parkablePortPointsInRegion.Where(pt => _IsPassableWhenMoveTo(pt)); //過濾出移動過去時不會與其他AGV衝突的可停車點。
+                    var orderedByDistance = parkablePortPointsInRegion.ToDictionary(pt => pt, pt => pt.CalculateDistance(_LowProrityVehicle.states.Coordination))
+                                                                      .OrderBy(pt => pt.Value); //找離目前位置最近的停車點。
 
+                    optimizeParkPort = orderedByDistance.FirstOrDefault().Key;
                     //goalPortPoint:非一般點位的可停車點
-                    bool _PathConflicMaybeWhenMoveTo(MapPoint goalPortPoint)
+                    bool _IsPassableWhenMoveTo(MapPoint goalPortPoint)
                     {
                         if (goalPortPoint.StationType == MapPoint.STATION_TYPE.Normal)
                             return true; //
@@ -44,19 +43,23 @@ namespace VMSystem.Dispatch.YieldActions
                                                                              .Select(vehicle => vehicle.currentMapPoint)
                                                                              .ToList();
                                 IEnumerable<MapPoint> path = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(_LowProrityVehicle.currentMapPoint, secondaryPt, constrains);
-                                return path.Count() == 0;
+                                if (path.Count() == 0)
+                                    return false;
+                                //計算干涉與註冊狀況
+
+                                return path.All(pt => !pt.IsRegisted(_LowProrityVehicle) && !pt.IsConflicToAnyVehicle(_LowProrityVehicle));
                             }
                             else
-                                return true;
+                                return false;
                         }
                         catch (NoPathForNavigatorException ex)
                         {
                             //找不到路過去也視為衝突
-                            return true;
+                            return false;
                         }
                         catch (Exception)
                         {
-                            return true;
+                            return false;
                         }
                     }
 

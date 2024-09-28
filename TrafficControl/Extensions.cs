@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.VMS;
 
 namespace VMSystem.TrafficControl
 {
@@ -82,6 +83,20 @@ namespace VMSystem.TrafficControl
             {
                 return null;
             }
+        }
+
+
+        public static bool IsRegisted(this MapPoint point, IAGV requestAGV)
+        {
+            var registPt = StaMap.RegistDictionary.FirstOrDefault(pair => pair.Key == point.TagNumber && pair.Value.RegisterAGVName != requestAGV.Name && pair.Value.IsRegisted);
+            return registPt.Value != null;
+        }
+
+        public static bool IsConflicToAnyVehicle(this MapPoint point, IAGV requestAGV)
+        {
+            List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(requestAGV).ToList();
+            IAGV conflicAGV = otherVehicles.FirstOrDefault(agv => point.GetCircleArea(ref requestAGV).IsIntersectionTo(agv.AGVRealTimeGeometery));
+            return conflicAGV != null;
         }
     }
 }

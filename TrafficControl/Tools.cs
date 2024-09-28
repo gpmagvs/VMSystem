@@ -387,6 +387,13 @@ namespace VMSystem.TrafficControl
 
             return path;
         }
+
+        public static double CalculateTheateDiff(double angle1, double angle2)
+        {
+            double different = Math.Abs((angle1 - angle2 + 180) % 360 - 180);
+            return different;
+        }
+
         /// <summary>
         /// 計算航向角度
         /// </summary>
@@ -409,6 +416,12 @@ namespace VMSystem.TrafficControl
 
         }
         public static double CalculationForwardAngle(MapPoint startPoint, MapPoint endPoint)
+        {
+            PointF startPF = new((float)startPoint.X, (float)startPoint.Y);
+            PointF endPF = new((float)endPoint.X, (float)endPoint.Y);
+            return CalculationForwardAngle(startPF, endPF);
+        }
+        public static double CalculationForwardAngle(clsMapPoint startPoint, clsMapPoint endPoint)
         {
             PointF startPF = new((float)startPoint.X, (float)startPoint.Y);
             PointF endPF = new((float)endPoint.X, (float)endPoint.Y);

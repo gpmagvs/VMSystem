@@ -108,7 +108,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IEnumerable<MapPoint> stations = mapPoint.TargetParkableStationPoints();
             //所有被註冊的Tag
             var registedTags = StaMap.RegistDictionary.Keys.ToList();
-            List<int> _forbiddenTags = AgvToPark.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV.ToList() : StaMap.Map.TagNoStopOfForkAGV.ToList();
+            List<int> _forbiddenTags = AgvToPark.GetCanNotReachTags();
             _forbiddenTags.AddRange(registedTags);
             return stations.Where(pt => pt.IsParking && !_forbiddenTags.Contains(pt.TagNumber));
         }
