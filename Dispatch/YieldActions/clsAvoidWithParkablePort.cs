@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
@@ -46,8 +47,8 @@ namespace VMSystem.Dispatch.YieldActions
                                 if (path.Count() == 0)
                                     return false;
                                 //計算干涉與註冊狀況
-
-                                return path.All(pt => !pt.IsRegisted(_LowProrityVehicle) && !pt.IsConflicToAnyVehicle(_LowProrityVehicle));
+                                List<MapRectangle> agvBodyCoveringWhenMoveToGoal= Tools.GetPathRegionsWithRectangle(path.ToList(), _LowProrityVehicle.options.VehicleWidth / 100.0, _LowProrityVehicle.options.VehicleLength / 100.0);
+                                return path.All(pt => !pt.IsRegisted(_LowProrityVehicle)) && !agvBodyCoveringWhenMoveToGoal.IsAnyVehicleConflicTo(_LowProrityVehicle);
                             }
                             else
                                 return false;

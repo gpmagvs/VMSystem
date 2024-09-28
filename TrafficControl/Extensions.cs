@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
@@ -92,11 +93,10 @@ namespace VMSystem.TrafficControl
             return registPt.Value != null;
         }
 
-        public static bool IsConflicToAnyVehicle(this MapPoint point, IAGV requestAGV)
+        public static bool IsAnyVehicleConflicTo(this IEnumerable<MapRectangle> coveryRegion, IAGV requestAGV)
         {
             List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(requestAGV).ToList();
-            IAGV conflicAGV = otherVehicles.FirstOrDefault(agv => point.GetCircleArea(ref requestAGV).IsIntersectionTo(agv.AGVRealTimeGeometery));
-            return conflicAGV != null;
+            return coveryRegion.Any(rect=> otherVehicles.Select(agv=>agv.AGVRealTimeGeometery).Any(agvBody=>agvBody.IsIntersectionTo(rect)) );
         }
     }
 }

@@ -180,12 +180,26 @@ namespace VMSystem.TrafficControl
             }
         }
 
+        /// <summary>
+        /// 取得AGV在指定路線(Tag集合)走行時的矩形涵蓋範圍
+        /// </summary>
+        /// <param name="pathPoints"></param>
+        /// <param name="vehicleWidth">Unit:m</param>
+        /// <param name="vehicleLength">Unit:m</param>
+        /// <returns></returns>
         private static List<MapRectangle> GetPathRegionsWithRectangle(List<int> remainTagList, double vehicleWidth, double vehicleLength)
         {
             List<MapPoint> pathPoints = remainTagList.Select(tag => StaMap.GetPointByTagNumber(tag)).ToList();
             return GetPathRegionsWithRectangle(pathPoints, vehicleWidth, vehicleLength);
         }
 
+        /// <summary>
+        /// 取得AGV在指定路線(MapPoint集合)走行時的矩形涵蓋範圍
+        /// </summary>
+        /// <param name="pathPoints"></param>
+        /// <param name="vehicleWidth">Unit:m</param>
+        /// <param name="vehicleLength">Unit:m</param>
+        /// <returns></returns>
         public static List<MapRectangle> GetPathRegionsWithRectangle(List<MapPoint> pathPoints, double vehicleWidth, double vehicleLength)
         {
             List<MapRectangle> _PathRectangles = new List<MapRectangle>();

@@ -5,6 +5,10 @@ using AGVSystemCommonNet6;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.TrafficControl;
+using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
+using static AGVSystemCommonNet6.MAP.PathFinder;
+using System.Diagnostics;
+using AGVSystemCommonNet6.MAP.Geometry;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -39,6 +43,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     await Task.Delay(1000);
                     UpdateStateDisplayMessage($"Move to Park Station[{msg}]");
+
+                    if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled)
+                        return;
                 }
 
 
@@ -85,10 +92,54 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
                 _previsousTrajectorySendToAGV.Clear();
             }
+            else
+            {
+                //計算當前位置到終點的所有路線皆沒有被另外一台衝突車輛擋道時才繼續動作
+                await WaitPathToDestineNotConflicToYieldedVehicelAsync();
+            }
 
             subStage = Stage;
             await SendTaskToAGV(this.finalMapPoint);
         }
 
+        private async Task WaitPathToDestineNotConflicToYieldedVehicelAsync()
+        {
+            IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
+            if (currentAvoidToVehicle == null)
+                return;
+
+            PathFinder _pathFinder = new PathFinder();
+            clsPathInfo pathToGoalWrapper = _pathFinder.FindShortestPath(Agv.currentMapPoint.TagNumber, this.finalMapPoint.TagNumber,
+                                            new PathFinder.PathFinderOption() { OnlyNormalPoint = true, Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE });
+
+            if (pathToGoalWrapper.stations.Count == 0)
+                return;
+
+            Stopwatch _timer = Stopwatch.StartNew();
+            while (true)
+            {
+                await Task.Delay(1000);
+                IAGV thisAGV = Agv;
+
+                if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN|| IsTaskCanceled)
+                    return;
+
+                List<MapRectangle> AGVBodyCoveringOfPath =  Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth/100.0, thisAGV.options.VehicleLength / 100.0);
+                bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
+                if (isPathClear)
+                    return;
+                else
+                    UpdateStateDisplayMessage($"避車點(主幹道)-等待[{currentAvoidToVehicle.Name}]通行...");
+                if (_timer.Elapsed.Seconds > 3 && currentAvoidToVehicle.NavigationState.IsWaitingConflicSolve && currentAvoidToVehicle.NavigationState.currentConflicToAGV.Name == thisAGV.Name)
+                {
+                    //又被你擋住
+                    UpdateStateDisplayMessage($"避車中(主幹道)但仍與[{currentAvoidToVehicle.Name}]衝突..");
+                    await Task.Delay(1000);
+                    return;
+                }
+            }
+
+
+        }
     }
 }
