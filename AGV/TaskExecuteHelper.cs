@@ -67,7 +67,7 @@ namespace VMSystem.AGV
         /// <param name="task"></param>
         /// <param name="_TaskDonwloadToAGV"></param>
         /// <returns></returns>
-        internal async Task<(TaskDownloadRequestResponse response, clsMapPoint[] trajectory)> TaskDownload(TaskBase task, clsTaskDownloadData _TaskDonwloadToAGV)
+        internal async Task<(TaskDownloadRequestResponse response, clsMapPoint[] trajectory)> TaskDownload(TaskBase task, clsTaskDownloadData _TaskDonwloadToAGV, bool IsRotateToAvoidAngleTask = false)
         {
             try
             {
@@ -157,7 +157,7 @@ namespace VMSystem.AGV
                 {
                     //check final angle. 
                     bool IsStopAtDestineTag = _TaskDonwloadToAGV.Trajectory.Last().Point_ID == _TaskDonwloadToAGV.Destination;
-                    if (IsStopAtDestineTag)
+                    if (IsStopAtDestineTag && !IsRotateToAvoidAngleTask)
                     {
                         double angle = 0;
                         MapPoint navGoalStation = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Destination);

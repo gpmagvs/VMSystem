@@ -231,7 +231,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
                 string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
                 logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
-                (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj);
+                (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
                 if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                     logger.Info($"{Agv.Name} turn to avoid angle task download success.");
                 else
