@@ -23,7 +23,7 @@ namespace VMSystem.VMS
             clientState.OnClientOnlineRequesting += ClientState_OnClientOnlineRequesting;
             clientState.OnClientRunningStatusReport += ClientState_OnTCPClientRunningStatusReport;
             clientState.OnClientTaskFeedback += ClientState_OnClientTaskFeedback;
-
+            clientState.OnClientExitRequesting += ClientState_OnClientExitRequesting;
             clientState.OnTcpSocketDisconnect += ClientState_OnTcpSocketDisconnect;
         }
 
@@ -48,10 +48,29 @@ namespace VMSystem.VMS
                     return;
 
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
-                if (TryGetAGV(e.EQName,  out IAGV agv))
+                if (TryGetAGV(e.EQName, out IAGV agv))
                 {
                     agv.states = (e.Header.Values.First()).ToWebAPIRunningStatusObject();
                     client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(e, "0106", RETURN_CODE.OK));
+                }
+            });
+        }
+
+        private static void ClientState_OnClientExitRequesting(object? sender, clsExitRequest exitRequest)
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
+                if (TryGetAGV(exitRequest.EQName, out IAGV agv))
+                {
+                    RETURN_CODE retCode = RETURN_CODE.OK;
+
+                    client.SendJsonReply(AGVSMessageFactory.createExitReqAckMsg(exitRequest, retCode));
+
+                    await Task.Delay(1000);
+
+                    client.SendJsonReply(AGVSMessageFactory.createExitReq0313(ref exitRequest));
+
                 }
             });
         }
@@ -64,7 +83,7 @@ namespace VMSystem.VMS
                     return;
 
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
-                if (TryGetAGV(e.EQName,  out IAGV agv))
+                if (TryGetAGV(e.EQName, out IAGV agv))
                 {
                     agv.connected = true;
                     agv.TcpClientHandler = client;
@@ -84,7 +103,7 @@ namespace VMSystem.VMS
             Task.Factory.StartNew(() =>
             {
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
-                if (TryGetAGV(request_message.EQName,out IAGV agv))
+                if (TryGetAGV(request_message.EQName, out IAGV agv))
                 {
                     var remote_req = request_message.Header.Values.First().ModeRequest;
                     if (remote_req == REMOTE_MODE.ONLINE)
@@ -108,7 +127,7 @@ namespace VMSystem.VMS
                     return;
 
                 clsAGVSTcpClientHandler client = (clsAGVSTcpClientHandler)sender;
-                if (TryGetAGV(e.EQName,out IAGV agv))
+                if (TryGetAGV(e.EQName, out IAGV agv))
                 {
                     agv.taskDispatchModule.TaskFeedback(e.Header.Values.First());
                     client.SendJsonReply(AGVSMessageFactory.CreateSimpleReturnMessageData(e, "0304", RETURN_CODE.OK));
