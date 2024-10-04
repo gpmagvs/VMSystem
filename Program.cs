@@ -1,9 +1,11 @@
-﻿using AGVSystemCommonNet6.Configuration;
+﻿using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using KGSWebAGVSystemAPI.Models;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.WebSockets;
@@ -15,6 +17,8 @@ using VMSystem.BackgroundServices;
 using VMSystem.Services;
 
 Startup.ConfigurationInit();
+AlarmManagerCenter.Initialize();
+AlarmManager.LoadVCSTrobleShootings();
 EnvironmentVariables.AddUserVariable("VMSInstall", Environment.CurrentDirectory);
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Info("VMSystem Program Start");
