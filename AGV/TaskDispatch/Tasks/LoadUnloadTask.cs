@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
@@ -58,6 +59,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             };
             MoveTaskEvent = new clsMoveTaskEvent(Agv, new List<int> { EntryPoint.TagNumber, EQPoint.TagNumber }, null, false);
         }
+
         public override async Task SendTaskToAGV()
         {
             if (ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
@@ -158,13 +160,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             WaitAGVReachWorkStationMRE.Set();
             base.HandleAGVStatusDown(sender, e);
         }
+
+
+        protected async Task HandleAGVSRejectLDULDActionStartReport(ALARMS alarmCode, string message)
+        {
+            if (TrafficControlCenter.TrafficControlParameters.Experimental.TurnToAvoidDirectionWhenLDULDActionReject)
+                await TryRotationToAvoidAngleOfCurrentTag();
+        }
+
         private async Task WaitAGVReachWorkStationTag()
         {
             WaitAGVReachWorkStationMRE.Reset();
             Agv.TaskExecuter.OnNavigatingReported += TaskExecuter_OnNavigatingReported;
             WaitAGVReachWorkStationMRE.WaitOne();
         }
-
         private async void TaskExecuter_OnNavigatingReported(object? sender, FeedbackData e)
         {
             if (e.PointIndex == 1 && Agv.currentMapPoint.TagNumber == EQPoint.TagNumber)
@@ -204,8 +213,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             try
             {
                 logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
-
-
                 clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
                 int currentTag = trajectory.First().Point_ID;
                 double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
@@ -252,6 +259,74 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        private async Task TryRotationToAvoidAngleOfCurrentTag()
+        {
+            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
+            {
+                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+                WaitAGVReachWorkStationMRE.Set();
+            }
+            try
+            {
+
+                if (Agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.IDLE)
+                    return;
+
+                bool isAnyAGVBlockedByThisAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv)
+                                                 .Any(agv => agv.NavigationState.IsWaitingConflicSolve && agv.NavigationState.currentConflicToAGV.Name == this.Agv.Name);
+
+                if (ActionType == ACTION_TYPE.Unload && !isAnyAGVBlockedByThisAGV) //如果是放貨，一律要轉向避車角度，因為車上有貨不會再自動產生充電任務
+                {
+                    logger.Info($"當前沒有任何AGV因與 {Agv.Name}路徑衝突/干涉而正在等待交管，不用轉向避車角度");
+                    return;
+                }
+
+                logger.Trace($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
+                int currentTag = Agv.currentMapPoint.TagNumber;
+                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                clsMapPoint[] traj = PathFinder.GetTrajectory(new List<MapPoint>() { Agv.currentMapPoint });
+                traj.First().Theta = avoidTheta;
+                clsTaskDownloadData taskObj = new clsTaskDownloadData
+                {
+                    Action_Type = ACTION_TYPE.None,
+                    Destination = Agv.currentMapPoint.TagNumber,
+                    Task_Name = this.TaskName,
+                    Trajectory = traj
+                };
+
+                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.AGVRealTimeGeometery))
+                                                     .ToList();
+                if (bodyOverlapingVehicles.Any())
+                {
+                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
+                    NotifyServiceHelper.INFO($"{Agv.Name} 退出設備後轉向避車角度不允許，如路徑衝突將進入正常避車流程，");
+                    return;
+                }
+                Agv.NavigationState.UpdateNavigationPoints(traj.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
+                WaitAGVReachWorkStationMRE.Reset();
+                Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
+                string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
+                logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
+                (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
+                if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
+                    logger.Info($"{Agv.Name} turn to avoid angle task download success.");
+                else
+                {
+                    logger.Warn($"{Agv.Name} turn to avoid angle task download  failed.");
+                    return;
+                }
+                WaitAGVReachWorkStationMRE.WaitOne();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+            finally
+            {
+                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+                Agv.NavigationState.ResetNavigationPoints();
+            }
+        }
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {

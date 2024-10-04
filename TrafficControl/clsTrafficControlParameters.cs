@@ -13,6 +13,11 @@ namespace VMSystem.TrafficControl
 
         public bool DisableChargeStationEntryPointWhenNavigation { get; set; } = true;
 
+        /// <summary>
+        /// 實驗性功能
+        /// </summary>
+        public clsExperimentalFeatureSettings Experimental { get; set; } = new clsExperimentalFeatureSettings();
+
         public class clsVehicleGeometryExpands
         {
             public clsVehicleGeometryExpand LeaveWorkStationGeoExpand { get; set; } = new clsVehicleGeometryExpand()
@@ -68,6 +73,17 @@ namespace VMSystem.TrafficControl
         {
             public double Length { get; set; } = 1.0;
             public double Width { get; set; } = 1.0;
+        }
+
+        /// <summary>
+        /// 實驗性功能參數
+        /// </summary>
+        public class clsExperimentalFeatureSettings
+        {
+            /// <summary>
+            /// 當派車拒絕VMS進行AGV取放貨動作後，是否要將車子轉向避車角度
+            /// </summary>
+            public bool TurnToAvoidDirectionWhenLDULDActionReject { get; set; } = false;
         }
     }
 

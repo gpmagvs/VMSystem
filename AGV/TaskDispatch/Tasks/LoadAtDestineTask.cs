@@ -47,7 +47,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
+                {
+                    await HandleAGVSRejectLDULDActionStartReport(response.AlarmCode, response.message);
                     return (response.confirm, response.AlarmCode, response.message);
+                }
             }
             return await base.DistpatchToAGV();
         }
