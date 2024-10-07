@@ -132,6 +132,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 pathConflicStopWatch.Start();
                 bool isReachNearGoalContinue = false;
                 bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
+                bool isRotationBackMove = false;
                 while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
                 {
                     bool isGoWaitPointByNormalTravaling = false;
@@ -308,6 +309,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
+                        if (IsAnyRotateConflicToOtherVehicle(dispatchCenterReturnPath, out bool isConflicAtStartRotation))
+                        {
+                            await DynamicClosePath();
+                            isRotationBackMove = isConflicAtStartRotation;
+                            continue;
+                        }
+
                         SecondaryPathSearching = false;
                         RestoreClosedPathes();
                         if (subStage != VehicleMovementStage.AvoidPath && subStage != VehicleMovementStage.AvoidPath_Park)
@@ -348,6 +356,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (trajectory.Length == 0)
                         {
                             searchStartPt = Agv.currentMapPoint;
+
                             continue;
                         }
 
@@ -526,12 +535,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 break;
                             }
 
+                            if (isRotationBackMove)
+                            {
+                                isRotationBackMove = false;
+                                await Agv.TaskExecuter.TaskCycleStop(OrderData.TaskName);
+                                _previsousTrajectorySendToAGV.Clear();
+                                break;
+                            }
+
                             await Task.Delay(10);
                         }
 
 
 
-                        if (CycleStopByWaitingRegionIsEnterable)
+                        if (CycleStopByWaitingRegionIsEnterable || isRotationBackMove)
                         {
                             subStage = Stage;
                             _finalMapPoint = finalMapPoint;

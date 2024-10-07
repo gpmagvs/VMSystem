@@ -9,11 +9,43 @@ using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using System.Diagnostics;
 using AGVSystemCommonNet6.MAP.Geometry;
+using VMSystem.VMS;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public partial class MoveTaskDynamicPathPlanV2
     {
+
+        private bool IsAnyRotateConflicToOtherVehicle(IEnumerable<MapPoint> dispatchCenterReturnPath, out bool isConflicAtStartRotation)
+        {
+            IAGV vehicle_ = Agv;
+            isConflicAtStartRotation = false;
+            List<MapPoint> _path = dispatchCenterReturnPath.ToList();
+            double currentAngleOfAGV = vehicle_.states.Coordination.Theta;
+            MapCircleArea AGVRotaionGeometry = vehicle_.AGVRotaionGeometry;
+            for (int i = 0; i < _path.Count - 1; i++)
+            {
+                double nextPathForwardAngle = Tools.CalculationForwardAngle(_path[i], _path[i + 1]);
+                double rotateThetaToNextPt = Tools.CalculateTheateDiff(currentAngleOfAGV, nextPathForwardAngle);
+
+                // 檢查旋轉角度是否大於 20 且是否與其他 AGV 衝突
+                if (rotateThetaToNextPt > 20 &&
+                    VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(AGVRotaionGeometry)))
+                {
+                    Agv.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
+                    {
+                        StartPoint = _path[i],
+                        EndPoint = _path[i + 1]
+                    };
+                    isConflicAtStartRotation = i == 0;
+                    return true;
+                }
+                currentAngleOfAGV = nextPathForwardAngle;
+                AGVRotaionGeometry = _path[i + 1].GetCircleArea(ref vehicle_);
+            }
+            return false;
+        }
+
         private async Task AvoidActionProcess()
         {
             if (subStage == VehicleMovementStage.AvoidPath_Park)
@@ -121,10 +153,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await Task.Delay(1000);
                 IAGV thisAGV = Agv;
 
-                if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN|| IsTaskCanceled)
+                if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled)
                     return;
 
-                List<MapRectangle> AGVBodyCoveringOfPath =  Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth/100.0, thisAGV.options.VehicleLength / 100.0);
+                List<MapRectangle> AGVBodyCoveringOfPath = Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth / 100.0, thisAGV.options.VehicleLength / 100.0);
                 bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
                 if (isPathClear)
                     return;
