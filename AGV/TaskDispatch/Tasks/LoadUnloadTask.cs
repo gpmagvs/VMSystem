@@ -216,6 +216,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
                 int currentTag = trajectory.First().Point_ID;
                 double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+
+                if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
+                    return;
                 trajectory.First().Theta = avoidTheta;
                 clsTaskDownloadData taskObj = new clsTaskDownloadData
                 {
@@ -284,6 +287,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 logger.Trace($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
                 int currentTag = Agv.currentMapPoint.TagNumber;
                 double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+
+                if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
+                    return;
+
                 clsMapPoint[] traj = PathFinder.GetTrajectory(new List<MapPoint>() { Agv.currentMapPoint });
                 traj.First().Theta = avoidTheta;
                 clsTaskDownloadData taskObj = new clsTaskDownloadData
