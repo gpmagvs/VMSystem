@@ -374,7 +374,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 UnRegistPoints();
                 OrderData.State = TASK_RUN_STATUS.FAILURE;
                 OrderData.FinishTime = DateTime.Now;
-                OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description_Zh}({alarmDto.Description_En})";
+                OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description})";
 
                 if (Agv != null && (alarm == ALARMS.AGV_STATUS_DOWN || Agv?.main_state == MAIN_STATUS.DOWN))
                 {
