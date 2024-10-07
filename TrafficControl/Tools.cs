@@ -404,8 +404,18 @@ namespace VMSystem.TrafficControl
 
         public static double CalculateTheateDiff(double angle1, double angle2)
         {
-            double different = Math.Abs((angle1 - angle2 + 180) % 360 - 180);
-            return different;
+            double difference = Math.Abs((angle1 - angle2 + 180) % 360 - 180);
+            // 確保差值在 -180 到 180 之間
+            if (difference < -180)
+            {
+                difference += 360;
+            }
+            else if (difference > 180)
+            {
+                difference -= 360;
+            }
+
+            return Math.Abs(difference); // 返回絕對值
         }
 
         /// <summary>
