@@ -22,10 +22,22 @@ namespace VMSystem.TrafficControl.ConflicDetection
         protected override IEnumerable<IAGV> GetOtherVehicles()
         {
             IEnumerable<IAGV> baseFiltered = base.GetOtherVehicles();
-            var chargeDetetionAGVList = baseFiltered.Where(agv => agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge).ToList();
+            var chargeDetetionAGVList = baseFiltered.Where(agv => !_IsAGVReadyMoveToPort(agv) && agv.currentMapPoint.StationType != MapPoint.STATION_TYPE.Charge).ToList();
             Console.WriteLine($"chargeDetetionAGVList count:{chargeDetetionAGVList.Count}");
             return chargeDetetionAGVList;
             //return baseFiltered.SkipWhile(agv => agv.currentMapPoint.IsCharge && agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING);
+
+            bool _IsAGVReadyMoveToPort(IAGV agv)
+            {
+                if (agv.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
+                    return false;
+
+                if (agv.CurrentRunningTask().ActionType != AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load &&
+                   agv.CurrentRunningTask().ActionType != AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload)
+                    return false;
+
+                return agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
+            }
         }
 
     }
