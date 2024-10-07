@@ -114,7 +114,7 @@ namespace VMSystem.TrafficControl
                 waiting_info_matched.AllowMoveResumeResetEvent.Set();
             }
         }
-
+        private static DateTime _lastForbiddenNotifyMsgSendTime = DateTime.MinValue;
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
 
@@ -169,7 +169,11 @@ namespace VMSystem.TrafficControl
 
                 if (_isNeedWait)
                 {
-                    NotifyServiceHelper.WARNING($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}尚不允許:{_waitMessage}");
+                    if ((DateTime.Now - _lastForbiddenNotifyMsgSendTime).TotalSeconds > 1)
+                    {
+                        NotifyServiceHelper.WARNING($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}尚不允許:{_waitMessage}");
+                        _lastForbiddenNotifyMsgSendTime = DateTime.Now;
+                    }
                     List<IAGV> conflicVehicles = _result.ConflicToAGVList;
                     args.WaitSignal.Reset();
                     args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
