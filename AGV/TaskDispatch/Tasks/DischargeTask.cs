@@ -102,7 +102,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 else
                     nextGoal = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
 
-                if (_IsNextGoalInRegion(nextGoal, regionToReach))
+                if (regionToReach.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && _IsNextGoalInRegion(nextGoal, regionToReach))
                 {
                     bool isRegionEntryable = false;
                     while (!isRegionEntryable)
