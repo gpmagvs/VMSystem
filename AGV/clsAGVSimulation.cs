@@ -123,30 +123,30 @@ namespace VMSystem.AGV
                     }
 
                     bool hasAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure;
-                    if (hasAction)
+                    bool isDischarge = _currentBarcodeMoveArgs.action == ACTION_TYPE.Discharge;
+                    if (hasAction || isDischarge)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
 
-                        async Task<clsLeaveFromWorkStationConfirmEventArg> _confirmLeaveWorkStationConfirm()
+                        int GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID;
+                        async Task<bool> _confirmLeaveWorkStationConfirm()
                         {
-                            return await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg
-                            {
-                                Agv = agv,
-                                GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID
-                            });
+                            return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
                         }
 
-                        while ((await _confirmLeaveWorkStationConfirm()).ActionConfirm != clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK)
+                        while (!await _confirmLeaveWorkStationConfirm())
                         {
                             await Task.Delay(1000);
                         }
-                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+
+                        if (!isDischarge)
                         {
-                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                            if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                                _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                            else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
+                                _CargoStateSimulate(ACTION_TYPE.Load, "");
+                            await _BackToHome(_currentBarcodeMoveArgs, token);
                         }
-                        else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
-                            _CargoStateSimulate(ACTION_TYPE.Load, "");
-                        await _BackToHome(_currentBarcodeMoveArgs, token);
                     }
 
                     bool _isChargeAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Charge;

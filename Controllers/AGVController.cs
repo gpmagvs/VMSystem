@@ -205,36 +205,10 @@ namespace VMSystem.Controllers
         {
             try
             {
-
-                IAGV agv = VMSManager.GetAGVByName(AGVName);
-
-                var entryTag = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory.First().Point_ID;
-
-                var EntryPointOfEQ = StaMap.GetPointByTagNumber(entryTag);
-
-                var response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg()
-                {
-                    Agv = agv,
-                    GoalTag = EntryPointOfEQ.TagNumber,
-                });
-
-                var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
-                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
-                bool allowLeve = response.ActionConfirm == LEAVE_WORKSTATION_ACTION.OK;
-                if (!allowLeve)
-                {
-                    trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
-                }
-                else
-                {
-                    trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
-                    await Task.Delay(200);
-                    trafficState.SetStatusNoWaiting();
-
-                }
+                bool allowLeve = await TrafficControlCenter.AGVLeaveWorkStationRequest(AGVName, EQTag);
                 return Ok(new
                 {
-                    confirm = allowLeve,
+                    confirm = allowLeve
                 });
             }
             catch (Exception ex)

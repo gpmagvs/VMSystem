@@ -23,6 +23,7 @@ using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.MAP.PathFinder;
+using static VMSystem.AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg;
 
 namespace VMSystem.TrafficControl
 {
@@ -115,6 +116,42 @@ namespace VMSystem.TrafficControl
             }
         }
         private static DateTime _lastForbiddenNotifyMsgSendTime = DateTime.MinValue;
+
+        public static async Task<bool> AGVLeaveWorkStationRequest(string AGVName, int eQTag)
+        {
+
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            ACTION_TYPE currentAction = agv.CurrentRunningTask().ActionType;
+            clsMapPoint[] agvCurrentHomingTraj = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory;
+            bool _isDischargeOrUnParkActionOfAGV = currentAction == ACTION_TYPE.Discharge || currentAction == ACTION_TYPE.Unpark;
+
+            int entryTag = _isDischargeOrUnParkActionOfAGV ? agvCurrentHomingTraj.Last().Point_ID :
+                                                             agvCurrentHomingTraj.First().Point_ID;
+            var EntryPointOfEQ = StaMap.GetPointByTagNumber(entryTag);
+
+            clsLeaveFromWorkStationConfirmEventArg response = await TrafficControlCenter.HandleAgvLeaveFromWorkstationRequest(new clsLeaveFromWorkStationConfirmEventArg()
+            {
+                Agv = agv,
+                GoalTag = EntryPointOfEQ.TagNumber,
+            });
+
+            var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
+            trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
+            bool allowLeve = response.ActionConfirm == LEAVE_WORKSTATION_ACTION.OK;
+            if (!allowLeve)
+            {
+                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
+            }
+            else
+            {
+                trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
+                await Task.Delay(200);
+                trafficState.SetStatusNoWaiting();
+
+            }
+            return allowLeve;
+        }
+
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
 
