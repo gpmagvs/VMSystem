@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -67,6 +68,11 @@ namespace VMSystem.Dispatch
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
                 return path = path == null ? path : path.Clone();
+            }
+            catch (NoPathForNavigatorException ex)
+            {
+                logger.Error(ex);
+                throw ex;
             }
             catch (Exception ex)
             {

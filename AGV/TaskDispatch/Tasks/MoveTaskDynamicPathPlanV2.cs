@@ -545,9 +545,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                             await Task.Delay(10);
                         }
-
-
-
                         if (CycleStopByWaitingRegionIsEnterable || isRotationBackMove)
                         {
                             subStage = Stage;
@@ -565,6 +562,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             CalculateThetaError(out double expectedAngle, out error);
                             return error > 25;
                         }
+                    }
+                    catch (NoPathForNavigatorException ex)
+                    {
+                        UpdateStateDisplayMessage($"No Path Found..Analyzing...");
+                        RestoreClosedPathes();
+                        await Task.Delay(1000);
+                        continue;
                     }
                     catch (PathNotDefinedException ex)
                     {

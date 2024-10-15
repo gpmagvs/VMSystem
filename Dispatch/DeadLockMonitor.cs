@@ -192,6 +192,13 @@ namespace VMSystem.Dispatch
                 }
             }
 
+            //if (_IsAnyAGVInfrontOfChargeStation(out IAGV _agv))
+            //{
+            //    var _lowPAGV = DeadLockVehicles.First(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv));
+            //    var _highPAGV = DeadLockVehicles.First(agv => agv != _lowPAGV);
+            //    NotifyServiceHelper.INFO($"{_lowPAGV.Name} 位於充電站前.應優先進入充電站避讓");
+            //    return (_lowPAGV, _highPAGV, true);
+            //}
 
             //如果有某台車他位於另一台車之終點的相鄰位置=>先避讓
             if (DeadLockVehicles.FirstOrDefault(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv)) != null)
@@ -231,6 +238,12 @@ namespace VMSystem.Dispatch
                 var allNearbyPtOfDestines = otherAGVDestineMapPoints.SelectMany(destinePt => destinePt.TargetNormalPoints());
                 bool _isAGVAtSomeoneNearPointOfDestine = allNearbyPtOfDestines.Any(pt => pt.TagNumber == _agv.currentMapPoint.TagNumber);
                 return _isAGVAtSomeoneNearPointOfDestine;
+            }
+
+            bool _IsAnyAGVInfrontOfChargeStation(out IAGV _agv)
+            {
+                _agv = DeadLockVehicles.FirstOrDefault(agv => agv.currentMapPoint.TargetWorkSTationsPoints().Any(pt => pt.IsCharge));
+                return _agv != null;
             }
 
         }
