@@ -192,6 +192,16 @@ namespace VMSystem.Dispatch
                 }
             }
 
+
+            //如果有某台車他位於另一台車之終點的相鄰位置=>先避讓
+            if (DeadLockVehicles.FirstOrDefault(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv)) != null)
+            {
+                var _lowPAGV = DeadLockVehicles.First(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv));
+                var _highPAGV = DeadLockVehicles.First(agv => agv != _lowPAGV);
+                NotifyServiceHelper.INFO($"{_lowPAGV.Name} 位於其他車輛任務終點或鄰近點.應優先避讓");
+                return (_lowPAGV, _highPAGV, false);
+            }
+
             Dictionary<IAGV, int> orderedByWeight = DeadLockVehicles.ToDictionary(v => v, v => CalculateWeights(v));
             IEnumerable<IAGV> ordered = new List<IAGV>();
             if (orderedByWeight.First().Value == orderedByWeight.Last().Value)
@@ -208,6 +218,21 @@ namespace VMSystem.Dispatch
                 IEnumerable<MapPoint> parkablePortPointsInRegion = forkAGV.currentMapPoint.GetRegion().GetParkablePointOfRegion(forkAGV);
                 return parkablePortPointsInRegion;
             }
+
+
+            //判斷AGV是否在其他車輛任務的終點或鄰近點
+            bool _IsAnyAGVInNearbyOfDestineOfOthers(IAGV _agv)
+            {
+                var otherAgvList = DeadLockVehicles.Where(agv => agv != _agv);
+                var otherAGVDestineMapPoints = otherAgvList.Select(agv => StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag)).ToList();
+                bool _isAGVAtSomeoneDestine = otherAGVDestineMapPoints.Any(pt => pt.TagNumber == _agv.currentMapPoint.TagNumber);
+                if (_isAGVAtSomeoneDestine)
+                    return true;
+                var allNearbyPtOfDestines = otherAGVDestineMapPoints.SelectMany(destinePt => destinePt.TargetNormalPoints());
+                bool _isAGVAtSomeoneNearPointOfDestine = allNearbyPtOfDestines.Any(pt => pt.TagNumber == _agv.currentMapPoint.TagNumber);
+                return _isAGVAtSomeoneNearPointOfDestine;
+            }
+
         }
         public static int CalculateWeights(IAGV vehicle)
         {

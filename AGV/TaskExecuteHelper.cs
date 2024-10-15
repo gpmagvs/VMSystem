@@ -438,7 +438,7 @@ namespace VMSystem.AGV
                 };
                 WaitACTIONFinishReportedMRE.Reset();
                 SimpleRequestResponse taskStateResponse = new SimpleRequestResponse();
-
+                bool isAGVIDLE = Vehicle.main_state != clsEnums.MAIN_STATUS.RUN;
                 if (Vehicle.simulationMode)
                 {
                     Vehicle.AgvSimulation.CancelTask(100);
@@ -461,12 +461,13 @@ namespace VMSystem.AGV
                 if (taskStateResponse.ReturnCode == RETURN_CODE.OK)
                 {
                     logger.Trace("TaskCycleStop: Waiting for AGV report ACTION_FINISH");
-                    bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(TimeSpan.FromMinutes(3));
-                    //bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(TimeSpan.FromSeconds(3));
 
+                    bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(isAGVIDLE ? TimeSpan.FromSeconds(3) : TimeSpan.FromMinutes(3));
+                    //bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(TimeSpan.FromSeconds(3));
                     if (!actionFinishDone)
                     {
-                        logger.Warn("Wait Action_Finish Timeout");
+
+                        logger.Warn("Wait Action_Finish Timeout" + $"{(isAGVIDLE ? "-對閒置中的AGV下發Cycle Stop但沒有收到Action Finish回報!" : "")}");
                     }
                     else
                     {
@@ -481,6 +482,7 @@ namespace VMSystem.AGV
             finally
             {
                 lastTaskDonwloadToAGV = null;
+                WaitACTIONFinishReportedMRE.Set();
             }
         }
 
