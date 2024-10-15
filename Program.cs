@@ -16,6 +16,13 @@ using VMSystem;
 using VMSystem.BackgroundServices;
 using VMSystem.Services;
 
+if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
+{
+    Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
+    Console.WriteLine("Press any key to exit...");
+    Console.ReadKey(true);
+}
+
 Startup.ConfigurationInit();
 AlarmManagerCenter.Initialize();
 AlarmManager.LoadVCSTrobleShootings();
