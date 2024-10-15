@@ -122,24 +122,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (VMSException ex)
                 {
-                    logger.Error(ex);
-                    if (ex.Alarm_Code == ALARMS.Task_Canceled)
-                        _SetOrderAsCancelState(TaskCancelReason);
-                    else
-                        _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
-                    ActionsWhenOrderCancle();
-                    RunningTask.Dispose();
+                    _HandleVMSException(ex);
                     return;
                 }
                 catch (VMSExceptionAbstract ex)
                 {
-                    logger.Error(ex);
-                    if (ex.Alarm_Code == ALARMS.Task_Canceled)
-                        _SetOrderAsCancelState(TaskCancelReason);
-                    else
-                        _SetOrderAsFaiiureState(ex.Message, ex.Alarm_Code);
-                    ActionsWhenOrderCancle();
-                    RunningTask.Dispose();
+                    _HandleVMSException(ex);
                     return;
                 }
                 catch (Exception ex)
@@ -193,6 +181,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     return isTaskFail;
                 }
 
+                async void _HandleVMSException(VMSExceptionAbstract ex)
+                {
+                    await Task.Delay(1000);
+                    logger.Error(ex);
+                    bool _isAgvDown = Agv.main_state == MAIN_STATUS.DOWN;
+                    if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)
+                        _SetOrderAsCancelState(TaskCancelReason);
+                    else
+                        _SetOrderAsFaiiureState(ex.Message, _isAgvDown ? ALARMS.AGV_STATUS_DOWN : ex.Alarm_Code);
+                    ActionsWhenOrderCancle();
+                    RunningTask.Dispose();
+                }
             });
         }
 
@@ -326,6 +326,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
+            if (string.IsNullOrEmpty(OrderData.FailureReason))
+            {
+
+            }
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
