@@ -192,9 +192,12 @@ namespace VMSystem.Dispatch
                         {
                             return pathCandicates.First(path => path.Last().TagNumber == finalMapPoint.TagNumber);
                         }
-                        if (pathCandicates.Count() > 2)
+
+                        int pointNum = TrafficControlCenter.TrafficControlParameters.Navigation.MinusPtWhenMoveToGoal + 1;
+
+                        if (pathCandicates.Count() > pointNum)
                         {
-                            path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
+                            path = pathCandicates.ToList()[pathCandicates.Count() - pointNum].ToList();
                         }
                         else
                             path = subGoalResults.First(path => path != null).ToList();

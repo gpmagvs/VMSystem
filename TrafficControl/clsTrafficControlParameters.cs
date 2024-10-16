@@ -68,6 +68,11 @@ namespace VMSystem.TrafficControl
             /// 背景監視碰撞發生 
             /// </summary>
             public bool PathConflicBackgroundMonitor { get; set; } = true;
+
+            /// <summary>
+            /// 
+            /// </summary>
+            public int MinusPtWhenMoveToGoal { get; set; } = 2;
         }
         public class clsVehicleGeometryExpand
         {
