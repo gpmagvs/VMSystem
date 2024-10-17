@@ -67,6 +67,19 @@ namespace VMSystem.Dispatch
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
+
+                if (path != null && path.Count() != 0 && TrafficControlCenter.TrafficControlParameters.Experimental.NavigationWithTrafficControlPoints)
+                {
+                    var _path = path.Clone().ToList();
+                    var firstTrafficControlPt = _path.Skip(1).FirstOrDefault(pt => pt.IsTrafficCheckPoint);
+                    if (firstTrafficControlPt != null)
+                    {
+                        NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
+                        int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
+                        return _path.Take(index + 1);
+                    }
+                }
+
                 return path = path == null ? path : path.Clone();
             }
             catch (NoPathForNavigatorException ex)
@@ -89,11 +102,6 @@ namespace VMSystem.Dispatch
                 await Task.Delay(10);
                 semaphore.Release();
             }
-        }
-        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, clsTaskDto taskDto, VehicleMovementStage stage)
-        {
-            MapPoint goalPoint = taskDto.GetFinalMapPoint(vehicle, stage);
-            return await MoveToDestineDispatchRequest(vehicle, startPoint, goalPoint, taskDto, stage);
         }
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
@@ -153,7 +161,7 @@ namespace VMSystem.Dispatch
                 {
                     List<MapPoint> path = new();
 
-                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber && _path.All(pt => otherAGV.SelectMany(agv => agv.NavigationState.NextNavigtionPoints).GetTagCollection().Contains(pt.TagNumber)));
+                    IEnumerable<MapPoint> _noConflicPathToDestine = subGoalResults.FirstOrDefault(_path => _path != null && _path.Last().TagNumber == finalMapPoint.TagNumber && _path.All(pt => !otherAGV.SelectMany(agv => agv.NavigationState.NextNavigtionPoints).GetTagCollection().Contains(pt.TagNumber)));
 
                     if (_noConflicPathToDestine != null && !_WillFinalStopPointConflicMaybe(_noConflicPathToDestine))
                     {
@@ -192,12 +200,9 @@ namespace VMSystem.Dispatch
                         {
                             return pathCandicates.First(path => path.Last().TagNumber == finalMapPoint.TagNumber);
                         }
-
-                        int pointNum = TrafficControlCenter.TrafficControlParameters.Navigation.MinusPtWhenMoveToGoal + 1;
-
-                        if (pathCandicates.Count() > pointNum)
+                        if (pathCandicates.Count() > 2)
                         {
-                            path = pathCandicates.ToList()[pathCandicates.Count() - pointNum].ToList();
+                            path = pathCandicates.ToList()[pathCandicates.Count() - 2].ToList();
                         }
                         else
                             path = subGoalResults.First(path => path != null).ToList();
@@ -331,11 +336,6 @@ namespace VMSystem.Dispatch
             }
 
         }
-        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, clsTaskDto order, VehicleMovementStage stage)
-        {
-            return await GenNextNavigationPath(vehicle, startPoint, order.GetFinalMapPoint(vehicle, stage), order, stage);
-        }
-
         private static bool WillRotationAtCurrentPointConflicTo(IAGV vehicle, clsTaskDto order, VehicleMovementStage stage, IEnumerable<MapPoint> _path, IEnumerable<IAGV> otherAGV)
         {
             //考慮原地旋轉是否會與其他車輛干涉

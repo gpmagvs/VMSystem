@@ -89,6 +89,13 @@ namespace VMSystem.TrafficControl
             /// 當派車拒絕VMS進行AGV取放貨動作後，是否要將車子轉向避車角度
             /// </summary>
             public bool TurnToAvoidDirectionWhenLDULDActionReject { get; set; } = false;
+
+
+            /// <summary>
+            /// 使用交管檢查點進行分段路徑導航
+            /// </summary>
+            public bool NavigationWithTrafficControlPoints { get; set; } = true;
+
         }
     }
 
