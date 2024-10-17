@@ -123,8 +123,7 @@ namespace VMSystem.AGV
                     }
 
                     bool hasAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Load || _currentBarcodeMoveArgs.action == ACTION_TYPE.Unload || _currentBarcodeMoveArgs.action == ACTION_TYPE.Measure;
-                    bool isDischarge = _currentBarcodeMoveArgs.action == ACTION_TYPE.Discharge;
-                    if (hasAction || isDischarge)
+                    if (hasAction)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
 
@@ -139,14 +138,11 @@ namespace VMSystem.AGV
                             await Task.Delay(1000);
                         }
 
-                        if (!isDischarge)
-                        {
-                            if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
-                                _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
-                            else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
-                                _CargoStateSimulate(ACTION_TYPE.Load, "");
-                            await _BackToHome(_currentBarcodeMoveArgs, token);
-                        }
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                        else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
+                            _CargoStateSimulate(ACTION_TYPE.Load, "");
+                        await _BackToHome(_currentBarcodeMoveArgs, token);
                     }
 
                     bool _isChargeAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Charge;
