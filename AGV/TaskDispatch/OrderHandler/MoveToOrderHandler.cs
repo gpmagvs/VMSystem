@@ -11,7 +11,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             //Agv.model 
             if (Agv.GetCanNotReachTags().Contains(OrderData.To_Station_Tag))
             {
-                _SetOrderAsFaiiureState($"任務終點為[{Agv.model}]車款不可停車的點位", AGVSystemCommonNet6.Alarm.ALARMS.Destine_Point_Is_Not_Allow_To_Reach);
+                _SetOrderAsFaiiureState($"任務終點為[{Agv.model}]車款不可停車的點位", AGVSystemCommonNet6.Alarm.ALARMS.Navigation_Path_Contain_Forbidden_Point);
                 return;
             }
 
