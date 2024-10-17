@@ -8,8 +8,8 @@
 		<ApplicationIcon>favicon2.ico</ApplicationIcon>
 		<UserSecretsId>5aaaca2e-7b5d-4629-ac34-12d155a519a9</UserSecretsId>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<AssemblyVersion>1.1.290.3</AssemblyVersion>
-		<FileVersion>1.1.290.3</FileVersion>
+		<AssemblyVersion>1.1.291.3</AssemblyVersion>
+		<FileVersion>1.1.291.3</FileVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>
@@ -72,7 +72,7 @@
 
 	<ItemGroup>
 		<Content Update="appsettings.json">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>
 

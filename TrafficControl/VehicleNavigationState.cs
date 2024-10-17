@@ -474,10 +474,12 @@ namespace VMSystem.TrafficControl
         public ACTION_TYPE AvoidAction { get; set; } = ACTION_TYPE.None;
         public ConcurrentDictionary<int, MapPoint> CannotReachHistoryPoints { get; set; } = new();
         public double StopAngle { get; set; } = 0;
+        public bool IsParkToWIPButNoPathToGo { get; internal set; }
+
         internal void Reset()
         {
             CannotReachHistoryPoints.Clear();
-            IsAvoidRaising = false;
+            IsParkToWIPButNoPathToGo = IsAvoidRaising = false;
             AvoidPt = null;
         }
     }

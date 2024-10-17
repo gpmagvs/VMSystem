@@ -269,16 +269,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 //try get secondary path
                                 if (await DynamicClosePath())
                                 {
-                                    var _secondaryPathResponse = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, Agv.currentMapPoint, _finalMapPoint, OrderData, Stage));
-                                    if (_secondaryPathResponse != null && _secondaryPathResponse.Any())
+                                    try
                                     {
-                                        NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
-                                        await SendCancelRequestToAGV();
-                                        _previsousTrajectorySendToAGV.Clear();
-                                        searchStartPt = Agv.currentMapPoint;
-                                        continue;
+                                        var _secondaryPathResponse = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, Agv.currentMapPoint, _finalMapPoint, OrderData, Stage));
+                                        if (_secondaryPathResponse != null && _secondaryPathResponse.Any())
+                                        {
+                                            NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
+                                            await SendCancelRequestToAGV();
+                                            _previsousTrajectorySendToAGV.Clear();
+                                            searchStartPt = Agv.currentMapPoint;
+                                            continue;
+                                        }
+                                        else
+                                        {
+                                            RestoreClosedPathes();
+                                        }
                                     }
-                                    else
+                                    catch (NoPathForNavigatorException ex)
                                     {
                                         RestoreClosedPathes();
                                     }

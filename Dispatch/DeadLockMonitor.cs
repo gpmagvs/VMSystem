@@ -161,10 +161,13 @@ namespace VMSystem.Dispatch
                 var _avoidVehicle = await avoidAction.StartSolve();
                 if (_avoidVehicle != null)
                 {
+                    lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = false;
                     return _avoidVehicle;
                 }
-            }
+                else
+                    lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
 
+            }
             clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
             var toAvoidVehicle = await lowPriorityWork.StartSolve();
             if (toAvoidVehicle == null)
@@ -181,7 +184,7 @@ namespace VMSystem.Dispatch
 
             //如果是叉車與潛盾互等 而且叉車所在區域內有可停車的WIP=> 叉車停進去WIP避讓。
 
-            if (DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK))
+            if (DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK && !vehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo))
             {
                 IAGV forkAGV = DeadLockVehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
                 if (forkAGV != null && GetParkablePointOfAGVInRegion(forkAGV).Any())
@@ -223,6 +226,11 @@ namespace VMSystem.Dispatch
             IEnumerable<MapPoint> GetParkablePointOfAGVInRegion(IAGV forkAGV)
             {
                 IEnumerable<MapPoint> parkablePortPointsInRegion = forkAGV.currentMapPoint.GetRegion().GetParkablePointOfRegion(forkAGV);
+                if (!parkablePortPointsInRegion.Any())
+                    return new List<MapPoint>();
+
+                //
+
                 return parkablePortPointsInRegion;
             }
 
@@ -395,7 +403,7 @@ namespace VMSystem.Dispatch
 
             bool _TryGetParkableStation(IEnumerable<MapPoint> value, out MapPoint? _parkablePoint)
             {
-                List<int> _forbiddenTags = waitingVehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagNoStopOfSubmarineAGV.ToList() : StaMap.Map.TagNoStopOfForkAGV.ToList();
+                List<int> _forbiddenTags = waitingVehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ? StaMap.Map.TagForbiddenForSubMarineAGV.ToList() : StaMap.Map.TagNoStopOfForkAGV.ToList();
                 _parkablePoint = value.FirstOrDefault(pt => !_forbiddenTags.Contains(pt.TagNumber));
                 return _parkablePoint != null;
             }

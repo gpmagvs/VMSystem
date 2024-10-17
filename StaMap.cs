@@ -547,23 +547,23 @@ namespace VMSystem
 
         internal static List<MapPoint> GetNoStopPointsByAGVModel(clsEnums.AGV_TYPE model)
         {
-            List<int> tags = GetNoStopTagsByAGVModel(model);
+            IEnumerable<int> tags = GetNoStopTagsByAGVModel(model);
             return tags.Select(tag => GetPointByTagNumber(tag)).ToList();
         }
-        internal static List<int> GetNoStopTagsByAGVModel(clsEnums.AGV_TYPE model)
+        internal static IEnumerable<int> GetNoStopTagsByAGVModel(clsEnums.AGV_TYPE model)
         {
-            List<int> tags = new List<int>();
+            IEnumerable<int> tags = new List<int>();
             switch (model)
             {
                 case clsEnums.AGV_TYPE.FORK:
-                    tags = Map.TagNoStopOfForkAGV.Clone();
+                    tags = Map.TagForbiddenForForkAGV;
                     break;
                 case clsEnums.AGV_TYPE.YUNTECH_FORK_AGV:
                     break;
                 case clsEnums.AGV_TYPE.INSPECTION_AGV:
                     break;
                 case clsEnums.AGV_TYPE.SUBMERGED_SHIELD:
-                    tags = Map.TagNoStopOfSubmarineAGV.Clone();
+                    tags = Map.TagForbiddenForSubMarineAGV.Clone();
                     break;
                 case clsEnums.AGV_TYPE.SUBMERGED_SHIELD_Parts:
                     break;

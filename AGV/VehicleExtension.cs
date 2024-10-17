@@ -9,10 +9,10 @@ namespace VMSystem.AGV
         /// </summary>
         /// <param name="vehicle"></param>
         /// <returns></returns>
-        public static List<int> GetCanNotReachTags(this IAGV vehicle)
+        public static IEnumerable<int> GetCanNotReachTags(this IAGV vehicle)
         {
             return vehicle.model == AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD ?
-                                                 StaMap.Map.TagNoStopOfSubmarineAGV : StaMap.Map.TagNoStopOfForkAGV;
+                                                 StaMap.Map.TagForbiddenForSubMarineAGV : StaMap.Map.TagForbiddenForForkAGV;
         }
 
         /// <summary>

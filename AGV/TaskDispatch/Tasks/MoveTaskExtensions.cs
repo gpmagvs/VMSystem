@@ -57,7 +57,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                                      .Select(index => StaMap.GetPointByIndex(index))
                                                                      .ToList();
 
-                List<int> forbidTags = executeAGV.GetForbidPassTagByAGVModel();
+                IEnumerable<int> forbidTags = executeAGV.GetForbidPassTagByAGVModel();
                 List<MapPoint> validPoints = entryPoints.Where(points => !forbidTags.Contains(points.TagNumber)).ToList();
                 MapPoint pt = validPoints.FirstOrDefault();
                 if (pt == null)
@@ -108,7 +108,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IEnumerable<MapPoint> stations = mapPoint.TargetParkableStationPoints();
             //所有被註冊的Tag
             var registedTags = StaMap.RegistDictionary.Keys.ToList();
-            List<int> _forbiddenTags = AgvToPark.GetCanNotReachTags();
+            List<int> _forbiddenTags = AgvToPark.GetCanNotReachTags().Clone().ToList();
             _forbiddenTags.AddRange(registedTags);
             return stations.Where(pt => pt.IsParking && !_forbiddenTags.Contains(pt.TagNumber));
         }
@@ -217,7 +217,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var startPt = new PointF((float)agv.states.Coordination.X, (float)agv.states.Coordination.Y);
             return Tools.CalculationForwardAngle(startPt, endPt);
         }
-        public static List<int> GetForbidPassTagByAGVModel(this IAGV agv)
+        public static IEnumerable<int> GetForbidPassTagByAGVModel(this IAGV agv)
         {
             return StaMap.GetNoStopTagsByAGVModel(agv.model);
         }
