@@ -484,6 +484,15 @@ namespace VMSystem.AGV
                                 OrderHandler.RunningTask.UpdateStateDisplayMessage("Disconnection");
                                 break;
                             case AGV_ORDERABLE_STATUS.EXECUTING:
+                                //confirm 
+                                var _completedButStillExistTasks = taskList.Where(tk => DatabaseCaches.TaskCaches.CompleteTasks.Any(_ctk => _ctk.TaskName == tk.TaskName))
+                                                                           .ToList();
+                                foreach (var item in _completedButStillExistTasks)
+                                {
+                                    taskList.Remove(item);
+                                    logger.Warn($"Remove {item.TaskName} from queue because it already mark as completed");
+                                }
+
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_STATUS_ERROR:
                                 OrderHandler.RunningTask.UpdateStateDisplayMessage("STATUS_ERROR");
