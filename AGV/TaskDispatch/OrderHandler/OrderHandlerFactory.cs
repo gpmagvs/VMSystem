@@ -293,7 +293,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         list_TransferFromTag.AddRange(AcceptAGVInfoOfEQTags.Where(x => x.Value == toDestineModel).Select(x => x.Key).ToList());
                     }
                 }
-                dict.Add(_transferToTag, list_TransferFromTag);
+                dict.TryAdd(_transferToTag, list_TransferFromTag);
             }
             if (dict.Count <= 0)
                 dict = null;
