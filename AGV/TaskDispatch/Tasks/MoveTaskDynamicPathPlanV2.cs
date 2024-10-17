@@ -866,14 +866,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
 
             List<MapRegion> regionsFiltered = regions.Where(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
-            bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
-            if (isAllRegionNowIsEntrable)
-            {
-                MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
-                //_NextRegion
-                var nearstPt = _NextRegion.GetNearestPointOfRegion(this.Agv);
-                return (true, _NextRegion, nearstPt, true);
-            }
+            //bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
+            //if (isAllRegionNowIsEntrable)
+            //{
+            //    MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
+            //    //_NextRegion
+            //    var nearstPt = _NextRegion.GetNearestPointOfRegion(this.Agv);
+            //    return (true, _NextRegion, nearstPt, true);
+            //}
 
             MapRegion NextRegion = regionsFiltered.FirstOrDefault(reg => !RegionManager.IsRegionEnterable(Agv, reg));
 
