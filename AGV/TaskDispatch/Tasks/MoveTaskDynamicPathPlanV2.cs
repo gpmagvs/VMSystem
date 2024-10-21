@@ -45,7 +45,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             //base.CreateTaskToAGV();
         }
-        public override bool IsAGVReachDestine => Agv.states.Last_Visited_Node == DestineTag;
+        public override bool IsAGVReachDestine => Agv?.states?.Last_Visited_Node == DestineTag;
 
         public enum SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY
         {
