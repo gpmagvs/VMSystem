@@ -41,13 +41,19 @@ namespace VMSystem.VMS
 
                         //若當下是搬運動作且是還不是前往目的地放貨的 不可接任務
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
-                                                 .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.Traveling_To_Source || agv.CurrentRunningTask().Stage == VehicleMovementStage.WorkingAtSource)) //to source . working
+                                                 .Where(agv => agv.IsTravalingToSourceWhenExecutingTransferOrder() || agv.IsWorkingAtSourceEQWhenExecutingTransferOrder()) //to source . working
                                                  .Select(agv => agv.Name));
 
                         //若當下是退出充電站任務 不接任務
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
-                                                 .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.LeaveFrom_ChargeStation)) //to source . working
+                                                 .Where(agv => agv.IsLeavingFromChargeStationWhenExecutingTransferOrder()) //to source . working
                                                  .Select(agv => agv.Name));
+
+                        //若當下是前往終點但距離終點還有一段路 不接任務
+                        CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
+                                                 .Where(agv => agv.IsTravalingToDestineWhenExecutingTransferOrder() && agv.GetDistanceToDestine() > 3.0) //to source 
+                                                 .Select(agv => agv.Name));
+
 
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                         CannotAssignOrderAGVNames.AddRange(List_idlecarryAGV);
@@ -93,6 +99,8 @@ namespace VMSystem.VMS
                         }
                     }
                 }
+
+
                 catch (Exception ex)
                 {
                     LOG.ERROR(ex);
