@@ -347,7 +347,7 @@ namespace VMSystem.AGV
             bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
             if (isAgvChargeOrderRunning)
             {
-                await OrderHandler.CancelOrder(OrderHandler.OrderData.TaskName, "Change Task");
+                await OrderHandler.CancelOrder(OrderHandler.OrderData.TaskName, "更換任務(Change Task)");
                 NotifyServiceHelper.INFO($"{agv.Name}-Current Charge has been canceled because of Carry Order Get.");
             }
         }
