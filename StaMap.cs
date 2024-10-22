@@ -449,7 +449,7 @@ namespace VMSystem
             {
                 if (agv.main_state == clsEnums.MAIN_STATUS.RUN)
                 {
-                    NotifyServiceHelper.WARNING($"{agv.Name} 狀態為RUN但嘗試解除註冊點 已禁止");
+                    logger.Warn($"{agv.Name} 狀態為RUN但嘗試解除註冊點 已禁止");
                     return false;
                 }
                 var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
