@@ -239,36 +239,6 @@ namespace VMSystem.VMS
                 agvSortedByDistance = agvDistance.OrderByDescending(agv => agv.Key.online_state).OrderBy(agv => agv.Value)
                                                .Select(kp => kp.Key)
                                                .ToList();
-
-                //foreach (var agv in VMSManager.AllAGV)
-                //{
-                //    if (EQAcceptEQType != AGV_TYPE.Any && EQAcceptEQType != agv.model)
-                //        continue;
-                //    clsEnums.ONLINE_STATE online_state = agv.online_state;
-                //    if (online_state == clsEnums.ONLINE_STATE.OFFLINE)
-                //        continue;
-                //    bool b_IsSolvingTrafficInterLock = agv.IsSolvingTrafficInterLock;
-                //    if (b_IsSolvingTrafficInterLock == true)
-                //        continue;
-                //    double distance = double.MaxValue;
-                //    try
-                //    {
-                //        distance = Tools.ElevateDistanceToGoalStation(goalStation, goalSlotHeight, agv);
-                //    }
-                //    catch (Exception e)
-                //    {
-                //        continue;
-                //    }
-                //    if (distance == double.MaxValue)
-                //        continue;
-                //    object[] obj = new object[2];
-                //    obj[0] = agv;
-                //    obj[1] = distance;
-                //    temp.Add(obj);
-                //}
-                //agvSortedByDistance.Clear();
-                //agvSortedByDistance.AddRange(temp.OrderBy(o => (double)(((object[])o)[1])).Select(x => (IAGV)(((object[])x)[0])));
-                //agvSortedByDistance.OrderByDescending(agv => agv.online_state);
             }
             catch (Exception ex)
             {
@@ -290,10 +260,6 @@ namespace VMSystem.VMS
             {
                 if (AGVListRemoveTaskAGV.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
                     return AGVListRemoveTaskAGV.FirstOrDefault();
-                //else
-                //{
-                //    return AGVListRemoveTaskAGV.FirstOrDefault(agv => agv.main_state == clsEnums.MAIN_STATUS.IDLE || agv.main_state == clsEnums.MAIN_STATUS.Charging);
-                //}
             }
             return AGVListRemoveTaskAGV.First();
         }
