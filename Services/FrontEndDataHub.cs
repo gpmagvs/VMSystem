@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 using VMSystem.BackgroundServices;
 
 namespace VMSystem.Services
@@ -23,7 +24,8 @@ namespace VMSystem.Services
         public override async Task OnConnectedAsync()
         {
             logger.LogTrace($"{this.Context.ConnectionId} Connected");
-            await Clients.All.SendAsync("ReceiveData", "VMS", FrontEndDataCollectionBackgroundService._previousData);
+            var thisClient = Clients.Client(this.Context.ConnectionId);
+            await thisClient.SendAsync("ReceiveData", "VMS", FrontEndDataCollectionBackgroundService._previousData);
             await base.OnConnectedAsync();
         }
         public override Task OnDisconnectedAsync(Exception? exception)
