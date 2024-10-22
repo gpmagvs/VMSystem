@@ -37,7 +37,6 @@ namespace VMSystem.VMS
                     {
                         List<string> CannotAssignOrderAGVNames = new List<string>();
                         List<string> _taskList_for_waiting_agv_in_WaitExecuteTasks = DatabaseCaches.TaskCaches.WaitExecuteTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
-                        List<string> _taskList_for_navigation_agv_in_RunningTasks = DatabaseCaches.TaskCaches.RunningTasks.Select(task => task.DesignatedAGVName).Distinct().ToList();
                         CannotAssignOrderAGVNames.AddRange(_taskList_for_waiting_agv_in_WaitExecuteTasks);
 
                         //若當下是搬運動作且是還不是前往目的地放貨的 不可接任務
@@ -49,9 +48,6 @@ namespace VMSystem.VMS
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
                                                  .Where(agv => agv.CurrentRunningTask().OrderData.Action == ACTION_TYPE.Carry && (agv.CurrentRunningTask().Stage == VehicleMovementStage.LeaveFrom_ChargeStation)) //to source . working
                                                  .Select(agv => agv.Name));
-
-
-                        //CannotAssignOrderAGVNames.AddRange(_taskList_for_navigation_agv_in_RunningTasks);
 
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                         CannotAssignOrderAGVNames.AddRange(List_idlecarryAGV);
