@@ -67,7 +67,7 @@ namespace VMSystem.AGV
         {
             while (!disposedValue)
             {
-                await Task.Delay(10);
+                await Task.Delay(300);
                 runningSTatus.Odometry = Mileage;
                 var clone = runningSTatus.Clone();
                 agv.states = clone;
