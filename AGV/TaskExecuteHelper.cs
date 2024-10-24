@@ -462,17 +462,12 @@ namespace VMSystem.AGV
                 {
                     logger.Trace("TaskCycleStop: Waiting for AGV report ACTION_FINISH");
 
-                    bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(isAGVIDLE ? TimeSpan.FromSeconds(3) : TimeSpan.FromMinutes(3));
-                    //bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(TimeSpan.FromSeconds(3));
+                    bool actionFinishDone = WaitACTIONFinishReportedMRE.WaitOne(isAGVIDLE ? TimeSpan.FromSeconds(10) : TimeSpan.FromMinutes(3));
                     if (!actionFinishDone)
-                    {
 
                         logger.Warn("Wait Action_Finish Timeout" + $"{(isAGVIDLE ? "-對閒置中的AGV下發Cycle Stop但沒有收到Action Finish回報!" : "")}");
-                    }
                     else
-                    {
                         logger.Info("Vehicle Action_Finish Reported!");
-                    }
                 }
             }
             catch (Exception ex)

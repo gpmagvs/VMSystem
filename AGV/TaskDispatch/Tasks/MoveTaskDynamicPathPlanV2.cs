@@ -542,17 +542,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 break;
                             }
 
-                            if (isRotationBackMove)
-                            {
-                                isRotationBackMove = false;
-                                await Agv.TaskExecuter.TaskCycleStop(OrderData.TaskName);
-                                _previsousTrajectorySendToAGV.Clear();
-                                break;
-                            }
+                            //if (isRotationBackMove)
+                            //{
+                            //    isRotationBackMove = false;
+                            //    await Agv.TaskExecuter.TaskCycleStop(OrderData.TaskName);
+                            //    _previsousTrajectorySendToAGV.Clear();
+                            //    break;
+                            //}
 
                             await Task.Delay(10);
                         }
-                        if (CycleStopByWaitingRegionIsEnterable || isRotationBackMove)
+                        if (CycleStopByWaitingRegionIsEnterable)
                         {
                             subStage = Stage;
                             _finalMapPoint = finalMapPoint;
