@@ -59,5 +59,12 @@ namespace VMSystem.Controllers
             };
             return Ok(_info);
         }
+
+        [HttpGet("AliveCheck")]
+        public async Task<IActionResult> AliveCheck()
+        {
+            return Ok();
+        }
+
     }
 }
