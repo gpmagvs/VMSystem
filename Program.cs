@@ -78,6 +78,7 @@ try
     builder.Services.AddHostedService<OrderStateMonitorBackgroundService>();
     builder.Services.AddHostedService<PCPerformanceService>();
     builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
+    builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
