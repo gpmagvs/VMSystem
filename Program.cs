@@ -24,7 +24,7 @@ if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 }
 
 Startup.ConfigurationInit();
-AlarmManagerCenter.Initialize();
+AlarmManagerCenter.InitializeAsync().GetAwaiter().GetResult();
 AlarmManager.LoadVCSTrobleShootings();
 EnvironmentVariables.AddUserVariable("VMSInstall", Environment.CurrentDirectory);
 var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
