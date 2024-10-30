@@ -29,10 +29,11 @@ namespace VMSystem.Services
 
                     using (var scope = scopeFactory.CreateAsyncScope())
                     {
-                        using (var context = scope.ServiceProvider.GetRequiredService<AGVSystemCommonNet6.PartsModels.PartsAGVS_InfoContext>())
+                        using (AGVSystemCommonNet6.PartsModels.PartsAGVS_InfoContext context = scope.ServiceProvider.GetRequiredService<AGVSystemCommonNet6.PartsModels.PartsAGVS_InfoContext>())
                         {
+                            AGVSystemCommonNet6.PartsModels.PartsAGVS_InfoContext _context = context;
+                            var agvInfos = _context.Agvinfos.AsNoTracking().ToList();
 
-                            var agvInfos = context.Agvinfos.AsNoTracking().ToList();
                             Console.WriteLine(agvInfos.ToJson());
                             foreach (var item in agvInfos)
                             {
@@ -43,6 +44,9 @@ namespace VMSystem.Services
                                 var cstID = item.Stage1Cstid;
                                 clsEnums.MAIN_STATUS mainStatus = _taskName == "" ? clsEnums.MAIN_STATUS.IDLE : clsEnums.MAIN_STATUS.RUN;
                                 VMSManager.UpdatePartsAGVInfo(_agvName, _location);
+
+                                (string from, string to, string taskCstID) = GetTaskFromTo(ref _context, _taskName);
+
                                 if (PartsAGVStatueDtoStored.TryGetValue(_agvName, out var state))
                                 {
                                     state.TaskName = _taskName;
@@ -54,6 +58,8 @@ namespace VMSystem.Services
                                     state.MainStatus = mainStatus;
                                     state.CargoStatus = cstID == "" ? 0 : 1;
                                     state.CurrentCarrierID = cstID;
+                                    state.TaskSourceStationName = from;
+                                    state.TaskDestineStationName = to;
                                 }
                                 else
                                 {
@@ -79,6 +85,18 @@ namespace VMSystem.Services
                 }
                 await Task.Delay(1000);
             }
+        }
+
+
+        private (string from, string to, string cstID) GetTaskFromTo(ref AGVSystemCommonNet6.PartsModels.PartsAGVS_InfoContext _context, string taskID)
+        {
+            if (string.IsNullOrEmpty(taskID))
+                return ("", "", "");
+            var taskState = _context.Tasks.FirstOrDefault(task => task.Name == taskID);
+            if (taskState == null)
+                return ("", "", "");
+
+            return (taskState.FromStation, taskState.ToStation, taskState.Cstid);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
