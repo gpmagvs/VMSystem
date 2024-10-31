@@ -86,10 +86,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     {
         public override ACTION_TYPE OrderAction => ACTION_TYPE.ExchangeBattery;
 
-        protected override void ActionsWhenOrderCancle()
-        {
-
-        }
         protected override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
             base.HandleAGVNavigatingFeedback(feedbackData);

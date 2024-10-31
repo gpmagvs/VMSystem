@@ -426,24 +426,31 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             return AllTagsOfPath.Skip(indexOfAgvCurrentTag).ToList();
         }
 
-        protected virtual void ActionsWhenOrderCancle()
+        protected virtual async Task ActionsWhenOrderCancle()
         {
             //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
-                //0,1,2,3
-                var excutingTraj = RunningTask.TaskDonwloadToAGV.ExecutingTrajecory;
-                var lastVisiPointIndex = excutingTraj.ToList().FindIndex(pt => pt.Point_ID == Agv.currentMapPoint.TagNumber);
-                var stopPtTag = 0;
-                if (lastVisiPointIndex == excutingTraj.Count() - 1)
-                    stopPtTag = excutingTraj.Last().Point_ID;
-                else
-                    stopPtTag = excutingTraj[lastVisiPointIndex + 1].Point_ID;
-                var expectRegionName = StaMap.GetPointByTagNumber(stopPtTag).Graph.Display;
-                PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>()
+                try
                 {
-                    expectRegionName
-                });
+                    var excutingTraj = RunningTask.TaskDonwloadToAGV.ExecutingTrajecory;
+                    if (!excutingTraj.Any())
+                        return;
+                    var lastVisiPointIndex = excutingTraj.ToList().FindIndex(pt => pt.Point_ID == Agv.currentMapPoint.TagNumber);
+                    if (lastVisiPointIndex == -1)
+                        return;
+                    var stopPtTag = 0;
+                    if (lastVisiPointIndex == excutingTraj.Count() - 1)
+                        stopPtTag = excutingTraj.Last().Point_ID;
+                    else
+                        stopPtTag = excutingTraj[lastVisiPointIndex + 1].Point_ID;
+                    var expectRegionName = StaMap.GetPointByTagNumber(stopPtTag).Graph.Display;
+                    await PartsAGVSHelper.UnRegistStationExceptSpeficStationName(new List<string>() { expectRegionName });
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
             }
         }
         private void UnRegistPoints()

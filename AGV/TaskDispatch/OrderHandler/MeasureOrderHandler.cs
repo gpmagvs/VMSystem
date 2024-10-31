@@ -14,10 +14,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     {
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Measure;
 
-        protected override void ActionsWhenOrderCancle()
-        {
-            base.ActionsWhenOrderCancle();
-        }
         internal override List<int> GetNavPathTags()
         {
             try

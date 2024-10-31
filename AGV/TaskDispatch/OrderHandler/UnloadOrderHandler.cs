@@ -32,7 +32,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
         }
 
-        protected override void ActionsWhenOrderCancle()
+        protected override async Task ActionsWhenOrderCancle()
         {
             AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
 

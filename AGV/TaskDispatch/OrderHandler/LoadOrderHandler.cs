@@ -91,7 +91,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
         }
 
-        protected override void ActionsWhenOrderCancle()
+        protected override async Task ActionsWhenOrderCancle()
         {
             Task.Run(async () =>
             {

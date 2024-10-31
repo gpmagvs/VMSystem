@@ -48,11 +48,11 @@ namespace VMSystem.TrafficControl
         {
             if (!NeedRegistRequestToParts)
             {
-                return (true, "Setting as NO Need To Regist To PARTS","");
+                return (true, "Setting as NO Need To Regist To PARTS", "");
             }
             clsPartsAGVSRegionRegistService parts_service = new clsPartsAGVSRegionRegistService(PartsServerIP, port);
 
-            (bool accept, string message, string responseJson) result = (false, "","");
+            (bool accept, string message, string responseJson) result = (false, "", "");
             int retryNum = 0;
             while (!result.accept)
             {
@@ -68,6 +68,13 @@ namespace VMSystem.TrafficControl
             LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
             return result;
         }
+
+        /// <summary>
+        /// 解除除了指定的站名以外的所有站點(會先查詢，再解註冊)
+        /// </summary>
+        /// <param name="ExceptStationNames"></param>
+        /// <param name="AGVName"></param>
+        /// <returns></returns>
         public static async Task<bool> UnRegistStationExceptSpeficStationName(List<string> ExceptStationNames, string AGVName = "AMCAGV")
         {
             try

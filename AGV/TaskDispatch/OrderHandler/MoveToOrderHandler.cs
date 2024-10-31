@@ -17,10 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             await base.StartOrder(Agv);
         }
-        protected override void ActionsWhenOrderCancle()
-        {
-            base.ActionsWhenOrderCancle();
-        }
+
 
         protected override async Task HandleAGVActionFinishFeedback()
         {
