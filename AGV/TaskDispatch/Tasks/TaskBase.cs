@@ -458,7 +458,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             try
             {
-                if (this.Stage == VehicleMovementStage.WorkingAtSource)
+                if (this.Stage == VehicleMovementStage.WorkingAtSource) //取貨
                 {
                     MaterialInstallStatus cargoinstall = (Agv.states.Cargo_Status == 0) ? MaterialInstallStatus.NG : MaterialInstallStatus.OK;
                     MaterialType cargotype = (Agv.states.CargoType == 1) ? MaterialType.Frame : MaterialType.Tray;

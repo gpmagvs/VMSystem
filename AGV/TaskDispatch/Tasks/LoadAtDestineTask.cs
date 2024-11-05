@@ -55,6 +55,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return await base.DistpatchToAGV();
         }
 
+        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        {
+            ReportLoadCargoToPortDone();
+            return base.ActionFinishInvoke();
+        }
     }
 
 

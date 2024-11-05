@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -34,6 +35,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             //終點站放貨
             var equipment = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
+        }
+
+        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        {
+            ReportUnloadCargoFromPortDone();
+            return base.ActionFinishInvoke();
         }
     }
 }

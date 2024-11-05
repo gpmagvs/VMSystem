@@ -20,10 +20,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private MapPoint EntryPoint = new();
         private MapPoint EQPoint = new();
         private ManualResetEvent WaitAGVReachWorkStationMRE = new ManualResetEvent(false);
-
+        private string cargoIDMounted = "";
 
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
+
         }
 
         public override VehicleMovementStage Stage => throw new NotImplementedException();
@@ -49,6 +50,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             EQPoint = StaMap.GetPointByTagNumber(GetDestineWorkStationTagByOrderInfo(OrderData));
             EntryPoint = GetEntryPointsOfWorkStation(EQPoint, Agv.currentMapPoint);
+            cargoIDMounted = Agv.states.CSTID.Any() ? Agv.states.CSTID[0] : "";
 
             this.TaskDonwloadToAGV.Height = GetSlotHeight();
             this.TaskDonwloadToAGV.Destination = EQPoint.TagNumber;
@@ -392,6 +394,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 else
                     return orderInfo.To_Station_Tag;
             }
+        }
+
+
+        protected bool IsCargoOnAGV()
+        {
+            return Agv.states.Cargo_Status != 0;
+        }
+
+
+        protected async Task ReportUnloadCargoFromPortDone()
+        {
+            if (!IsCargoOnAGV())
+                return;
+
+            int tag = this.DestineTag;
+            int slot = this.GetSlotHeight();
+            await AGVSSerivces.CargoUnloadFromPortDoneReport(tag, slot);
+        }
+
+        protected async Task ReportLoadCargoToPortDone()
+        {
+            if (IsCargoOnAGV())
+                return;
+            int tag = this.DestineTag;
+            int slot = this.GetSlotHeight();
+            await AGVSSerivces.CargoLoadToPortDoneReport(tag, slot, cargoIDMounted);
         }
     }
 }
