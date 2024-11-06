@@ -27,10 +27,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 double nextPathForwardAngle = Tools.CalculationForwardAngle(_path[i], _path[i + 1]);
                 double rotateThetaToNextPt = Tools.CalculateTheateDiff(currentAngleOfAGV, nextPathForwardAngle);
-
+                var circleCurrent = _path[i].GetCircleArea(ref vehicle_, 1.1);
                 // 檢查旋轉角度是否大於 20 且是否與其他 AGV 衝突
                 if (rotateThetaToNextPt > 45 &&
-                    VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(AGVRotaionGeometry)))
+                    VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(circleCurrent)))
                 {
                     Agv.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
                     {
