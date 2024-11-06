@@ -8,25 +8,24 @@
 		<ApplicationIcon>favicon2.ico</ApplicationIcon>
 		<UserSecretsId>5aaaca2e-7b5d-4629-ac34-12d155a519a9</UserSecretsId>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<AssemblyVersion>1.1.310.4</AssemblyVersion>
-		<FileVersion>1.1.310.4</FileVersion>
+		<AssemblyVersion>1.2.1.1106</AssemblyVersion>
+		<FileVersion>1.2.1.1106</FileVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>
 		<AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
 		<UpdateAssemblyVersion>False</UpdateAssemblyVersion>
-		<UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+		<UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
 		<UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
 		<UpdatePackageVersion>False</UpdatePackageVersion>
 		<AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
 		<InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
-		<AssemblyFileVersionSettings>IncrementOnDemand.IncrementOnDemand.DayOfYearStamp.IncrementOnDemand</AssemblyFileVersionSettings>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>
 		<AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
 		<UpdateAssemblyVersion>False</UpdateAssemblyVersion>
-		<UpdateAssemblyFileVersion>True</UpdateAssemblyFileVersion>
+		<UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
 		<UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
 		<AssemblyVersionSettings>IncrementOnDemand.IncrementOnDemand.DayOfYearStamp.IncrementOnDemand</AssemblyVersionSettings>
 		<UpdatePackageVersion>False</UpdatePackageVersion>
