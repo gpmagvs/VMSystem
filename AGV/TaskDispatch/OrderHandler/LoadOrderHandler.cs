@@ -48,7 +48,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     foreach (var tag in task.dict_Transfer_to_from_tags)
                     {
                         int intTransferToTag = tag.Key;
-                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Load);
+                        clsAGVSTaskReportResponse result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData, ACTION_TYPE.Load);
                         if (result.confirm)
                         {
                             OrderData.TransferToTag = intTransferToTag;
@@ -79,7 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     result.message = "bypass_eq_status_check";
                 }
                 else
-                    result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Load);
+                    result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData, ACTION_TYPE.Load);
                 if (result.confirm)
                 {
                     await base.StartOrder(Agv);

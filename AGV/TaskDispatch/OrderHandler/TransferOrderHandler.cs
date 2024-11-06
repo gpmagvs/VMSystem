@@ -62,7 +62,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             result.message = "bypass_eq_status_check";
                         }
                         else
-                            result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), intTransferToTag, 0, ACTION_TYPE.Carry, isSourceAGV: OrderData.IsFromAGV);
+                            result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData, ACTION_TYPE.Carry, isSourceAGV: OrderData.IsFromAGV);
                         if (result.confirm)
                         {
                             OrderData.TransferToTag = intTransferToTag;
@@ -99,7 +99,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 else
                 {
-                    result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData.From_Station_Tag, Convert.ToInt16(OrderData.From_Slot), OrderData.To_Station_Tag, Convert.ToInt16(OrderData.To_Slot), ACTION_TYPE.Carry, isSourceAGV: OrderData.IsFromAGV);
+                    result = await AGVSSerivces.TRANSFER_TASK.StartLDULDOrderReport(OrderData, ACTION_TYPE.Carry, isSourceAGV: OrderData.IsFromAGV);
                 }
                 if (result.confirm)
                 {
