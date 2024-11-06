@@ -67,7 +67,7 @@ namespace VMSystem.TrafficControl
             /// <summary>
             /// 背景監視碰撞發生 
             /// </summary>
-            public bool PathConflicBackgroundMonitor { get; set; } = true;
+            public bool PathConflicBackgroundMonitor { get; set; } = false;
 
             /// <summary>
             /// 
