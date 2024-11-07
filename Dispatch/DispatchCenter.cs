@@ -63,11 +63,32 @@ namespace VMSystem.Dispatch
                     {
                         NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
                         int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
-                        return _path.Take(index + 1);
+                        path = _path.Take(index + 1);
                     }
                 }
-
+                if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
+                {
+                    List<MapPoint> _pathDetecting = path.ToList();
+                    //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
+                    double agvCurrentAngle = vehicle.states.Coordination.Theta;
+                    //行駛至下一個點的朝向角
+                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
+                    double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
+                    if (angleToTurn > 45)
+                    {
+                        vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
+                        {
+                            StartPoint = _pathDetecting[0],
+                            EndPoint = _pathDetecting[1]
+                        };
+                        throw new RotatingOnSpinForbidPtException();
+                    }
+                }
                 return path = path == null ? path : path.Clone();
+            }
+            catch (RotatingOnSpinForbidPtException ex)
+            {
+                throw ex;
             }
             catch (NoPathForNavigatorException ex)
             {

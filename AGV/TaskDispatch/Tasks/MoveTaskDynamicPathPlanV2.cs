@@ -188,7 +188,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         searchStartPt = lastNavigationgoal == null || Agv.main_state == clsEnums.MAIN_STATUS.IDLE ? Agv.currentMapPoint : lastNavigationgoal;
                         DispatchCenter.GOAL_SELECT_METHOD goalSelectMethod = subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point ? DispatchCenter.GOAL_SELECT_METHOD.TO_GOAL_DIRECTLY :
                                                                                                                                              DispatchCenter.GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL;
-                        var dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
+                        IEnumerable<MapPoint> dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
@@ -363,7 +363,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (trajectory.Length == 0)
                         {
                             searchStartPt = Agv.currentMapPoint;
-
+                            _previsousTrajectorySendToAGV.Clear();
+                            await CycleStopRequestAsync();
                             continue;
                         }
 
@@ -569,6 +570,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             CalculateThetaError(out double expectedAngle, out error);
                             return error > 25;
                         }
+                    }
+                    catch (RotatingOnSpinForbidPtException)
+                    {
+                        DynamicClosePath();
+                        continue;
                     }
                     catch (NoPathForNavigatorException ex)
                     {
