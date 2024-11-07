@@ -23,11 +23,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             List<MapPoint> _path = dispatchCenterReturnPath.ToList();
             double currentAngleOfAGV = vehicle_.states.Coordination.Theta;
             MapCircleArea AGVRotaionGeometry = vehicle_.AGVRotaionGeometry;
+
+            double previousForwardAngle = 0;
+            //0,1,2,3....,9,10
             for (int i = 0; i < _path.Count - 1; i++)
             {
+
                 double nextPathForwardAngle = Tools.CalculationForwardAngle(_path[i], _path[i + 1]);
-                double rotateThetaToNextPt = Tools.CalculateTheateDiff(currentAngleOfAGV, nextPathForwardAngle);
-                var circleCurrent = _path[i].GetCircleArea(ref vehicle_, 1.1);
+                double rotateThetaToNextPt = Tools.CalculateTheateDiff(i == 0 ? currentAngleOfAGV : previousForwardAngle, nextPathForwardAngle);
+                previousForwardAngle = nextPathForwardAngle;
+
+                var circleCurrent = _path[i].GetCircleArea(ref vehicle_, 1.005);
                 // 檢查旋轉角度是否大於 20 且是否與其他 AGV 衝突
                 if (rotateThetaToNextPt > 45 &&
                     VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(circleCurrent)))

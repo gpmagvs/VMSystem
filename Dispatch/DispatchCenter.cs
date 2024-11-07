@@ -66,24 +66,7 @@ namespace VMSystem.Dispatch
                         path = _path.Take(index + 1);
                     }
                 }
-                if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
-                {
-                    List<MapPoint> _pathDetecting = path.ToList();
-                    //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
-                    double agvCurrentAngle = vehicle.states.Coordination.Theta;
-                    //行駛至下一個點的朝向角
-                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
-                    double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
-                    if (angleToTurn > 45)
-                    {
-                        vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
-                        {
-                            StartPoint = _pathDetecting[0],
-                            EndPoint = _pathDetecting[1]
-                        };
-                        throw new RotatingOnSpinForbidPtException();
-                    }
-                }
+
                 return path = path == null ? path : path.Clone();
             }
             catch (RotatingOnSpinForbidPtException ex)
@@ -322,10 +305,11 @@ namespace VMSystem.Dispatch
                             {
                                 bool _isPointConflic = item.StartPoint.TagNumber == item.EndPoint.TagNumber;
                                 vehicle.NavigationState.currentConflicToAGV = _otherAGV;
+                                string des = $"路線與其他車體干涉 :{_geometryConflic} |路線衝突干涉 :{_pathConflic}";
                                 if (_isPointConflic)
-                                    vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPoint.TagNumber} Conflic To {_otherAGV.Name}");
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Point {item.StartPoint.TagNumber} Conflic To {_otherAGV.Name}\r\n({des})");
                                 else
-                                    vehicleRunningTask?.UpdateMoveStateMessage($"Path From {item.StartPoint.TagNumber} To {item.EndPoint.TagNumber} Conflic To {_otherAGV.Name}");
+                                    vehicleRunningTask?.UpdateMoveStateMessage($"Path From {item.StartPoint.TagNumber} To {item.EndPoint.TagNumber} Conflic To {_otherAGV.Name}\r\n({des})");
                                 break;
                             }
                         }

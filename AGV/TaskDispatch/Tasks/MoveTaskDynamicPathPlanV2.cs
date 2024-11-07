@@ -316,6 +316,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             continue;
                         }
 
+
                         if (IsAnyRotateConflicToOtherVehicle(dispatchCenterReturnPath, out bool isConflicAtStartRotation))
                         {
                             await DynamicClosePath();
@@ -363,8 +364,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (trajectory.Length == 0)
                         {
                             searchStartPt = Agv.currentMapPoint;
-                            _previsousTrajectorySendToAGV.Clear();
-                            await CycleStopRequestAsync();
                             continue;
                         }
 
@@ -481,6 +480,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             throw new AGVRejectTaskException();
                         }
+
+                        bool isAGVStatusRun = isAgvAlreadyAtDestine ? true : await WaitVehicleStatusRun();
+
                         _seq += 1;
                         _previsousTrajectorySendToAGV = _trajectory.ToList();
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, nextPath.GetTagCollection(), nextPath.ToList(), false);
@@ -570,11 +572,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             CalculateThetaError(out double expectedAngle, out error);
                             return error > 25;
                         }
-                    }
-                    catch (RotatingOnSpinForbidPtException)
-                    {
-                        DynamicClosePath();
-                        continue;
                     }
                     catch (NoPathForNavigatorException ex)
                     {
@@ -691,6 +688,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
+        }
+
+        private async Task<bool> WaitVehicleStatusRun()
+        {
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            while (Agv.main_state == clsEnums.MAIN_STATUS.IDLE)
+            {
+                UpdateStateDisplayMessage($"Wait Run...");
+                await Task.Delay(10);
+                if (cts.IsCancellationRequested)
+                    return false;
+            }
+            return Agv.main_state == clsEnums.MAIN_STATUS.RUN;
         }
 
         private bool IsPathContainPartsReplacingPt(List<MapPoint> nextPath, out MapPoint noPassablePt)
