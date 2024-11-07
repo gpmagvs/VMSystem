@@ -25,7 +25,7 @@ namespace VMSystem.BackgroundServices
             {
                 while (true)
                 {
-                    await Task.Delay(120);
+                    await Task.Delay(200);
                     object data = new object();
                     try
                     {
@@ -54,7 +54,7 @@ namespace VMSystem.BackgroundServices
                             await Task.Delay(300);
                         }
                         _previousData = data.Clone();
-                        await _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
+                        _hubContext.Clients.All.SendAsync("ReceiveData", "VMS", data);
                     }
                     catch (Exception ex)
                     {
