@@ -186,7 +186,8 @@ namespace VMSystem.VMS
                         {
                             distance = double.MaxValue;
                         }
-                        agvDistance.TryAdd(_agv, distance);
+                        if (distance != double.MaxValue)
+                            agvDistance.TryAdd(_agv, distance);
                     }));
                 }
                 await Task.WhenAll(calculateDistanceTasks.ToArray());

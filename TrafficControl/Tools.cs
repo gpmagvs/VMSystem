@@ -532,7 +532,6 @@ namespace VMSystem.TrafficControl
         public static double ElevateDistanceToGoalStation(MapPoint _workStationPoint, int slotHeight, IAGV agv)
         {
             var entryPoints = _workStationPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
-            var validStations = entryPoints.SelectMany(pt => pt.Target.Keys.Select(index => StaMap.GetPointByIndex(index)));
             AGV_TYPE acceptTypeOfEq = EquipmentStore.GetEQAcceptAGVType(_workStationPoint.TagNumber, slotHeight);
             if (acceptTypeOfEq == AGV_TYPE.Null || (acceptTypeOfEq != AGV_TYPE.Any && acceptTypeOfEq != agv.model))
                 return double.MaxValue;
