@@ -98,7 +98,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 });
 
                 if (response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                    throw new AGVRejectTaskException();
+                    throw new AGVRejectTaskException(response.ReturnCode);
                 Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { secondaryPt, parkPortPt });
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();

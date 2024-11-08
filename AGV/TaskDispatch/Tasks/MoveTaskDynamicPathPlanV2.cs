@@ -478,7 +478,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (responseOfVehicle.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
                         {
-                            throw new AGVRejectTaskException();
+                            if (responseOfVehicle.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION)
+                            {
+
+                            }
+                            throw new AGVRejectTaskException(responseOfVehicle.ReturnCode);
                         }
 
                         bool isAGVStatusRun = isAgvAlreadyAtDestine ? true : await WaitVehicleStatusRun();
@@ -591,6 +595,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         continue;
                     }
                     catch (TaskCanceledException ex)
+                    {
+                        throw ex;
+                    }
+                    catch (AGVRejectTaskException ex)
                     {
                         throw ex;
                     }

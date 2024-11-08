@@ -232,7 +232,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (IsTaskCanceled)
                 return; (TaskDownloadRequestResponse agv_response, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(taskData);
             if (agv_response.ReturnCode != TASK_DOWNLOAD_RETURN_CODES.OK)
-                throw new Exceptions.AGVRejectTaskException();
+                throw new Exceptions.AGVRejectTaskException(agv_response.ReturnCode);
         }
         public abstract void DetermineThetaOfDestine(clsTaskDownloadData _taskDownloadData);
         public abstract void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData);
@@ -275,42 +275,83 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public List<int> FuturePlanNavigationTags = new List<int>();
         internal async Task<(TaskDownloadRequestResponse, clsMapPoint[] trajectory)> _DispatchTaskToAGV(clsTaskDownloadData _TaskDonwloadToAGV)
         {
-            if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
+
+            int retryCnt = 0;
+            int retryMaxLimit = 5;
+            Exception _exceptionHappening = null;
+            while (retryCnt < retryMaxLimit)
             {
-                TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
-
-                (bool confirm, string message, List<string> regions) parts_accept = (false, "", new List<string>());
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                while (!parts_accept.confirm)
+                try
                 {
-                    if (IsTaskCanceled)
+                    logger.Warn($"嘗試下載任務給AGV..({retryCnt})");
+                    return await _DownloadTaskInvoke(_TaskDonwloadToAGV);
+                }
+                catch (HttpRequestException ex)
+                {
+                    _exceptionHappening = ex;
+                    retryCnt++;
+                    logger.Warn($"嘗試下載任務給AGV過程中發生 [HttpRequestException] 例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    await Task.Delay(1000);
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    _exceptionHappening = ex;
+                    retryCnt++;
+                    logger.Warn($"嘗試下載任務給AGV過程中發生例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    await Task.Delay(1000);
+                    continue;
+                }
+                finally
+                {
+                    if (_exceptionHappening == null)
                     {
-                        throw new TaskCanceledException();
+                        logger.Info($"_DispatchTaskToAGV Success!");
                     }
-                    if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
-                    {
-                        throw new AGVStatusDownException();
-                    }
-                    if (stopwatch.Elapsed.TotalSeconds > 180)
-                    {
-                        TrafficWaitingState.SetStatusNoWaiting();
-                        return (new TaskDownloadRequestResponse
-                        {
-                            Message = parts_accept.message,
-                            ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
-                        }, new clsMapPoint[0]);
-                    }
-                    parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
-                    if (!parts_accept.confirm)
-                    {
-                        logger.Warn($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
-                        await Task.Delay(1000);
-                    }
-
                 }
             }
-            TrafficWaitingState.SetStatusNoWaiting();
-            return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
+            // if code run here=> retry count reach max limit
+            return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.SYSTEM_EXCEPTION, Message = _exceptionHappening?.Message }, new clsMapPoint[0]);
+
+            async Task<(TaskDownloadRequestResponse, clsMapPoint[] trajectory)> _DownloadTaskInvoke(clsTaskDownloadData _TaskDonwloadToAGV)
+            {
+                if (TrafficControl.PartsAGVSHelper.NeedRegistRequestToParts && ActionType == ACTION_TYPE.None)
+                {
+                    TrafficWaitingState.SetStatusWaitingConflictPointRelease(null, "等待Parts系統回應站點註冊狀態");
+
+                    (bool confirm, string message, List<string> regions) parts_accept = (false, "", new List<string>());
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    while (!parts_accept.confirm)
+                    {
+                        if (IsTaskCanceled)
+                        {
+                            throw new TaskCanceledException();
+                        }
+                        if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                        {
+                            throw new AGVStatusDownException();
+                        }
+                        if (stopwatch.Elapsed.TotalSeconds > 180)
+                        {
+                            TrafficWaitingState.SetStatusNoWaiting();
+                            return (new TaskDownloadRequestResponse
+                            {
+                                Message = parts_accept.message,
+                                ReturnCode = TASK_DOWNLOAD_RETURN_CODES.Parts_System_Not_Allow_Point_Regist
+                            }, new clsMapPoint[0]);
+                        }
+                        parts_accept = await RegistToPartsSystem(_TaskDonwloadToAGV);
+                        if (!parts_accept.confirm)
+                        {
+                            logger.Warn($"Parts System Not Allow AMC AGV Regist Region- {string.Join(",", parts_accept.regions)}..Wait 1 sec and retry...");
+                            await Task.Delay(1000);
+                        }
+
+                    }
+                }
+                TrafficWaitingState.SetStatusNoWaiting();
+                return await Agv.TaskExecuter.TaskDownload(this, _TaskDonwloadToAGV);
+            }
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         public CancellationTokenSource TrajectoryRecordCancelTokenSource = new CancellationTokenSource();

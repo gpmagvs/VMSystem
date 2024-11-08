@@ -218,6 +218,7 @@ namespace VMSystem.AGV
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
                 if (Vehicle.options.Simulation)
                 {
+                    //throw new HttpRequestException("模擬器測試任務下載API Http 請求失敗");
                     TaskDownloadRequestResponse taskStateResponse = Vehicle.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
                     return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
                 }
@@ -252,12 +253,23 @@ namespace VMSystem.AGV
 
                         return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
                     }
+                    catch (HttpRequestException ex)
+                    {
+                        //TODO 處理因網路異常造成API請求失敗的例外狀況
+                        throw ex;
+                    }
                     catch (Exception ex)
                     {
                         logger.Error(ex);
                         return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
                     }
                 }
+            }
+
+            catch (HttpRequestException ex)
+            {
+                //TODO 處理因網路異常造成API請求失敗的例外狀況
+                throw ex;
             }
             catch (PathNotDefinedException ex)
             {
