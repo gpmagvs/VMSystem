@@ -359,6 +359,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
 
                         var trajectory = PathFinder.GetTrajectory(CurrentMap.Name, nextPath.ToList());
+                        bool isGoBackToOriginalPath = IsContainsReversePath(_previsousTrajectorySendToAGV.GetTagList(), trajectory.GetTagList());
+
+
+
                         trajectory = trajectory.Where(pt => !_previsousTrajectorySendToAGV.GetTagList().Contains(pt.Point_ID)).ToArray();
 
                         if (trajectory.Length == 0)
@@ -369,7 +373,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         //trajectory.Last().Theta = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.Stage, nextGoal);
                         _previsousTrajectorySendToAGV.AddRange(trajectory);
-                        _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
+
+                        if (isGoBackToOriginalPath)
+                        {
+                            NotifyServiceHelper.WARNING($"{Agv.Name} Path revere detected.");
+                            throw new PathNotDefinedException("Reverse!!!!");
+                        }
+                        else
+                            _previsousTrajectorySendToAGV = _previsousTrajectorySendToAGV.Distinct().ToList();
 
                         if (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
                         {
@@ -573,9 +584,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         bool _willRotationFirst(double nextForwardAngle, out double error)
                         {
-                            CalculateThetaError(out double expectedAngle, out error);
+                            error = Tools.CalculateTheateDiff(Agv.states.Coordination.Theta, nextForwardAngle);
                             return error > 25;
                         }
+                    }
+                    catch (RotatingOnSpinForbidPtException)
+                    {
+                        DynamicClosePath();
+                        continue;
                     }
                     catch (NoPathForNavigatorException ex)
                     {
@@ -696,6 +712,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
+        }
+
+        private bool IsContainsReversePath(IEnumerable<int> previosPath, IEnumerable<int> newPath)
+        {
+            if (!previosPath.Any() || !newPath.Any() || previosPath.Count() < 2 || newPath.Count() < 2)
+                return false;
+
+            if (previosPath.Last() != newPath.First())
+                return false;
+            //[1,3]  -> [3,1]
+
+            var intersect = newPath.Skip(1).Reverse().Intersect(previosPath.Take(previosPath.Count() - 1));
+
+            return intersect.Any();
         }
 
         private async Task<bool> WaitVehicleStatusRun()

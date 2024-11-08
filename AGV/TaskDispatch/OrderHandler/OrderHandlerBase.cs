@@ -23,6 +23,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     /// </summary>
     public abstract class OrderHandlerBase : clsTaskDatabaseWriteableAbstract
     {
+        public class BufferOrderState
+        {
+            public OrderHandlerBase orderBase { get; set; }
+
+            public MapPoint bufferFrom { get; set; }
+
+            public MapPoint bufferTo { get; set; }
+
+            public string message { get; set; } = string.Empty;
+
+            public ALARMS returnCode { get; set; } = ALARMS.NONE;
+
+        }
+
+
         public abstract ACTION_TYPE OrderAction { get; }
         public Queue<TaskBase> SequenceTaskQueue { get; set; } = new Queue<TaskBase>();
         public Stack<TaskBase> CompleteTaskStack { get; set; } = new Stack<TaskBase>();
@@ -30,7 +45,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public TaskBase RunningTask { get; internal set; } = new MoveToDestineTask();
         protected ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
-
+        internal static event EventHandler<BufferOrderState> OnBufferOrderStarted;
 
         public bool TaskCancelledFlag { get; private set; } = false;
         public bool TaskAbortedFlag { get; private set; } = false;
@@ -56,11 +71,32 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public virtual async Task StartOrder(IAGV Agv)
         {
+            this.Agv = Agv;
             _ = Task.Run(async () =>
             {
+
+                //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
+                (bool isSourceBuffer, bool isDestineBuffer) = IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt);
+
+                if (isSourceBuffer || isDestineBuffer)
+                {
+                    BufferOrderState state = new()
+                    {
+                        orderBase = this,
+                        bufferFrom = isSourceBuffer ? sourcePt : null,
+                        bufferTo = isDestineBuffer ? destinePt : null
+                    };
+                    OnBufferOrderStarted?.Invoke(this, state);
+
+                    if (state.returnCode != ALARMS.NONE)
+                    {
+                        _SetOrderAsFaiiureState(state.message, state.returnCode);
+                        return;
+                    }
+                }
+
                 //
                 await SyncTrafficStateFromAGVSystem();
-                this.Agv = Agv;
                 double beginMileageOfVehicle = Agv.states.Odometry;
                 _SetOrderAsRunningState();
                 try
@@ -194,6 +230,24 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     RunningTask.Dispose();
                 }
             });
+        }
+
+        public (bool isSourceBuffer, bool isDestineBuffer) IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt)
+        {
+            sourcePt = StaMap.GetPointByTagNumber(OrderData.From_Station_Tag);
+            destinePt = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+
+            bool isSourceBuffer = sourcePt != null && _isBufferStation(sourcePt);
+            bool isDestineBuffer = destinePt != null && _isBufferStation(destinePt);
+
+            return (isSourceBuffer, isDestineBuffer);
+
+            bool _isBufferStation(MapPoint mapPoint)
+            {
+                var _stationType = mapPoint.StationType;
+                return _stationType == MapPoint.STATION_TYPE.Buffer || _stationType == MapPoint.STATION_TYPE.Buffer_EQ || _stationType == MapPoint.STATION_TYPE.Charge_Buffer;
+            }
+
         }
 
         protected async Task SyncTrafficStateFromAGVSystem()

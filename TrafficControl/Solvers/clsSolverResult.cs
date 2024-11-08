@@ -9,10 +9,10 @@ namespace VMSystem.TrafficControl.Solvers
         {
             this.Status = Status;
         }
-        public SOLVER_RESULT Status { get; set; } = SOLVER_RESULT.SUCCESS;
+        public SOLVER_RESULT Status { get; set; } = SOLVER_RESULT.EXECUTING;
         public enum SOLVER_RESULT
         {
-            SUCCESS, CANCEL, FAIL
+            SUCCESS, CANCEL, FAIL, EXECUTING
         }
 
     }

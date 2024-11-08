@@ -79,6 +79,7 @@ try
     builder.Services.AddHostedService<PCPerformanceService>();
     builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
     builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
+    builder.Services.AddHostedService<TrafficScopeService>();
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {

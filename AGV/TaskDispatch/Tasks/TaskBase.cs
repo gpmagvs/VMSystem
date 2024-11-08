@@ -294,6 +294,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     await Task.Delay(1000);
                     continue;
                 }
+                catch (PathNotDefinedException ex) //若是因為有未存在路徑的例外須直接拋出，要執行cycle stop + replan.
+                {
+                    throw ex;
+                }
                 catch (Exception ex)
                 {
                     _exceptionHappening = ex;

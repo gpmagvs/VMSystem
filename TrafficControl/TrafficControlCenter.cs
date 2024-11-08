@@ -15,6 +15,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl.ConflicDetection;
@@ -40,10 +41,12 @@ namespace VMSystem.TrafficControl
             SystemModes.OnRunModeON += HandleRunModeOn;
             TaskBase.BeforeMoveToNextGoalTaskDispatch += ProcessTaskRequest;
             TaskBase.OnPathConflicForSoloveRequest += HandleOnPathConflicForSoloveRequest;
+            OrderHandlerBase.OnBufferOrderStarted += OrderHandlerBase_OnBufferOrderStarted;
             //TaskBase.BeforeMoveToNextGoalTaskDispatch += HandleAgvGoToNextGoalTaskSend;
             StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
         }
+
 
         private static void LoadTrafficControlParameters()
         {
@@ -76,6 +79,8 @@ namespace VMSystem.TrafficControl
         }
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
+        public static AGVSDbContext AGVDbContext { get; internal set; }
+
         private static async void HandleRunModeOn()
         {
             var needGoToChargeAgvList = VMSManager.AllAGV.Where(agv => agv.currentMapPoint != null)
@@ -360,5 +365,50 @@ namespace VMSystem.TrafficControl
         }
 
 
+        private static void OrderHandlerBase_OnBufferOrderStarted(object? sender, OrderHandlerBase.BufferOrderState bufferOrderState)
+        {
+            AvoidVehicleSolver? makeVehicleLeavingFromSourcePortSolver = _TryCreateAvoidSolver(bufferOrderState.bufferFrom);
+            AvoidVehicleSolver? makeVehicleLeavingFromDestinePortSolver = _TryCreateAvoidSolver(bufferOrderState.bufferTo);
+
+            if (makeVehicleLeavingFromDestinePortSolver == null && makeVehicleLeavingFromSourcePortSolver == null)
+            {
+                bufferOrderState.message = "Source station and Destine station is reachable!";
+                bufferOrderState.returnCode = ALARMS.NONE;
+
+                return;
+            }
+            List<Task<ALARMS>> solverTasks = new List<Task<ALARMS>>();
+
+
+            solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromDestinePortSolver));
+
+            if (bufferOrderState.bufferFrom != null && bufferOrderState.bufferFrom.TagNumber != bufferOrderState.bufferTo.TagNumber)
+                solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
+
+            Task.WaitAll(solverTasks.ToArray());
+
+            var failureSolver = solverTasks.FirstOrDefault(task => task.Result != ALARMS.NONE);
+            bufferOrderState.returnCode = failureSolver == null ? ALARMS.NONE : failureSolver.Result;
+
+            async Task<ALARMS> _WaitSolverDoneTask(AvoidVehicleSolver solver)
+            {
+                if (solver == null)
+                    return ALARMS.NONE;
+                return await solver.Solve();
+            }
+
+            AvoidVehicleSolver? _TryCreateAvoidSolver(MapPoint pt)
+            {
+                if (pt == null)
+                    return null;
+                IAGV orderOwnerAGV = bufferOrderState.orderBase.Agv;
+                IAGV? agvAtPoint = VMSManager.AllAGV.FilterOutAGVFromCollection(orderOwnerAGV)
+                                                    .FirstOrDefault(vehicle => vehicle.currentMapPoint.TagNumber == pt.TagNumber);
+                if (agvAtPoint == null)
+                    return null;
+
+                return new AvoidVehicleSolver(agvAtPoint, ACTION_TYPE.Park, AGVDbContext);
+            }
+        }
     }
 }
