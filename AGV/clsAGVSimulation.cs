@@ -69,6 +69,7 @@ namespace VMSystem.AGV
             {
                 await Task.Delay(300);
                 runningSTatus.Odometry = Mileage;
+                runningSTatus.AppVersion = "Simulation_1.0";
                 var clone = runningSTatus.Clone();
                 agv.states = clone;
             }
