@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Maintainance;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
+using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop.Infrastructure;
@@ -512,6 +513,7 @@ namespace VMSystem.VMS
                 var _mapPoint = StaMap.GetPointByTagNumber(localizationVM.currentID);
                 agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
                 agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+                StaMap.RegistPoint(agv.Name, _mapPoint, out _);
                 return (true, "");
             }
             else
@@ -725,6 +727,30 @@ namespace VMSystem.VMS
             {
             }
 
+        }
+
+        internal static async Task<(bool success, string message)> RemoveVehicleFromMap(string aGV_Name)
+        {
+            IAGV Vehicle = GetAGVByName(aGV_Name);
+            if (Vehicle == null)
+                return (false, $"{aGV_Name} Not Exist");
+
+
+            var agvRegistes = StaMap.RegistDictionary.Where(v => v.Value.RegisterAGVName == aGV_Name);
+            var removeds = agvRegistes.Where(v => StaMap.RegistDictionary.Remove(v.Key)).ToList();
+            Vehicle.currentMapPoint = new MapPoint
+            {
+                TagNumber = 0,
+                X = 1000,
+                Y = 1000
+            };
+            Vehicle.states.Coordination.X = Vehicle.currentMapPoint.X;
+            Vehicle.states.Coordination.Y = Vehicle.currentMapPoint.Y;
+
+            //if (Vehicle.AgvSimulation != null)
+            //    Vehicle.AgvSimulation.SetTag(556988);
+            NotifyServiceHelper.INFO($"已解除{aGV_Name}註冊點Tag  {string.Join(",", removeds.Select(v => v.Key))}");
+            return (true, "");
         }
     }
 }
