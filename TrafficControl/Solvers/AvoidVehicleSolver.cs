@@ -39,21 +39,9 @@ namespace VMSystem.TrafficControl.Solvers
                 if (Vehicle.online_state == AGVSystemCommonNet6.clsEnums.ONLINE_STATE.OFFLINE)
                     return ALARMS.TrafficDriveVehicleAwaybutVehicleNotOnline;
 
-                MapPoint? destinePt = null;
-                destinePt = this.Action == ACTION_TYPE.Park ? _GetParkPort() : _GetNormalPoint();
+                if (Vehicle.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
+                    await TryAddOrderToDatabase();
 
-                if (destinePt == null)
-                    return ALARMS.TrafficDriveVehicleAwayButCannotFindAvoidPosition;
-
-                clsTaskDto order = new clsTaskDto();
-                order.RecieveTime = DateTime.Now;
-                order.TaskName = $"Avoid-{this.Action}-{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
-                order.DesignatedAGVName = Vehicle.Name;
-                order.Action = Action;
-                order.State = TASK_RUN_STATUS.WAIT;
-                order.To_Station = destinePt.TagNumber.ToString();
-                order.To_Slot = "0";
-                await TryAddOrderToDatabase(order);
                 await WaitVehicleLeave();
                 return ALARMS.NONE;
             }
@@ -67,8 +55,22 @@ namespace VMSystem.TrafficControl.Solvers
             }
         }
 
-        private async Task TryAddOrderToDatabase(clsTaskDto order)
+        private async Task TryAddOrderToDatabase()
         {
+            MapPoint? destinePt = null;
+            destinePt = this.Action == ACTION_TYPE.Park ? _GetParkPort() : _GetNormalPoint();
+
+            if (destinePt == null)
+                throw new VMSException(ALARMS.TrafficDriveVehicleAwayButCannotFindAvoidPosition);
+
+            clsTaskDto order = new clsTaskDto();
+            order.RecieveTime = DateTime.Now;
+            order.TaskName = $"Avoid-{this.Action}-{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
+            order.DesignatedAGVName = Vehicle.Name;
+            order.Action = Action;
+            order.State = TASK_RUN_STATUS.WAIT;
+            order.To_Station = destinePt.TagNumber.ToString();
+            order.To_Slot = "0";
             await Task.Delay(100);
             CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             while (true)
