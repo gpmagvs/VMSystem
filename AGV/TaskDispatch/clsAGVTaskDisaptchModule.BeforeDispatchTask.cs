@@ -97,7 +97,12 @@ namespace VMSystem.AGV
                 all_using_charge_station_tags.AddRange(charge_stations_tag_occupied);
                 all_using_charge_station_tags = all_using_charge_station_tags.Distinct().ToList();
 
-                workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));
+                workstations = workstations.FindAll(point => !all_using_charge_station_tags.Contains(point.TagNumber));// List<MapPoint> 
+
+                //filter out not assign to order stations
+
+                workstations = workstations.Where(station => StationTagNotAssignToOrderYet(station.TagNumber)).ToList();
+
 
                 if (workstations.Count == 0)
                 {
@@ -171,6 +176,16 @@ namespace VMSystem.AGV
                 autoSearchSemaphoreSlim.Release();
             }
 
+        }
+
+        private bool StationTagNotAssignToOrderYet(int tagNumber)
+        {
+
+            List<int> tagsOfCurrentOrders = new List<int>();
+
+            tagsOfCurrentOrders.AddRange(DatabaseCaches.TaskCaches.InCompletedTasks.SelectMany(order => new int[2] { order.From_Station_Tag, order.To_Station_Tag }));
+            tagsOfCurrentOrders = tagsOfCurrentOrders.Where(tag => tag != -1).ToList();
+            return !tagsOfCurrentOrders.Contains(tagNumber);
         }
 
         /// <summary>
