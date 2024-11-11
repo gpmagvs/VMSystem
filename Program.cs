@@ -16,6 +16,7 @@ using VMSystem;
 using VMSystem.BackgroundServices;
 using VMSystem.Services;
 
+Console.WriteLine("Hello world!");
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 {
     Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
