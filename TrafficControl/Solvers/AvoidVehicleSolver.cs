@@ -23,6 +23,7 @@ namespace VMSystem.TrafficControl.Solvers
 
         private AGVSDbContext agvsDb { get; }
 
+        private static SemaphoreSlim _CreateOrderSemaphore = new SemaphoreSlim(1, 1);
 
         public AvoidVehicleSolver(IAGV Vehicle, ACTION_TYPE Action, AGVSDbContext agvsDb)
         {
@@ -57,46 +58,71 @@ namespace VMSystem.TrafficControl.Solvers
 
         private async Task TryAddOrderToDatabase()
         {
-            MapPoint? destinePt = null;
-            destinePt = this.Action == ACTION_TYPE.Park ? _GetParkPort() : _GetNormalPoint();
-
-            if (destinePt == null)
-                throw new VMSException(ALARMS.TrafficDriveVehicleAwayButCannotFindAvoidPosition);
-
-            clsTaskDto order = new clsTaskDto();
-            order.RecieveTime = DateTime.Now;
-            order.TaskName = $"Avoid-{this.Action}-{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
-            order.DesignatedAGVName = Vehicle.Name;
-            order.Action = Action;
-            order.State = TASK_RUN_STATUS.WAIT;
-            order.To_Station = destinePt.TagNumber.ToString();
-            order.To_Slot = "0";
-            await Task.Delay(100);
-            CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (true)
+            try
             {
-                try
-                {
-                    if (cancellation.IsCancellationRequested)
-                        throw new VMSException() { Alarm_Code = ALARMS.TrafficDriveVehicleAwaybutAppendOrderToDatabaseFail };
+                await _CreateOrderSemaphore.WaitAsync();
+                MapPoint? destinePt = null;
+                destinePt = this.Action == ACTION_TYPE.Park ? _GetParkPort() : _GetNormalPoint();
 
-                    this.agvsDb.Tasks.Add(order);
-                    int changed = await this.agvsDb.SaveChangesAsync();
+                if (destinePt == null)
+                    throw new VMSException(ALARMS.TrafficDriveVehicleAwayButCannotFindAvoidPosition);
 
-                    this.Order = order;
-                    return;
-                }
-                catch (VMSException ex)
+                clsTaskDto order = new clsTaskDto();
+                order.RecieveTime = DateTime.Now;
+                order.TaskName = $"Avoid-{this.Action}-{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
+                order.DesignatedAGVName = Vehicle.Name;
+                order.Action = Action;
+                order.State = TASK_RUN_STATUS.WAIT;
+                order.To_Station = destinePt.TagNumber.ToString();
+                order.To_Slot = "0";
+                await Task.Delay(100);
+                CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (true)
                 {
-                    throw ex;
-                }
-                catch (Exception ex)
-                {
-                    await Task.Delay(1000);
-                    Console.WriteLine(ex.Message);
-                    continue;
+                    try
+                    {
+                        if (cancellation.IsCancellationRequested)
+                            throw new VMSException() { Alarm_Code = ALARMS.TrafficDriveVehicleAwaybutAppendOrderToDatabaseFail };
 
+                        this.agvsDb.Tasks.Add(order);
+                        int changed = await this.agvsDb.SaveChangesAsync();
+
+                        if (changed >= 1)
+                        {
+                            await WaitTaskCreatedAsync(order);
+                        }
+
+                        this.Order = order;
+                        return;
+                    }
+                    catch (VMSException ex)
+                    {
+                        throw ex;
+                    }
+                    catch (Exception ex)
+                    {
+                        await Task.Delay(1000);
+                        Console.WriteLine(ex.Message);
+                        continue;
+
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                _CreateOrderSemaphore.Release();
+            }
+        }
+
+        private async Task WaitTaskCreatedAsync(clsTaskDto order)
+        {
+            while (DatabaseCaches.TaskCaches.InCompletedTasks.FirstOrDefault(tk => tk.TaskName == order.TaskName) == null)
+            {
+                await Task.Delay(100);
             }
         }
 
