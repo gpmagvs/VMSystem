@@ -135,7 +135,9 @@ namespace VMSystem
                 point = new MapPoint
                 {
                     TagNumber = tagNumber,
-                    Name = tagNumber.ToString()
+                    Name = tagNumber.ToString(),
+                    X = 1000,
+                    Y = 1000
                 };
             }
             return point.Clone();

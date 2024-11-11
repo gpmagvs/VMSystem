@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Alarm;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.AGV;
 using VMSystem.BackgroundServices;
@@ -124,6 +125,12 @@ namespace VMSystem.Controllers
         {
             var result = await VMSManager.DeleteVehicle(AGV_Name);
             return Ok(new { confirm = result.confirm, message = result.message });
+        }
+
+        [HttpPost("UnregisterFromNetwork")]
+        public async Task<IActionResult> UnregisterFromNetwork(string AGV_Name)
+        {
+            return Ok(await VMSManager.RemoveVehicleFromMap(AGV_Name));
         }
     }
 }

@@ -648,8 +648,16 @@ namespace VMSystem.AGV
         {
             agv.AgvSimulation.runningSTatus.Last_Visited_Node = tag;
             var _mapPoint = StaMap.GetPointByTagNumber(tag);
-            agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
-            agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+            if (_mapPoint != null)
+            {
+                agv.AgvSimulation.runningSTatus.Coordination.X = _mapPoint.X;
+                agv.AgvSimulation.runningSTatus.Coordination.Y = _mapPoint.Y;
+            }
+            else
+            {
+                agv.AgvSimulation.runningSTatus.Coordination.X = -12;
+                agv.AgvSimulation.runningSTatus.Coordination.Y = 0;
+            }
         }
     }
 }
