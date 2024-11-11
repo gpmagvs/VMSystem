@@ -7,7 +7,10 @@ using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
+using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.TrafficControl.Solvers
 {
@@ -128,9 +131,13 @@ namespace VMSystem.TrafficControl.Solvers
 
         private async Task WaitVehicleLeave()
         {
-            int tagOfVehicleBegin = Vehicle.currentMapPoint.TagNumber;
+            int tagOfVehicleBegin = Vehicle.currentMapPoint.TagNumber; //AGV起始位置(在 port裡面)
+            bool _isVehicleAtPortBegin = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
+            int tagOfEntryPointOfCurrentPort = _isVehicleAtPortBegin ? Vehicle.currentMapPoint.TargetNormalPoints().First().TagNumber : -1; //AGV所在位置的進入點
             CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(Debugger.IsAttached ? 30 : 300));
-            while (Vehicle.currentMapPoint.TagNumber == tagOfVehicleBegin)
+
+            //等待已不在Port裡面而且也離開進入點
+            while (IsAGVStillAtPortOrEntryPoint(tagOfVehicleBegin, tagOfEntryPointOfCurrentPort))
             {
                 try
                 {
@@ -140,6 +147,11 @@ namespace VMSystem.TrafficControl.Solvers
                 {
                     throw new VMSException() { Alarm_Code = ALARMS.TrafficDriveVehicleAwaybutWaitOtherVehicleReleasePointTimeout };
                 }
+            }
+
+            bool IsAGVStillAtPortOrEntryPoint(int tagOfVehicleBegin, int tagOfEntryPointOfCurrentPort)
+            {
+                return Vehicle.currentMapPoint.TagNumber == tagOfVehicleBegin || Vehicle.currentMapPoint.TagNumber == tagOfEntryPointOfCurrentPort;
             }
         }
 
@@ -159,7 +171,21 @@ namespace VMSystem.TrafficControl.Solvers
             if (!allParkablePoints.Any())
                 return null;
 
-            return allParkablePoints.First(); //test
+            Dictionary<MapPoint, double> distanceMapToParkPts = allParkablePoints.ToDictionary(pt => pt, pt => _GetDistanceToParkPoint(pt));
+            var ordered = distanceMapToParkPts.OrderBy(kp => kp.Value);
+            return ordered.First().Key;
+
+            double _GetDistanceToParkPoint(MapPoint parkPoint)
+            {
+                PathFinder _finder = new PathFinder();
+                clsPathInfo _result = _finder.FindShortestPath(Vehicle.currentMapPoint.TagNumber, parkPoint.TagNumber, new PathFinder.PathFinderOption
+                {
+                    Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra,
+                    OnlyNormalPoint = false,
+                    Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE
+                });
+                return _result.total_travel_distance;
+            }
         }
 
         private MapPoint? _GetNormalPoint()
