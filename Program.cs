@@ -19,7 +19,7 @@ using VMSystem.Services;
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 {
     Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
-    Console.WriteLine("Press any key to exit...");
+    Console.WriteLine("Press any key to exit...");Console.WriteLine("Press any key to exit...");
     Console.ReadKey(true);
 }
 
