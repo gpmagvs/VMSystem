@@ -423,7 +423,6 @@ namespace VMSystem.TrafficControl
             if (releaseForbidden)
                 releasePtRequest.Message = $"有車輛目的地為 Tag {portTagNumber} 或 Tag {releasePtRequest.EntryPoint.TagNumber}";
             releasePtRequest.Accept = !releaseForbidden;
-
             //
             bool _IsGoToReleaseTagOrEntryPort(IAGV _agv)
             {
@@ -432,24 +431,20 @@ namespace VMSystem.TrafficControl
                 var _runningTask = _agv.CurrentRunningTask();
                 if (_runningTask == null)
                     return false;
-
                 bool _agvDestineIsReleaseTag = _runningTask.ActionType == ACTION_TYPE.None && _runningTask.DestineTag == releasePtRequest.EntryPoint.TagNumber;
-
                 bool _agvNextActionIsEntrySamePort = _runningTask.NextAction != ACTION_TYPE.None && _GetNextActionDestineTag(_runningTask) == portTagNumber;
-
                 return _agvDestineIsReleaseTag || _agvNextActionIsEntrySamePort;
             }
 
             int _GetNextActionDestineTag(TaskBase _runningTask)
             {
-                if (_runningTask.Stage == VehicleMovementStage.Traveling_To_Source)
-                {
+                VehicleMovementStage actionStage = _runningTask.Stage;
+                //當前任務動作是移動至來源設備
+                if (actionStage == VehicleMovementStage.Traveling_To_Source)
                     return _runningTask.OrderData.From_Station_Tag;
-                }
-                else if (_runningTask.Stage == VehicleMovementStage.Traveling_To_Destine)
-                {
+                //當前任務動作是移動至目的地設備或正在來源設備工作中
+                else if (actionStage == VehicleMovementStage.Traveling_To_Destine || actionStage == VehicleMovementStage.WorkingAtSource)
                     return _runningTask.OrderData.To_Station_Tag;
-                }
                 else
                     return -1;
             }
