@@ -219,10 +219,44 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     else
                     {
                         NotifyServiceHelper.WARNING($"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}");
+                        //將進入點的鎖定點也都註冊掉
+                        RegistPointOfEntryPointNear();
                     }
 
                 }
+                else
+                {
+                    //將進入點的鎖定點也都註冊掉
+                    RegistPointOfEntryPointNear();
+                }
 
+            }
+
+            void RegistPointOfEntryPointNear()
+            {
+                string[] splitedIndexStr = EntryPoint.InvolvePoint.Split(",");
+                if (splitedIndexStr.Length > 0)
+                {
+                    List<int> unregistedInvolvePtTags = EntryPoint.RegistsPointIndexs.Select(_ptIndex => StaMap.GetPointByIndex(_ptIndex))
+                                                                                     .Where(pt => !StaMap.RegistDictionary.Keys.Contains(pt.TagNumber))
+                                                                                     .Select(unRegistedPt => unRegistedPt.TagNumber)
+                                                                                     .ToList();
+                    string _tagsStr = string.Join(",", unregistedInvolvePtTags);
+                    logger.Info($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+                    bool registedAllSuccess = StaMap.RegistPoint(Agv.Name, unregistedInvolvePtTags, out string msg);
+                    if (registedAllSuccess)
+                    {
+                        string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case)";
+                        NotifyServiceHelper.INFO(_log);
+                        logger.Info(_log);
+                    }
+                    else
+                    {
+                        string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case) FAIL :{msg}";
+                        NotifyServiceHelper.ERROR(_log);
+                        logger.Warn(_log);
+                    }
+                }
             }
         }
 

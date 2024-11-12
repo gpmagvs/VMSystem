@@ -182,13 +182,19 @@ namespace VMSystem.Dispatch
         public static (IAGV lowPriorityVehicle, IAGV highPriorityVehicle, bool IsAvoidUseParkablePort) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
 
-            //如果是叉車與潛盾互等 而且叉車所在區域內有可停車的WIP=> 叉車停進去WIP避讓。
+            //如果是叉車與潛盾互等 而且叉車所在區域(非UNKNOWN區域內有可停車的WIP=> 叉車停進去WIP避讓。
             if (TrafficControlCenter.TrafficControlParameters.Experimental.UseRackToAvoid && DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK && !vehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo))
             {
-                IAGV forkAGV = DeadLockVehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
+                //僅只抓出沒載貨的車輛
+                List<IAGV> _vehicles = DeadLockVehicles.Where(agv => agv.states.Cargo_Status == 0 && (!agv.states.CSTID.Any() || string.IsNullOrEmpty(agv.states.CSTID.First()))).ToList();
+                //排序:嘗試把在可停車點之相鄰點的車排在前面
+                _vehicles = _vehicles.OrderByDescending(vehicle => vehicle.currentMapPoint.TargetParkableStationPoints().Count())
+                                     .ToList();
+
+                IAGV forkAGV = _vehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
                 if (forkAGV != null && GetParkablePointOfAGVInRegion(forkAGV).Any())
                 {
-                    IAGV HighPriortyAGV = DeadLockVehicles.First(v => v != forkAGV);
+                    IAGV HighPriortyAGV = _vehicles.First(v => v != forkAGV);
                     NotifyServiceHelper.INFO($"叉車-{forkAGV.Name}應優先避讓至WIP PORT");
                     return (forkAGV, HighPriortyAGV, true);
                 }
@@ -224,12 +230,13 @@ namespace VMSystem.Dispatch
 
             IEnumerable<MapPoint> GetParkablePointOfAGVInRegion(IAGV forkAGV)
             {
-                IEnumerable<MapPoint> parkablePortPointsInRegion = forkAGV.currentMapPoint.GetRegion().GetParkablePointOfRegion(forkAGV);
+                var currentRegion = forkAGV.currentMapPoint.GetRegion();
+                if (currentRegion == null || currentRegion.RegionType == MapRegion.MAP_REGION_TYPE.UNKNOWN)
+                    return new MapPoint[0];
+
+                IEnumerable<MapPoint> parkablePortPointsInRegion = currentRegion.GetParkablePointOfRegion(forkAGV);
                 if (!parkablePortPointsInRegion.Any())
                     return new List<MapPoint>();
-
-                //
-
                 return parkablePortPointsInRegion;
             }
 
