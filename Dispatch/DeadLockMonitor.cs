@@ -183,8 +183,7 @@ namespace VMSystem.Dispatch
         {
 
             //如果是叉車與潛盾互等 而且叉車所在區域內有可停車的WIP=> 叉車停進去WIP避讓。
-
-            if (DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK && !vehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo))
+            if (TrafficControlCenter.TrafficControlParameters.Experimental.UseRackToAvoid && DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK && !vehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo))
             {
                 IAGV forkAGV = DeadLockVehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
                 if (forkAGV != null && GetParkablePointOfAGVInRegion(forkAGV).Any())

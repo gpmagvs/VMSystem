@@ -96,6 +96,11 @@ namespace VMSystem.TrafficControl
             /// </summary>
             public bool NavigationWithTrafficControlPoints { get; set; } = true;
 
+            /// <summary>
+            /// 停到RACK裡面避車
+            /// </summary>
+            public bool UseRackToAvoid { get; set; } = true;
+
         }
     }
 
