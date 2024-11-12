@@ -74,16 +74,9 @@ namespace VMSystem
         internal static void VMSInit()
         {
             StaMap.Download();
-            VMSManager.Initialize().ContinueWith(tk =>
-            {
-                Dispatch.DispatchCenter.Initialize();
-            });
             TrafficControlCenter.Initialize();
             RegionManager.Initialze();
-
-
             NotifyServiceHelper.OnMessage += NotifyServiceHelper_OnMessage;
-
         }
 
         private static void NotifyServiceHelper_OnMessage(object? sender, NotifyServiceHelper.NotifyMessage notifyMessage)
