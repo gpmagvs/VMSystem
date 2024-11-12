@@ -42,6 +42,7 @@ namespace VMSystem.TrafficControl
             TaskBase.BeforeMoveToNextGoalTaskDispatch += ProcessTaskRequest;
             TaskBase.OnPathConflicForSoloveRequest += HandleOnPathConflicForSoloveRequest;
             OrderHandlerBase.OnBufferOrderStarted += OrderHandlerBase_OnBufferOrderStarted;
+            LoadUnloadTask.OnReleaseEntryPointRequesting += LoadUnloadTask_OnReleaseEntryPointRequesting;
             //TaskBase.BeforeMoveToNextGoalTaskDispatch += HandleAgvGoToNextGoalTaskSend;
             StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
@@ -409,6 +410,50 @@ namespace VMSystem.TrafficControl
 
                 return new AvoidVehicleSolver(agvAtPoint, ACTION_TYPE.Park, AGVDbContext);
             }
+        }
+
+
+        private static void LoadUnloadTask_OnReleaseEntryPointRequesting(object? sender, LoadUnloadTask.ReleaseEntryPtRequest releasePtRequest)
+        {
+            //GOAL:若有其他AGV任務的目標為此TAG 則不允許解註冊,
+            int portTagNumber = releasePtRequest.Agv.currentMapPoint.TagNumber;
+            List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(releasePtRequest.Agv).ToList();
+
+            bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle));
+            if (releaseForbidden)
+                releasePtRequest.Message = $"有車輛目的地為 Tag {portTagNumber} 或 Tag {releasePtRequest.EntryPoint.TagNumber}";
+            releasePtRequest.Accept = !releaseForbidden;
+
+            //
+            bool _IsGoToReleaseTagOrEntryPort(IAGV _agv)
+            {
+                if (_agv == null)
+                    return false;
+                var _runningTask = _agv.CurrentRunningTask();
+                if (_runningTask == null)
+                    return false;
+
+                bool _agvDestineIsReleaseTag = _runningTask.ActionType == ACTION_TYPE.None && _runningTask.DestineTag == releasePtRequest.EntryPoint.TagNumber;
+
+                bool _agvNextActionIsEntrySamePort = _runningTask.NextAction != ACTION_TYPE.None && _GetNextActionDestineTag(_runningTask) == portTagNumber;
+
+                return _agvDestineIsReleaseTag || _agvNextActionIsEntrySamePort;
+            }
+
+            int _GetNextActionDestineTag(TaskBase _runningTask)
+            {
+                if (_runningTask.Stage == VehicleMovementStage.Traveling_To_Source)
+                {
+                    return _runningTask.OrderData.From_Station_Tag;
+                }
+                else if (_runningTask.Stage == VehicleMovementStage.Traveling_To_Destine)
+                {
+                    return _runningTask.OrderData.To_Station_Tag;
+                }
+                else
+                    return -1;
+            }
+
         }
     }
 }

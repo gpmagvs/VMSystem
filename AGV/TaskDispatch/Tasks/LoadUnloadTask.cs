@@ -17,10 +17,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class LoadUnloadTask : TaskBase
     {
+
+        public class ReleaseEntryPtRequest
+        {
+            public bool Accept { get; set; } = false;
+            public MapPoint EntryPoint { get; internal set; } = new MapPoint();
+            public IAGV Agv { get; internal set; }
+
+            public string Message { get; internal set; } = string.Empty;
+        }
+
         private MapPoint EntryPoint = new();
         private MapPoint EQPoint = new();
         private ManualResetEvent WaitAGVReachWorkStationMRE = new ManualResetEvent(false);
         private string cargoIDMounted = "";
+        public static event EventHandler<ReleaseEntryPtRequest> OnReleaseEntryPointRequesting;
 
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
@@ -184,17 +195,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 WaitAGVReachWorkStationMRE.Set();
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
-
                 await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
+
                 if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
                 {
-                    (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
-                    if (confirmed)
+                    ReleaseEntryPtRequest request = new ReleaseEntryPtRequest()
                     {
-                        //Notify
-                        NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                        Agv = Agv,
+                        EntryPoint = EntryPoint,
+                        Accept = false
+                    };
+                    OnReleaseEntryPointRequesting?.Invoke(this, request);
+                    if (request.Accept)
+                    {
+                        (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
+                        if (confirmed)
+                        {
+                            //Notify
+                            NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                        }
                     }
+                    else
+                    {
+                        NotifyServiceHelper.WARNING($"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}");
+                    }
+
                 }
 
             }
