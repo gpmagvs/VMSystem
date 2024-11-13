@@ -90,6 +90,7 @@ namespace VMSystem.Dispatch
                     foreach (var item in WaitingConflicReleaseVehicles)
                     {
                         item.NavigationState.IsConflicSolving = false;
+                        item.CurrentRunningTask().UpdateStateDisplayMessage($"趕避車失效:{ex.Message}");
                     }
                 }
 
@@ -194,7 +195,7 @@ namespace VMSystem.Dispatch
                 IAGV forkAGV = _vehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
                 if (forkAGV != null && GetParkablePointOfAGVInRegion(forkAGV).Any())
                 {
-                    IAGV HighPriortyAGV = _vehicles.First(v => v != forkAGV);
+                    IAGV HighPriortyAGV = _vehicles.Count == 1 ? null : _vehicles.First(v => v != forkAGV);
                     NotifyServiceHelper.INFO($"叉車-{forkAGV.Name}應優先避讓至WIP PORT");
                     return (forkAGV, HighPriortyAGV, true);
                 }
