@@ -169,6 +169,8 @@ namespace VMSystem.Dispatch
                     lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
 
             }
+
+            highPriorityVehicle = lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo || highPriorityVehicle == null ? DeadLockVehicles.First(v => v != lowPriorityVehicle) : highPriorityVehicle;
             clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
             var toAvoidVehicle = await lowPriorityWork.StartSolve();
             if (toAvoidVehicle == null)
