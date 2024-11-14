@@ -278,11 +278,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <exception cref="NotImplementedException"></exception>
         private async Task TryRotationToAvoidAngle()
         {
-            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
-            {
-                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
-                WaitAGVReachWorkStationMRE.Set();
-            }
             try
             {
                 logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
@@ -333,15 +328,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
                 Agv.NavigationState.ResetNavigationPoints();
             }
-        }
 
+
+        }
         private async Task TryRotationToAvoidAngleOfCurrentTag()
         {
-            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
-            {
-                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
-                WaitAGVReachWorkStationMRE.Set();
-            }
             try
             {
 
@@ -408,6 +399,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
+        {
+            Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+            WaitAGVReachWorkStationMRE.Set();
+        }
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {
             if (!base.IsThisTaskDone(feedbackData))
