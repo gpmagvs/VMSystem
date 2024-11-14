@@ -6,11 +6,11 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json;
+using NLog;
 using System.Collections.Concurrent;
 using System.Data;
 using VMSystem.AGV;
@@ -35,6 +35,8 @@ namespace VMSystem.TrafficControl
         internal static clsTrafficControlParameters TrafficControlParameters { get; set; } = new clsTrafficControlParameters();
         private static FileSystemWatcher TrafficControlParametersChangedWatcher;
 
+        static Logger logger = LogManager.GetCurrentClassLogger();
+
         internal static void Initialize()
         {
             LoadTrafficControlParameters();
@@ -46,6 +48,7 @@ namespace VMSystem.TrafficControl
             //TaskBase.BeforeMoveToNextGoalTaskDispatch += HandleAgvGoToNextGoalTaskSend;
             StaMap.OnTagUnregisted += StaMap_OnTagUnregisted;
             Task.Run(() => TrafficStateCollectorWorker());
+            logger.Debug("TrafficControlCenter Initialized");
         }
 
 
@@ -61,22 +64,62 @@ namespace VMSystem.TrafficControl
             TrafficControlParametersChangedWatcher = new FileSystemWatcher(AGVSConfigulator.ConfigsFilesFolder, "TrafficControlParams.json");
             TrafficControlParametersChangedWatcher.Changed += TrafficControlParametersChangedWatcher_Changed;
             TrafficControlParametersChangedWatcher.EnableRaisingEvents = true;
+            logger.Debug("TrafficControlCenter Load TrafficControl Parameters done");
         }
 
         private static void TrafficControlParametersChangedWatcher_Changed(object sender, FileSystemEventArgs e)
         {
-            TrafficControlParametersChangedWatcher.EnableRaisingEvents = false;
-
-            string _tempFile = Path.Combine(Path.GetTempPath(), Path.GetFileName(e.FullPath));
-            File.Copy(e.FullPath, _tempFile, true);
-            var _newTrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(_tempFile));
-            if (_newTrafficControlParameters != null)
+            logger.Debug($"TrafficControlParametersChangedWatcher_Changed event triggered.({e.ChangeType})");
+            try
             {
-                TrafficControlParameters = _newTrafficControlParameters;
-                LOG.TRACE($"TrafficControlParameters changed:\r\n{TrafficControlParameters.ToJson()}");
+                TrafficControlParametersChangedWatcher.EnableRaisingEvents = false;
+                string tempFile = Path.Combine(Path.GetTempPath(), $"{DateTime.Now.Ticks}_{Path.GetFileName(e.FullPath)}");
+
+                // 添加重試機制
+                const int maxRetries = 3;
+                const int delayMs = 100;
+
+                for (int i = 0; i < maxRetries; i++)
+                {
+                    try
+                    {
+                        File.Copy(e.FullPath, tempFile, true);
+                        break; // 如果複製成功，跳出循環
+                    }
+                    catch (IOException ioEx)
+                    {
+                        if (i == maxRetries - 1) // 最後一次嘗試
+                        {
+                            logger.Error(ioEx, $"無法複製檔案 {e.FullPath}，已重試 {maxRetries} 次");
+                            throw;
+                        }
+                        logger.Warn($"複製檔案時發生 IO 錯誤，正在重試 ({i + 1}/{maxRetries})");
+                        Thread.Sleep(delayMs); // 等待一段時間後重試
+                    }
+                }
+                var _newTrafficControlParameters = JsonConvert.DeserializeObject<clsTrafficControlParameters>(File.ReadAllText(tempFile));
+                if (_newTrafficControlParameters != null)
+                {
+                    TrafficControlParameters = _newTrafficControlParameters;
+                    logger.Debug($"Update TrafficControlParameters DTO :\r\n {TrafficControlParameters.ToJson()}");
+                }
+                // Ensure temp file is deleted even if deserialization fails
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                    logger.Debug($"Delete temp file :{tempFile}");
+
+                }
+
             }
-            File.Delete(_tempFile);
-            TrafficControlParametersChangedWatcher.EnableRaisingEvents = true;
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"處理{e.FullPath}檔案修改變化的過程中發生例外:{ex.Message}");
+            }
+            finally
+            {
+                TrafficControlParametersChangedWatcher.EnableRaisingEvents = true;
+            }
         }
 
         public static clsDynamicTrafficState DynamicTrafficState { get; set; } = new clsDynamicTrafficState();
@@ -125,7 +168,7 @@ namespace VMSystem.TrafficControl
 
         public static async Task<bool> AGVLeaveWorkStationRequest(string AGVName, int eQTag)
         {
-
+            logger.Trace($"Get {AGVName} Leave from work station(Tag-{eQTag}) request");
             IAGV agv = VMSManager.GetAGVByName(AGVName);
             ACTION_TYPE currentAction = agv.CurrentRunningTask().ActionType;
             clsMapPoint[] agvCurrentHomingTraj = agv.CurrentRunningTask().TaskDonwloadToAGV.Homing_Trajectory;
@@ -146,10 +189,12 @@ namespace VMSystem.TrafficControl
             bool allowLeve = response.ActionConfirm == LEAVE_WORKSTATION_ACTION.OK;
             if (!allowLeve)
             {
+                logger.Trace($"{AGVName} Leave from work station(Tag-{eQTag}) request NOT ALLOWED.... Reason:{response.Message}");
                 trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, $"退出設備-等待主幹道可通行..\r\n({response.Message})");
             }
             else
             {
+                logger.Trace($"{AGVName} Leave from work station(Tag-{eQTag}) request ALLOWED!");
                 trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出允許!");
                 await Task.Delay(200);
                 trafficState.SetStatusNoWaiting();
@@ -276,8 +321,8 @@ namespace VMSystem.TrafficControl
                         }
 
                         addictionRegistedTags = addictionRegistedTags.Distinct().OrderBy(t => t).ToList();
-                        //log addictionRegistedTags
-                        NotifyServiceHelper.INFO($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可! 額外註冊點:{string.Join(",", addictionRegistedTags)}");
+                        NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可!");
+                        logger.Info($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可! 額外註冊點:{string.Join(",", addictionRegistedTags)}");
                         _RaiseReqAGV.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                         (_RaiseReqAGV.CurrentRunningTask() as LoadUnloadTask)?.UpdateEQActionMessageDisplay();
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
