@@ -11,6 +11,7 @@ using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.Dispatch.Equipment;
 using static System.Collections.Specialized.BitVector32;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -79,7 +80,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
         {
             IAGV _agv = GetIAGVByName(orderData.DesignatedAGVName);
-
+            OrderTransfer OrderTransfer = SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN ? CreateOrderTransfer(_agv, orderData) : null;
             if (_agv == null)
                 throw new NotFoundAGVException($"{orderData.DesignatedAGVName} not exist at system");
 
@@ -112,7 +113,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {
-                    NextAction = ACTION_TYPE.Unload
+                    NextAction = ACTION_TYPE.Unload,
+                    OrderTransfer = OrderTransfer
                 });
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
@@ -188,7 +190,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
                     {
-                        NextAction = ACTION_TYPE.Unload
+                        NextAction = ACTION_TYPE.Unload,
+                        OrderTransfer = OrderTransfer
                     });
                     _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
                     {
@@ -235,6 +238,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
             return _queue;
+        }
+
+        private OrderTransfer CreateOrderTransfer(IAGV agv, clsTaskDto orderData)
+        {
+            return new TransferOrderToOtherVehicleMonitor(agv, orderData)
+            {
+                agvsDb = VMSManager.AGVSDbContext,
+                tasksTableDbLock = VMSManager.tasksLock
+            };
         }
 
         public static Dictionary<int, List<int>> GetTransferStationTag(clsTaskDto orderData)
