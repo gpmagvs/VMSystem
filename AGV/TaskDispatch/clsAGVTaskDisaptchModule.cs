@@ -428,7 +428,7 @@ namespace VMSystem.AGV
                                     taskList.Clear();
                                     continue;
                                 }
-                                var _ExecutingTask = taskOrderedByPriority.First();
+                                clsTaskDto _ExecutingTask = taskOrderedByPriority.First();
 
                                 if (_ExecutingTask.Action == ACTION_TYPE.Carry && _ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
                                 {
