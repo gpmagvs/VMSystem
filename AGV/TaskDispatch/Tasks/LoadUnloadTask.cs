@@ -282,11 +282,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
                 clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
-                int currentTag = trajectory.First().Point_ID;
-                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
                 if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
                     return;
+
                 trajectory.First().Theta = avoidTheta;
                 clsTaskDownloadData taskObj = new clsTaskDownloadData
                 {
@@ -309,6 +309,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
                 string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
                 logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
+                NotifyServiceHelper.WARNING($"{Agv.Name} 即將旋轉至避車角度:{avoidTheta} !");
                 (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
                 if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                     logger.Info($"{Agv.Name} turn to avoid angle task download success.");
@@ -350,7 +351,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 logger.Trace($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
                 int currentTag = Agv.currentMapPoint.TagNumber;
-                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
                 if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
                     return;
@@ -399,11 +400,86 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
+        /// <summary>
+        /// 取得離開工作站後的轉向角度
+        /// </summary>
+        /// <returns></returns>
+        private double GetTurnToAngleAfterLeaveWorkStation()
+        {
+            //TODO : 這裡要改成評估下一個目的地，計算路徑取得航向角度
+            MapPoint currentMapPoint = this.EntryPoint;
+            MapPoint nextWorkStationMapPoint = null;
+
+            if (Stage == VehicleMovementStage.WorkingAtSource)
+                nextWorkStationMapPoint = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+            else if (Stage == VehicleMovementStage.WorkingAtDestination)
+            {
+                if (TryGetFirstWorkStationOfNextOrder(out MapPoint nextOrderFirstWorkStationMapPoint))
+                    nextWorkStationMapPoint = nextOrderFirstWorkStationMapPoint;
+            }
+
+            if (nextWorkStationMapPoint != null && _TryGetThetaToTurn(nextWorkStationMapPoint, out double thetaCalculated))
+                return thetaCalculated;
+            else
+                return _defaultTheta();
+
+            bool _TryGetThetaToTurn(MapPoint destineWorkStation, out double _theta)
+            {
+                _theta = 0;
+
+                PathFinder _pf = new PathFinder();
+                PathFinder.PathFinderOption option = new PathFinder.PathFinderOption
+                {
+                    Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra,
+                    Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE,
+                    OnlyNormalPoint = false
+                };
+
+                List<List<MapPoint>> pathesFound = _pf.FindPathes(PathFinder.defaultMap, currentMapPoint, destineWorkStation, option)
+                                                      .Where(wrap => wrap.stations.Any())
+                                                      .Select(wrap => wrap.stations)
+                                                      .Where(path => _isTrunToForwardAngleLessThanThres(path)) //過濾 AGV當前角度旋轉至路徑第一航向角度所需旋轉角度值須小於93度
+                                                      .ToList();
+
+                if (!pathesFound.Any())
+                    return false;
+                var pathPredict = pathesFound.First();
+                _theta = Tools.CalculationForwardAngle(pathPredict[0], pathPredict[1]);
+                return true;
+            }
+            bool _isTrunToForwardAngleLessThanThres(List<MapPoint> path)
+            {
+                double pathFirstForwardAngle = Tools.CalculationForwardAngle(path[0], path[1]);
+                double agvCurrnetAngle = this.Agv.states.Coordination.Theta;
+                double angleDiff = Tools.CalculateTheateDiff(agvCurrnetAngle, pathFirstForwardAngle);
+                return angleDiff < 93;
+            }
+            double _defaultTheta()
+            {
+                clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
+                int currentTag = trajectory.First().Point_ID;
+                return StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+            };
+        }
+
+        private bool TryGetFirstWorkStationOfNextOrder(out MapPoint nextOrderFirstWorkStationMapPoint)
+        {
+            nextOrderFirstWorkStationMapPoint = null;
+            //TODO 
+            if (!this.Agv.TryGetNextOrder(this.OrderData.TaskName, out clsTaskDto nextOrder))
+                return false;
+            int nextOrderFirstWorkStationTag = nextOrder.Action == ACTION_TYPE.Carry ? nextOrder.From_Station_Tag : nextOrder.To_Station_Tag;
+            nextOrderFirstWorkStationMapPoint = StaMap.GetPointByTagNumber(nextOrderFirstWorkStationTag);
+            return nextOrderFirstWorkStationMapPoint != null;
+        }
+
         void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
         {
             Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
             WaitAGVReachWorkStationMRE.Set();
         }
+
+
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {
             if (!base.IsThisTaskDone(feedbackData))
