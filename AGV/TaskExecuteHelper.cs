@@ -216,54 +216,52 @@ namespace VMSystem.AGV
                 }
 
                 logger.Info($"Trajectory prepared  send to AGV = {string.Join("->", _TaskDonwloadToAGV.ExecutingTrajecory.GetTagList())},Destine={_TaskDonwloadToAGV.Destination},最後航向角度 ={_TaskDonwloadToAGV.ExecutingTrajecory.Last().Theta}");
-                if (Vehicle.options.Simulation)
+
+                try
                 {
-                    //throw new HttpRequestException("模擬器測試任務下載API Http 請求失敗");
-                    TaskDownloadRequestResponse taskStateResponse = Vehicle.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
-                    return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
-                }
-                else
-                {
-                    try
+                    //一般走行須等待AGV上報 Navagating; otherwise 需等待AGV上報 Action_Start
+                    ManualResetEvent waitReportMRE = _TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None ? WaitNavigatingReportedMRE : WaitActionStartReportedMRE;
+                    waitReportMRE.Reset();
+                    _LogDownloadRequest(_TaskDonwloadToAGV);
+
+                    TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
+
+                    if (Vehicle.options.Simulation)
+                        taskStateResponse = Vehicle.AgvSimulation.ExecuteTask(_TaskDonwloadToAGV).Result;
+                    else
                     {
-                        //一般走行須等待AGV上報 Navagating; otherwise 需等待AGV上報 Action_Start
-                        ManualResetEvent waitReportMRE = _TaskDonwloadToAGV.Action_Type == ACTION_TYPE.None ? WaitNavigatingReportedMRE : WaitActionStartReportedMRE;
-                        waitReportMRE.Reset();
-                        _LogDownloadRequest(_TaskDonwloadToAGV);
-
-                        TaskDownloadRequestResponse taskStateResponse = new TaskDownloadRequestResponse();
-
                         if (CommunicationProtocol == PROTOCOL.RESTFulAPI)
                             taskStateResponse = await Vehicle.AGVHttp.PostAsync<TaskDownloadRequestResponse, clsTaskDownloadData>($"/api/TaskDispatch/Execute", _TaskDonwloadToAGV);
                         else
                             taskStateResponse = Vehicle.TcpClientHandler.SendTaskMessage(_TaskDonwloadToAGV);
+                    }
 
-                        logger.Info($"Response Of Task Download:\n{taskStateResponse.ToJson()}");
-                        if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
-                        {
-                            logger.Trace($"Start wait AGV Report Navigation Status.)");
-                            bool seted = waitReportMRE.WaitOne(TimeSpan.FromSeconds(3));
-                            logger.Trace($"AGV Report Navigation Status => {(seted ? "Success" : "Timeout!")})");
-                        }
-                        else
-                        {
-                            //log 
-                            logger.Warn($"Task is Reject by AGV! ReturnCode={taskStateResponse.ReturnCode}");
-                        }
+                    logger.Info($"Response Of Task Download:\n{taskStateResponse.ToJson()}");
+                    if (taskStateResponse.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
+                    {
+                        logger.Trace($"Start wait AGV Report Navigation Status.)");
+                        bool seted = waitReportMRE.WaitOne(TimeSpan.FromSeconds(3));
+                        logger.Trace($"AGV Report Navigation Status => {(seted ? "Success" : "Timeout!")})");
+                    }
+                    else
+                    {
+                        //log 
+                        logger.Warn($"Task is Reject by AGV! ReturnCode={taskStateResponse.ReturnCode}");
+                    }
 
-                        return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
-                    }
-                    catch (HttpRequestException ex)
-                    {
-                        //TODO 處理因網路異常造成API請求失敗的例外狀況
-                        throw ex;
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Error(ex);
-                        return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
-                    }
+                    return (taskStateResponse, _TaskDonwloadToAGV.ExecutingTrajecory);
                 }
+                catch (HttpRequestException ex)
+                {
+                    //TODO 處理因網路異常造成API請求失敗的例外狀況
+                    throw ex;
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                    return (new TaskDownloadRequestResponse { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.TASK_DOWNLOAD_FAIL }, new clsMapPoint[0]);
+                }
+
             }
 
             catch (HttpRequestException ex)

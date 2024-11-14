@@ -109,7 +109,6 @@ namespace VMSystem.AGV
                 {
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START;
-
                     await BarcodeMove(_currentBarcodeMoveArgs, token);
                     bool _hasUnRecoveryAlarm = runningSTatus.Alarm_Code.Any(al => al.Alarm_Level == 1);
                     if (_hasUnRecoveryAlarm)
@@ -127,23 +126,20 @@ namespace VMSystem.AGV
                     if (hasAction)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
-
                         int GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID;
-                        async Task<bool> _confirmLeaveWorkStationConfirm()
-                        {
-                            return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
-                        }
-
                         while (!await _confirmLeaveWorkStationConfirm())
                         {
-                            await Task.Delay(1000);
+                            await Task.Delay(500);
                         }
-
                         if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
                             _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
                         else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
                             _CargoStateSimulate(ACTION_TYPE.Load, "");
                         await _BackToHome(_currentBarcodeMoveArgs, token);
+                        async Task<bool> _confirmLeaveWorkStationConfirm()
+                        {
+                            return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
+                        }
                     }
 
                     bool _isChargeAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Charge;
@@ -204,6 +200,8 @@ namespace VMSystem.AGV
 
                 int currentTag = runningSTatus.Last_Visited_Node;
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
+
+
                 moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure ? moveArgs.orderTrajectory : moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
                 clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.Count() == 1 ?
@@ -211,6 +209,10 @@ namespace VMSystem.AGV
                 ACTION_TYPE action = moveArgs.action;
 
                 var taskFeedbackData = moveArgs.Feedback;
+
+                int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+                agv.TaskExecuter.HandleVehicleTaskStatusFeedback(taskFeedbackData);
+
                 int idx = 0;
                 //轉向第一個點
                 if (moveArgs.action == ACTION_TYPE.None)
@@ -265,8 +267,16 @@ namespace VMSystem.AGV
                     taskFeedbackData.PointIndex = moveArgs.orderTrajectory.GetTagList().ToList().IndexOf(stationTag);
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     taskFeedbackData.LastVisitedNode = stationTag;
-                    int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+
+                    while (agv.states.Last_Visited_Node != stationTag)
+                    {
+                        await Task.Delay(1);
+                    }
+
+                    feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(taskFeedbackData);
+
+
                     if (action == ACTION_TYPE.Measure && !homing)
                     {
                         await MeasureSimulation(stationTag);
