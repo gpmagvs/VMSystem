@@ -134,12 +134,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 try
                 {
 
-                    bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                                                                         .Any();
 
-                    if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
+                    if (TrafficControlCenter.TrafficControlParameters.Experimental.TurnToSpecificThetaWhenLeaveWorkStation &&
+                        !AgvStatusDownFlag && !isDestineTagIsSameAsSource() && isAnyOtherVehicleRunningAndOnMainPath())
                     {
                         await TryRotationToAvoidAngle();
+                    }
+
+
+                    bool isDestineTagIsSameAsSource()
+                    {
+                        if (this.Stage == VehicleMovementStage.WorkingAtDestination)
+                            return false;
+                        return OrderData.To_Station_Tag == OrderData.From_Station_Tag;
+                    }
+                    bool isAnyOtherVehicleRunningAndOnMainPath()
+                    {
+                        return OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal).Any();
                     }
                 }
                 catch (Exception ex)

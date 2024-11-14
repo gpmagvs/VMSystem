@@ -90,6 +90,11 @@ namespace VMSystem.TrafficControl
             /// </summary>
             public bool TurnToAvoidDirectionWhenLDULDActionReject { get; set; } = false;
 
+            /// <summary>
+            /// 當退出工作站時，是否要轉向特定角度
+            /// </summary>
+            public bool TurnToSpecificThetaWhenLeaveWorkStation { get; set; } = true;
+
 
             /// <summary>
             /// 使用交管檢查點進行分段路徑導航
