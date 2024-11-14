@@ -56,6 +56,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public TaskDiagnosis taskdiagnosisTool { get; set; } = new TaskDiagnosis();
 
         protected bool AgvStatusDownFlag = false;
+
+        internal AGV.TaskDispatch.OrderHandler.OrderTransferSpace.OrderTransfer? OrderTransfer { get; set; } = null;
         protected virtual void HandleAGVStatusDown(object? sender, EventArgs e)
         {
             AgvStatusDownFlag = true;
@@ -165,6 +167,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
+                _ = OrderTransfer?.WatchStart();
                 await SendTaskToAGV();
                 if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                     return (false, ALARMS.AGV_STATUS_DOWN, "AGV STATUS DOWN");
@@ -194,6 +197,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 logger.Error(ex);
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION, "TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION");
+            }
+            finally
+            {
+                if (OrderTransfer != null)
+                    OrderTransfer.Abort();
             }
         }
         protected virtual bool IsTaskExecutable()
