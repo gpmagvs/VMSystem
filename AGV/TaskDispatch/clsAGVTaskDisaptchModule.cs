@@ -311,40 +311,43 @@ namespace VMSystem.AGV
             {
                 try
                 {
+                    await VMSManager.tasksLock.WaitAsync();
+                    AGVSDbContext dbContext = VMSManager.AGVSDbContext;
 
                     List<string> taskNamesOfChargeWaiting = taskList.Where(_order => _order.State == TASK_RUN_STATUS.WAIT && _order.Action == ACTION_TYPE.Charge)
                                                                    .Select(waiting_order => waiting_order.TaskName).ToList();
                     if (!taskNamesOfChargeWaiting.Any())
                         return;
 
-                    using (var database = new AGVSDatabase())
+                    foreach (var taskName in taskNamesOfChargeWaiting)
                     {
-                        foreach (var taskName in taskNamesOfChargeWaiting)
+                        taskList.Remove(taskList.First(tk => tk.TaskName == taskName));
+                        var dataDto = dbContext.Tasks.FirstOrDefault(task => task.TaskName == taskName);
+                        if (dataDto != null)
                         {
-                            taskList.Remove(taskList.First(tk => tk.TaskName == taskName));
-
-                            var dataDto = database.tables.Tasks.FirstOrDefault(task => task.TaskName == taskName);
-                            if (dataDto != null)
-                            {
-                                dataDto.FinishTime = DateTime.Now;
-                                dataDto.State = TASK_RUN_STATUS.CANCEL;
-                                dataDto.FailureReason = "Carry Order Get.Auto Cancel Charge Task";
-                            }
+                            dataDto.FinishTime = DateTime.Now;
+                            dataDto.State = TASK_RUN_STATUS.CANCEL;
+                            dataDto.FailureReason = "Carry Order Get.Auto Cancel Charge Task";
                         }
-                        await database.SaveChanges();
                     }
+                    await dbContext.SaveChangesAsync();
+
                 }
                 catch (Exception ex)
                 {
                     logger.Error(ex);
                     NotifyServiceHelper.WARNING($"嘗試取消駐列中的充電任務過程中發生錯誤({agv.Name})");
                 }
+                finally
+                {
+                    VMSManager.tasksLock.Release();
+                }
             });
         }
 
         private async void TryAbortCurrentChargeOrderForCarryOrderGet(IEnumerable<clsTaskDto> newOrders)
         {
-            bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
+            bool isAgvChargeOrderRunning = this.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING && OrderHandler.OrderAction == ACTION_TYPE.Charge;
             if (isAgvChargeOrderRunning)
             {
                 await OrderHandler.CancelOrder(OrderHandler.OrderData.TaskName, "更換任務(Change Task)");

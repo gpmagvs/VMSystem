@@ -37,7 +37,7 @@ namespace VMSystem.VMS
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
-        private static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
+        internal static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
         internal static SemaphoreSlim AgvStateDbTableLock = new SemaphoreSlim(1, 1);
         public static List<IAGV> AllAGV
         {
