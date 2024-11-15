@@ -488,9 +488,8 @@ namespace VMSystem.AGV
                                 break;
                             case AGV_ORDERABLE_STATUS.EXECUTING:
                                 //confirm 
-                                var _completedButStillExistTasks = taskList.Where(tk => DatabaseCaches.TaskCaches.CompleteTasks.Any(_ctk => _ctk.TaskName == tk.TaskName))
-                                                                           .ToList();
-                                foreach (var item in _completedButStillExistTasks)
+                                List<clsTaskDto> _completedButStillExistTasks = taskList.Where(tk => DatabaseCaches.TaskCaches.CompleteTasks.Any(_ctk => _ctk.DesignatedAGVName == agv.Name && _ctk.TaskName == tk.TaskName)).ToList();
+                                foreach (clsTaskDto item in _completedButStillExistTasks)
                                 {
                                     taskList.Remove(item);
                                     logger.Warn($"Remove {item.TaskName} from queue because it already mark as completed");
