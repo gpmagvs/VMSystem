@@ -116,6 +116,7 @@ namespace VMSystem.AGV
                         runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.DOWN;
                         await Task.Delay(200);
                         _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                        await WaitStatusNotRunReported();
                         dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
                         agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                         SemaphoreSlim.Release();
@@ -152,6 +153,7 @@ namespace VMSystem.AGV
                         await Task.Delay(200);
                     _currentBarcodeMoveArgs.Feedback.PointIndex = hasAction ? 0 : _currentBarcodeMoveArgs.Feedback.PointIndex;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    await WaitStatusNotRunReported();
                     dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                 }
@@ -599,6 +601,7 @@ namespace VMSystem.AGV
                 if (runningSTatus.AGV_Status != clsEnums.MAIN_STATUS.RUN)
                 {
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    await WaitStatusNotRunReported();
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                 }
             });
@@ -625,6 +628,15 @@ namespace VMSystem.AGV
             runningSTatus.Cargo_Status = 0;
             runningSTatus.CSTID = new string[1] { "" };
         }
+
+        private async Task WaitStatusNotRunReported()
+        {
+            while (agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(100);
+            }
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
