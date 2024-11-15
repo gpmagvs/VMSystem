@@ -19,7 +19,7 @@ using VMSystem.Services;
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 {
     Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
-    Console.WriteLine("Press any key to exit...");Console.WriteLine("Press any key to exit...");
+    Console.WriteLine("Press any key to exit..."); Console.WriteLine("Press any key to exit...");
     Console.ReadKey(true);
 }
 
@@ -100,7 +100,6 @@ try
         builder.Services.AddHostedService<KGSVehicleStatusSyncBackgroundService>();
     }
 
-    //add signalIR service
     builder.Services.AddSignalR().AddJsonProtocol(options => { options.PayloadSerializerOptions.PropertyNamingPolicy = null; });
 
     var app = builder.Build();
@@ -125,10 +124,8 @@ try
     app.UseDefaultFiles(new DefaultFilesOptions());
     app.UseStaticFiles();
     app.UseRouting();
-    //app.UseCors(c => c.AllowAnyMethod().AllowAnyHeader().AllowAnyOrigin());
     app.UseCors("AllowAll");
     app.UseWebSockets();
-    //app.UseHttpsRedirection();
     app.UseAuthorization();
     app.MapControllers();
     app.MapHub<FrontEndDataHub>("/FrontEndDataHub");
