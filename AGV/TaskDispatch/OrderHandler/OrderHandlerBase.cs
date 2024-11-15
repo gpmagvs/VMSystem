@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
@@ -14,6 +15,7 @@ using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
 using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -373,7 +375,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RaiseTaskDtoChange(this, OrderData);
         }
 
-        private async void _SetOrderAsCancelState(string taskCancelReason)
+        private async Task _SetOrderAsCancelState(string taskCancelReason)
         {
             RunningTask.CancelTask();
             UnRegistPoints();
@@ -387,6 +389,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
             if (v.confirm == false)
                 LOG.WARN($"{v.message}");
+
+            await Task.Delay(300);
+
+            bool isTaskCanceled = DatabaseCaches.TaskCaches.CompleteTasks.Any(tk => tk.TaskName == OrderData.TaskName && tk.State == TASK_RUN_STATUS.CANCEL);
+            bool isTaskReAssigned = DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.TaskName == OrderData.TaskName && tk.DesignatedAGVName != Agv.Name);
+            bool isOrderAlreadyTransferToOtherVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Any(v => v.taskDispatchModule.taskList.Any(tk => tk.TaskName == OrderData.TaskName));
+            if (isTaskCanceled || isTaskReAssigned || isOrderAlreadyTransferToOtherVehicle)
+            {
+                return;
+            }
+
             RaiseTaskDtoChange(this, OrderData);
             OnTaskCanceled?.Invoke(this, this);
         }
