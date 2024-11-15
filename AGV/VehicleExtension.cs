@@ -120,5 +120,17 @@ namespace VMSystem.AGV
                 return false;
             return vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
         }
+
+
+        public static bool TryGetNextOrder(this IAGV agv, string currentTaskID, out clsTaskDto nextOrder)
+        {
+            nextOrder = null;
+            if (agv == null)
+                return false;
+            nextOrder = agv.taskDispatchModule.taskList.OrderBy(order => order.RecieveTime)
+                                                        .FirstOrDefault(order => order.TaskName != currentTaskID && order.State == TASK_RUN_STATUS.WAIT);
+            return nextOrder != null;
+        }
+
     }
 }

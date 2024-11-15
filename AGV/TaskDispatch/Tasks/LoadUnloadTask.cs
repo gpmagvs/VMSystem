@@ -17,10 +17,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class LoadUnloadTask : TaskBase
     {
+
+        public class ReleaseEntryPtRequest
+        {
+            public bool Accept { get; set; } = false;
+            public MapPoint EntryPoint { get; internal set; } = new MapPoint();
+            public IAGV Agv { get; internal set; }
+
+            public string Message { get; internal set; } = string.Empty;
+        }
+
         private MapPoint EntryPoint = new();
         private MapPoint EQPoint = new();
         private ManualResetEvent WaitAGVReachWorkStationMRE = new ManualResetEvent(false);
         private string cargoIDMounted = "";
+        public static event EventHandler<ReleaseEntryPtRequest> OnReleaseEntryPointRequesting;
 
         public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
         {
@@ -123,12 +134,23 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 try
                 {
 
-                    bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                                                                         .Any();
 
-                    if (!AgvStatusDownFlag && isAnyOtherVehicleRunningAndOnMainPath)
+                    if (TrafficControlCenter.TrafficControlParameters.Experimental.TurnToSpecificThetaWhenLeaveWorkStation &&
+                        !AgvStatusDownFlag && !isDestineTagIsSameAsSource() && isAnyOtherVehicleRunningAndOnMainPath())
                     {
                         await TryRotationToAvoidAngle();
+                    }
+
+
+                    bool isDestineTagIsSameAsSource()
+                    {
+                        if (this.Stage == VehicleMovementStage.WorkingAtDestination)
+                            return false;
+                        return OrderData.To_Station_Tag == OrderData.From_Station_Tag;
+                    }
+                    bool isAnyOtherVehicleRunningAndOnMainPath()
+                    {
+                        return OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal).Any();
                     }
                 }
                 catch (Exception ex)
@@ -184,19 +206,68 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 WaitAGVReachWorkStationMRE.Set();
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
-
                 await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
+
                 if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
                 {
-                    (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
-                    if (confirmed)
+                    ReleaseEntryPtRequest request = new ReleaseEntryPtRequest()
                     {
-                        //Notify
-                        NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                        Agv = Agv,
+                        EntryPoint = EntryPoint,
+                        Accept = false
+                    };
+                    OnReleaseEntryPointRequesting?.Invoke(this, request);
+                    if (request.Accept)
+                    {
+                        (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
+                        if (confirmed)
+                        {
+                            //Notify
+                            NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                        }
                     }
+                    else
+                    {
+                        NotifyServiceHelper.WARNING($"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}");
+                        //將進入點的鎖定點也都註冊掉
+                        RegistPointOfEntryPointNear();
+                    }
+
+                }
+                else
+                {
+                    //將進入點的鎖定點也都註冊掉
+                    RegistPointOfEntryPointNear();
                 }
 
+            }
+
+            void RegistPointOfEntryPointNear()
+            {
+                string[] splitedIndexStr = EntryPoint.InvolvePoint.Split(",");
+                if (splitedIndexStr.Length > 0)
+                {
+                    List<int> unregistedInvolvePtTags = EntryPoint.RegistsPointIndexs.Select(_ptIndex => StaMap.GetPointByIndex(_ptIndex))
+                                                                                     .Where(pt => !StaMap.RegistDictionary.Keys.Contains(pt.TagNumber))
+                                                                                     .Select(unRegistedPt => unRegistedPt.TagNumber)
+                                                                                     .ToList();
+                    string _tagsStr = string.Join(",", unregistedInvolvePtTags);
+                    logger.Info($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+                    bool registedAllSuccess = StaMap.RegistPoint(Agv.Name, unregistedInvolvePtTags, out string msg);
+                    if (registedAllSuccess)
+                    {
+                        string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case)";
+                        NotifyServiceHelper.INFO(_log);
+                        logger.Info(_log);
+                    }
+                    else
+                    {
+                        string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case) FAIL :{msg}";
+                        NotifyServiceHelper.ERROR(_log);
+                        logger.Warn(_log);
+                    }
+                }
             }
         }
 
@@ -207,20 +278,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <exception cref="NotImplementedException"></exception>
         private async Task TryRotationToAvoidAngle()
         {
-            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
-            {
-                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
-                WaitAGVReachWorkStationMRE.Set();
-            }
             try
             {
                 logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
                 clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
-                int currentTag = trajectory.First().Point_ID;
-                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
                 if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
                     return;
+
                 trajectory.First().Theta = avoidTheta;
                 clsTaskDownloadData taskObj = new clsTaskDownloadData
                 {
@@ -243,6 +309,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
                 string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
                 logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
+                NotifyServiceHelper.WARNING($"{Agv.Name} 即將旋轉至避車角度:{avoidTheta} !");
                 (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
                 if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
                     logger.Info($"{Agv.Name} turn to avoid angle task download success.");
@@ -262,15 +329,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
                 Agv.NavigationState.ResetNavigationPoints();
             }
-        }
 
+
+        }
         private async Task TryRotationToAvoidAngleOfCurrentTag()
         {
-            void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
-            {
-                Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
-                WaitAGVReachWorkStationMRE.Set();
-            }
             try
             {
 
@@ -288,7 +351,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 logger.Trace($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
                 int currentTag = Agv.currentMapPoint.TagNumber;
-                double avoidTheta = StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+                double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
                 if (Tools.CalculateTheateDiff(avoidTheta, Agv.states.Coordination.Theta) < 10)
                     return;
@@ -336,6 +399,86 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.ResetNavigationPoints();
             }
         }
+
+        /// <summary>
+        /// 取得離開工作站後的轉向角度
+        /// </summary>
+        /// <returns></returns>
+        private double GetTurnToAngleAfterLeaveWorkStation()
+        {
+            //TODO : 這裡要改成評估下一個目的地，計算路徑取得航向角度
+            MapPoint currentMapPoint = this.EntryPoint;
+            MapPoint nextWorkStationMapPoint = null;
+
+            if (Stage == VehicleMovementStage.WorkingAtSource)
+                nextWorkStationMapPoint = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
+            else if (Stage == VehicleMovementStage.WorkingAtDestination)
+            {
+                if (TryGetFirstWorkStationOfNextOrder(out MapPoint nextOrderFirstWorkStationMapPoint))
+                    nextWorkStationMapPoint = nextOrderFirstWorkStationMapPoint;
+            }
+
+            if (nextWorkStationMapPoint != null && _TryGetThetaToTurn(nextWorkStationMapPoint, out double thetaCalculated))
+                return thetaCalculated;
+            else
+                return _defaultTheta();
+
+            bool _TryGetThetaToTurn(MapPoint destineWorkStation, out double _theta)
+            {
+                _theta = 0;
+
+                PathFinder _pf = new PathFinder();
+                PathFinder.PathFinderOption option = new PathFinder.PathFinderOption
+                {
+                    Algorithm = PathFinder.PathFinderOption.ALGORITHM.Dijsktra,
+                    Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE,
+                    OnlyNormalPoint = false
+                };
+
+                List<List<MapPoint>> pathesFound = _pf.FindPathes(PathFinder.defaultMap, currentMapPoint, destineWorkStation, option)
+                                                      .Where(wrap => wrap.stations.Any())
+                                                      .Select(wrap => wrap.stations)
+                                                      .Where(path => _isTrunToForwardAngleLessThanThres(path)) //過濾 AGV當前角度旋轉至路徑第一航向角度所需旋轉角度值須小於93度
+                                                      .ToList();
+
+                if (!pathesFound.Any())
+                    return false;
+                var pathPredict = pathesFound.First();
+                _theta = Tools.CalculationForwardAngle(pathPredict[0], pathPredict[1]);
+                return true;
+            }
+            bool _isTrunToForwardAngleLessThanThres(List<MapPoint> path)
+            {
+                double pathFirstForwardAngle = Tools.CalculationForwardAngle(path[0], path[1]);
+                double agvCurrnetAngle = this.Agv.states.Coordination.Theta;
+                double angleDiff = Tools.CalculateTheateDiff(agvCurrnetAngle, pathFirstForwardAngle);
+                return angleDiff < 93;
+            }
+            double _defaultTheta()
+            {
+                clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
+                int currentTag = trajectory.First().Point_ID;
+                return StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
+            };
+        }
+
+        private bool TryGetFirstWorkStationOfNextOrder(out MapPoint nextOrderFirstWorkStationMapPoint)
+        {
+            nextOrderFirstWorkStationMapPoint = null;
+            //TODO 
+            if (!this.Agv.TryGetNextOrder(this.OrderData.TaskName, out clsTaskDto nextOrder))
+                return false;
+            int nextOrderFirstWorkStationTag = nextOrder.Action == ACTION_TYPE.Carry ? nextOrder.From_Station_Tag : nextOrder.To_Station_Tag;
+            nextOrderFirstWorkStationMapPoint = StaMap.GetPointByTagNumber(nextOrderFirstWorkStationTag);
+            return nextOrderFirstWorkStationMapPoint != null;
+        }
+
+        void TaskExecuter_OnActionFinishReported(object? sender, FeedbackData e)
+        {
+            Agv.TaskExecuter.OnActionFinishReported -= TaskExecuter_OnActionFinishReported;
+            WaitAGVReachWorkStationMRE.Set();
+        }
+
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)
         {

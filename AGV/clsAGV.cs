@@ -255,9 +255,9 @@ namespace VMSystem.AGV
                     {
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         logger.Info($"[{Name}]-Tag Location Change to {value.TagNumber} (Previous : {previousTag})");
-                        if (value.IsEquipment && !TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+
+                        if (value.IsEquipment)
                         {
-                            //NotifyServiceHelper.INFO($"AGV {Name} 抵達{value.Graph.Display},系統設置入口點({previousMapPoint.Graph.Display})不可解除註冊!");
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;
                             return;

@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.ViewModels;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop.Infrastructure;
 using Newtonsoft.Json;
@@ -31,11 +32,13 @@ namespace VMSystem.VMS
     }
     public partial class VMSManager
     {
+        public static AGVSDbContext AGVSDbContext { get; internal set; }
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
         public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
         private static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
+        internal static SemaphoreSlim AgvStateDbTableLock = new SemaphoreSlim(1, 1);
         public static List<IAGV> AllAGV
         {
             get
@@ -69,9 +72,7 @@ namespace VMSystem.VMS
 
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
 
-            using AGVSDatabase database = new AGVSDatabase();
-            var agvList = database.tables.AgvStates.ToList();
-
+            var agvList = AGVSDbContext.AgvStates.ToList();
             var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
             var submarineAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.SUBMERGED_SHIELD);
             var inspectionAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.INSPECTION_AGV);
@@ -100,11 +101,10 @@ namespace VMSystem.VMS
 
         private static async Task MaintainSettingInitialize()
         {
-            using AGVSDatabase database = new AGVSDatabase();
             List<MAINTAIN_ITEM> allMaintainItems = Enum.GetValues(typeof(MAINTAIN_ITEM)).Cast<MAINTAIN_ITEM>().ToList();
             try
             {
-                var maintainSettingNotCompletesAGVs = await database.tables.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count).ToListAsync();
+                var maintainSettingNotCompletesAGVs = await AGVSDbContext.AgvStates.Include(v => v.MaintainSettings).Where(agv => agv.MaintainSettings.Count != allMaintainItems.Count).ToListAsync();
                 if (maintainSettingNotCompletesAGVs.Any())
                 {
                     foreach (var item in maintainSettingNotCompletesAGVs)
@@ -117,7 +117,7 @@ namespace VMSystem.VMS
             {
                 LOG.Critical("[VMSManager.MaintainSettingInitialize] with exception" + ex);
             }
-            await database.SaveChanges();
+            await AGVSDbContext.SaveChangesAsync();
             void AddMaintainSettings(clsAGVStateDto vehicleState)
             {
                 try
@@ -131,7 +131,7 @@ namespace VMSystem.VMS
                     {
                         if (existMaintainItems.Contains(maintainItem))
                             continue;
-                        var agv = database.tables.AgvStates.First(a => a.AGV_Name == vehicleState.AGV_Name);
+                        var agv = AGVSDbContext.AgvStates.AsNoTracking().First(a => a.AGV_Name == vehicleState.AGV_Name);
                         agv.MaintainSettings.Add(new VehicleMaintain(vehicleState.AGV_Name, maintainItem));
                     }
                 }
@@ -235,6 +235,10 @@ namespace VMSystem.VMS
         private static async Task TaskDatabaseChangeWorker()
         {
             await Task.Delay(100);
+            // 配置 AutoMapper
+            MapperConfiguration config = new(cfg => cfg.CreateMap<clsTaskDto, clsTaskDto>());
+            IMapper mapper = config.CreateMapper();
+
             while (true)
             {
                 try
@@ -245,18 +249,17 @@ namespace VMSystem.VMS
                     {
                         if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
                             continue;
-                        using var database = new AGVSDatabase();
-                        var entity = database.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
+                        var entity = AGVSDbContext.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
                         if (entity != null)
                         {
-                            entity.Update(dto);
-                            int save_cnt = await database.SaveChanges();
+                            mapper.Map(dto, entity);
+                            int save_cnt = await AGVSDbContext.SaveChangesAsync();
                             LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", true);
                         }
                         else
                         {
-                            database.tables.Tasks.Add(dto);
-                            int save = await database.SaveChanges();
+                            AGVSDbContext.Tasks.Add(dto);
+                            int save = await AGVSDbContext.SaveChangesAsync();
                             LOG.TRACE($"Database-Task Table Added-Num={save}\r\n{dto.ToJson()}", true);
                         }
                     }
@@ -522,9 +525,7 @@ namespace VMSystem.VMS
 
         internal static async Task<(bool confirm, string message)> AddVehicle(clsAGVStateDto dto)
         {
-
             var group = GetGroup(dto.Model);
-
             dto.Group = group;
             dto.Enabled = true;
 
@@ -563,26 +564,38 @@ namespace VMSystem.VMS
             agv.options.Enabled = true;
             agv?.Run();
             VMSList[dto.Group].AGVList.Add(agv.Name, agv);
-            bool addSuccess = await SaveVehicleInfoToDatabase(dto);
-            return (addSuccess, addSuccess ? "" : "新增車輛失敗(修改資料庫失敗)");
-
+            try
+            {
+                await AgvStateDbTableLock.WaitAsync();
+                AGVSDbContext.AgvStates.Add(dto);
+                await AGVSDbContext.SaveChangesAsync();
+                return (true, "");
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+            finally
+            {
+                AgvStateDbTableLock.Release();
+            }
         }
 
         internal static async Task<(bool confirm, string message)> DeleteVehicle(string aGV_Name)
         {
             try
             {
-                using var agvdatabase = new AGVSDatabase();
-                var existData = agvdatabase.tables.AgvStates.FirstOrDefault(agv => agv.AGV_Name == aGV_Name);
+                await AgvStateDbTableLock.WaitAsync();
+                var existData = AGVSDbContext.AgvStates.FirstOrDefault(agv => agv.AGV_Name == aGV_Name);
                 if (existData == null)
                 {
                     VehicleStateService.AGVStatueDtoStored.Remove(aGV_Name);
                     return (true, "");
                 }
 
-                agvdatabase.tables.VehicleMaintain.RemoveRange(agvdatabase.tables.VehicleMaintain.Where(m => m.AGV_Name == aGV_Name));
-                await agvdatabase.SaveChanges();
-                agvdatabase.tables.AgvStates.Remove(existData);
+                AGVSDbContext.VehicleMaintain.RemoveRange(AGVSDbContext.VehicleMaintain.Where(m => m.AGV_Name == aGV_Name));
+                await AGVSDbContext.SaveChangesAsync();
+                AGVSDbContext.AgvStates.Remove(existData);
 
                 var group = VMSList.FirstOrDefault(kpair => kpair.Value.AGVList.ContainsKey(aGV_Name));
                 if (group.Value != null)
@@ -591,7 +604,7 @@ namespace VMSystem.VMS
                     agv.AgvSimulation?.Dispose();
                     group.Value.AGVList.Remove(aGV_Name);
                 }
-                await agvdatabase.SaveChanges();
+                await AGVSDbContext.SaveChangesAsync();
                 VehicleStateService.AGVStatueDtoStored.Remove(aGV_Name);
                 return (true, "");
 
@@ -600,50 +613,64 @@ namespace VMSystem.VMS
             {
                 return (false, ex.Message);
             }
+            finally
+            {
+                AgvStateDbTableLock.Release();
+            }
 
         }
         internal static async Task<(bool confirm, string message)> EditVehicle(clsAGVStateDto dto, string ordAGVName)
         {
-
-            using var agvdatabase = new AGVSDatabase();
-            var databaseDto = agvdatabase.tables.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
-            if (databaseDto != null)
+            try
             {
-
-                var group = GetGroup(dto.Model);
-                var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
-
-                if (oriAGV == null)
+                await AgvStateDbTableLock.WaitAsync();
+                var databaseDto = AGVSDbContext.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
+                if (databaseDto != null)
                 {
-                    return await AddVehicle(dto);
-                }
-                databaseDto.IP = oriAGV.options.HostIP = dto.IP;
-                databaseDto.Port = oriAGV.options.HostPort = dto.Port;
-                databaseDto.Protocol = oriAGV.options.Protocol = dto.Protocol;
-                databaseDto.Model = oriAGV.model = dto.Model;
-                databaseDto.Group = group;
-                databaseDto.InitTag = oriAGV.options.InitTag = dto.InitTag;
-                oriAGV.Name = dto.AGV_Name;
-                databaseDto.VehicleLength = oriAGV.options.VehicleLength = dto.VehicleLength;
-                databaseDto.VehicleWidth = oriAGV.options.VehicleWidth = dto.VehicleWidth;
-                if (dto.Simulation && !oriAGV.options.Simulation)
-                {
-                    oriAGV.AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)oriAGV.taskDispatchModule);
-                    oriAGV.AgvSimulation.StartSimulation();
-                }
-                else if (!dto.Simulation && oriAGV.options.Simulation)
-                {
-                    oriAGV.AgvSimulation.Dispose();
-                }
-                databaseDto.Simulation = oriAGV.options.Simulation = dto.Simulation;
+                    var group = GetGroup(dto.Model);
+                    var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
 
-                await agvdatabase.SaveChanges();
+                    if (oriAGV == null)
+                    {
+                        return await AddVehicle(dto);
+                    }
+                    databaseDto.IP = oriAGV.options.HostIP = dto.IP;
+                    databaseDto.Port = oriAGV.options.HostPort = dto.Port;
+                    databaseDto.Protocol = oriAGV.options.Protocol = dto.Protocol;
+                    databaseDto.Model = oriAGV.model = dto.Model;
+                    databaseDto.Group = group;
+                    databaseDto.InitTag = oriAGV.options.InitTag = dto.InitTag;
+                    oriAGV.Name = dto.AGV_Name;
+                    databaseDto.VehicleLength = oriAGV.options.VehicleLength = dto.VehicleLength;
+                    databaseDto.VehicleWidth = oriAGV.options.VehicleWidth = dto.VehicleWidth;
+                    if (dto.Simulation && !oriAGV.options.Simulation)
+                    {
+                        oriAGV.AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)oriAGV.taskDispatchModule);
+                        oriAGV.AgvSimulation.StartSimulation();
+                    }
+                    else if (!dto.Simulation && oriAGV.options.Simulation)
+                    {
+                        oriAGV.AgvSimulation.Dispose();
+                    }
+                    databaseDto.Simulation = oriAGV.options.Simulation = dto.Simulation;
+                    await AGVSDbContext.SaveChangesAsync();
+                }
+                else
+                {
+                    AGVSDbContext.AgvStates.Add(dto);
+                    await AGVSDbContext.SaveChangesAsync();
+                }
+                return (true, "");
             }
-            else
+            catch (Exception ex)
             {
-                agvdatabase.tables.AgvStates.Add(dto);
+                return (false, ex.Message);
             }
-            return (true, "");
+            finally
+            {
+                AgvStateDbTableLock.Release();
+            }
+
         }
         private static VMS_GROUP GetGroup(AGV_TYPE agv_model)
         {
@@ -699,19 +726,17 @@ namespace VMSystem.VMS
         {
             try
             {
+                await tasksLock.WaitAsync();
                 IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.CurrentRunningTask().OrderData.TaskName == task_name);
                 if (vehicle == null)
                 {
-                    using (AGVSDatabase db = new AGVSDatabase())
+                    AGVSDbContext.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk =>
                     {
-                        db.tables.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk =>
-                        {
-                            tk.FinishTime = DateTime.Now;
-                            tk.FailureReason = reason;
-                            tk.State = TASK_RUN_STATUS.CANCEL;
-                        });
-                        await db.SaveChanges();
-                    }
+                        tk.FinishTime = DateTime.Now;
+                        tk.FailureReason = reason;
+                        tk.State = TASK_RUN_STATUS.CANCEL;
+                    });
+                    await AGVSDbContext.SaveChangesAsync();
                     return true;
                 }
                 await vehicle.CancelTaskAsync(task_name, reason);
@@ -725,6 +750,7 @@ namespace VMSystem.VMS
             }
             finally
             {
+                tasksLock.Release();
             }
 
         }

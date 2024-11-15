@@ -102,13 +102,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { secondaryPt, parkPortPt });
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
-                Agv.NavigationState.StateReset();
                 UpdateStateDisplayMessage($"Wait 3 sec and leave.");
+                while (!await StaMap.UnRegistPointsOfAGVRegisted(Agv))
+                {
+                    await Task.Delay(1000);
+                }
+                Agv.NavigationState.StateReset();
+                Agv.NavigationState.ResetNavigationPoints();
                 await Task.Delay(3000);
                 LeaveParkStationConflicDetection detection = new LeaveParkStationConflicDetection(secondaryPt, Agv.states.Coordination.Theta, this.Agv);
                 clsConflicDetectResultWrapper detectResultWrapper = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
                 while (detectResultWrapper.Result != DETECTION_RESULT.OK)
                 {
+                    if (_TaskCancelTokenSource.IsCancellationRequested)
+                    {
+                        throw new TaskCanceledException();
+                    }
                     detectResultWrapper = detection.Detect();
                     UpdateStateDisplayMessage($"{detectResultWrapper.Message}");
                     await Task.Delay(1000);
