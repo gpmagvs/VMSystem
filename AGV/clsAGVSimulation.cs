@@ -102,11 +102,11 @@ namespace VMSystem.AGV
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;
             _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
-            SemaphoreSlim.Wait();
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    await SemaphoreSlim.WaitAsync();
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START;
                     await BarcodeMove(_currentBarcodeMoveArgs, token);
@@ -119,7 +119,6 @@ namespace VMSystem.AGV
                         await WaitStatusNotRunReported();
                         dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
                         agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
-                        SemaphoreSlim.Release();
                         return;
                     }
 
@@ -161,8 +160,11 @@ namespace VMSystem.AGV
                 {
                     Console.WriteLine($"[Emu]-Previous Task Interupted.");
                 }
+                finally
+                {
+                    SemaphoreSlim.Release();
+                }
                 //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                SemaphoreSlim.Release();
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
                 {
@@ -593,7 +595,6 @@ namespace VMSystem.AGV
             {
                 await Task.Delay(delay); //模擬車控走行到一半還不能馬上停下的狀況
 
-                SemaphoreSlim = new SemaphoreSlim(1, 1);
                 waitReplanflag = false;
                 moveCancelTokenSource?.Cancel();
                 TaskCancelTokenSource?.Cancel();
