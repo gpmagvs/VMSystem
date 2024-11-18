@@ -97,6 +97,12 @@ namespace VMSystem.AGV
         void StartDeepCharging();
         void StopDeepCharge();
 
+        /// <summary>
+        /// AGV當前是否需要深充(通常是從車載狀態決定 ex.上報了異常碼)
+        /// </summary>
+        /// <returns></returns>
+        bool IsDeepChargeRequired();
+
         event EventHandler<string> OnTaskCancel;
         event EventHandler<int> OnMapPointChanged;
         event EventHandler OnAGVStatusDown;

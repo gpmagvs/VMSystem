@@ -36,7 +36,8 @@ namespace VMSystem.AGV
         public NLog.Logger logger { get; set; }
         public TaskExecuteHelper TaskExecuter { get; set; }
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
-        private DeepCharger deepCharger = new DeepCharger();
+
+        private DeepCharger? deepCharger;
         public clsAGV()
         {
 
@@ -57,6 +58,7 @@ namespace VMSystem.AGV
             MapPoint previousPt = StaMap.GetPointByTagNumber(options.InitTag);
             states.Coordination = new clsCoordination(previousPt.X, previousPt.Y, previousPt.Direction);
             this.states = states;
+            deepCharger = new DeepCharger(this);
             if (options.Simulation)
             {
                 online_state = ONLINE_STATE.ONLINE;
@@ -141,12 +143,12 @@ namespace VMSystem.AGV
                     OnMileageChanged?.Invoke(this, (this, value.Odometry));
                 }
 
+
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
                 main_state = value.AGV_Status;
-
-
-
+                if (deepCharger != null)
+                    deepCharger.DeepChargeRequesting = IsDeepChargeRequired();
             }
         }
 
@@ -1024,6 +1026,12 @@ namespace VMSystem.AGV
         public void StopDeepCharge()
         {
             deepCharger.StopDeepCharging();
+        }
+
+        public bool IsDeepChargeRequired()
+        {
+            int _socAlarm = 56780;
+            return states.Alarm_Code.Any(al => al.Alarm_ID == _socAlarm);
         }
     }
 }

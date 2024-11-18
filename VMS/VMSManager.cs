@@ -71,6 +71,7 @@ namespace VMSystem.VMS
             TcpServerInit();
 
             clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
+            DeepCharger.OnDeepChargeRequestRaised += DeepCharger_OnDeepChargeRequestRaised;
 
             var agvList = AGVSDbContext.AgvStates.ToList();
             var forkAgvList = agvList.Where(agv => agv.Model == AGV_TYPE.FORK);
@@ -97,6 +98,47 @@ namespace VMSystem.VMS
             OptimizeAGVDisaptchModule.Run();
             TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
+        }
+
+        private static void DeepCharger_OnDeepChargeRequestRaised(object? sender, DeepCharger.DeepChargeRequsetDto requsetDto)
+        {
+            bool accept = ConfirmDeepChargeExecutable(requsetDto.Agv.Name, out string messsage);
+
+            requsetDto.Accept = accept;
+            requsetDto.Message = messsage;
+
+            if (accept)
+            {
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await tasksLock.WaitAsync();
+                        //create a deep charge task and add to db
+                        clsTaskDto _order = new clsTaskDto()
+                        {
+                            Action = ACTION_TYPE.DeepCharge,
+                            DesignatedAGVName = requsetDto.Agv.Name,
+                            RecieveTime = DateTime.Now,
+                            TaskName = $"DeepCharge_{requsetDto.Agv.Name}_{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}",
+                            Priority = 100,
+                        };
+                        AGVSDbContext.Tasks.Add(_order);
+                        await AGVSDbContext.SaveChangesAsync();
+                    }
+                    catch (Exception)
+                    {
+
+                        throw;
+                    }
+                    finally
+                    {
+                        tasksLock.Release();
+                    }
+
+                });
+            }
+
         }
 
         private static async Task MaintainSettingInitialize()
