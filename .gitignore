@@ -211,3 +211,4 @@ project.lock.json
 /SPEC
 /VMS.db
 /*.db
+appsettings.Development.json
