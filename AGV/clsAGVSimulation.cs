@@ -163,6 +163,7 @@ namespace VMSystem.AGV
                 finally
                 {
                     SemaphoreSlim.Release();
+                    runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
                 }
                 //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
 
@@ -572,6 +573,21 @@ namespace VMSystem.AGV
             };
             CancelTask(100);
         }
+
+        internal void BatterySOCDistortionWarningRaise()
+        {
+            var currentAlarms = runningSTatus.Alarm_Code.ToList();
+            currentAlarms.Add(new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode
+            {
+                Alarm_ID = 56780,
+                Alarm_Level = 0,
+                Alarm_Category = 0,
+                Alarm_Description = "Battery SOC Distortion",
+                Alarm_Description_EN = "Battery SOC Distortion"
+            });
+            runningSTatus.Alarm_Code = currentAlarms.ToArray();
+        }
+
         internal void EMO()
         {
             runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.DOWN;
