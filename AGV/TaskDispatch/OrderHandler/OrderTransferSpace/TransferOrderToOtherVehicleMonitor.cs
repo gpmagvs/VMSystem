@@ -34,10 +34,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                          .OrderBy(kp => kp.Value)
                          .Where(kp => kp.Value < distanceToWorkStationOfOwner)
                          .ToDictionary(kp => kp.Key, kp => kp.Value);
-            //過濾出正在IDLE 或 正在執行充電任務訂單的車輛
-            var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
+            //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
+            var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
+                                                               .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
                                                                .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key)) //執行充電任務中 or 空閒中車輛
-                                                                .ToList();
+                                                               .ToList();
             if (idleOrChargingVehicles.Any())
                 betterVehicle = idleOrChargingVehicles.First().Key;
 
