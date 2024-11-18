@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
 using System.Threading.Tasks;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
 using VMSystem.TrafficControl;
@@ -187,7 +188,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
                     RaiseTaskDtoChange(this, OrderData);
-
+                    DisposeActionOfCompleteTasks();
                 }
 
                 async Task<bool> DetermineTaskState()
@@ -232,6 +233,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     RunningTask.Dispose();
                 }
             });
+        }
+
+        private void DisposeActionOfCompleteTasks()
+        {
+            CompleteTaskStack.Where(tk => tk.OrderTransfer != null && tk.OrderTransfer.State == OrderTransfer.STATES.BETTER_VEHICLE_SEARCHING)
+                             .Select(tk => tk.OrderTransfer.OrderDone());
+
+            CompleteTaskStack.Clear();
         }
 
         public (bool isSourceBuffer, bool isDestineBuffer) IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt)

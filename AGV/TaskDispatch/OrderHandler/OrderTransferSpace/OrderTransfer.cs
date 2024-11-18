@@ -10,6 +10,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
     {
         public enum STATES
         {
+            ABORTED,
             BETTER_VEHICLE_SEARCHING,
             ORDER_TRANSFERING,
             ORDER_TRANSFERIED,
@@ -26,7 +27,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         static Logger logger = LogManager.GetCurrentClassLogger();
 
         private static ConcurrentDictionary<string, int> OrderTransferTimesStore = new ConcurrentDictionary<string, int>();
-        private STATES _State = STATES.BETTER_VEHICLE_SEARCHING;
+        private STATES _State = STATES.ABORTED;
         public STATES State
         {
             get => _State;
@@ -50,11 +51,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             cancellationTokenSource.Cancel();
         }
 
-        internal void OrderDone()
+        internal bool OrderDone()
         {
-            OrderTransferTimesStore.TryRemove(order.TaskName, out int count);
+            bool removed = OrderTransferTimesStore.TryRemove(order.TaskName, out int count);
             Log($"Order finish invoked. Total transfer count = {count}");
+            return removed;
         }
+
+        internal async Task ReStartAsync(string restartReason = "")
+        {
+            Log($"Restart Order Transfer Process. Reason input:{restartReason}");
+            OrderTransferTimesStore.Remove(order.TaskName, out _);
+            await WatchStart();
+        }
+
         internal async Task WatchStart()
         {
             Log("Start Watching");
@@ -116,6 +126,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 }
                 finally
                 {
+                    State = STATES.ABORTED;
+                    if (cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        Log($"Monitor process is Aborted");
+                    }
                 }
 
             });
