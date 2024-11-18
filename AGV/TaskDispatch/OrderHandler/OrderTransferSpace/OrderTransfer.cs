@@ -8,14 +8,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
     {
         protected readonly IAGV orderOwner;
         protected readonly clsTaskDto order;
+        protected readonly OrderTransferConfiguration configuration = new OrderTransferConfiguration();
         protected CancellationTokenSource cancellationTokenSource;
 
         internal AGVSDbContext agvsDb;
         internal SemaphoreSlim tasksTableDbLock;
-        public OrderTransfer(IAGV orderOwner, clsTaskDto order)
+
+        public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration)
         {
             this.orderOwner = orderOwner;
             this.order = order;
+            this.configuration = configuration;
         }
         public void Abort()
         {

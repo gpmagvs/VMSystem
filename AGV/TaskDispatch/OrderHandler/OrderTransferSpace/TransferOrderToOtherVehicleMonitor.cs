@@ -16,7 +16,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         private List<IAGV> OtherVehicles => VMSManager.AllAGV.FilterOutAGVFromCollection(orderOwner).ToList();
         private readonly MapPoint TargetWorkStationMapPoint;
 
-        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order) : base(orderOwner, order)
+        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration) : base(orderOwner, order, configuration)
         {
             if (order.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Carry)
                 TargetWorkStationMapPoint = StaMap.GetPointByTagNumber(order.From_Station_Tag);
