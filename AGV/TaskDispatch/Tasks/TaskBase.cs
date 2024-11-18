@@ -201,7 +201,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             finally
             {
                 if (OrderTransfer != null)
+                {
                     OrderTransfer.Abort();
+                    if (OrderTransfer.State == OrderHandler.OrderTransferSpace.OrderTransfer.STATES.ORDER_TRANSFERIED)
+                    {
+                        OrderTransfer.OrderDone();
+                    }
+                }
             }
         }
         protected virtual bool IsTaskExecutable()

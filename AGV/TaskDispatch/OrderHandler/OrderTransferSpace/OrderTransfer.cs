@@ -1,11 +1,20 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using NLog;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 {
     public abstract class OrderTransfer
     {
+        public enum STATES
+        {
+            BETTER_VEHICLE_SEARCHING,
+            ORDER_TRANSFERING,
+            ORDER_TRANSFERIED,
+
+        }
         protected readonly IAGV orderOwner;
         protected readonly clsTaskDto order;
         protected readonly OrderTransferConfiguration configuration = new OrderTransferConfiguration();
@@ -14,6 +23,22 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         internal AGVSDbContext agvsDb;
         internal SemaphoreSlim tasksTableDbLock;
 
+        static Logger logger = LogManager.GetCurrentClassLogger();
+
+        private static ConcurrentDictionary<string, int> OrderTransferTimesStore = new ConcurrentDictionary<string, int>();
+        private STATES _State = STATES.BETTER_VEHICLE_SEARCHING;
+        public STATES State
+        {
+            get => _State;
+            protected set
+            {
+                if (_State != value)
+                {
+                    _State = value;
+                    Log($"State Changed to {value}");
+                }
+            }
+        }
         public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration)
         {
             this.orderOwner = orderOwner;
@@ -25,41 +50,74 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             cancellationTokenSource.Cancel();
         }
 
+        internal void OrderDone()
+        {
+            OrderTransferTimesStore.TryRemove(order.TaskName, out int count);
+            Log($"Order finish invoked. Total transfer count = {count}");
+        }
         internal async Task WatchStart()
         {
+            Log("Start Watching");
             cancellationTokenSource = new CancellationTokenSource();
+            bool _isOrderTransferStateStored = OrderTransferTimesStore.TryGetValue(order.TaskName, out int times);
+            if (_isOrderTransferStateStored && times >= configuration.MaxTransferTimes)
+            {
+                Log($"Max transfer time reach limit({configuration.MaxTransferTimes})");
+                State = STATES.ORDER_TRANSFERIED;
+                return;
+            }
+
+            if (!_isOrderTransferStateStored)
+                OrderTransferTimesStore.TryAdd(order.TaskName, 0);
+
             await Task.Delay(1).ContinueWith(async (t) =>
             {
-
-                while (!cancellationTokenSource.Token.IsCancellationRequested)
+                try
                 {
-                    if (TryFindBetterVehicle(out IAGV betterVehicle))
+                    bool transferDone = false;
+                    while (!cancellationTokenSource.Token.IsCancellationRequested)
                     {
-                        await orderOwner.CancelTaskAsync(order.TaskName, "Change Vehicle To Execute");
-                        (bool confirmed, string message) = await WaitOwnerVehicleIdle();
-
-                        if (!confirmed)
-                            continue;
-
-                        //double check
-                        if (!TryFindBetterVehicle(out betterVehicle))
-                            break;
-
-
-                        await WaitOrderNotRun();
-
-                        if (await TryTransferOrderToAnotherVehicle(betterVehicle))
+                        State = STATES.BETTER_VEHICLE_SEARCHING;
+                        if (TryFindBetterVehicle(out IAGV betterVehicle))
                         {
-                            Console.WriteLine("Transfer order to another vehicle successfully");
-                            break;
+
+                            Log($"Try transfer order to {betterVehicle.Name}");
+                            Log($"Cancel Task Of Order Owner");
+                            await orderOwner.CancelTaskAsync(order.TaskName, "Change Vehicle To Execute");
+                            Log($"Wait original order owner state changed to IDLE...");
+                            (bool confirmed, string message) = await WaitOwnerVehicleIdle();
+
+                            if (!confirmed)
+                            {
+                                Log($"Wait original order owner state changed to IDLE...TIMEOUT");
+                                continue;
+                            }
+                            State = STATES.ORDER_TRANSFERING;
+
+                            Log($"Wait order not RUN...");
+                            await WaitOrderNotRun();
+
+                            Log($"Start transfer order to better vehicle-{betterVehicle.Name}");
+                            if (await TryTransferOrderToAnotherVehicle(betterVehicle))
+                            {
+                                Log($"Transfer order to {betterVehicle.Name} successfully");
+                                transferDone = true;
+                                State = STATES.ORDER_TRANSFERIED;
+                                OrderTransferTimesStore[order.TaskName] = OrderTransferTimesStore[order.TaskName] + 1;
+                                break;
+                            }
+                            else
+                            {
+                                Log($"Transfer order to {betterVehicle.Name} FAIL!!!!!!!!!!!!!!");
+                            }
                         }
-                        else
-                        {
-                            Console.WriteLine("Failed to transfer order to another vehicle");
-                        }
+                        await Task.Delay(1000);
                     }
-                    await Task.Delay(1000);
                 }
+                finally
+                {
+                }
+
             });
 
 
@@ -143,5 +201,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         {
             return DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.TaskName == order.TaskName);
         }
+
+        internal void Log(string message)
+        {
+            string _logPrefix = $"[{order.TaskName}-Order Owner:{orderOwner.Name}]";
+            logger.Trace($"{_logPrefix} {message}");
+        }
+
     }
 }
