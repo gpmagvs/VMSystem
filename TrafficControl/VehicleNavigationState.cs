@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
 using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
@@ -268,7 +269,14 @@ namespace VMSystem.TrafficControl
                 {
                     _IsWaitingConflicSolve = value;
                     if (_IsWaitingConflicSolve)
+                    {
+                        OrderTransfer orderTransfer = Vehicle?.CurrentRunningTask()?.OrderTransfer;
+                        if (orderTransfer != null && orderTransfer.State == OrderTransfer.STATES.ABORTED)
+                        {
+                            _ = orderTransfer.ReStartAsync("Waiting for traffic conflic solving");
+                        }
                         StartWaitConflicSolveTime = DateTime.Now;
+                    }
                     else
                     {
                         StartWaitConflicSolveTime = DateTime.MinValue;

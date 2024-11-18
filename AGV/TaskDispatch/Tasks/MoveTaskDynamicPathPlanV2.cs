@@ -188,7 +188,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         searchStartPt = lastNavigationgoal == null || Agv.main_state == clsEnums.MAIN_STATUS.IDLE ? Agv.currentMapPoint : lastNavigationgoal;
                         DispatchCenter.GOAL_SELECT_METHOD goalSelectMethod = subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point ? DispatchCenter.GOAL_SELECT_METHOD.TO_GOAL_DIRECTLY :
                                                                                                                                              DispatchCenter.GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL;
-                        IEnumerable<MapPoint> dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
+
+                        IEnumerable<MapPoint> dispatchCenterReturnPath = null;
+                        bool isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack = _IsVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack();
+                        if (isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack)
+                            dispatchCenterReturnPath = new List<MapPoint> { Agv.currentMapPoint };
+                        else
+                            dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
@@ -496,7 +502,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             throw new AGVRejectTaskException(responseOfVehicle.ReturnCode);
                         }
 
-                        bool isAGVStatusRun = isAgvAlreadyAtDestine ? true : await WaitVehicleStatusRun();
+                        bool isAGVStatusRun = isAgvAlreadyAtDestine || isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack ? true : await WaitVehicleStatusRun();
 
                         _seq += 1;
                         _previsousTrajectorySendToAGV = _trajectory.ToList();
@@ -712,6 +718,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
+        }
+
+        /// <summary>
+        /// AGV當前需要去RACK PORT避車，且目前的位置已在避車PORT前面且朝向避車PORK
+        /// </summary>
+        /// <returns></returns>
+        private bool _IsVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack()
+        {
+            if (subStage != VehicleMovementStage.AvoidPath_Park)
+                return false;
+            if (Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine.TagNumber != Agv.currentMapPoint.TagNumber)
+                return false;
+            //agv need forward to work_station
+            double expectThetaForwardTo = Tools.CalculationForwardAngle(Agv.currentMapPoint, Agv.NavigationState.AvoidActionState.AvoidPt);
+            return Tools.CalculateTheateDiff(Agv.states.Coordination.Theta, expectThetaForwardTo) < 30;
         }
 
         private bool IsContainsReversePath(IEnumerable<int> previosPath, IEnumerable<int> newPath)

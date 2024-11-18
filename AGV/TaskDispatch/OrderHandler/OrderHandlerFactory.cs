@@ -11,6 +11,8 @@ using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.Dispatch.Equipment;
 using static System.Collections.Specialized.BitVector32;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
+using VMSystem.TrafficControl;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -79,9 +81,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private Queue<TaskBase> _CreateSequenceTasks(clsTaskDto orderData)
         {
             IAGV _agv = GetIAGVByName(orderData.DesignatedAGVName);
-
             if (_agv == null)
                 throw new NotFoundAGVException($"{orderData.DesignatedAGVName} not exist at system");
+
+            OrderTransfer OrderTransfer = _IsOrderTransferEnabled() ? CreateOrderTransfer(_agv, orderData) : null;
 
             if (_agv.IsAGVHasCargoOrHasCargoID() == true)
                 orderData.Actual_Carrier_ID = _agv.states.CSTID[0];
@@ -112,7 +115,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {
-                    NextAction = ACTION_TYPE.Unload
+                    NextAction = ACTION_TYPE.Unload,
+                    OrderTransfer = OrderTransfer
                 });
                 _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
                 return _queue;
@@ -188,7 +192,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
                     {
-                        NextAction = ACTION_TYPE.Unload
+                        NextAction = ACTION_TYPE.Unload,
+                        OrderTransfer = OrderTransfer
                     });
                     _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
                     {
@@ -235,6 +240,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
 
             return _queue;
+        }
+
+        private bool _IsOrderTransferEnabled()
+        {
+            return SystemModes.RunMode == AGVSystemCommonNet6.AGVDispatch.RunMode.RUN_MODE.RUN && TrafficControlCenter.TrafficControlParameters.Experimental.OrderTransfer.Enabled;
+        }
+        private OrderTransfer CreateOrderTransfer(IAGV agv, clsTaskDto orderData)
+        {
+            return new TransferOrderToOtherVehicleMonitor(agv, orderData, TrafficControlCenter.TrafficControlParameters.Experimental.OrderTransfer)
+            {
+                agvsDb = VMSManager.AGVSDbContext,
+                tasksTableDbLock = VMSManager.tasksLock
+            };
         }
 
         public static Dictionary<int, List<int>> GetTransferStationTag(clsTaskDto orderData)

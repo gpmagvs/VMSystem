@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.Configuration;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.TrafficControl
@@ -105,6 +106,11 @@ namespace VMSystem.TrafficControl
             /// 停到RACK裡面避車
             /// </summary>
             public bool UseRackToAvoid { get; set; } = true;
+
+            /// <summary>
+            /// 訂單轉移參數配置
+            /// </summary>
+            public OrderTransferConfiguration OrderTransfer { get; set; } = new OrderTransferConfiguration();
 
         }
     }

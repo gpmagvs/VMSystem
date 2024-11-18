@@ -10,7 +10,7 @@ namespace VMSystem.TrafficControl
 {
     public static class Extensions
     {
-        public static TaskBase CurrentRunningTask(this IAGV agv)
+        public static TaskBase? CurrentRunningTask(this IAGV agv)
         {
             if (agv == null)
                 return null;
@@ -96,7 +96,7 @@ namespace VMSystem.TrafficControl
         public static bool IsAnyVehicleConflicTo(this IEnumerable<MapRectangle> coveryRegion, IAGV requestAGV)
         {
             List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(requestAGV).ToList();
-            return coveryRegion.Any(rect=> otherVehicles.Select(agv=>agv.AGVRealTimeGeometery).Any(agvBody=>agvBody.IsIntersectionTo(rect)) );
+            return coveryRegion.Any(rect => otherVehicles.Select(agv => agv.AGVRealTimeGeometery).Any(agvBody => agvBody.IsIntersectionTo(rect)));
         }
     }
 }
