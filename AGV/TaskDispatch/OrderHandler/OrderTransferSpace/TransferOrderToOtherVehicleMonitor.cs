@@ -37,6 +37,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
             var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
                                                                .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
+                                                               .Where(kp => kp.Key.batteryStatus > IAGV.BATTERY_STATUS.LOW) //確認電池狀態
                                                                .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key)) //執行充電任務中 or 空閒中車輛
                                                                .ToList();
             if (idleOrChargingVehicles.Any())
