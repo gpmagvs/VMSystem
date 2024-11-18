@@ -21,6 +21,7 @@ namespace VMSystem.AGV
         public enum BATTERY_STATUS
         {
             UNKNOWN,
+            DEEPCHARGING,
             LOW,
             MIDDLE_LOW,
             MIDDLE_HIGH,
