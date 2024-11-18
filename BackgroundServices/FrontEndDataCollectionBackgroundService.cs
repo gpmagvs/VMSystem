@@ -8,6 +8,8 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6;
 using Newtonsoft.Json;
 using AGVSystemCommonNet6.Configuration;
+using static VMSystem.AGV.IAGV;
+using System.Linq;
 
 namespace VMSystem.BackgroundServices
 {
@@ -31,6 +33,7 @@ namespace VMSystem.BackgroundServices
                     {
 
                         var _VMSStatus = VehicleStateService.AGVStatueDtoStored.Values.OrderBy(d => d.AGV_Name).ToList();
+                        Dictionary<string, BATTERY_STATUS> vehicleBatStatus = VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => agv.batteryStatus);
 
                         if (PartsAGVInfoService.PartsAGVStatueDtoStored.Any())
                         {
@@ -42,6 +45,7 @@ namespace VMSystem.BackgroundServices
                             AGVNaviPathsInfoVM = ViewModelFactory.GetAGVNaviPathsInfoVM(),
                             OtherAGVLocations = VMSManager.OthersAGVInfos.Values.ToList(),
                             VMSStatus = _VMSStatus,
+                            VehicleBatteryStatus = vehicleBatStatus
                         };
 
                         if (!AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem && JsonConvert.SerializeObject(data).Equals(JsonConvert.SerializeObject(_previousData)))
