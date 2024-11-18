@@ -778,5 +778,27 @@ namespace VMSystem.VMS
             NotifyServiceHelper.INFO($"已解除{aGV_Name}註冊點Tag  {string.Join(",", removeds.Select(v => v.Key))}");
             return (true, "");
         }
+
+        internal static void StopDeepCharge(string agvName)
+        {
+            IAGV Vehicle = GetAGVByName(agvName);
+            if (Vehicle == null)
+                return;
+            Vehicle.StopDeepCharge();
+        }
+
+        /// <summary>
+        /// 確認是否可以指派車輛進行深度充電
+        /// </summary>
+        /// <param name="agvName"></param>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        internal static bool ConfirmDeepChargeExecutable(string agvName, out string message)
+        {
+            message = string.Empty;
+
+
+            return true;
+        }
     }
 }

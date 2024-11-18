@@ -33,7 +33,7 @@ namespace VMSystem.AGV
             if (!IsTaskContentCorrectCheck(_ExecutingTask, out int tag, out var _alarm_code))
                 return (false, _alarm_code);
 
-            bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.ExchangeBattery);
+            bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge || _ExecutingTask.Action == ACTION_TYPE.ExchangeBattery);
             if (!_isAutoSearch)
                 return (true, ALARMS.NONE);
             LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
@@ -57,9 +57,9 @@ namespace VMSystem.AGV
                 MapPoint optimized_workstation = null;
                 ALARMS alarm_code = ALARMS.NONE;
 
-                var alarm_code_if_occur = action == ACTION_TYPE.Charge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
+                var alarm_code_if_occur = action == ACTION_TYPE.Charge || action == ACTION_TYPE.DeepCharge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
 
-                if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge)
+                if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge && action != ACTION_TYPE.DeepCharge)
                 {
                     alarm_code = ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH;
                     return (false, null, alarm_code);
@@ -68,7 +68,7 @@ namespace VMSystem.AGV
                 List<MapPoint> workstations = new List<MapPoint>();
                 if (action == ACTION_TYPE.Park)
                     workstations = StaMap.GetParkableStations();
-                if (action == ACTION_TYPE.Charge)
+                if (action == ACTION_TYPE.Charge || action == ACTION_TYPE.DeepCharge)
                 {
                     workstations = StaMap.GetChargeableStations(this.agv);
                     var response = await AGVSSerivces.TRAFFICS.GetUseableChargeStationTags(this.agv.Name);
@@ -87,7 +87,7 @@ namespace VMSystem.AGV
                 var othersAGVLocTags = othersAGV.Select(agv => agv.states.Last_Visited_Node);
 
                 List<clsTaskDto> charge_task_assign_to_others_agv = othersAGV.SelectMany(agv => agv.taskDispatchModule.taskList)
-                                                                             .Where(tk => tk.Action == ACTION_TYPE.Charge && (tk.State == TASK_RUN_STATUS.NAVIGATING || tk.State == TASK_RUN_STATUS.WAIT)).ToList();
+                                                                             .Where(tk => (tk.Action == ACTION_TYPE.Charge || tk.Action == ACTION_TYPE.DeepCharge) && (tk.State == TASK_RUN_STATUS.NAVIGATING || tk.State == TASK_RUN_STATUS.WAIT)).ToList();
 
                 var charge_station_tag_assign_to_others_agv = charge_task_assign_to_others_agv.Select(tk => tk.To_Station_Tag).ToList();
                 var charge_stations_tag_occupied = othersAGV.Where(agv => agv.currentMapPoint.IsCharge).Select(agv => agv.currentMapPoint.TagNumber).ToList();
@@ -201,7 +201,7 @@ namespace VMSystem.AGV
             //有異常的狀況
             if (tag_ < 0)
             {
-                if (_action != ACTION_TYPE.Charge && _action != ACTION_TYPE.Park)
+                if (_action != ACTION_TYPE.Charge && _action != ACTION_TYPE.DeepCharge && _action != ACTION_TYPE.Park)
                 {
                     alarm_code = ALARMS.DESTIN_TAG_IS_INVLID_FORMAT;
                 }

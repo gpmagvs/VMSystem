@@ -476,9 +476,11 @@ namespace VMSystem.AGV
                                 OrderHandler.StartOrder(agv);
                                 OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
                                 OrderHandler.OnOrderFinish += OrderHandler_OnOrderFinish;
-                                if (_ExecutingTask.Action == ACTION_TYPE.Charge)
+                                if (_ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge)
+                                {
                                     (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
-
+                                    agv.StopDeepCharge();
+                                }
                                 OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
                                 // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
                                 await Task.Delay(1000);
@@ -502,7 +504,10 @@ namespace VMSystem.AGV
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
                                 bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
                                 if (!_IsChargeStatesChecking)
-                                    OrderHandler.RunningTask.UpdateStateDisplayMessage(isCharging ? "充電中.." : "IDLE");
+                                {
+                                    string _chargingText = agv.batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING ? "深度充電中..." : "充電中...";
+                                    OrderHandler.RunningTask.UpdateStateDisplayMessage(isCharging ? _chargingText : "IDLE");
+                                }
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
                                 OrderHandler.RunningTask.UpdateStateDisplayMessage("OFFLINE");
@@ -559,16 +564,16 @@ namespace VMSystem.AGV
         {
 
             orderHandler.onAGVChargeOrderDone -= HandleAGVChargeTaskRedoRequest;
-            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE)
+            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != MAIN_STATUS.Charging)
                 return;
             ConfirmAGVChargeState(orderHandler);
-
-
         }
+
         private async Task ConfirmAGVChargeState(ChargeOrderHandler orderHandler)
         {
             try
             {
+
                 _IsChargeStatesChecking = true;
                 if (agv.batteryStatus >= IAGV.BATTERY_STATUS.MIDDLE_HIGH)
                     return;
@@ -587,6 +592,7 @@ namespace VMSystem.AGV
                         return;
                     }
                 }
+
             }
             catch (Exception ex)
             {
@@ -596,6 +602,10 @@ namespace VMSystem.AGV
             {
                 orderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
                 _IsChargeStatesChecking = false;
+                if (orderHandler.OrderData.Action == ACTION_TYPE.DeepCharge)
+                    agv.StartDeepCharging();
+                else
+                    agv.StopDeepCharge();
             }
 
         }

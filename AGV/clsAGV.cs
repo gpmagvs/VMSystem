@@ -36,6 +36,7 @@ namespace VMSystem.AGV
         public NLog.Logger logger { get; set; }
         public TaskExecuteHelper TaskExecuter { get; set; }
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
+        private DeepCharger deepCharger = new DeepCharger();
         public clsAGV()
         {
 
@@ -94,6 +95,9 @@ namespace VMSystem.AGV
                 if (volumes == null || volumes.Length == 0)
                     return IAGV.BATTERY_STATUS.UNKNOWN;
 
+                if (deepCharger.GetIsDeepCharging())
+                    return IAGV.BATTERY_STATUS.DEEPCHARGING;
+
                 double avgVolume = volumes.Average();
                 if (avgVolume < options.BatteryOptions.LowLevel)
                     return IAGV.BATTERY_STATUS.LOW;
@@ -112,6 +116,7 @@ namespace VMSystem.AGV
         public AvailabilityHelper availabilityHelper { get; private set; }
         public StopRegionHelper StopRegionHelper { get; private set; }
         private clsRunningStatus _states = new clsRunningStatus() { Odometry = -1 };
+
         public clsRunningStatus states
         {
             get => _states;
@@ -916,12 +921,11 @@ namespace VMSystem.AGV
             message = "";
 
             //一律接受充電任務
-            if (orderAction == ACTION_TYPE.Charge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
+            if (orderAction == ACTION_TYPE.Charge || orderAction == ACTION_TYPE.DeepCharge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
                 return true;
             //電池低電量與電量未知不可接收任務
-            if (batteryStatus <= IAGV.BATTERY_STATUS.LOW)
+            if (batteryStatus != IAGV.BATTERY_STATUS.DEEPCHARGING && batteryStatus <= IAGV.BATTERY_STATUS.LOW)
             {
-
                 message = batteryStatus == IAGV.BATTERY_STATUS.LOW ? "電量過低無法接收訂單任務" : "電量狀態未知無法接收訂單任務";
                 return false;
             }
@@ -929,6 +933,12 @@ namespace VMSystem.AGV
             //充電中:
             if (main_state == MAIN_STATUS.Charging)
             {
+                if (batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING)
+                {
+                    message = $"深度充電中不可執行任務!";
+                    return false;
+                }
+
                 bool chargingAndAboveMiddle = batteryStatus == IAGV.BATTERY_STATUS.MIDDLE_HIGH;
                 message = chargingAndAboveMiddle ? "" : "充電中但當前電量仍無法接收訂單任務。";
                 return chargingAndAboveMiddle;
@@ -1004,6 +1014,16 @@ namespace VMSystem.AGV
         private void CurrentTask_OnTaskDone(object? sender, EventArgs e)
         {
             throw new NotImplementedException();
+        }
+
+        public void StartDeepCharging()
+        {
+            deepCharger.StartDeepCharging();
+        }
+
+        public void StopDeepCharge()
+        {
+            deepCharger.StopDeepCharging();
         }
     }
 }

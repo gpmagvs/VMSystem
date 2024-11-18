@@ -53,7 +53,9 @@ namespace VMSystem.VMS
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING)
                                                  .Where(agv => agv.IsTravalingToDestineWhenExecutingTransferOrder() && agv.GetDistanceToDestine() > 3.0) //to source 
                                                  .Select(agv => agv.Name));
-
+                        //深度充電中不接任務
+                        CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING)
+                                                                            .Select(agv => agv.Name));
 
                         List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                         CannotAssignOrderAGVNames.AddRange(List_idlecarryAGV);

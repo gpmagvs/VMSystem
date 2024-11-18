@@ -94,6 +94,8 @@ namespace VMSystem.AGV
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
         Task CancelTaskAsync(string task_name, string reason);
+        void StartDeepCharging();
+        void StopDeepCharge();
 
         event EventHandler<string> OnTaskCancel;
         event EventHandler<int> OnMapPointChanged;

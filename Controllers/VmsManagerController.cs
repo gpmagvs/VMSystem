@@ -132,5 +132,10 @@ namespace VMSystem.Controllers
         {
             return Ok(await VMSManager.RemoveVehicleFromMap(AGV_Name));
         }
+        [HttpPost("StopDeepCharge")]
+        public async Task StopDeepCharge(string agvName)
+        {
+            VMSManager.StopDeepCharge(agvName);
+        }
     }
 }

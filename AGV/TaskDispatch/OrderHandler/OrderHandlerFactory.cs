@@ -21,6 +21,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private Dictionary<ACTION_TYPE, OrderHandlerBase> _OrderHandlerMap = new Dictionary<ACTION_TYPE, OrderHandlerBase>() {
             { ACTION_TYPE.None ,  new MoveToOrderHandler() },
             { ACTION_TYPE.Charge ,  new ChargeOrderHandler() },
+            { ACTION_TYPE.DeepCharge,  new ChargeOrderHandler() },
             { ACTION_TYPE.Load ,  new LoadOrderHandler() },
             { ACTION_TYPE.Unload ,  new UnloadOrderHandler() },
             { ACTION_TYPE.Carry,  new TransferOrderHandler() },
@@ -145,7 +146,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 return _queue;
             }
-            if (orderData.Action == ACTION_TYPE.Charge)
+            if (orderData.Action == ACTION_TYPE.Charge || orderData.Action == ACTION_TYPE.DeepCharge)
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {

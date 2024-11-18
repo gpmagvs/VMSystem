@@ -60,7 +60,7 @@ namespace VMSystem.Services
             clsAGVSTaskReportResponse response = new clsAGVSTaskReportResponse();
             if (TasksObj.GetType() == typeof(MoveToDestineTask))
             {
-                if (OrderDataAction == ACTION_TYPE.Charge || OrderDataAction == ACTION_TYPE.Park || OrderDataAction == ACTION_TYPE.None)
+                if (OrderDataAction == ACTION_TYPE.Charge || OrderDataAction == ACTION_TYPE.Park || OrderDataAction == ACTION_TYPE.DeepCharge || OrderDataAction == ACTION_TYPE.None)
                     return new clsAGVSTaskReportResponse() { confirm = true };
                 if (taskData.need_change_agv == true)
                 {
