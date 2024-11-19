@@ -1,7 +1,10 @@
-﻿using AGVSystemCommonNet6.AGVDispatch;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
+using VMSystem.VMS;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
 {
@@ -17,7 +20,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
         /// 目標站點Tag
         /// </summary>
         public int destineTag => order.To_Station_Tag;
+        /// <summary>
+        /// 目標站點MapPoint
+        /// </summary>
+        public MapPoint destineMapPoint => StaMap.GetPointByTagNumber(destineTag);
 
+        /// <summary>
+        /// 除了監控車之外的所有車輛
+        /// </summary>
+        public List<IAGV> othersVehicles => VMSManager.AllAGV.FilterOutAGVFromCollection(agv).ToList();
         /// <summary>
         /// 
         /// </summary>
@@ -38,15 +49,29 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                     await Task.Delay(100);
                     if (IsNeedChange())
                     {
-                        await CancelOrderAndWaitVehicleIdle(this.agv, this.order);
-
-                        await ModifyOrder(order);
+                        await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station");
+                        await WaitOrderNotRun(order);
+                        var newOrder = order.Clone();
+                        newOrder.TaskName = order.TaskName + "-NewChargeStation";
+                        newOrder.RecieveTime = DateTime.Now;
+                        newOrder.FinishTime = DateTime.MinValue;
+                        newOrder.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
+                        newOrder.Priority = 12300;
+                        newOrder.FailureReason = "";
+                        newOrder.To_Station = GetNewDestineTag() + "";
+                        bool orderModifySuccess = await AddNewOrder(newOrder);
+                        if (orderModifySuccess)
+                        {
+                            break;
+                        }
                     }
 
                 }
+                Console.WriteLine($"{this.GetType().Name}-Finish Monitor");
             });
         }
 
+        protected abstract int GetNewDestineTag();
         internal abstract bool IsNeedChange();
 
         protected virtual bool IsCurrentSubTaskFinish()

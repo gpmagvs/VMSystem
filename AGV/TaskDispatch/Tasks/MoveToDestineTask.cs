@@ -41,12 +41,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
             }
+            if (DestineChanger != null)
+            {
+                DestineChanger.StartMonitorAsync();
+            }
             (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
 
-            if (baseResult.confirmed && DestineChanger != null)
-            {
-                //DestineChanger.StartMonitorAsync();
-            }
 
             return baseResult;
         }
