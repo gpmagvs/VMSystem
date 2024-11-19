@@ -16,20 +16,33 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             tasksTableDbLock = taskTableLocker;
         }
 
-        public async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order)
+        public async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason)
         {
-            await agv.CancelTaskAsync(order.TaskName, "Change Vehicle To Execute");
+            await agv.CancelTaskAsync(order.TaskName, reason);
             return await WaitOwnerVehicleIdle(agv);
         }
-        public async Task WaitOrderNotRun(clsTaskDto order)
+
+        public async Task<bool> AddNewOrder(clsTaskDto newOrder)
         {
-            while (IsOrderRunning(order))
+            try
             {
-                await Task.Delay(1000);
+                await this.tasksTableDbLock.WaitAsync();
+                if (agvsDb == null)
+                    return false;
+                agvsDb.Tasks.Add(newOrder);
+                await agvsDb.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+            finally
+            {
+                this.tasksTableDbLock.Release();
             }
         }
-
-
         public async Task<bool> ModifyOrder(clsTaskDto orderModified)
         {
             try
@@ -46,6 +59,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     return false;
                 mapper.Map(orderModified, orderDto);
                 agvsDb.Entry(orderDto).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+                await agvsDb.SaveChangesAsync();
                 return true;
             }
             catch (Exception ex)
@@ -55,8 +69,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             finally
             {
-                await agvsDb.SaveChangesAsync();
                 this.tasksTableDbLock.Release();
+            }
+        }
+        public async Task WaitOrderNotRun(clsTaskDto order)
+        {
+            while (IsOrderRunning(order))
+            {
+                await Task.Delay(1000);
             }
         }
 
