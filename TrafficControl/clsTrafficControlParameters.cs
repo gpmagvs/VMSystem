@@ -107,6 +107,8 @@ namespace VMSystem.TrafficControl
             /// </summary>
             public bool UseRackToAvoid { get; set; } = true;
 
+            public bool NearRackPortParkable { get; set; } = false;
+
             /// <summary>
             /// 訂單轉移參數配置
             /// </summary>

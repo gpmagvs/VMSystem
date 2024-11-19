@@ -464,10 +464,53 @@ namespace VMSystem.TrafficControl
             int portTagNumber = releasePtRequest.Agv.currentMapPoint.TagNumber;
             List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(releasePtRequest.Agv).ToList();
 
-            bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle));
+            var vehicleCurrentStationType = releasePtRequest.Agv.currentMapPoint.StationType;
+
+            bool isAGVAtRack = vehicleCurrentStationType == STATION_TYPE.Buffer || vehicleCurrentStationType == STATION_TYPE.Buffer_EQ || vehicleCurrentStationType == STATION_TYPE.Charge_Buffer;
+
+            bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle) || _IsGoToNearPortOfCurrentRack(vehicle));
             if (releaseForbidden)
                 releasePtRequest.Message = $"有車輛目的地為 Tag {portTagNumber} 或 Tag {releasePtRequest.EntryPoint.TagNumber}";
             releasePtRequest.Accept = !releaseForbidden;
+
+            //車輛任務是否為鄰近Port
+            bool _IsGoToNearPortOfCurrentRack(IAGV _agv)
+            {
+
+                //功能開關
+                if (TrafficControlCenter.TrafficControlParameters.Experimental.NearRackPortParkable)
+                    return false;
+
+                if (!isAGVAtRack || _agv == null)
+                    return false;
+                if (_agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    return false;
+                var _runningTask = _agv.CurrentRunningTask();
+                if (_runningTask == null)
+                    return false;
+
+                int _tag = -1;
+                if (_runningTask.Stage == VehicleMovementStage.Traveling_To_Source || _runningTask.Stage == VehicleMovementStage.WorkingAtSource)
+                    _tag = _runningTask.OrderData.From_Station_Tag;
+                else
+                    _tag = _runningTask.OrderData.To_Station_Tag;
+                MapPoint requestVehicleMapPt = StaMap.GetPointByTagNumber(portTagNumber);
+                var entryPointsOfRequestVehicle = requestVehicleMapPt.TargetNormalPoints();
+                var pointsOfNearByEntryPoints = entryPointsOfRequestVehicle.SelectMany(entry => entry.TargetNormalPoints());
+
+                //判斷目的地是鄰近設備的進入點
+                bool parkAtNearPortEntry = pointsOfNearByEntryPoints.Any(pt => pt.TagNumber == _tag);
+                if (parkAtNearPortEntry)
+                    return true;
+
+                //判斷目的地是鄰近設備
+                bool destineWorkStationNearByPort = StaMap.GetPointByTagNumber(_tag).TargetNormalPoints().Any(pt => pointsOfNearByEntryPoints.GetTagCollection().Contains(pt.TagNumber));
+                if (destineWorkStationNearByPort)
+                    return true;
+
+                return true;
+            }
+
             //
             bool _IsGoToReleaseTagOrEntryPort(IAGV _agv)
             {
