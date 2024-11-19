@@ -16,6 +16,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         /// </summary>
         private List<IAGV> OtherVehicles => VMSManager.AllAGV.FilterOutAGVFromCollection(orderOwner).ToList();
         private readonly MapPoint TargetWorkStationMapPoint;
+        private static SemaphoreSlim betterVehicleFindSemaphose = new SemaphoreSlim(1, 1);
 
         public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration) : base(orderOwner, order, configuration)
         {
@@ -25,33 +26,41 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 TargetWorkStationMapPoint = StaMap.GetPointByTagNumber(order.To_Station_Tag);
         }
 
-        public override bool TryFindBetterVehicle(out IAGV betterVehicle)
+        public override async Task<(bool found, IAGV? betterVehicle)> TryFindBetterVehicle()
         {
-            betterVehicle = null;
-            //評估是否有其他車輛當前位置
-            double distanceToWorkStationOfOwner = GetTravelDistanceToTargetWorkStation(orderOwner);
-
-            var moreNearToGoalVehicles = OtherVehicles.ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
-                         .OrderBy(kp => kp.Value)
-                         .Where(kp => kp.Value < distanceToWorkStationOfOwner)
-                         .ToDictionary(kp => kp.Key, kp => kp.Value);
-            //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
-            var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.main_state != clsEnums.MAIN_STATUS.DOWN) //不是當機的車輛
-                                                               .Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
-                                                               .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
-                                                               .Where(kp => kp.Key.batteryStatus > IAGV.BATTERY_STATUS.LOW) //確認電池狀態
-                                                               .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key) || IsVehicleLoading(kp.Key)) //執行充電任務中 or 空閒中車輛 or 在執行放貨任務的車
-                                                               .ToList();
-            if (idleOrChargingVehicles.Any())
-                betterVehicle = idleOrChargingVehicles.First().Key;
-
-            if (betterVehicle != null)
+            IAGV? betterVehicle = null;
+            try
             {
-                string _distanceEvealuation = string.Join(",", idleOrChargingVehicles.OrderBy(kp => kp.Key.Name).Select(kp => $"{kp.Key.Name}-{kp.Value}m").ToList());
-                Log($"Better Vehicle Found=>{betterVehicle.Name}.Distances to target workstation of origin order owner:{distanceToWorkStationOfOwner}m|| Distances to target workstation of candicators: {_distanceEvealuation}");
-            }
+                await betterVehicleFindSemaphose.WaitAsync();
+                //評估是否有其他車輛當前位置
+                double distanceToWorkStationOfOwner = GetTravelDistanceToTargetWorkStation(orderOwner);
 
-            return betterVehicle != null;
+                var moreNearToGoalVehicles = OtherVehicles.ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
+                             .OrderBy(kp => kp.Value)
+                             .Where(kp => kp.Value < distanceToWorkStationOfOwner)
+                             .ToDictionary(kp => kp.Key, kp => kp.Value);
+                //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
+                var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.main_state != clsEnums.MAIN_STATUS.DOWN) //不是當機的車輛
+                                                                   .Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
+                                                                   .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
+                                                                   .Where(kp => kp.Key.batteryStatus > IAGV.BATTERY_STATUS.LOW) //確認電池狀態
+                                                                   .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key) || IsVehicleLoading(kp.Key)) //執行充電任務中 or 空閒中車輛 or 在執行放貨任務的車
+                                                                   .ToList();
+                if (idleOrChargingVehicles.Any())
+                    betterVehicle = idleOrChargingVehicles.First().Key;
+
+                if (betterVehicle != null)
+                {
+                    string _distanceEvealuation = string.Join(",", idleOrChargingVehicles.OrderBy(kp => kp.Key.Name).Select(kp => $"{kp.Key.Name}-{kp.Value}m").ToList());
+                    Log($"Better Vehicle Found=>{betterVehicle.Name}.Distances to target workstation of origin order owner:{distanceToWorkStationOfOwner}m|| Distances to target workstation of candicators: {_distanceEvealuation}");
+                }
+
+                return (betterVehicle != null, betterVehicle);
+            }
+            finally
+            {
+                betterVehicleFindSemaphose.Release();
+            }
         }
 
 

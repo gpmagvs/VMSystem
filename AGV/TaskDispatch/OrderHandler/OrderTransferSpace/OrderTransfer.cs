@@ -88,9 +88,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                     while (!cancellationTokenSource.Token.IsCancellationRequested)
                     {
                         State = STATES.BETTER_VEHICLE_SEARCHING;
-                        if (TryFindBetterVehicle(out IAGV betterVehicle))
-                        {
 
+                        (bool found, IAGV betterVehicle) = await TryFindBetterVehicle();
+
+                        if (found)
+                        {
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
                             await orderOwner.CancelTaskAsync(order.TaskName, "Change Vehicle To Execute");
@@ -150,7 +152,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         /// 是否需要進行訂單轉移
         /// </summary>
         /// <returns></returns>
-        public abstract bool TryFindBetterVehicle(out IAGV betterVehicle);
+        public abstract Task<(bool found, IAGV betterVehicle)> TryFindBetterVehicle();
 
         internal async Task<bool> TryTransferOrderToAnotherVehicle(IAGV betterVehicle)
         {
