@@ -1,12 +1,13 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using Microsoft.EntityFrameworkCore;
 using NLog;
 using System.Collections.Concurrent;
 using System.Threading;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 {
-    public abstract class OrderTransfer
+    public abstract class OrderTransfer : VehicleOrderController
     {
         public enum STATES
         {
@@ -21,8 +22,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         protected readonly OrderTransferConfiguration configuration = new OrderTransferConfiguration();
         protected CancellationTokenSource cancellationTokenSource;
 
-        internal AGVSDbContext agvsDb;
-        internal SemaphoreSlim tasksTableDbLock;
 
         static Logger logger = LogManager.GetCurrentClassLogger();
 
@@ -40,7 +39,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 }
             }
         }
-        public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration)
+        public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(db, taskTableLocker)
         {
             this.orderOwner = orderOwner;
             this.order = order;
@@ -95,10 +94,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                         {
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
-                            await orderOwner.CancelTaskAsync(order.TaskName, "Change Vehicle To Execute");
                             Log($"Wait original order owner state changed to IDLE...");
-                            (bool confirmed, string message) = await WaitOwnerVehicleIdle();
-
+                            (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order);
                             if (!confirmed)
                             {
                                 Log($"Wait original order owner state changed to IDLE...TIMEOUT");
@@ -107,7 +104,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                             State = STATES.ORDER_TRANSFERING;
 
                             Log($"Wait order not RUN...");
-                            await WaitOrderNotRun();
+                            await WaitOrderNotRun(order);
 
                             Log($"Start transfer order to better vehicle-{betterVehicle.Name}");
                             if (await TryTransferOrderToAnotherVehicle(betterVehicle))
@@ -144,14 +141,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 
         }
 
-        private async Task WaitOrderNotRun()
-        {
-            while (IsOrderRunning())
-            {
-                await Task.Delay(1000);
-            }
-        }
-
         /// <summary>
         /// 是否需要進行訂單轉移
         /// </summary>
@@ -174,18 +163,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         {
             try
             {
-                await this.tasksTableDbLock.WaitAsync();
-                if (agvsDb == null)
-                    return false;
-                clsTaskDto orderDto = agvsDb.Tasks.FirstOrDefault(t => t.TaskName == order.TaskName);
+                clsTaskDto orderDto = agvsDb.Tasks.AsNoTracking().FirstOrDefault(t => t.TaskName == order.TaskName);
                 if (orderDto == null)
                     return false;
                 orderDto.FinishTime = DateTime.MinValue;
                 orderDto.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
                 orderDto.FailureReason = "";
                 orderDto.DesignatedAGVName = betterVehicle.Name;
-                agvsDb.SaveChanges();
-                return true;
+                return await base.ModifyOrder(orderDto);
             }
             catch (Exception ex)
             {
@@ -194,33 +179,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             }
             finally
             {
-                this.tasksTableDbLock.Release();
             }
-        }
-
-        private async Task<(bool, string)> WaitOwnerVehicleIdle()
-        {
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            while (orderOwner.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN ||
-                orderOwner.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-            {
-                try
-                {
-                    await Task.Delay(10, cancellationTokenSource.Token);
-                }
-                catch (TaskCanceledException)
-                {
-                    //Timeout
-                    return (false, "Wait AGV IDLE Timeout");
-                }
-            }
-            return (true, "");
-        }
-
-
-        bool IsOrderRunning()
-        {
-            return DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.TaskName == order.TaskName);
         }
 
         internal void Log(string message)

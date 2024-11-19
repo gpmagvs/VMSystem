@@ -23,6 +23,7 @@ using static SQLite.SQLite3;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 using AGVSystemCommonNet6.Configuration;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -88,6 +89,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public VehicleMovementStage subStage { get; protected set; } = VehicleMovementStage.Not_Start_Yet;
 
         public TransferStage TransferStage { get; set; } = TransferStage.NO_Transfer;
+
+
         public abstract ACTION_TYPE ActionType { get; }
         /// <summary>
         /// 目的地Tag

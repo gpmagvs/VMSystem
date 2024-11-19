@@ -13,6 +13,7 @@ using VMSystem.Dispatch.Equipment;
 using static System.Collections.Specialized.BitVector32;
 using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.TrafficControl;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -150,7 +151,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
                 {
-                    NextAction = ACTION_TYPE.Charge
+                    NextAction = ACTION_TYPE.Charge,
+                    DestineChanger = new ChargeStationChanger(_agv, orderData, VMSManager.AGVSDbContext, VMSManager.tasksLock)
                 });
                 _queue.Enqueue(new ChargeTask(_agv, orderData));
                 return _queue;
@@ -249,10 +251,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         private OrderTransfer CreateOrderTransfer(IAGV agv, clsTaskDto orderData)
         {
-            return new TransferOrderToOtherVehicleMonitor(agv, orderData, TrafficControlCenter.TrafficControlParameters.Experimental.OrderTransfer)
+            return new TransferOrderToOtherVehicleMonitor(agv, orderData, TrafficControlCenter.TrafficControlParameters.Experimental.OrderTransfer, VMSManager.AGVSDbContext, VMSManager.tasksLock)
             {
-                agvsDb = VMSManager.AGVSDbContext,
-                tasksTableDbLock = VMSManager.tasksLock
             };
         }
 

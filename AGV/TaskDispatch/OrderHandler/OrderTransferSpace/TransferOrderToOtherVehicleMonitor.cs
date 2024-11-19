@@ -18,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         private readonly MapPoint TargetWorkStationMapPoint;
         private static SemaphoreSlim betterVehicleFindSemaphose = new SemaphoreSlim(1, 1);
 
-        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration) : base(orderOwner, order, configuration)
+        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(orderOwner, order, configuration, db, taskTableLocker)
         {
             if (order.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Carry)
                 TargetWorkStationMapPoint = StaMap.GetPointByTagNumber(order.From_Station_Tag);
@@ -35,7 +35,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 //評估是否有其他車輛當前位置
                 double distanceToWorkStationOfOwner = GetTravelDistanceToTargetWorkStation(orderOwner);
 
-                if (distanceToWorkStationOfOwner > 3)
+                if (distanceToWorkStationOfOwner < 3)
                     throw new TaskCanceledException("因距離目的地剩餘走行距離小於3m,拋出TaskCanceledException例外結束訂單轉移追蹤.");
 
                 var moreNearToGoalVehicles = OtherVehicles.ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))

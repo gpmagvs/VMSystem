@@ -5,11 +5,13 @@ using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using AGVSystemCommonNet6.Notify;
 using System.Data;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
+        internal DestineChangeBase DestineChanger { get; set; } = null;
         public MoveToDestineTask() : base()
         { }
 
@@ -39,7 +41,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
             }
-            return await base.DistpatchToAGV();
+            (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
+
+            if (baseResult.confirmed && DestineChanger != null)
+            {
+                //DestineChanger.StartMonitorAsync();
+            }
+
+            return baseResult;
         }
     }
 }
