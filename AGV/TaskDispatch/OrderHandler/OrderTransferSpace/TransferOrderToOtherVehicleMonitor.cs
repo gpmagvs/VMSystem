@@ -47,7 +47,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                                                                                                 .Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
                                                                                                 .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
                                                                                                 .Where(kp => kp.Key.batteryStatus > IAGV.BATTERY_STATUS.LOW) //確認電池狀態
-                                                                                                .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key) || IsVehicleLoading(kp.Key)) //執行充電任務中 or 空閒中車輛 or 在執行放貨任務的車
+                                                                                                .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key) || IsVehicleLoading(kp.Key) || IsVehicleExecutingParkOrder(kp.Key)) //執行充電任務中 or 空閒中車輛 or 在執行放貨任務的車
                                                                                                 .ToList();
                 if (idleOrChargingVehicles.Any())
                     betterVehicle = idleOrChargingVehicles.First().Key;
@@ -94,7 +94,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             return _currentTask.Stage == VehicleMovementStage.WorkingAtDestination;
         }
 
-
+        private bool IsVehicleExecutingParkOrder(IAGV vehicle)
+        {
+            return vehicle.IsExecutingOrder(out TaskBase currentTask) && currentTask.OrderData.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Park;
+        }
         private double GetTravelDistanceToTargetWorkStation(IAGV vehicle)
         {
             PathFinder _pathFinder = new PathFinder();

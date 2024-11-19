@@ -95,7 +95,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
                             Log($"Wait original order owner state changed to IDLE...");
-                            (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order);
+                            (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order, "Change Vehicle To Execute");
                             if (!confirmed)
                             {
                                 Log($"Wait original order owner state changed to IDLE...TIMEOUT");
