@@ -295,9 +295,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Task_Name = this.TaskName,
                     Trajectory = trajectory
                 };
-
-                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.AGVRealTimeGeometery))
-                                                     .ToList();
+                IAGV thisVehicel = Agv;
+                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.currentMapPoint.GetCircleArea(ref thisVehicel))).ToList();
                 if (bodyOverlapingVehicles.Any())
                 {
                     logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
@@ -366,8 +365,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Trajectory = traj
                 };
 
-                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.AGVRealTimeGeometery))
-                                                     .ToList();
+                IAGV thisVehicle = Agv;
+                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.currentMapPoint.GetCircleArea(ref thisVehicle))).ToList();
                 if (bodyOverlapingVehicles.Any())
                 {
                     logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
