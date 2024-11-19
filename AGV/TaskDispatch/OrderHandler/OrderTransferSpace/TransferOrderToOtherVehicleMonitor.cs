@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
@@ -35,10 +36,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                          .Where(kp => kp.Value < distanceToWorkStationOfOwner)
                          .ToDictionary(kp => kp.Key, kp => kp.Value);
             //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
-            var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
+            var idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.main_state != clsEnums.MAIN_STATUS.DOWN) //不是當機的車輛
+                                                               .Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
                                                                .Where(kp => kp.Key.online_state == clsEnums.ONLINE_STATE.ONLINE) //上線中車輛
                                                                .Where(kp => kp.Key.batteryStatus > IAGV.BATTERY_STATUS.LOW) //確認電池狀態
-                                                               .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key)) //執行充電任務中 or 空閒中車輛
+                                                               .Where(kp => IsVehicleNoOrder(kp.Key) || IsVehicleExecutingChargeTask(kp.Key) || IsVehicleLoading(kp.Key)) //執行充電任務中 or 空閒中車輛 or 在執行放貨任務的車
                                                                .ToList();
             if (idleOrChargingVehicles.Any())
                 betterVehicle = idleOrChargingVehicles.First().Key;
@@ -68,6 +70,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         private bool IsVehicleNoOrder(IAGV vehicle)
         {
             return vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.NO_ORDER;
+        }
+
+        private bool IsVehicleLoading(IAGV vehicle)
+        {
+            if (vehicle.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                return false;
+            TaskBase? _currentTask = vehicle.CurrentRunningTask();
+            if (_currentTask == null)
+                return false;
+            return _currentTask.Stage == VehicleMovementStage.WorkingAtDestination;
         }
 
 
