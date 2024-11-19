@@ -295,12 +295,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Task_Name = this.TaskName,
                     Trajectory = trajectory
                 };
-                IAGV thisVehicel = Agv;
-                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.currentMapPoint.GetCircleArea(ref thisVehicel))).ToList();
-                if (bodyOverlapingVehicles.Any())
+
+                if (IsConflicWhenAGVRotating(out List<string> conflicVehicleNames))
                 {
-                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
-                    NotifyServiceHelper.INFO($"{Agv.Name} 退出設備後轉向避車角度不允許，如路徑衝突將進入正常避車流程，");
+                    string vehicleNames = string.Join(",", conflicVehicleNames);
+                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {vehicleNames}");
+                    NotifyServiceHelper.INFO($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。");
                     return;
                 }
                 Agv.NavigationState.UpdateNavigationPoints(trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
@@ -365,12 +365,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     Trajectory = traj
                 };
 
-                IAGV thisVehicle = Agv;
-                var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(Agv.currentMapPoint.GetCircleArea(ref thisVehicle))).ToList();
-                if (bodyOverlapingVehicles.Any())
+                if (IsConflicWhenAGVRotating(out List<string> conflicVehicleNames))
                 {
-                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {bodyOverlapingVehicles.GetNames()}");
-                    NotifyServiceHelper.INFO($"{Agv.Name} 退出設備後轉向避車角度不允許，如路徑衝突將進入正常避車流程，");
+                    string vehicleNames = string.Join(",", conflicVehicleNames);
+                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {vehicleNames}");
+                    NotifyServiceHelper.INFO($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。");
                     return;
                 }
                 Agv.NavigationState.UpdateNavigationPoints(traj.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
@@ -459,6 +458,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 int currentTag = trajectory.First().Point_ID;
                 return StaMap.GetPointByTagNumber(currentTag).Direction_Avoid;
             };
+        }
+
+        private bool IsConflicWhenAGVRotating(out List<string> conficVehiclesNames)
+        {
+            conficVehiclesNames = new List<string>();
+            IAGV thisVehicle = Agv;
+            var currentCircleRegion = Agv.currentMapPoint.GetCircleArea(ref thisVehicle);
+            var bodyOverlapingVehicles = OtherAGV.Where(_agv => _agv.AGVRealTimeGeometery.IsIntersectionTo(currentCircleRegion)).ToList();
+            conficVehiclesNames.AddRange(bodyOverlapingVehicles.Select(v => v.Name));
+            var pathConflicToVehicles = OtherAGV.Where(_agv => _agv.NavigationState.NextPathOccupyRegions.Any(reg => reg.IsIntersectionTo(currentCircleRegion))).ToList();
+            conficVehiclesNames.AddRange(pathConflicToVehicles.Select(v => v.Name));
+            return conficVehiclesNames.Any();
         }
 
         private bool TryGetFirstWorkStationOfNextOrder(out MapPoint nextOrderFirstWorkStationMapPoint)
