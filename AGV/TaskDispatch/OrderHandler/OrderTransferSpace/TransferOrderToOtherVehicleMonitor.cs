@@ -35,6 +35,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 //評估是否有其他車輛當前位置
                 double distanceToWorkStationOfOwner = GetTravelDistanceToTargetWorkStation(orderOwner);
 
+                if (distanceToWorkStationOfOwner > 3)
+                    throw new TaskCanceledException("因距離目的地剩餘走行距離小於3m,拋出TaskCanceledException例外結束訂單轉移追蹤.");
+
                 var moreNearToGoalVehicles = OtherVehicles.ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
                              .OrderBy(kp => kp.Value)
                              .Where(kp => kp.Value < distanceToWorkStationOfOwner)

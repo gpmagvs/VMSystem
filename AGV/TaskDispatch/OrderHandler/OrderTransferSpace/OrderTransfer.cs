@@ -126,6 +126,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                         await Task.Delay(1000);
                     }
                 }
+                catch (TaskCanceledException ex)
+                {
+                    Log(ex.Message);
+                }
                 finally
                 {
                     State = STATES.ABORTED;
