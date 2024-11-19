@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.MAP;
+﻿using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
@@ -20,6 +21,24 @@ namespace VMSystem.TrafficControl
         {
             return agv.taskDispatchModule.OrderHandler;
         }
+
+        public static int GetNextWorkStationTag(this IAGV agv)
+        {
+            if (agv == null)
+                return 0;
+            if (agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                return 0;
+            TaskBase currentTask = agv.CurrentRunningTask();
+            clsTaskDto currentOrder = currentTask.OrderData;
+
+            if (currentTask.Stage == VehicleMovementStage.Traveling_To_Source)
+                return currentOrder.From_Station_Tag;
+            else if (currentTask.Stage == VehicleMovementStage.Traveling_To_Destine || currentTask.Stage == VehicleMovementStage.WorkingAtSource)
+                return currentOrder.To_Station_Tag;
+            else
+                return 0;
+        }
+
         public static TaskBase PreviousSegmentTask(this IAGV agv)
         {
             var completeTaskStack = agv.taskDispatchModule.OrderHandler.CompleteTaskStack;
