@@ -116,7 +116,7 @@ namespace VMSystem.Dispatch
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = goalPoint;
-            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>(), vehicle.states.Coordination.Theta);
+            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(vehicle), vehicle.states.Coordination.Theta);
             IEnumerable<MapPoint> optimizePath_Init = null;
 
             try
@@ -401,7 +401,7 @@ namespace VMSystem.Dispatch
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
-
+            constrains.AddRange(GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle));
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
                 if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
@@ -413,9 +413,22 @@ namespace VMSystem.Dispatch
             }
             if (MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt != null)
                 constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
+
+
             return constrains;
         }
 
+        private static List<MapPoint> GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(IAGV agv)
+        {
+            int nextWorkStationTag = agv.GetNextWorkStationTag();
+            MapRegion agvCurrentRegion = agv.currentMapPoint.GetRegion();
+            List<MapRegion> regionsExcept = StaMap.Map.Regions.Where(region => region.Name != agvCurrentRegion.Name && region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion.Any()).ToList();
+            List<int> acceptGoalTags = regionsExcept.SelectMany(region => region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion).ToList();
+            if (acceptGoalTags.Contains(nextWorkStationTag))
+                return new List<MapPoint>();
+            var result = regionsExcept.SelectMany(region => region.GetPointsInRegion()).ToList();
+            return result;
+        }
 
         internal static async Task SyncTrafficStateFromAGVSystemInvoke()
         {
