@@ -1,6 +1,6 @@
 ﻿
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Equipment;
+using AGVSystemCommonNet6.Equipment.AGV;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using VMSystem.AGV;
