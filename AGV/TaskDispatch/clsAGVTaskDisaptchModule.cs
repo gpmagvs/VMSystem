@@ -17,6 +17,7 @@ using NLog;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.VMS;
@@ -45,6 +46,7 @@ namespace VMSystem.AGV
             Disconnection
         }
 
+        internal int previousNoUsableChargerTag = -1;
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
         private DateTime LastNonNoOrderTime;
@@ -460,6 +462,9 @@ namespace VMSystem.AGV
                                 ALARMS alarm_code = ALARMS.NONE;
 
                                 (bool autoSearchConfrim, ALARMS autoSearch_alarm_code) = await CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);
+
+                                previousNoUsableChargerTag = -1;
+
                                 if (!autoSearchConfrim)
                                 {
                                     _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
@@ -788,6 +793,13 @@ namespace VMSystem.AGV
             WaitingForYieldedAGVList.Remove(agv);
             this.OrderHandler.RunningTask.WaitingForAGV = WaitingForYieldedAGVList;
         }
-
+        public void HandleDestineStartChangeEvent(object? sender, int stationTag)
+        {
+            bool isChargerChange = (sender as DestineChangeBase).GetType() == typeof(ChargeStationChanger);
+            if (isChargerChange)
+            {
+                previousNoUsableChargerTag = stationTag;
+            }
+        }
     }
 }

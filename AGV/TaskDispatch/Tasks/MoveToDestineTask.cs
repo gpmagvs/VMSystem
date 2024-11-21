@@ -43,7 +43,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             if (DestineChanger != null)
             {
+                DestineChanger.OnStartChanged += Agv.taskDispatchModule.HandleDestineStartChangeEvent;
                 DestineChanger.StartMonitorAsync();
+
             }
             (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
 
