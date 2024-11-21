@@ -875,9 +875,10 @@ namespace VMSystem.AGV
             }
         }
 
-        public bool IsAGVIdlingAtChargeStationButBatteryLevelLow()
+        public bool IsAGVIdlingAtParkableStationButBatteryLevelLow()
         {
-            return currentMapPoint.IsCharge && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
+            bool isAtBuffer = currentMapPoint.StationType == STATION_TYPE.Buffer || currentMapPoint.StationType == STATION_TYPE.Charge_Buffer;
+            return (currentMapPoint.IsCharge || isAtBuffer) && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
         }
         public bool IsAGVIdlingAtNormalPoint()
         {

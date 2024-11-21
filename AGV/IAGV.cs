@@ -77,7 +77,7 @@ namespace VMSystem.AGV
         /// AGV是否在充電站內閒置且電量低於閥值
         /// </summary>
         /// <returns></returns>
-        bool IsAGVIdlingAtChargeStationButBatteryLevelLow();
+        bool IsAGVIdlingAtParkableStationButBatteryLevelLow();
 
         bool IsAGVIdlingAtNormalPoint();
 
