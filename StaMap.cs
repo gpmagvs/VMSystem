@@ -368,7 +368,7 @@ namespace VMSystem
                 else
                 {
                     OnTagUnregisted?.Invoke("", TagNumber);
-                    //logger.Trace($"{Name} UnRegist Tag {TagNumber}");
+                    logger.Trace($"{Name} UnRegist Tag {TagNumber}");
                     return (true, "");
                 }
             }
