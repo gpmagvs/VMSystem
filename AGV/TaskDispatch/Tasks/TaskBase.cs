@@ -24,6 +24,7 @@ using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 using AGVSystemCommonNet6.Configuration;
 using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -70,8 +71,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _WaitAGVTaskDoneMRE.Set();
             });
         }
-        public TaskBase() { }
-        public TaskBase(IAGV Agv, clsTaskDto orderData)
+        public TaskBase(IAGV Agv, clsTaskDto orderData) { }
+        public TaskBase() : base() { }
+        public TaskBase(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
         {
             this.Agv = Agv;
             this.OrderData = orderData;

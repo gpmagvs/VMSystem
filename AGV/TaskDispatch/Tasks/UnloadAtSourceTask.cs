@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -13,9 +14,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class UnloadAtSourceTask : LoadUnloadTask
     {
-        public UnloadAtSourceTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public UnloadAtSourceTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
         {
-            DestineTag = order.From_Station_Tag;
         }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtSource;

@@ -17,24 +17,22 @@ using System.Diagnostics.Eventing.Reader;
 using AGVSystemCommonNet6.Microservices.VMS;
 using VMSystem.VMS;
 using System.Diagnostics;
-using static AGVSystemCommonNet6.MAP.MapPoint;  // 需要引用System.Numerics向量庫
+using static AGVSystemCommonNet6.MAP.MapPoint;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveTaskDynamicPathPlan : MoveTask
     {
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling;
-        public MoveTaskDynamicPathPlan() : base()
-        {
-
-        }
-        public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-
-
-        }
 
         protected List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
+        public MoveTaskDynamicPathPlan() : base() { }
+        public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData) { }
+        public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override async Task SendTaskToAGV()
         {
 

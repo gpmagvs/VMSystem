@@ -66,11 +66,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public event EventHandler<OrderHandlerBase> OnOrderFinish;
 
         protected Logger logger;
-
         public OrderHandlerBase()
         {
             logger = LogManager.GetLogger("OrderHandle");
         }
+        public OrderHandlerBase(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+            logger = LogManager.GetLogger("OrderHandle");
+        }
+
 
         public virtual async Task StartOrder(IAGV Agv)
         {
@@ -138,7 +142,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             return;
                         }
                         if (taskchange.task != null)
-                            RaiseTaskDtoChange(this, taskchange.task);
+                            ModifyOrder(taskchange.task);
 
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
@@ -187,7 +191,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
-                    RaiseTaskDtoChange(this, OrderData);
+                    ModifyOrder(OrderData);
                     DisposeActionOfCompleteTasks();
                 }
 
@@ -381,7 +385,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.StartTime = DateTime.Now;
             OrderData.State = TASK_RUN_STATUS.NAVIGATING;
             OrderData.StartLocationTag = Agv.currentMapPoint.TagNumber;
-            RaiseTaskDtoChange(this, OrderData);
+            ModifyOrder(OrderData);
         }
 
         private async Task _SetOrderAsCancelState(string taskCancelReason)
@@ -409,7 +413,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 return;
             }
 
-            RaiseTaskDtoChange(this, OrderData);
+            ModifyOrder(OrderData);
             OnTaskCanceled?.Invoke(this, this);
         }
         protected virtual void _SetOrderAsFinishState()
@@ -417,7 +421,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
-            RaiseTaskDtoChange(this, OrderData);
+            ModifyOrder(OrderData);
             OnOrderFinish?.Invoke(this, this);
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
@@ -462,7 +466,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     OrderData.FailureReason = agvAlarmsDescription;
                 }
 
-                RaiseTaskDtoChange(this, OrderData);
+                ModifyOrder(OrderData);
                 (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
                 if (v.confirm == false)
                     LOG.WARN($"{v.message}");

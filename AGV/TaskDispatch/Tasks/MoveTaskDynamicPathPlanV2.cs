@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.Log;
@@ -32,13 +33,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     public partial class MoveTaskDynamicPathPlanV2 : MoveTaskDynamicPathPlan
     {
         public MapPoint finalMapPoint { get; private set; }
-        public MoveTaskDynamicPathPlanV2() : base()
-        {
-        }
-        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
-        }
 
 
         public override void CreateTaskToAGV()
@@ -944,6 +938,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY;
+        public MoveTaskDynamicPathPlanV2() : base() { }
+
+        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
+        }
+
+        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
+        }
 
         private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint, bool isGoWaitPointByNormalSegmentTravaling)> GetNextRegionWaitingPoint(List<MapRegion> regions)
         {

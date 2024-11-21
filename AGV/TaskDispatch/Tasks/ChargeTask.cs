@@ -1,12 +1,16 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class ChargeTask : TaskBase
     {
-        public ChargeTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public ChargeTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+        public ChargeTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
         {
         }
 

@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -9,9 +10,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class UnloadAtDestineTask : LoadUnloadTask
     {
-        public UnloadAtDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public UnloadAtDestineTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
         {
-            DestineTag = order.To_Station_Tag;
         }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtDestination;

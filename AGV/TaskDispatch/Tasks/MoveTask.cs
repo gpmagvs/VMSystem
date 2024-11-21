@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Log;
@@ -23,7 +24,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-
+        public MoveTask() : base() { }
+        protected MoveTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+        protected MoveTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+        }
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
         /// <summary>
@@ -32,14 +39,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public List<MapPoint> TrafficControlPoints => TaskSequenceList.Select(traj => traj.Last()).ToList();
 
         public double FinalStopTheta = 0;
-        protected MoveTask() : base()
-        {
-
-        }
-        protected MoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-
-        }
 
         protected void CalculateStopAngle(MapPoint entryPoint)
         {
@@ -759,7 +758,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TrajectoryRecordCancelTokenSource.Cancel();
         }
         protected List<clsTrajCoordination> _TrajectoryTempStorage = new List<clsTrajCoordination>();
-
 
     }
 }

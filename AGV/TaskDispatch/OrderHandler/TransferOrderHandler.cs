@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -16,6 +17,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class TransferOrderHandler : OrderHandlerBase
     {
+        public TransferOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
+        public TransferOrderHandler()
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Carry;
 
         protected override async Task HandleAGVActionFinishFeedback()

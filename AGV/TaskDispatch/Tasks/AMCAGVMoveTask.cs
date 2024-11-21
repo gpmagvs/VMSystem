@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DevicesControl;
 using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
@@ -13,9 +14,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class AMCAGVMoveTask : MoveTaskDynamicPathPlan
     {
-        public AMCAGVMoveTask()
-        {
-        }
+
         public override bool IsAGVReachDestine
         {
             get
@@ -34,10 +33,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public override VehicleMovementStage Stage => VehicleMovementStage.Traveling_To_Destine;
-        public AMCAGVMoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-            Agv.OnMapPointChanged += Agv_OnMapPointChanged;
-        }
+
 
         private void Agv_OnMapPointChanged(object? sender, int e)
         {
@@ -64,6 +60,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public ELEVATOR_ENTRY_STATUS ElevatorStatus { get; set; } = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
         private MapPoint EntryPointOfElevator;
+
+        public AMCAGVMoveTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+            Agv.OnMapPointChanged += Agv_OnMapPointChanged;
+        }
+
         protected override PathFinderOption pathFinderOptionOfOptimzed => new PathFinderOption
         {
             OnlyNormalPoint = true,

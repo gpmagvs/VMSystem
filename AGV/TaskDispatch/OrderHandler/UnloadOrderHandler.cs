@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using static SQLite.SQLite3;
@@ -8,6 +9,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class UnloadOrderHandler : OrderHandlerBase
     {
+        public UnloadOrderHandler()
+        {
+        }
+
+        public UnloadOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Unload;
 
         protected override async Task HandleAGVActionFinishFeedback()

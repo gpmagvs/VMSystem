@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
@@ -12,6 +13,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class ChargeOrderHandler : OrderHandlerBase
     {
+        public ChargeOrderHandler() : base() { }
+        public ChargeOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public event EventHandler<ChargeOrderHandler> onAGVChargeOrderDone;
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Charge;
         protected override void _SetOrderAsFinishState()
@@ -84,6 +90,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
     public class ExchangeBatteryOrderHandler : OrderHandlerBase
     {
+        public ExchangeBatteryOrderHandler() : base() { }
+        public ExchangeBatteryOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.ExchangeBattery;
 
         protected override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
@@ -99,6 +110,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
     public class ParkOrderHandler : ChargeOrderHandler
     {
+        public ParkOrderHandler() : base() { }
+        public ParkOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Park;
     }
 

@@ -12,6 +12,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class MeasureOrderHandler : OrderHandlerBase
     {
+        public MeasureOrderHandler() : base() { }
+        public MeasureOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Measure;
 
         internal override List<int> GetNavPathTags()

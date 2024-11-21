@@ -6,11 +6,17 @@ using static SQLite.SQLite3;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using RosSharp.RosBridgeClient.MessageTypes.Geometry;
 using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class LoadOrderHandler : OrderHandlerBase
     {
+        public LoadOrderHandler() : base() { }
+        public LoadOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Load;
         protected override async Task HandleAGVActionFinishFeedback()
         {

@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using AGVSystemCommonNet6.Notify;
@@ -11,13 +12,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
-        internal DestineChangeBase DestineChanger { get; set; } = null;
         public MoveToDestineTask() : base()
-        { }
+        {
 
-        public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        }
+        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
+        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+        }
+
+        internal DestineChangeBase DestineChanger { get; set; } = null;
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()

@@ -14,21 +14,25 @@ using static System.Collections.Specialized.BitVector32;
 using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.TrafficControl;
 using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class OrderHandlerFactory
     {
+        static AGVSDbContext agvsDb => VMSManager.AGVSDbContext;
+        static SemaphoreSlim taskTbModifyLock => VMSManager.tasksLock;
+
         private Dictionary<ACTION_TYPE, OrderHandlerBase> _OrderHandlerMap = new Dictionary<ACTION_TYPE, OrderHandlerBase>() {
-            { ACTION_TYPE.None ,  new MoveToOrderHandler() },
-            { ACTION_TYPE.Charge ,  new ChargeOrderHandler() },
-            { ACTION_TYPE.DeepCharge,  new ChargeOrderHandler() },
-            { ACTION_TYPE.Load ,  new LoadOrderHandler() },
-            { ACTION_TYPE.Unload ,  new UnloadOrderHandler() },
-            { ACTION_TYPE.Carry,  new TransferOrderHandler() },
-            { ACTION_TYPE.Park,  new ParkOrderHandler() },
-            { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler() },
-            { ACTION_TYPE.Measure,  new MeasureOrderHandler() },
+            { ACTION_TYPE.None ,  new MoveToOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Charge ,  new ChargeOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.DeepCharge,  new ChargeOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Load ,  new LoadOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Unload ,  new UnloadOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Carry,  new TransferOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Park,  new ParkOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.ExchangeBattery,  new ExchangeBatteryOrderHandler(agvsDb,taskTbModifyLock) },
+            { ACTION_TYPE.Measure,  new MeasureOrderHandler(agvsDb,taskTbModifyLock) },
         };
 
         public OrderHandlerFactory() { }
@@ -93,20 +97,22 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             var _queue = new Queue<TaskBase>();
             MapPoint _agv_current_map_point = _agv.currentMapPoint;
+
+
             if (IsAGVAtWorkStation(_agv))
             {
-                _queue.Enqueue(new DischargeTask(_agv, orderData));
+                _queue.Enqueue(new DischargeTask(_agv, orderData, agvsDb, taskTbModifyLock));
             }
 
             if (orderData.Action == ACTION_TYPE.None) //一般走行任務
             {
                 if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData));
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 else
                 {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData));
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 //_queue.Enqueue(new NormalMoveTask(_agv, orderData));
 
@@ -115,60 +121,60 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             if (orderData.Action == ACTION_TYPE.Unload)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                 {
                     NextAction = ACTION_TYPE.Unload,
                     OrderTransfer = OrderTransfer
                 });
-                _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData));
+                _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Load)
             {
                 if (orderData.need_change_agv == true)// 如果下放貨任務，但目標EQAGV_TYPE不符則是將貨放到轉運站，此筆任務結束觸發生成Carry任務
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.Load,
                         TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
                     });
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
-                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
+                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData, agvsDb, taskTbModifyLock);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
                     _queue.Enqueue(task);
                 }
                 else
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.Load
                     });
-                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Charge || orderData.Action == ACTION_TYPE.DeepCharge)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                 {
                     NextAction = ACTION_TYPE.Charge,
-                    DestineChanger = new ChargeStationChanger(_agv, orderData, VMSManager.AGVSDbContext, VMSManager.tasksLock)
+                    DestineChanger = new ChargeStationChanger(_agv, orderData, agvsDb, taskTbModifyLock)
                 });
-                _queue.Enqueue(new ChargeTask(_agv, orderData));
+                _queue.Enqueue(new ChargeTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.ExchangeBattery)
             {
                 if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.ExchangeBattery
                     });
                 }
                 else
                 {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.ExchangeBattery
                     });
@@ -176,16 +182,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 //
                 //
                 //_queue.Enqueue(new MoveToDestineTask(_agv, orderData));
-                _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData));
+                _queue.Enqueue(new ExchangeBatteryTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Park)
             {
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                 {
                     NextAction = ACTION_TYPE.Park
                 });
-                _queue.Enqueue(new ParkTask(_agv, orderData));
+                _queue.Enqueue(new ParkTask(_agv, orderData, agvsDb, taskTbModifyLock));
             }
 
             if (orderData.Action == ACTION_TYPE.Carry)
@@ -193,18 +199,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 if (!orderData.IsFromAGV)
                 {
-                    _queue.Enqueue(new MoveToSourceTask(_agv, orderData)
+                    _queue.Enqueue(new MoveToSourceTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.Unload,
                         OrderTransfer = OrderTransfer
                     });
-                    _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData)
+                    _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.None
                     });
                 }
 
-                _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                 {
                     NextAction = ACTION_TYPE.Load,
                     TransferStage = orderData.need_change_agv ? TransferStage.MoveToTransferStationLoad : TransferStage.NO_Transfer
@@ -212,13 +218,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (orderData.need_change_agv)
                 {
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
-                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData);
+                    LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData, agvsDb, taskTbModifyLock);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
                     _queue.Enqueue(task);
                 }
                 else
                 {
-                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData));
+                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
@@ -226,20 +232,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (_agv.model != AGVSystemCommonNet6.clsEnums.AGV_TYPE.INSPECTION_AGV)
                 {
-                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData)
+                    _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.Measure
                     });
                 }
                 else
                 {
-                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData)
+                    _queue.Enqueue(new AMCAGVMoveTask(_agv, orderData, agvsDb, taskTbModifyLock)
                     {
                         NextAction = ACTION_TYPE.Measure
                     });
                 }
                 //_queue.Enqueue(new MoveToDestineTask(_agv, orderData));
-                _queue.Enqueue(new MeasureTask(_agv, orderData));
+                _queue.Enqueue(new MeasureTask(_agv, orderData, agvsDb, taskTbModifyLock));
             }
 
             return _queue;

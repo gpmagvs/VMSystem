@@ -440,7 +440,7 @@ namespace VMSystem.AGV
 
                                     _ExecutingTask.DesignatedAGVName = "";
                                     _ExecutingTask.StartTime = DateTime.MinValue;
-                                    this.OrderHandler.RaiseTaskDtoChange(this, _ExecutingTask);
+                                    await this.OrderHandler.ModifyOrder(_ExecutingTask);
                                     await Task.Delay(200);
                                     while (DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(tk => tk.TaskName == _ExecutingTask.TaskName && tk.DesignatedAGVName == agv.Name))
                                     {

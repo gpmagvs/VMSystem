@@ -70,7 +70,7 @@ namespace VMSystem.VMS
             await Task.Delay(1);
             TcpServerInit();
 
-            clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
+            //clsTaskDatabaseWriteableAbstract.OnTaskDBChangeRequestRaising += HandleTaskDBChangeRequestRaising;
             DeepCharger.OnDeepChargeRequestRaised += DeepCharger_OnDeepChargeRequestRaised;
 
             var agvList = AGVSDbContext.AgvStates.ToList();
@@ -96,7 +96,6 @@ namespace VMSystem.VMS
             await Task.WhenAll(tasks);
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
             OptimizeAGVDisaptchModule.Run();
-            TaskDatabaseChangeWorker();
             TaskAssignToAGVWorker();
         }
 
@@ -272,51 +271,6 @@ namespace VMSystem.VMS
 
                 }
             });
-        }
-
-        private static async Task TaskDatabaseChangeWorker()
-        {
-            await Task.Delay(100);
-            // 配置 AutoMapper
-            MapperConfiguration config = new(cfg => cfg.CreateMap<clsTaskDto, clsTaskDto>());
-            IMapper mapper = config.CreateMapper();
-
-            while (true)
-            {
-                try
-                {
-                    await tasksLock.WaitAsync();
-                    await Task.Delay(100);
-                    if (WaitingForWriteToTaskDatabaseQueue.Count > 0)
-                    {
-                        if (!WaitingForWriteToTaskDatabaseQueue.TryDequeue(out var dto))
-                            continue;
-                        var entity = AGVSDbContext.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
-                        if (entity != null)
-                        {
-                            mapper.Map(dto, entity);
-                            int save_cnt = await AGVSDbContext.SaveChangesAsync();
-                            LOG.TRACE($"Database-Task Table Changed-Num={save_cnt}\r\n{dto.ToJson()}", true);
-                        }
-                        else
-                        {
-                            AGVSDbContext.Tasks.Add(dto);
-                            int save = await AGVSDbContext.SaveChangesAsync();
-                            LOG.TRACE($"Database-Task Table Added-Num={save}\r\n{dto.ToJson()}", true);
-                        }
-                    }
-
-                }
-                catch (Exception ex)
-                {
-                    await AlarmManagerCenter.AddAlarmAsync(ALARMS.ERROR_WHEN_TASK_STATUS_CHAGE_DB);
-                }
-                finally
-                {
-                    tasksLock.Release();
-                }
-
-            }
         }
         internal static bool GetAGVByName(string AGVName, out IAGV agv)
         {

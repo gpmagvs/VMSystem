@@ -33,11 +33,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private string cargoIDMounted = "";
         public static event EventHandler<ReleaseEntryPtRequest> OnReleaseEntryPointRequesting;
 
-        public LoadUnloadTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-
-        }
-
         public override VehicleMovementStage Stage => throw new NotImplementedException();
 
         public override ACTION_TYPE ActionType => throw new NotImplementedException();
@@ -163,6 +158,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         static SemaphoreSlim taskTableUseSemaphorse = new SemaphoreSlim(1, 1);
 
+        protected LoadUnloadTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        {
+        }
+
         protected async Task UpdateLDULDTime()
         {
 
@@ -170,14 +169,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 this.OrderData.LoadTime = DateTime.Now;
             else if (ActionType == ACTION_TYPE.Unload)
                 this.OrderData.UnloadTime = DateTime.Now;
-            RaiseTaskDtoChange(this, this.OrderData);
+            ModifyOrder(this.OrderData);
 
         }
 
         protected void UpdateActualCarrierIDFromAGVStateReported()
         {
             this.OrderData.Actual_Carrier_ID = Agv.states.CSTID[0];
-            RaiseTaskDtoChange(this, this.OrderData);
+            ModifyOrder(OrderData);
         }
         protected override void HandleAGVStatusDown(object? sender, EventArgs e)
         {
