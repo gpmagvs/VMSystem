@@ -11,6 +11,16 @@ namespace VMSystem.TrafficControl
 {
     public static class Extensions
     {
+
+
+        public static bool IsVehicleAtBuffer(this IAGV agv)
+        {
+            if (agv == null)
+                return false;
+            var stationType = agv.currentMapPoint.StationType;
+            return stationType == MapPoint.STATION_TYPE.Buffer || stationType == MapPoint.STATION_TYPE.Buffer_EQ || stationType == MapPoint.STATION_TYPE.Charge_Buffer;
+        }
+
         public static TaskBase? CurrentRunningTask(this IAGV agv)
         {
             if (agv == null)
