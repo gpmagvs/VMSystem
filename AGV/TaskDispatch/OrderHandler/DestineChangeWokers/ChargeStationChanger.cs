@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl;
 
@@ -7,6 +8,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
 {
     public class ChargeStationChanger : DestineChangeBase
     {
+
         public ChargeStationChanger(IAGV agv, clsTaskDto order, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(agv, order, db, taskTableLocker)
         {
         }
@@ -21,6 +23,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
             if (IsAnyVehicleStatusDownAtCharger() || IsAnyVehicleStatusDownAtChargerEntryPoint())
                 return true;
             if (IsAnyVehicleNextWorkStationIsDestine())
+                return true;
+            if (IsWaitTrafficControlTimeTooLong())
                 return true;
             return false;
         }
@@ -51,6 +55,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
             return othersVehicles.Where(v => v.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
                                  .Where(v => v.GetNextWorkStationTag() == destineTag)
                                  .Any();
+        }
+
+        private bool IsWaitTrafficControlTimeTooLong()
+        {
+            var agvNavigationState = agv.NavigationState;
+            if (!agvNavigationState.IsWaitingConflicSolve)
+                return false;
+            return (DateTime.Now - agvNavigationState.StartWaitConflicSolveTime).TotalSeconds > (Debugger.IsAttached ? 10 : 30);
         }
     }
 }
