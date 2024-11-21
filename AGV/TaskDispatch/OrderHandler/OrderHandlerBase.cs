@@ -183,8 +183,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
-                    Agv.NavigationState.StateReset();
-                    Agv.NavigationState.ResetNavigationPoints();
+                    ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
@@ -237,6 +236,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     RunningTask.Dispose();
                 }
             });
+        }
+
+        protected virtual void ResetVehicleRegistedPoints()
+        {
+            //bool isAGVDownAtRackPort = Agv.main_state == MAIN_STATUS.DOWN && Agv.IsVehicleAtBuffer();
+            //if (isAGVDownAtRackPort)
+            //{
+            //    StaMap.RegistPoint(Agv.Name, Agv.currentMapPoint.TargetNormalPoints(), out string mesg);
+            //    return;
+            //}
+            UnRegistPoints();
+            Agv.NavigationState.StateReset();
+            Agv.NavigationState.ResetNavigationPoints();
         }
 
         private void DisposeActionOfCompleteTasks()
@@ -391,7 +403,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         private async Task _SetOrderAsCancelState(string taskCancelReason)
         {
             RunningTask.CancelTask();
-            UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
@@ -418,7 +429,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         protected virtual void _SetOrderAsFinishState()
         {
-            UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
             ModifyOrder(OrderData);
@@ -455,7 +465,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
 
                 RunningTask.CancelTask();
-                UnRegistPoints();
                 OrderData.State = TASK_RUN_STATUS.FAILURE;
                 OrderData.FinishTime = DateTime.Now;
                 OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description})";
