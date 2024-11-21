@@ -103,6 +103,10 @@ namespace VMSystem.AGV
 
                 workstations = workstations.Where(station => StationTagNotAssignToOrderYet(station.TagNumber)).ToList();
 
+                if (action == ACTION_TYPE.Charge || action == ACTION_TYPE.DeepCharge && previousNoUsableChargerTag != -1)
+                {
+                    workstations = workstations.Where(station => station.TagNumber != previousNoUsableChargerTag).ToList();
+                }
 
                 if (workstations.Count == 0)
                 {
