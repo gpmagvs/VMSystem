@@ -13,9 +13,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
     /// </summary>
     public abstract class DestineChangeBase : VehicleOrderController
     {
-        readonly IAGV agv;
-        readonly clsTaskDto order;
-
+        public readonly IAGV agv;
+        public readonly clsTaskDto order;
+        public event EventHandler<int> OnStartChanged;
         /// <summary>
         /// 目標站點Tag
         /// </summary>
@@ -49,6 +49,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                     await Task.Delay(100);
                     if (IsNeedChange())
                     {
+                        OnStartChangedInovke();
                         await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station");
                         await WaitOrderNotRun(order);
                         var newOrder = order.Clone();
@@ -69,6 +70,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                 }
                 Console.WriteLine($"{this.GetType().Name}-Finish Monitor");
             });
+        }
+
+        private void OnStartChangedInovke()
+        {
+            OnStartChanged?.Invoke(this, this.destineTag);
         }
 
         protected abstract int GetNewDestineTag();
