@@ -97,8 +97,17 @@ namespace VMSystem.TrafficControl.ConflicDetection
         {
             conflicAGVList = new();
             MapRectangle RectangleOfDetectPoint = GetRotationRectangeOfDetectPoint();
-            conflicAGVList = OtherAGV.Where(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(RectangleOfDetectPoint))
+            conflicAGVList = OtherAGV.Where(_agv => _IsConflicTo(RectangleOfDetectPoint, _agv))
                                      .ToList();
+
+            bool _IsConflicTo(MapRectangle detectRectangle, IAGV detectToAgv)
+            {
+                if (!detectToAgv.IsVehicleAtWorkStation())
+                    return detectToAgv.AGVRotaionGeometry.IsIntersectionTo(detectRectangle);
+                else
+                    return detectToAgv.AGVRealTimeGeometery.IsIntersectionTo(detectRectangle);
+            }
+
 
             return conflicAGVList.Any();
         }
