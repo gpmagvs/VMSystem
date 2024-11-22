@@ -21,6 +21,14 @@ namespace VMSystem.Extensions
             return stationType == MapPoint.STATION_TYPE.Buffer || stationType == MapPoint.STATION_TYPE.Buffer_EQ || stationType == MapPoint.STATION_TYPE.Charge_Buffer;
         }
 
+        public static bool IsVehicleAtWorkStation(this IAGV agv)
+        {
+            if (agv == null)
+                return false;
+            var stationType = agv.currentMapPoint.StationType;
+            return stationType != MapPoint.STATION_TYPE.Normal;
+        }
+
         public static TaskBase? CurrentRunningTask(this IAGV agv)
         {
             if (agv == null)
