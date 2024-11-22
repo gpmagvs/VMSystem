@@ -4,7 +4,6 @@ using AGVSystemCommonNet6;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.AGV;
 using AGVSystemCommonNet6.AGVDispatch;
-using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using VMSystem.Services;
@@ -12,6 +11,7 @@ using System.Collections.Concurrent;
 using AutoMapper;
 using AGVSystemCommonNet6.Alarm;
 using Microsoft.EntityFrameworkCore;
+using VMSystem.Extensions;
 
 namespace VMSystem.BackgroundServices
 {

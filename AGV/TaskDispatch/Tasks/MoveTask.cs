@@ -14,6 +14,7 @@ using System.Diagnostics.Tracing;
 using System.Net;
 using System.Threading.Tasks;
 using System.Timers;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;

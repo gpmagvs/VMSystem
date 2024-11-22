@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using RosSharp.RosBridgeClient;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.ViewModels;
 using VMSystem.VMS;
 

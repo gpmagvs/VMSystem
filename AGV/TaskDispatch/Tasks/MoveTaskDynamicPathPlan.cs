@@ -19,6 +19,7 @@ using VMSystem.VMS;
 using System.Diagnostics;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using AGVSystemCommonNet6.DATABASE;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {

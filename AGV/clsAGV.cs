@@ -22,6 +22,7 @@ using System.Runtime.CompilerServices;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using WebSocketSharp;

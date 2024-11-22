@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.Exceptions;
 using VMSystem.VMS;

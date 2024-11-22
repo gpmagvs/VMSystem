@@ -8,6 +8,7 @@ using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.YieldActions;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using WebSocketSharp;

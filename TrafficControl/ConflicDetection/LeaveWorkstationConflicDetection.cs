@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
+using VMSystem.Extensions;
 using VMSystem.VMS;
 
 namespace VMSystem.TrafficControl.ConflicDetection

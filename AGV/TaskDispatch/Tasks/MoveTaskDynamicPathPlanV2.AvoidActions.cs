@@ -10,6 +10,7 @@ using static AGVSystemCommonNet6.MAP.PathFinder;
 using System.Diagnostics;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.VMS;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {

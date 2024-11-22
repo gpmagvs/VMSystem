@@ -7,9 +7,9 @@ using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.VMS;
 
-namespace VMSystem.TrafficControl
+namespace VMSystem.Extensions
 {
-    public static class Extensions
+    public static class TrafficControlExtension
     {
 
 

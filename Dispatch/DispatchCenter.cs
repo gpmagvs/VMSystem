@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
@@ -54,9 +55,16 @@ namespace VMSystem.Dispatch
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
+                path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
+                if (path == null)
+                    return null;
                 path = GetPathNavToTrafficCheckPoint(vehicle, path);
-                GetPathWithPathReverseCheck(vehicle, startPoint, path);
-                return path = path == null ? path : path.Clone();
+                if (path == null)
+                    return null;
+                path = GetPathWithPathReverseCheck(vehicle, startPoint, path);
+                if (path == null)
+                    return null;
+                return path.Clone();
             }
             catch (RotatingOnSpinForbidPtException ex)
             {
@@ -84,7 +92,29 @@ namespace VMSystem.Dispatch
             }
         }
 
-        private static void GetPathWithPathReverseCheck(IAGV vehicle, MapPoint startPoint, IEnumerable<MapPoint>? path)
+        private static IEnumerable<MapPoint>? GetPathWithDestineWorkStationStatusCheck(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            if (path == null)
+                return null;
+
+            IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
+            //判斷是否有其他車輛當前位置位於目的地工作站內且當前路徑包含工作站進入點或進入點前
+            int currentWorkStationTagToGo = vehicle.GetNextWorkStationTag();
+            List<int> constrainTags = new List<int>();
+            IEnumerable<MapPoint> entryPoints = StaMap.GetPointByTagNumber(currentWorkStationTagToGo).TargetNormalPoints();
+            constrainTags.AddRange(entryPoints.GetTagCollection());
+            constrainTags.AddRange(entryPoints.SelectMany(entryPt => entryPt.TargetNormalPoints().GetTagCollection()));
+            IAGV vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => _vehicle.currentMapPoint.TagNumber == currentWorkStationTagToGo);
+            if (vehicleAtWorkStation != null && path.GetTagCollection().Intersect(constrainTags).Any())
+            {
+                vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"等待位於目的地-{currentWorkStationTagToGo.GetDisplayAtCurrentMap()} 車輛({vehicleAtWorkStation.Name})離開...");
+                return null;
+            }
+
+            return path;
+        }
+
+        private static IEnumerable<MapPoint>? GetPathWithPathReverseCheck(IAGV vehicle, MapPoint startPoint, IEnumerable<MapPoint>? path)
         {
             if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
             {
@@ -103,7 +133,11 @@ namespace VMSystem.Dispatch
                     };
                     throw new RotatingOnSpinForbidPtException();
                 }
+                else
+                    return path;
             }
+            else
+                return path;
         }
 
         private static IEnumerable<MapPoint>? GetPathNavToTrafficCheckPoint(IAGV vehicle, IEnumerable<MapPoint>? path)

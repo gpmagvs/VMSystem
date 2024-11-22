@@ -10,6 +10,7 @@ using static AGVSystemCommonNet6.MAP.PathFinder;
 using static VMSystem.AGV.TaskDispatch.Tasks.clsMoveTaskEvent;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.MapPoint;
+using VMSystem.Extensions;
 
 namespace VMSystem.TrafficControl.Solvers
 {
