@@ -55,6 +55,8 @@ namespace VMSystem.Dispatch
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
+                if (path == null)
+                    return null;
                 path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
                 if (path == null)
                     return null;
@@ -100,11 +102,34 @@ namespace VMSystem.Dispatch
             IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             //判斷是否有其他車輛當前位置位於目的地工作站內且當前路徑包含工作站進入點或進入點前
             int currentWorkStationTagToGo = vehicle.GetNextWorkStationTag();
+            bool isDestineBelongEntryPointsOfWorkStations = currentWorkStationTagToGo.IsEntryPointOfWorkStation(out IEnumerable<MapPoint> workStations);
+
+
             List<int> constrainTags = new List<int>();
-            IEnumerable<MapPoint> entryPoints = StaMap.GetPointByTagNumber(currentWorkStationTagToGo).TargetNormalPoints();
-            constrainTags.AddRange(entryPoints.GetTagCollection());
-            constrainTags.AddRange(entryPoints.SelectMany(entryPt => entryPt.TargetNormalPoints().GetTagCollection()));
-            IAGV vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => _vehicle.currentMapPoint.TagNumber == currentWorkStationTagToGo);
+            IAGV vehicleAtWorkStation = null;
+
+            if (isDestineBelongEntryPointsOfWorkStations)
+            {
+                vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => workStations.Select(pt => pt.TagNumber).Contains(_vehicle.currentMapPoint.TagNumber));
+                if (vehicleAtWorkStation != null && isRotationWillConflicToVehicleAtWorkStation(vehicle, vehicleAtWorkStation))
+                    constrainTags.Add(currentWorkStationTagToGo);
+
+                bool isRotationWillConflicToVehicleAtWorkStation(IAGV agvGoTo, IAGV atWorkStationAGV)
+                {
+                    MapPoint toGoMapPoint = StaMap.GetPointByTagNumber(currentWorkStationTagToGo);
+                    var agvRotationGeo = agvGoTo.AGVRotaionGeometry.Clone();
+                    agvRotationGeo.SetCenter(toGoMapPoint.X, toGoMapPoint.Y);
+                    //要假裝AGV已達終點
+                    return agvRotationGeo.IsIntersectionTo(atWorkStationAGV.AGVRotaionGeometry);
+                }
+            }
+            else
+            {
+                IEnumerable<MapPoint> entryPoints = StaMap.GetPointByTagNumber(currentWorkStationTagToGo).TargetNormalPoints();
+                constrainTags.AddRange(entryPoints.GetTagCollection());
+                constrainTags.AddRange(entryPoints.SelectMany(entryPt => entryPt.TargetNormalPoints().GetTagCollection()));
+                vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => _vehicle.currentMapPoint.TagNumber == currentWorkStationTagToGo);
+            }
             if (vehicleAtWorkStation != null && path.GetTagCollection().Intersect(constrainTags).Any())
             {
                 vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"等待位於目的地-{currentWorkStationTagToGo.GetDisplayAtCurrentMap()} 車輛({vehicleAtWorkStation.Name})離開...");
