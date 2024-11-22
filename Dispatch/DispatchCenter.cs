@@ -54,36 +54,8 @@ namespace VMSystem.Dispatch
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
-
-                if (path != null && path.Count() != 0 && TrafficControlCenter.TrafficControlParameters.Experimental.NavigationWithTrafficControlPoints)
-                {
-                    var _path = path.Clone().ToList();
-                    var firstTrafficControlPt = _path.Skip(1).FirstOrDefault(pt => pt.IsTrafficCheckPoint);
-                    if (firstTrafficControlPt != null)
-                    {
-                        NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
-                        int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
-                        path = _path.Take(index + 1);
-                    }
-                }
-                if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
-                {
-                    List<MapPoint> _pathDetecting = path.ToList();
-                    //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
-                    double agvCurrentAngle = vehicle.states.Coordination.Theta;
-                    //行駛至下一個點的朝向角
-                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
-                    double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
-                    if (angleToTurn > 45)
-                    {
-                        vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
-                        {
-                            StartPoint = _pathDetecting[0],
-                            EndPoint = _pathDetecting[1]
-                        };
-                        throw new RotatingOnSpinForbidPtException();
-                    }
-                }
+                path = GetPathNavToTrafficCheckPoint(vehicle, path);
+                GetPathWithPathReverseCheck(vehicle, startPoint, path);
                 return path = path == null ? path : path.Clone();
             }
             catch (RotatingOnSpinForbidPtException ex)
@@ -111,6 +83,46 @@ namespace VMSystem.Dispatch
                 semaphore.Release();
             }
         }
+
+        private static void GetPathWithPathReverseCheck(IAGV vehicle, MapPoint startPoint, IEnumerable<MapPoint>? path)
+        {
+            if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
+            {
+                List<MapPoint> _pathDetecting = path.ToList();
+                //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
+                double agvCurrentAngle = vehicle.states.Coordination.Theta;
+                //行駛至下一個點的朝向角
+                double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
+                double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
+                if (angleToTurn > 45)
+                {
+                    vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
+                    {
+                        StartPoint = _pathDetecting[0],
+                        EndPoint = _pathDetecting[1]
+                    };
+                    throw new RotatingOnSpinForbidPtException();
+                }
+            }
+        }
+
+        private static IEnumerable<MapPoint>? GetPathNavToTrafficCheckPoint(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            if (path != null && path.Count() != 0 && TrafficControlCenter.TrafficControlParameters.Experimental.NavigationWithTrafficControlPoints)
+            {
+                var _path = path.Clone().ToList();
+                var firstTrafficControlPt = _path.Skip(1).FirstOrDefault(pt => pt.IsTrafficCheckPoint);
+                if (firstTrafficControlPt != null)
+                {
+                    NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
+                    int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
+                    path = _path.Take(index + 1);
+                }
+            }
+
+            return path;
+        }
+
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
