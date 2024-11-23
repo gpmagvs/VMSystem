@@ -72,8 +72,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _WaitAGVTaskDoneMRE.Set();
             });
         }
-        public TaskBase(IAGV Agv, clsTaskDto orderData) { }
-        public TaskBase() : base() { }
+        public TaskBase(IAGV Agv, clsTaskDto orderData)
+        {
+            this.Agv = Agv;
+            this.OrderData = orderData;
+            this.TaskName = orderData.TaskName;
+            logger = LogManager.GetLogger("TaskDispatch");
+        }
+        public TaskBase() : base()
+        {
+            logger = LogManager.GetLogger("TaskDispatch");
+        }
         public TaskBase(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
         {
             this.Agv = Agv;
