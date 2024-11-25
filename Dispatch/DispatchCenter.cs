@@ -51,6 +51,7 @@ namespace VMSystem.Dispatch
         {
             try
             {
+
                 await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync();
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
@@ -60,7 +61,7 @@ namespace VMSystem.Dispatch
                 path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
                 if (path == null)
                     return null;
-                path = GetPathNavToTrafficCheckPoint(vehicle, path);
+                path = taskDto.IsHighestPriorityTask ? path : GetPathNavToTrafficCheckPoint(vehicle, path);
                 if (path == null)
                     return null;
                 path = GetPathWithPathReverseCheck(vehicle, startPoint, path);
@@ -192,7 +193,10 @@ namespace VMSystem.Dispatch
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
+                if (order.IsHighestPriorityTask)
+                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfHighestPriorityOdrder(vehicle, otherAGV, finalMapPoint, ref optimizePath_Init_No_constrain), vehicle.states.Coordination.Theta);
+                else
+                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
             }
             catch (Exception ex)
             {
@@ -501,6 +505,13 @@ namespace VMSystem.Dispatch
             return result;
         }
 
+        private static List<MapPoint> GetConstrainsOfHighestPriorityOdrder(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint, ref IEnumerable<MapPoint> optimizePath_Init_No_constrain)
+        {
+            List<int> tagsOfTopPriorityOrderPath = optimizePath_Init_No_constrain.GetTagCollection().ToList();
+            List<MapPoint> exceptPoints = StaMap.Map.Points.Values.Where(pt => !tagsOfTopPriorityOrderPath.Contains(pt.TagNumber)).ToList();
+            return exceptPoints;
+
+        }
         internal static async Task SyncTrafficStateFromAGVSystemInvoke()
         {
             try

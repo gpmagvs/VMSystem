@@ -149,7 +149,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
 
-                        if (IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
+                        if (!OrderData.IsHighestPriorityTask && IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
 

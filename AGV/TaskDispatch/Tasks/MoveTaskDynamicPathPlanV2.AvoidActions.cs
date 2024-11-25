@@ -143,7 +143,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else
             {
                 //計算當前位置到終點的所有路線皆沒有被另外一台衝突車輛擋道時才繼續動作
-                await WaitPathToDestineNotConflicToYieldedVehicelAsync();
+                if (!this.OrderData.IsHighestPriorityTask)
+                    await WaitPathToDestineNotConflicToYieldedVehicelAsync();
             }
 
             subStage = Stage;
