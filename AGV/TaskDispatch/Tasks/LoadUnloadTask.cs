@@ -71,12 +71,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
-            if (ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
+            bool _isHotRun = OrderData.TaskName.ToLower().Contains("hr_");
+            if (!_isHotRun && ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
             {
                 throw new UnloadButAGVHasCargoException();
 
             }
-            if (ActionType == ACTION_TYPE.Load && !Agv.IsAGVHasCargoOrHasCargoID())
+            if (!_isHotRun && ActionType == ACTION_TYPE.Load && !Agv.IsAGVHasCargoOrHasCargoID())
             {
                 throw new LoadButAGVNoCargoException();
             }
