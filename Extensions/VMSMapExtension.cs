@@ -10,6 +10,11 @@ namespace VMSystem.Extensions
             return StaMap.GetPointByTagNumber(tagNumber)?.Graph.Display ?? string.Empty;
         }
 
+        public static bool IsRackPortStation(this int tagNumber)
+        {
+            var statationtype = StaMap.GetPointByTagNumber(tagNumber).StationType;
+            return statationtype== MapPoint.STATION_TYPE.Buffer || statationtype == MapPoint.STATION_TYPE.Charge_Buffer;
+        }
         public static bool IsEntryPointOfWorkStation(this int tagNumber, out IEnumerable<MapPoint> workStations)
         {
             workStations = new List<MapPoint>();

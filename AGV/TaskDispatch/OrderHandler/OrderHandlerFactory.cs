@@ -15,6 +15,7 @@ using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.TrafficControl;
 using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 using AGVSystemCommonNet6.DATABASE;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -99,6 +100,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             MapPoint _agv_current_map_point = _agv.currentMapPoint;
 
 
+            bool _isHotRunOrderSourceAtMainEQ = orderData.TaskName.ToLower().Contains("hr_") && !orderData.From_Station_Tag.IsRackPortStation();
+            bool _isHotRunOrderDestineAtMainEQ = orderData.TaskName.ToLower().Contains("hr_") && !orderData.To_Station_Tag.IsRackPortStation();
+
             if (IsAGVAtWorkStation(_agv))
             {
                 _queue.Enqueue(new DischargeTask(_agv, orderData, agvsDb, taskTbModifyLock));
@@ -126,7 +130,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     NextAction = ACTION_TYPE.Unload,
                     OrderTransfer = OrderTransfer
                 });
-                _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
+                if (!_isHotRunOrderDestineAtMainEQ)
+                    _queue.Enqueue(new UnloadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 return _queue;
             }
             if (orderData.Action == ACTION_TYPE.Load)
@@ -141,7 +146,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData, agvsDb, taskTbModifyLock);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
-                    _queue.Enqueue(task);
+
+                    if (!_isHotRunOrderDestineAtMainEQ)
+                        _queue.Enqueue(task);
                 }
                 else
                 {
@@ -149,7 +156,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         NextAction = ACTION_TYPE.Load
                     });
-                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
+                    if (!_isHotRunOrderDestineAtMainEQ)
+                        _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
@@ -204,10 +212,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         NextAction = ACTION_TYPE.Unload,
                         OrderTransfer = OrderTransfer
                     });
-                    _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData, agvsDb, taskTbModifyLock)
-                    {
-                        NextAction = ACTION_TYPE.None
-                    });
+                    if (!_isHotRunOrderSourceAtMainEQ)
+                        _queue.Enqueue(new UnloadAtSourceTask(_agv, orderData, agvsDb, taskTbModifyLock)
+                        {
+                            NextAction = ACTION_TYPE.None
+                        });
                 }
 
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData, agvsDb, taskTbModifyLock)
@@ -220,11 +229,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Dictionary<int, List<int>> transfer_to_from_stations = GetTransferStationTag(orderData);
                     LoadAtTransferStationTask task = new LoadAtTransferStationTask(_agv, orderData, agvsDb, taskTbModifyLock);
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
-                    _queue.Enqueue(task);
+                    if (!_isHotRunOrderDestineAtMainEQ)
+                        _queue.Enqueue(task);
                 }
                 else
                 {
-                    _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
+                    if (!_isHotRunOrderDestineAtMainEQ)
+                        _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
