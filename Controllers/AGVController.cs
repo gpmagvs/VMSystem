@@ -8,13 +8,13 @@ using Newtonsoft.Json;
 using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.AGVDispatch.Model;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.DATABASE;
 using System.Diagnostics;
 using VMSystem.TrafficControl;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using static VMSystem.AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using NLog;
 
 namespace VMSystem.Controllers
 {
@@ -68,7 +68,6 @@ namespace VMSystem.Controllers
             catch (Exception ex)
             {
                 await AlarmManagerCenter.AddAlarmAsync(ALARMS.AGV_TaskFeedback_ERROR, Equipment_Name: AGVName);
-                LOG.Critical(ex);
                 return Ok(new { ReturnCode = 1, Message = ex.Message });
             }
         }
@@ -183,11 +182,9 @@ namespace VMSystem.Controllers
         [HttpGet("CarrierVirtualID")]
         public async Task<IActionResult> GetCarrierVirtualID(string AGVName, AGV_TYPE Model = AGV_TYPE.Any)
         {
-            LOG.TRACE($"{AGVName} Query Carrier Virtual ID.");
             if (VMSManager.GetAGVByName(AGVName, out var agv))
             {
                 var virtual_id = $"UN{DateTime.Now.ToString("yyMMddHHmmssfff")}";
-                LOG.TRACE($"{AGVName} Query Carrier Virtual ID.={virtual_id}");
                 return Ok(new clsCarrierVirtualIDResponseWebAPI
                 {
                     TimeStamp = DateTime.Now,

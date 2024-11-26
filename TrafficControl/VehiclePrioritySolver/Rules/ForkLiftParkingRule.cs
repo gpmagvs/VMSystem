@@ -34,8 +34,8 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver.Rules
             NotifyServiceHelper.INFO($"叉車-{forkAGV.Name}應優先避讓至WIP PORT");
             return new PrioritySolverResult
             {
-                highPriorityVehicle = forkAGV,
-                lowPriorityVehicle = HighPriortyAGV,
+                highPriorityVehicle = HighPriortyAGV,
+                lowPriorityVehicle = forkAGV,
                 IsAvoidUseParkablePort = true,
             };
 

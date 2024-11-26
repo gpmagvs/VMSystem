@@ -7,7 +7,6 @@ using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -595,7 +594,7 @@ namespace VMSystem.AGV
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), MCSCIMService.TaskStatus.completed));
             if (v.confirm == false)
-                LOG.WARN($"{v.message}");
+                logger.Warn($"{v.message}");
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }

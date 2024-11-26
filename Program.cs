@@ -2,7 +2,6 @@
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
@@ -19,7 +18,7 @@ using VMSystem.Services;
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 {
     Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
-    Console.WriteLine("Press any key to exit...");Console.WriteLine("Press any key to exit...");
+    Console.WriteLine("Press any key to exit..."); Console.WriteLine("Press any key to exit...");
     Console.ReadKey(true);
 }
 
@@ -109,13 +108,11 @@ try
     {
         Startup.ConsoleInit();
         Startup.DBInit(builder, app);
-        Startup.LOGInstanceInit();
         Startup.VMSInit();
         Startup.StaticFileInit(app);
     }
     catch (Exception ex)
     {
-        LOG.Critical(ex);
         Thread.Sleep(3000);
         Environment.Exit(1);
     }

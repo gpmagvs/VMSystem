@@ -10,7 +10,6 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Equipment.AGV;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Microservices.VMS;
@@ -595,7 +594,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.Critical($"發送多車動態資訊至AGV- {Name} 失敗", ex);
+                logger.Fatal($"發送多車動態資訊至AGV- {Name} 失敗", ex);
             }
 
         }
@@ -621,7 +620,7 @@ namespace VMSystem.AGV
 
                     if (availabilityHelper.IDLING_TIME > 30)
                     {
-                        LOG.WARN($"{Name} IDLE時間超過設定秒數");
+                        logger.Warn($"{Name} IDLE時間超過設定秒數");
                         var taskData = new clsTaskDto
                         {
                             Action = ACTION_TYPE.Park,

@@ -3,7 +3,6 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DevicesControl;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using System.Collections.Generic;
 using System.Linq;

@@ -3,7 +3,6 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Maintainance;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.VMS;
@@ -13,6 +12,7 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop.Infrastructure;
 using Newtonsoft.Json;
+using NLog;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -39,6 +39,7 @@ namespace VMSystem.VMS
         public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
         internal static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
         internal static SemaphoreSlim AgvStateDbTableLock = new SemaphoreSlim(1, 1);
+        static Logger logger = LogManager.GetCurrentClassLogger();
         public static List<IAGV> AllAGV
         {
             get
@@ -156,7 +157,7 @@ namespace VMSystem.VMS
             }
             catch (Exception ex)
             {
-                LOG.Critical("[VMSManager.MaintainSettingInitialize] with exception" + ex);
+                logger.Error("[VMSManager.MaintainSettingInitialize] with exception" + ex);
             }
             await AGVSDbContext.SaveChangesAsync();
             void AddMaintainSettings(clsAGVStateDto vehicleState)
@@ -216,7 +217,7 @@ namespace VMSystem.VMS
                 {
                     if (await TcpServer.Connect())
                     {
-                        LOG.INFO($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
+                        logger.Info($"TCP/IP Server build done({TcpServer.IP}:{TcpServer.VMSPort})");
                     }
                     else
                     {
@@ -225,7 +226,7 @@ namespace VMSystem.VMS
                 }
                 catch (Exception ex)
                 {
-                    LOG.ERROR(ex);
+                    logger.Error(ex);
                 }
             });
             thread.Start();
@@ -442,7 +443,7 @@ namespace VMSystem.VMS
                     //先不考慮交通問題 挑一個最近的
                     StaMap.TryGetPointByTagNumber(FromStationTag, out MapPoint fromStation);
                     var distances = chargeableStations.ToDictionary(st => st.Name, st => st.CalculateDistance(fromStation.X, fromStation.Y));
-                    LOG.INFO(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray()));
+                    logger.Error(string.Join("\r\n", distances.Select(d => d.Key + "=>" + d.Value).ToArray()));
                     chargeableStations = chargeableStations.OrderBy(st => st.CalculateDistance(fromStation.X, fromStation.Y)).ToList();
                     if (chargeableStations.Count > 0)
                     {
@@ -704,12 +705,12 @@ namespace VMSystem.VMS
                 info.Location = _location;
                 if (_hasLocationChange)
                 {
-                    LOG.TRACE($"Parts AGV-{_agvName} Location change to {_location}");
+                    logger.Error($"Parts AGV-{_agvName} Location change to {_location}");
                 }
             }
             else
             {
-                LOG.TRACE($"Parts AGV-{_agvName} Location change to {_location}");
+                logger.Error($"Parts AGV-{_agvName} Location change to {_location}");
                 OthersAGVInfos.Add(_agvName, new clsAGVStatusSimple
                 {
                     Location = _location,
@@ -741,7 +742,7 @@ namespace VMSystem.VMS
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex);
+                logger.Error(ex);
                 return false;
             }
             finally

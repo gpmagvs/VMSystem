@@ -1,5 +1,4 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 

@@ -1,5 +1,4 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 
@@ -11,7 +10,7 @@ namespace VMSystem.AGV
         public override AGV_TYPE model { get; set; } = AGV_TYPE.FORK;
         public clsYunTechAGV(string name, clsAGVOptions connections) : base(name, connections)
         {
-            LOG.INFO($"AGV {name} Create. MODEL={model} ");
+            logger.Info($"AGV {name} Create. MODEL={model} ");
         }
 
     }

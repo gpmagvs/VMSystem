@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
@@ -426,7 +425,7 @@ namespace VMSystem.TrafficControl
 
         private void Log(string message)
         {
-            LOG.INFO($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
+            logger.Trace($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
         }
 
         internal void StateReset()

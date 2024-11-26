@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 
@@ -15,7 +14,6 @@ namespace VMSystem.AGV
         {
             try
             {
-                LOG.INFO($"Search 電池交換站-{action}");
                 MapPoint optimized_workstation = null;
                 ALARMS alarm_code = ALARMS.NONE;
                 if (action != ACTION_TYPE.ExchangeBattery)

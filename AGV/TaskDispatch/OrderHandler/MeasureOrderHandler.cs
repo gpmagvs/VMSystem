@@ -3,7 +3,6 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using static AGVSystemCommonNet6.clsEnums;

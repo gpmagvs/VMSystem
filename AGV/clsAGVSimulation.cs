@@ -10,14 +10,12 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
 using System.Net.Sockets;
 using System.Text;
-using AGVSystemCommonNet6.Log;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
-
-using System.Drawing;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using AGVSystemCommonNet6.DATABASE;
+using NLog;
 
 namespace VMSystem.AGV
 {
@@ -26,6 +24,7 @@ namespace VMSystem.AGV
     /// </summary>
     public partial class clsAGVSimulation : IDisposable
     {
+        Logger logger = LogManager.GetLogger("AGVSimulationLog");
         private IAGV agv => dispatcherModule.agv;
         private double[] batteryLevelSim = new double[] { 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
@@ -90,7 +89,7 @@ namespace VMSystem.AGV
                 if (_waitReplanflag != value)
                 {
                     _waitReplanflag = value;
-                    LOG.TRACE($"{agv.Name} Replan Flag change to {value}");
+                    logger.Trace($"{agv.Name} Replan Flag change to {value}");
                 }
             }
         }

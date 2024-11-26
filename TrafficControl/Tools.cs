@@ -5,8 +5,6 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Numerics;
 using VMSystem.VMS;
-using AGVSystemCommonNet6.Log;
-
 using AGVSystemCommonNet6.Configuration;
 using System.Linq;
 using AGVSystemCommonNet6;
@@ -42,24 +40,6 @@ namespace VMSystem.TrafficControl
     public class Tools
     {
         public static clsInterferenceCalculateParameters Parameters { get; set; } = new clsInterferenceCalculateParameters();
-
-        public static void LoadParametersFromJsonFile(string jsonFilePath)
-        {
-            if (File.Exists(jsonFilePath))
-            {
-                try
-                {
-                    Parameters = JsonConvert.DeserializeObject<clsInterferenceCalculateParameters>(File.ReadAllText(jsonFilePath));
-                }
-                catch (Exception ex)
-                {
-                    LOG.Critical($"Read Navi Tools Parameters fail. {ex.Message}:{ex.StackTrace}");
-                }
-            }
-
-            File.WriteAllText(jsonFilePath, Parameters.ToJson());
-        }
-
         public static bool CalculatePathInterference(IEnumerable<MapPoint> _Path, IAGV _UsePathAGV, out IEnumerable<IAGV> ConflicAGVList, bool IsAGVBackward, double expandRatio = 1)
         {
             if (_Path.Count() == 0)

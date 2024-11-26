@@ -5,7 +5,6 @@ using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.VMS;
 using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using static AGVSystemCommonNet6.MAP.MapPoint;
 using static AGVSystemCommonNet6.clsEnums;
@@ -81,7 +80,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 charge.To_Station = "-1";
                 charge.State = TASK_RUN_STATUS.WAIT;
                 VMSManager.HandleTaskDBChangeRequestRaising(this, charge);
-                LOG.INFO($"AUTO Charge task added {charge}");
             });
         }
 

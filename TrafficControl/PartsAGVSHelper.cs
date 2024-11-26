@@ -9,8 +9,8 @@ using System.Text;
 using System.Threading.Tasks;
 using AGVSystemCommonNet6.Microservices.VMS;
 using static AGVSystemCommonNet6.Microservices.VMS.clsPartsAGVSRegionRegistService.RegistEventObject;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6;
+using NLog;
 
 namespace VMSystem.TrafficControl
 {
@@ -26,7 +26,7 @@ namespace VMSystem.TrafficControl
         public static bool NeedRegistRequestToParts = false;
         public static int port = 433;
         public static string PartsServerIP = "127.0.0.1";
-
+        static Logger Logger = LogManager.GetCurrentClassLogger();
         public static void LoadParameters(string FilePath)
         {
             var Parameters = new PartAGVConnectParameters();
@@ -59,13 +59,13 @@ namespace VMSystem.TrafficControl
                 retryNum++;
                 if (retryNum >= 5)
                 {
-                    LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                    Logger.Error($"Unregist Points to Parts System FAILURE...TIMEOUT");
                     return (false, "Unregist Points to Parts System FAILURE...TIMEOUT", "");
                 }
                 await Task.Delay(500);
                 result = await parts_service.Regist(AGVName, List_RegistNames);
             }
-            LOG.INFO($"Regist Points to Parts System Result: {result.ToJson()}");
+            Logger.Info($"Regist Points to Parts System Result: {result.ToJson()}");
             return result;
         }
 
@@ -83,19 +83,19 @@ namespace VMSystem.TrafficControl
                 var QueryResult = await parts_service.Query();
                 var RegistedInfo = QueryResult.Item2;
                 var toUnRegistNames = RegistedInfo.Where(keypair => keypair.Value == AGVName && !ExceptStationNames.Contains(keypair.Key)).Select(kp => kp.Key);
-                LOG.TRACE($"[UnRegistStationExceptSpeficStationName] To UnRegist Names :{toUnRegistNames.ToJson()}");
+                Logger.Trace($"[UnRegistStationExceptSpeficStationName] To UnRegist Names :{toUnRegistNames.ToJson()}");
                 if (toUnRegistNames.Count() == 0)
                 {
                     return true;
                 }
                 var result = await parts_service.Unregist(AGVName, toUnRegistNames.ToList());
                 var success = result.accept;
-                LOG.INFO($"UnRegist Region Expect {string.Join(",", ExceptStationNames)}, Success?..{success}");
+                Logger.Info($"UnRegist Region Expect {string.Join(",", ExceptStationNames)}, Success?..{success}");
                 return success;
             }
             catch (Exception ex)
             {
-                LOG.WARN($"{ex.Message}");
+                Logger.Error($"{ex.Message}");
 
                 return false;
             }
@@ -118,13 +118,13 @@ namespace VMSystem.TrafficControl
                     retryNum++;
                     if (retryNum >= 5)
                     {
-                        LOG.Critical($"Unregist Points to Parts System FAILURE...TIMEOUT");
+                        Logger.Fatal($"Unregist Points to Parts System FAILURE...TIMEOUT");
                         return false;
                     }
                     await Task.Delay(500);
                     result = await parts_service.Unregist(AGVName, List_UnRegistName);
                 }
-                LOG.INFO($"Unregist Points to Parts System Result: {result.ToJson()}");
+                Logger.Info($"Unregist Points to Parts System Result: {result.ToJson()}");
                 return result.accept;
             });
         }

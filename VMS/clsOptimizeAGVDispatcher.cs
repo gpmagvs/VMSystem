@@ -2,11 +2,11 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using Microsoft.EntityFrameworkCore;
+using NLog;
 using System.Collections.Concurrent;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
@@ -20,6 +20,9 @@ namespace VMSystem.VMS
     public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
     {
         public List<string> NoAcceptRandomCarryHotRunAGVNameList { get; set; } = new List<string>();
+
+        Logger logger = LogManager.GetLogger("OptimizeAGVDispatcher");
+
         public override async Task Run()
         {
             TaskAssignWorker();
@@ -76,7 +79,7 @@ namespace VMSystem.VMS
                             }
                             (bool confirm, string message) mcs = await AGVSSerivces.TaskReporter((_taskDto, MCSCIMService.TaskStatus.wait_to_assign));
                             if (mcs.confirm == false)
-                                LOG.WARN($"{mcs.message}");
+                                logger.Warn($"{mcs.message}");
                             IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
                             if (AGV == null)
                                 continue;
@@ -89,7 +92,7 @@ namespace VMSystem.VMS
 
                             (bool confirm, string message) tr = await AGVSSerivces.TaskReporter((_taskDto, MCSCIMService.TaskStatus.assgined));
                             if (tr.confirm == false)
-                                LOG.WARN($"{tr.message}");
+                                logger.Warn($"{tr.message}");
                             using (AGVSDatabase db = new AGVSDatabase())
                             {
                                 var model = db.tables.Tasks.First(tk => tk.TaskName == _taskDto.TaskName);
@@ -106,7 +109,7 @@ namespace VMSystem.VMS
 
                 catch (Exception ex)
                 {
-                    LOG.ERROR(ex);
+                    logger.Error(ex);
                     continue;
                 }
             }

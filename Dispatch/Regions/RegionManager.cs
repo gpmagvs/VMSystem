@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using NLog;
@@ -140,6 +139,9 @@ namespace VMSystem.Dispatch.Regions
                         UpdateVehicleConflicTo(agv, region);
                         agv.NavigationState.IsWaitingConflicSolve = agv.NavigationState.currentConflicToAGV != null;
                         await Task.Delay(100, cancelRefreshConflicVehicleStateToskSource.Token);
+                        TaskBase currentTask = agv.CurrentRunningTask();
+                        if (currentTask.IsTaskCanceled)
+                            break;
                         agv.CurrentRunningTask().UpdateMoveStateMessage($"等待-{region.Name}可進入(等待[{agv.NavigationState.currentConflicToAGV?.Name}離開])");
 
                     }

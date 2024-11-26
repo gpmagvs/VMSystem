@@ -5,7 +5,6 @@ using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using MessagePack;
@@ -901,7 +900,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return;
 
 
-            LOG.TRACE($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
+            logger.Trace($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
 
             _previsousTrajectorySendToAGV.Clear();
             List<MapPoint> _trajPath = new List<MapPoint>() {

@@ -3,7 +3,6 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
@@ -41,7 +40,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
             if (v.confirm == false)
-                LOG.WARN($"{v.message}");
+                logger.Warn($"{v.message}");
             if (OrderData.need_change_agv)
             {
                 // TODO 把可用的轉換站存在這listTransferStation

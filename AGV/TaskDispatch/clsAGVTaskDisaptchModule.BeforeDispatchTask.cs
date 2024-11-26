@@ -3,7 +3,6 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using Microsoft.EntityFrameworkCore;
@@ -36,14 +35,14 @@ namespace VMSystem.AGV
             bool _isAutoSearch = tag == -1 && (_ExecutingTask.Action == ACTION_TYPE.Park || _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge || _ExecutingTask.Action == ACTION_TYPE.ExchangeBattery);
             if (!_isAutoSearch)
                 return (true, ALARMS.NONE);
-            LOG.INFO($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
+            logger.Info($"Auto Search Optimized Workstation to {_ExecutingTask.Action}");
 
             (bool confirm, MapPoint workstation, ALARMS alarm_code) = await SearchDestineStation(_ExecutingTask.Action);
             if (!confirm)
             {
                 return (false, _alarm_code);
             }
-            LOG.INFO($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
+            logger.Info($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
             _ExecutingTask.To_Station = workstation.TagNumber.ToString();
             return (true, ALARMS.NONE);
         }
@@ -167,7 +166,7 @@ namespace VMSystem.AGV
                 }
                 catch (Exception ex)
                 {
-                    LOG.ERROR(ex.Message, ex);
+                    logger.Error(ex.Message, ex);
                     return (false, null, ALARMS.NO_AVAILABLE_CHARGE_PILE);
                 }
             }

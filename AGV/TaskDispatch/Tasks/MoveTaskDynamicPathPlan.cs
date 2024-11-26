@@ -9,11 +9,9 @@ using AGVSystemCommonNet6.Alarm;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 using System.Numerics;
 using System.Drawing;
-using AGVSystemCommonNet6.Log;
 using VMSystem.TrafficControl;
 using System.Runtime.CompilerServices;
 using System.Diagnostics.Eventing.Reader;
-
 using AGVSystemCommonNet6.Microservices.VMS;
 using VMSystem.VMS;
 using System.Diagnostics;
@@ -83,7 +81,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         if (_lastNextPath.Count != 0 && !nextPath.Contains(_lastNextPath.Last()))
                         {
-                            LOG.Critical($"Replan . Use other path");
+                            logger.Fatal($"Replan . Use other path");
                             await base.SendCancelRequestToAGV();
                             while (Agv.main_state != clsEnums.MAIN_STATUS.IDLE)
                             {
@@ -184,7 +182,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         MoveTaskEvent = new clsMoveTaskEvent(Agv, optimzePath.tags, nextPath, OrderData.IsTrafficControlTask);
 
 
-                        LOG.Critical($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
+                        logger.Fatal($"Send Task To AGV when AGV last visited Tag = {Agv.states.Last_Visited_Node}");
 
 
                         (TaskDownloadRequestResponse _result, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(_taskDownloadData);
@@ -237,7 +235,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (isNextStopIsFinal && (OrderData.Action == ACTION_TYPE.None || OrderData.Action == ACTION_TYPE.ExchangeBattery))
                         {
-                            LOG.WARN($"Next path goal is destine, park");
+                            logger.Warn($"Next path goal is destine, park");
                             return;
                         }
 
@@ -281,7 +279,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 catch (OperationCanceledException ex)
                 {
-                    LOG.WARN($"任務-{OrderData.ActionName}(ID:{OrderData.TaskName} )已取消");
+                    logger.Warn($"任務-{OrderData.ActionName}(ID:{OrderData.TaskName} )已取消");
 
                 }
                 catch (Exception ex)
@@ -351,7 +349,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             bool _waitMovePauseResume = movePause;
 
-            LOG.WARN($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
+            logger.Warn($"[WaitAGVReachNexCheckPoint] WAIT {Agv.Name} Reach-{nextCheckPoint.TagNumber}");
             bool _remainPathConflic = false;
             bool _isAGVAlreadyGoal = IsAGVReachGoal(nextCheckPoint.TagNumber);
             if (_isAGVAlreadyGoal && _waitMovePauseResume)

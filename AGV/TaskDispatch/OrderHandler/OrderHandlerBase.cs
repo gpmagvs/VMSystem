@@ -4,7 +4,6 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -412,7 +411,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
             if (v.confirm == false)
-                LOG.WARN($"{v.message}");
+                logger.Warn($"{v.message}");
 
             await Task.Delay(300);
 
@@ -478,7 +477,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 ModifyOrder(OrderData);
                 (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
                 if (v.confirm == false)
-                    LOG.WARN($"{v.message}");
+                    logger.Warn($"{v.message}");
 
 
                 if (OrderData.Action == ACTION_TYPE.Carry)
