@@ -61,6 +61,14 @@ namespace VMSystem.Dispatch
                 path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
                 if (path == null)
                     return null;
+
+                //if (!TrafficControlCenter.TrafficControlParameters.Experimental.NearRackPortParkable)
+                //{
+                //    path = GetPathWithDestineWorkStationNearbyStatucCheck(vehicle, path);
+                //    if (path == null)
+                //        return null;
+                //}
+
                 path = taskDto.IsHighestPriorityTask ? path : GetPathNavToTrafficCheckPoint(vehicle, path);
                 if (path == null)
                     return null;
@@ -93,6 +101,37 @@ namespace VMSystem.Dispatch
                 await Task.Delay(10);
                 semaphore.Release();
             }
+        }
+
+
+        private static IEnumerable<MapPoint>? GetPathWithDestineWorkStationNearbyStatucCheck(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
+            //判斷目的地包含有工作站之鄰近點是否有車
+            MapPoint workStationPt = vehicle.GetNextWorkStationTag().GetMapPoint();
+
+            //若目的地是一般點位，檢查當前路徑是否已包含目的地
+            if (workStationPt.StationType == MapPoint.STATION_TYPE.Normal && !path.Any(pt => pt.TagNumber == workStationPt.TagNumber))
+                return path;
+
+            //若目的地是工作站點，檢查當前路徑是否已包含工作站進入點
+            if (workStationPt.StationType != MapPoint.STATION_TYPE.Normal && !workStationPt.TargetNormalPoints().Any(pt => path.GetTagCollection().Contains(pt.TagNumber)))
+                return path;
+            List<MapPoint> nearbyWorkStations = workStationPt.GetNearByWorkStationAndEntryPoint();
+            if (!nearbyWorkStations.Any())
+                return path;
+
+            List<MapPoint> ptToCheckVehicleExist = new List<MapPoint>();
+            ptToCheckVehicleExist.AddRange(nearbyWorkStations);
+            foreach (var item in nearbyWorkStations)
+                ptToCheckVehicleExist.AddRange(item.TargetNormalPoints());
+            if (ptToCheckVehicleExist.Any(pt => otherVehicles.Any(v => v.currentMapPoint.TagNumber == pt.TagNumber)))
+            {
+                vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"鄰近點不可停車，所以需等待其他車輛離開...");
+                return null;
+            }
+            return path;
+
         }
 
         private static IEnumerable<MapPoint>? GetPathWithDestineWorkStationStatusCheck(IAGV vehicle, IEnumerable<MapPoint>? path)
