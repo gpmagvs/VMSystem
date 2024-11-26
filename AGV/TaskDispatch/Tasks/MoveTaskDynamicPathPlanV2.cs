@@ -118,7 +118,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
-                if (Stage != VehicleMovementStage.AvoidPath && Stage != VehicleMovementStage.AvoidPath_Park)
+                if (Stage != VehicleMovementStage.AvoidPath && Stage != VehicleMovementStage.AvoidPath_Park && subStage == VehicleMovementStage.Traveling_To_Destine || subStage == VehicleMovementStage.Traveling_To_Source)
                     Agv.NavigationState.StateReset();
 
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
@@ -149,7 +149,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
 
-                        if (!OrderData.IsHighestPriorityTask && IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
+                        if (!OrderData.IsHighestPriorityTask && !Agv.NavigationState.AvoidActionState.IsAvoidRaising && IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
 
@@ -190,7 +190,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         else
                             dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
-                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                         {
                             //if (SecondaryPathSearching)//表示第二路徑也沒有辦法通行
                             //{
@@ -660,9 +660,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
                         var agvInWaitingRegion = OtherAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == waitingRegion.Name ||
                                               agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == waitingRegion.Name));
-                        UpdateMoveStateMessage($"等待-{waitingRegion.Name}可進入(等待[{Agv.NavigationState.currentConflicToAGV?.Name}離開])");
                         await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
-                        subStage = Stage;
+                        subStage = Agv.NavigationState.AvoidActionState.IsAvoidRaising ? subStage : Stage;
                         await SendTaskToAGV(this.finalMapPoint);
 
                     }
