@@ -158,6 +158,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     });
                     if (!_isHotRunOrderDestineAtMainEQ)
                         _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
+                    else
+                        _queue.Enqueue(new VehicleCargoRemoveRequestTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
@@ -231,11 +233,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     task.dict_Transfer_to_from_tags = transfer_to_from_stations;
                     if (!_isHotRunOrderDestineAtMainEQ)
                         _queue.Enqueue(task);
+                    else
+                        _queue.Enqueue(new VehicleCargoRemoveRequestTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 else
                 {
                     if (!_isHotRunOrderDestineAtMainEQ)
                         _queue.Enqueue(new LoadAtDestineTask(_agv, orderData, agvsDb, taskTbModifyLock));
+                    else
+                        _queue.Enqueue(new VehicleCargoRemoveRequestTask(_agv, orderData, agvsDb, taskTbModifyLock));
                 }
                 return _queue;
             }
