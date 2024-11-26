@@ -498,5 +498,6 @@ namespace VMSystem.TrafficControl
         public REGION_CONTROL_STATE State { get; set; } = REGION_CONTROL_STATE.NONE;
         public MapRegion NextToGoRegion { get; set; } = new();
         public bool IsWaitingForEntryRegion { get; internal set; }
+        public ManualResetEvent CurrentAllowEnterRegionSignal { get; internal set; }
     }
 }
