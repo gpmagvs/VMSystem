@@ -9,7 +9,7 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver
 {
     public class StandardVehiclePriorityResolver : BaseVehiclePriorityResolver
     {
-        public  Dictionary<ACTION_TYPE, int> OrderActionWeightsMap = new Dictionary<ACTION_TYPE, int>
+        public Dictionary<ACTION_TYPE, int> OrderActionWeightsMap = new Dictionary<ACTION_TYPE, int>
         {
             { ACTION_TYPE.Carry , 1000 },
             { ACTION_TYPE.Unload , 900 },
@@ -24,6 +24,7 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver
         {
             _priorityRules = new List<IPriorityRule>{
                 new HighestPriorityTaskRule(),
+                new WaitingForEnterRegionRule(),
                 new ForkLiftParkingRule(),
                 new DestinationBlockingRule()
             };
@@ -54,7 +55,7 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver
             };
         }
 
-        public  int CalculateWeights(IAGV vehicle)
+        public int CalculateWeights(IAGV vehicle)
         {
             var currentOrderHandler = vehicle.CurrentOrderHandler();
             var runningTask = currentOrderHandler.RunningTask;
