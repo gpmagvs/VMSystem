@@ -17,7 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class TransferOrderHandler : OrderHandlerBase
     {
-        public TransferOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public TransferOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

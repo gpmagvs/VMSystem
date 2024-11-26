@@ -775,12 +775,12 @@ namespace VMSystem.VMS
             return (true, "");
         }
 
-        internal static void StopDeepCharge(string agvName)
+        internal static void StopDeepCharge(string agvName, bool isAuto)
         {
             IAGV Vehicle = GetAGVByName(agvName);
             if (Vehicle == null)
                 return;
-            Vehicle.StopDeepCharge();
+            Vehicle.StopDeepCharge(isAuto);
         }
 
         /// <summary>

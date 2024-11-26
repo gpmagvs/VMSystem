@@ -71,7 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             logger = LogManager.GetLogger("OrderHandle");
         }
-        public OrderHandlerBase(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public OrderHandlerBase(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
             logger = LogManager.GetLogger("OrderHandle");
         }
@@ -188,7 +188,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
-
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
                     ModifyOrder(OrderData);

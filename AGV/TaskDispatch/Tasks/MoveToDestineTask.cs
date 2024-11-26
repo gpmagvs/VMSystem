@@ -19,7 +19,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public MoveToDestineTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
-        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

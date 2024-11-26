@@ -10,7 +10,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public ChargeTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
-        public ChargeTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public ChargeTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

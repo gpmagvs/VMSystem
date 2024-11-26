@@ -1,5 +1,7 @@
 ﻿using AGVSystemCommonNet6.Alarm;
 using System.Diagnostics;
+using System.Text;
+using static AGVSystemCommonNet6.GPMRosMessageNet.Services.EquipmentStateRequest;
 
 namespace VMSystem.AGV
 {
@@ -49,17 +51,23 @@ namespace VMSystem.AGV
             }
         }
 
+        public DeepChargeRecorder? Recorder { get; internal set; }
+
         public void StartDeepCharging()
         {
             _IsDeepCharging = true;
             _DeepChargeStopWatcher.Restart();
+            Recorder?.StartDeepCharge();
             AlarmManagerCenter.SetAlarmCheckedAsync(Agv.Name, ALARMS.AGV_Battery_SOC_Distortion);
         }
 
-        public void StopDeepCharging()
+        public void StopDeepCharging(bool isAuto)
         {
             _IsDeepCharging = false;
             _DeepChargeStopWatcher.Stop();
+            var endBy = isAuto ? AGVSystemCommonNet6.Equipment.AGV.DeepChargeRecord.DEEP_CHARGE_TRIGGER_MOMENT.AUTO : AGVSystemCommonNet6.Equipment.AGV.DeepChargeRecord.DEEP_CHARGE_TRIGGER_MOMENT.MANUAL;
+            Recorder?.EndDeepCharge(endBy);
+            Recorder = null;
         }
 
         public bool GetIsDeepCharging()

@@ -30,7 +30,7 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver.Rules
             if (forkAGV == null || !GetParkablePointOfAGVInRegion(forkAGV).Any())
                 return null;
 
-            IAGV HighPriortyAGV = _vehicles.Count == 1 ? null : _vehicles.First(v => v != forkAGV);
+            IAGV HighPriortyAGV = deadlockedVehicles.First(v => v != forkAGV);
             NotifyServiceHelper.INFO($"叉車-{forkAGV.Name}應優先避讓至WIP PORT");
             return new PrioritySolverResult
             {

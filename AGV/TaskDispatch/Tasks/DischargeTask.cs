@@ -15,7 +15,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public DischargeTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
-        public DischargeTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public DischargeTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

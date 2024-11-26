@@ -21,7 +21,7 @@ namespace VMSystem.TrafficControl.VehiclePrioritySolver.Rules
             {
                 lowPriorityVehicle = lowPriorityVehicle,
                 highPriorityVehicle = highPriorityVehicle,
-                IsAvoidUseParkablePort = parkToRackPrioty.IsAvoidUseParkablePort && !lowPriorityVehicle.IsAGVHasCargoOrHasCargoID(),
+                IsAvoidUseParkablePort = parkToRackPrioty == null ? false : parkToRackPrioty.IsAvoidUseParkablePort && !lowPriorityVehicle.IsAGVHasCargoOrHasCargoID(),
                 IsWaitingEnterRegionVehicleShouldYield = true
             };
         }

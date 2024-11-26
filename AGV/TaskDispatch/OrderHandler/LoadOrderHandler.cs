@@ -13,7 +13,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class LoadOrderHandler : OrderHandlerBase
     {
         public LoadOrderHandler() : base() { }
-        public LoadOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public LoadOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

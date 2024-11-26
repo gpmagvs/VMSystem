@@ -34,7 +34,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
         /// </summary>
         /// <param name="agv">車輛</param>
         /// <param name="order">任務訂單</param>
-        public DestineChangeBase(IAGV agv, clsTaskDto order, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(db, taskTableLocker)
+        public DestineChangeBase(IAGV agv, clsTaskDto order, SemaphoreSlim taskTableLocker) : base(taskTableLocker)
         {
             this.agv = agv;
             this.order = order;

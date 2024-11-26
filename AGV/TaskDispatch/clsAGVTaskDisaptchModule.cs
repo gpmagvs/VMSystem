@@ -516,13 +516,18 @@ namespace VMSystem.AGV
                                 agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                                 _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
                                 //await ExecuteTaskAsync(_ExecutingTask);
+
+                                if (OrderHandler.OrderAction == ACTION_TYPE.DeepCharge)
+                                {
+                                    DeepChargeRecorder deepChargeRecorder = new DeepChargeRecorder(this.agv, OrderHandler.OrderData.TaskName);
+                                    this.agv.UpdateDeepChargeRecorder(deepChargeRecorder);
+                                }
                                 OrderHandler.StartOrder(agv);
                                 OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
                                 OrderHandler.OnOrderFinish += OrderHandler_OnOrderFinish;
                                 if (_ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge)
                                 {
                                     (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
-                                    agv.StopDeepCharge();
                                 }
                                 OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
                                 // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
@@ -605,7 +610,8 @@ namespace VMSystem.AGV
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)
         {
-
+            if (orderHandler.OrderData.Action == ACTION_TYPE.DeepCharge)
+                agv.StartDeepCharging();
             orderHandler.onAGVChargeOrderDone -= HandleAGVChargeTaskRedoRequest;
             if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != MAIN_STATUS.Charging)
                 return;
@@ -645,10 +651,6 @@ namespace VMSystem.AGV
             {
                 orderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
                 _IsChargeStatesChecking = false;
-                if (orderHandler.OrderData.Action == ACTION_TYPE.DeepCharge)
-                    agv.StartDeepCharging();
-                else
-                    agv.StopDeepCharge();
             }
 
         }

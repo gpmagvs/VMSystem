@@ -30,7 +30,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected List<clsMapPoint> _previsousTrajectorySendToAGV = new List<clsMapPoint>();
         public MoveTaskDynamicPathPlan() : base() { }
         public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData) { }
-        public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public MoveTaskDynamicPathPlan(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

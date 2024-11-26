@@ -7,7 +7,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class ExchangeBatteryTask : ChargeTask
     {
-        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

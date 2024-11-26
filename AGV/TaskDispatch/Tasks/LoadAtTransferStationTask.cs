@@ -11,7 +11,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     {
         public Dictionary<int, List<int>> dict_Transfer_to_from_tags = new Dictionary<int, List<int>>();
 
-        public LoadAtTransferStationTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public LoadAtTransferStationTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

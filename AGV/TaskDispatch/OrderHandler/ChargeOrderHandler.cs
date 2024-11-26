@@ -14,7 +14,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class ChargeOrderHandler : OrderHandlerBase
     {
         public ChargeOrderHandler() : base() { }
-        public ChargeOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public ChargeOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 
@@ -88,10 +88,24 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
     }
 
+    public class DeepChargeOrderHandler : ChargeOrderHandler
+    {
+        public DeepChargeOrderHandler()
+        {
+        }
+
+        public DeepChargeOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
+        {
+        }
+
+        public override ACTION_TYPE OrderAction => ACTION_TYPE.DeepCharge;
+    }
+
+
     public class ExchangeBatteryOrderHandler : OrderHandlerBase
     {
         public ExchangeBatteryOrderHandler() : base() { }
-        public ExchangeBatteryOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public ExchangeBatteryOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

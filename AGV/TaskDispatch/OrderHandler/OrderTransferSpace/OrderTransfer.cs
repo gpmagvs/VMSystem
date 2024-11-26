@@ -39,7 +39,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 }
             }
         }
-        public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(db, taskTableLocker)
+        public OrderTransfer(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, SemaphoreSlim taskTableLocker) : base(taskTableLocker)
         {
             this.orderOwner = orderOwner;
             this.order = order;

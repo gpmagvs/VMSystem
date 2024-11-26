@@ -14,7 +14,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class UnloadAtSourceTask : LoadUnloadTask
     {
-        public UnloadAtSourceTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public UnloadAtSourceTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

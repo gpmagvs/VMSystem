@@ -18,7 +18,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         private readonly MapPoint TargetWorkStationMapPoint;
         private static SemaphoreSlim betterVehicleFindSemaphose = new SemaphoreSlim(1, 1);
 
-        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(orderOwner, order, configuration, db, taskTableLocker)
+        public TransferOrderToOtherVehicleMonitor(IAGV orderOwner, clsTaskDto order, OrderTransferConfiguration configuration, SemaphoreSlim taskTableLocker) : base(orderOwner, order, configuration, taskTableLocker)
         {
             if (order.Action == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Carry)
                 TargetWorkStationMapPoint = StaMap.GetPointByTagNumber(order.From_Station_Tag);

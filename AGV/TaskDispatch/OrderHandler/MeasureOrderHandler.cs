@@ -13,7 +13,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class MeasureOrderHandler : OrderHandlerBase
     {
         public MeasureOrderHandler() : base() { }
-        public MeasureOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public MeasureOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

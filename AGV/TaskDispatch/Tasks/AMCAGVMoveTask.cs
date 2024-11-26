@@ -61,7 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public ELEVATOR_ENTRY_STATUS ElevatorStatus { get; set; } = ELEVATOR_ENTRY_STATUS.NO_PASS_ELEVATOR;
         private MapPoint EntryPointOfElevator;
 
-        public AMCAGVMoveTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public AMCAGVMoveTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
         }

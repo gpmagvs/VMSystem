@@ -17,7 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        public MoveToSourceTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public MoveToSourceTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

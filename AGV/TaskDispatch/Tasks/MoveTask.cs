@@ -29,7 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected MoveTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
-        protected MoveTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        protected MoveTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();

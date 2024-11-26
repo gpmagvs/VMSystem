@@ -7,6 +7,7 @@ using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using AGVSystemCommonNet6.Equipment.AGV;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.Log;
@@ -89,7 +90,6 @@ namespace VMSystem.AGV
         public static event EventHandler<(IAGV agv, double currentMileage)> OnMileageChanged;
         public event EventHandler<string> OnTaskCancel;
         public event EventHandler OnAGVStatusDown;
-
         public IAGV.BATTERY_STATUS batteryStatus
         {
             get
@@ -1025,15 +1025,22 @@ namespace VMSystem.AGV
             deepCharger.StartDeepCharging();
         }
 
-        public void StopDeepCharge()
+        public void StopDeepCharge(bool isAuto)
         {
-            deepCharger.StopDeepCharging();
+            deepCharger.StopDeepCharging(isAuto);
         }
 
         public bool IsDeepChargeRequired()
         {
             int _socAlarm = 56780;
             return states.Alarm_Code.Any(al => al.Alarm_ID == _socAlarm);
+        }
+
+        public void UpdateDeepChargeRecorder(DeepChargeRecorder recoder)
+        {
+            if (deepCharger.Recorder != null)
+                deepCharger.StopDeepCharging(true);
+            deepCharger.Recorder = recoder;
         }
     }
 }

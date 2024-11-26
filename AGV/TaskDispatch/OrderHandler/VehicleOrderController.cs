@@ -8,16 +8,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class VehicleOrderController
     {
 
-        public readonly AGVSDbContext agvsDb;
+        public AGVSDbContext agvsDb;
         public readonly SemaphoreSlim tasksTableDbLock;
-        public VehicleOrderController(AGVSDbContext db, SemaphoreSlim taskTableLocker)
+        public VehicleOrderController(SemaphoreSlim taskTableLocker)
         {
-            agvsDb = db;
             tasksTableDbLock = taskTableLocker;
         }
 
         public async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason)
         {
+            agvsDb = new AGVSDatabase().tables;
             await agv.CancelTaskAsync(order.TaskName, reason);
             return await WaitOwnerVehicleIdle(agv);
         }

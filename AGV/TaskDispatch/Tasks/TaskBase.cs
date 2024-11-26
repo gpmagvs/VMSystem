@@ -30,7 +30,7 @@ using VMSystem.Extensions;
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
 
-    public abstract class TaskBase : clsTaskDatabaseWriteableAbstract, IDisposable
+    public abstract class TaskBase : clsTaskDatabaseWriteableAbstract
     {
         public delegate Task<clsMoveTaskEvent> BeforeMoveToNextGoalDelegate(clsMoveTaskEvent args);
         public static BeforeMoveToNextGoalDelegate BeforeMoveToNextGoalTaskDispatch;
@@ -83,7 +83,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             logger = LogManager.GetLogger("TaskDispatch");
         }
-        public TaskBase(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public TaskBase(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
             this.Agv = Agv;
             this.OrderData = orderData;
@@ -388,8 +388,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
         public CancellationTokenSource TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
-        protected bool disposedValue;
-
         public virtual void UpdateStateDisplayMessage(string msg)
         {
             TrafficWaitingState.SetDisplayMessage(msg);
@@ -616,34 +614,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public void PathConflicSolveRequestInvoke(PathConflicRequest request)
         {
             TaskBase.OnPathConflicForSoloveRequest?.Invoke(this, request);
-        }
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: 處置受控狀態 (受控物件)
-                }
-
-                // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
-                // TODO: 將大型欄位設為 Null
-                disposedValue = true;
-            }
-        }
-
-        // // TODO: 僅有當 'Dispose(bool disposing)' 具有會釋出非受控資源的程式碼時，才覆寫完成項
-        // ~TaskBase()
-        // {
-        //     // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
-        //     Dispose(disposing: false);
-        // }
-
-        public void Dispose()
-        {
-            // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
         }
 
         internal virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)

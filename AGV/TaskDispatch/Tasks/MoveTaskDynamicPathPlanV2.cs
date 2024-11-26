@@ -944,7 +944,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
         }
 
-        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
             StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
         }

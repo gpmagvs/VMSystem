@@ -7,7 +7,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class MoveToOrderHandler : OrderHandlerBase
     {
         public MoveToOrderHandler() : base() { }
-        public MoveToOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public MoveToOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

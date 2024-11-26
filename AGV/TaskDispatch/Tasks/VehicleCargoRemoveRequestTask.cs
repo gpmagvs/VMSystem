@@ -15,7 +15,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        public VehicleCargoRemoveRequestTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public VehicleCargoRemoveRequestTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
         internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
@@ -25,6 +25,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         private async Task RemoveCarrierRequest()
         {
+            if (Agv.options.Simulation)
+            {
+                Agv.AgvSimulation.RemoveCargo();
+                return;
+            }
             //http://10.22.141.215:7025/api/VMS/RemoveCassette
             var response = await Agv.AGVHttp.PostAsync($"/api/VMS/RemoveCassette", null);
             logger.Debug(response);

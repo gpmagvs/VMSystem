@@ -135,7 +135,7 @@ namespace VMSystem.Controllers
         [HttpPost("StopDeepCharge")]
         public async Task StopDeepCharge(string agvName)
         {
-            VMSManager.StopDeepCharge(agvName);
+            VMSManager.StopDeepCharge(agvName, false);
         }
     }
 }

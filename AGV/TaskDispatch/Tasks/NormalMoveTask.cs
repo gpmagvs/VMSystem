@@ -5,7 +5,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class NormalMoveTask : MoveTaskDynamicPathPlan
     {
-        public NormalMoveTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        public NormalMoveTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

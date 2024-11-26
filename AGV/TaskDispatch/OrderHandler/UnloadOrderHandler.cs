@@ -13,7 +13,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
         }
 
-        public UnloadOrderHandler(AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(agvsDb, taskTbModifyLock)
+        public UnloadOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
         }
 

@@ -143,7 +143,7 @@ namespace VMSystem.Dispatch
             try
             {
                 solverResult = DeterminPriorityOfVehicles(DeadLockVehicles);
-                if (solverResult == null)
+                if (solverResult == null || solverResult.lowPriorityVehicle == null || solverResult.highPriorityVehicle == null)
                     return null;
                 if (solverResult.IsAvoidUseParkablePort)
                 {
@@ -238,7 +238,8 @@ namespace VMSystem.Dispatch
 
         internal static MapPoint GetParkableStationOfCurrentRegion(IAGV agvToPark)
         {
-
+            if (agvToPark == null)
+                return null;
             bool _isAGVHasCargo = agvToPark.states.Cargo_Status == 1 || agvToPark.states.CSTID.Any(_id => !_id.IsNullOrEmpty());
             if (_isAGVHasCargo)
                 return null;

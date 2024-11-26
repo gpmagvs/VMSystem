@@ -9,7 +9,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
     public class ChargeStationChanger : DestineChangeBase
     {
 
-        public ChargeStationChanger(IAGV agv, clsTaskDto order, AGVSDbContext db, SemaphoreSlim taskTableLocker) : base(agv, order, db, taskTableLocker)
+        public ChargeStationChanger(IAGV agv, clsTaskDto order, SemaphoreSlim taskTableLocker) : base(agv, order, taskTableLocker)
         {
         }
 

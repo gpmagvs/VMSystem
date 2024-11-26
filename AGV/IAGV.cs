@@ -95,7 +95,9 @@ namespace VMSystem.AGV
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
         Task CancelTaskAsync(string task_name, string reason);
         void StartDeepCharging();
-        void StopDeepCharge();
+        void StopDeepCharge(bool isAuto);
+
+        void UpdateDeepChargeRecorder(DeepChargeRecorder recoder);
 
         /// <summary>
         /// AGV當前是否需要深充(通常是從車載狀態決定 ex.上報了異常碼)

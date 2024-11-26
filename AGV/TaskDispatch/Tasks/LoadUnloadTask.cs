@@ -160,7 +160,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         static SemaphoreSlim taskTableUseSemaphorse = new SemaphoreSlim(1, 1);
 
-        protected LoadUnloadTask(IAGV Agv, clsTaskDto orderData, AGVSDbContext agvsDb, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, agvsDb, taskTbModifyLock)
+        protected LoadUnloadTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 
