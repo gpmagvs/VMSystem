@@ -467,6 +467,25 @@ namespace VMSystem.TrafficControl
 
             var vehicleCurrentStationType = releasePtRequest.Agv.currentMapPoint.StationType;
 
+            bool IsUnloadAtBuffer = portTagNumber.IsRackPortStation() && releasePtRequest.Agv.CurrentRunningTask().ActionType == ACTION_TYPE.Unload;
+            bool IsLoadAtMainEQ = portTagNumber.IsMainEQStation() && releasePtRequest.Agv.CurrentRunningTask().ActionType == ACTION_TYPE.Load;
+
+            if (IsLoadAtMainEQ)
+            {
+                releasePtRequest.Accept = false;
+                releasePtRequest.Message = "在主設備[放貨]時不允許解除進入點註冊!";
+                return;
+            }
+
+            if (IsUnloadAtBuffer)
+            {
+                releasePtRequest.Accept = false;
+                releasePtRequest.Message = "在Buffer[取貨]時不允許解除進入點註冊!";
+                return;
+            }
+            releasePtRequest.Accept = true;
+            return;
+
             bool isAGVAtRack = vehicleCurrentStationType == STATION_TYPE.Buffer || vehicleCurrentStationType == STATION_TYPE.Buffer_EQ || vehicleCurrentStationType == STATION_TYPE.Charge_Buffer;
 
             bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle) || _IsGoToNearPortOfCurrentRack(vehicle));

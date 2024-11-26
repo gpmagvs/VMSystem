@@ -19,6 +19,11 @@ namespace VMSystem.Extensions
             var statationtype = tagNumber.GetMapPoint()?.StationType;
             return statationtype == MapPoint.STATION_TYPE.Buffer || statationtype == MapPoint.STATION_TYPE.Charge_Buffer;
         }
+        public static bool IsMainEQStation(this int tagNumber)
+        {
+            var statationtype = tagNumber.GetMapPoint()?.StationType;
+            return statationtype == MapPoint.STATION_TYPE.EQ;
+        }
         public static bool IsEntryPointOfWorkStation(this int tagNumber, out IEnumerable<MapPoint> workStations)
         {
             workStations = new List<MapPoint>();
