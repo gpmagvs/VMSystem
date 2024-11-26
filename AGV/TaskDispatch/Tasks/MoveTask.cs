@@ -736,7 +736,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 finally
                 {
-                    await SaveTrajectoryToDatabase();
+                    SaveTrajectoryToDatabase();
                 }
 
                 async Task SaveTrajectoryToDatabase()
