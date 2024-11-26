@@ -139,35 +139,43 @@ namespace VMSystem.Dispatch
 
         private async Task<IAGV> DeadLockSolve(IEnumerable<IAGV> DeadLockVehicles)
         {
-            PrioritySolverResult solverResult = DeterminPriorityOfVehicles(DeadLockVehicles);
-
-            if (solverResult == null)
-                return null;
-
-            if (solverResult.IsAvoidUseParkablePort)
+            PrioritySolverResult solverResult = null;
+            try
             {
-                clsAvoidWithParkablePort avoidAction = new clsAvoidWithParkablePort(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
-                var _avoidVehicle = await avoidAction.StartSolve();
-                if (_avoidVehicle != null)
+                solverResult = DeterminPriorityOfVehicles(DeadLockVehicles);
+                if (solverResult == null)
+                    return null;
+                if (solverResult.IsAvoidUseParkablePort)
                 {
-                    solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = false;
-                    return _avoidVehicle;
+                    clsAvoidWithParkablePort avoidAction = new clsAvoidWithParkablePort(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
+                    var _avoidVehicle = await avoidAction.StartSolve();
+                    if (_avoidVehicle != null)
+                    {
+                        solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = false;
+                        return _avoidVehicle;
+                    }
+                    else
+                        solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
+
                 }
-                else
-                    solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
-
+                solverResult.highPriorityVehicle = solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo || solverResult.highPriorityVehicle == null ? DeadLockVehicles.First(v => v != solverResult.lowPriorityVehicle) : solverResult.highPriorityVehicle;
+                clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
+                var toAvoidVehicle = await lowPriorityWork.StartSolve();
+                if (toAvoidVehicle == null && !solverResult.IsAvoidUseParkablePort)
+                {
+                    lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.highPriorityVehicle, solverResult.lowPriorityVehicle);
+                    toAvoidVehicle = await lowPriorityWork.StartSolve();
+                }
+                await Task.Delay(200);
+                return toAvoidVehicle;
             }
-
-            solverResult.highPriorityVehicle = solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo || solverResult.highPriorityVehicle == null ? DeadLockVehicles.First(v => v != solverResult.lowPriorityVehicle) : solverResult.highPriorityVehicle;
-            clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
-            var toAvoidVehicle = await lowPriorityWork.StartSolve();
-            if (toAvoidVehicle == null)
+            finally
             {
-                lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.highPriorityVehicle, solverResult.lowPriorityVehicle);
-                toAvoidVehicle = await lowPriorityWork.StartSolve();
+                if (solverResult != null && solverResult.IsWaitingEnterRegionVehicleShouldYield)
+                {
+                    solverResult.lowPriorityVehicle.NavigationState.RegionControlState.CurrentAllowEnterRegionSignal.Set();
+                }
             }
-            await Task.Delay(200);
-            return toAvoidVehicle;
         }
 
         public static PrioritySolverResult DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
