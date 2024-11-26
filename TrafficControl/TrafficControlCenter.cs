@@ -296,7 +296,7 @@ namespace VMSystem.TrafficControl
                         {
                             MapPoint _startPt = StaMap.GetPointByIndex(seg.StartPtIndex);
                             MapPoint _endPt = StaMap.GetPointByIndex(seg.EndPtIndex);
-                            if (_startPt.StationType != STATION_TYPE.Normal || _startPt.StationType != STATION_TYPE.Normal)
+                            if (_startPt.StationType != STATION_TYPE.Normal || _endPt.StationType != STATION_TYPE.Normal)
                                 return false;
                             var _pathRectangle = Tools.GetPathRegionsWithRectangle(new List<MapPoint>() { _startPt, _endPt }, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength / 100.0);
                             return _pathRectangle.Any(reg => reg.IsIntersectionTo(agvConverRegions.First()));
@@ -477,11 +477,6 @@ namespace VMSystem.TrafficControl
             //車輛任務是否為鄰近Port
             bool _IsGoToNearPortOfCurrentRack(IAGV _agv)
             {
-
-                //功能開關
-                if (TrafficControlCenter.TrafficControlParameters.Experimental.NearRackPortParkable)
-                    return false;
-
                 if (!isAGVAtRack || _agv == null)
                     return false;
                 if (_agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
