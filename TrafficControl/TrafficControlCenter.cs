@@ -461,6 +461,8 @@ namespace VMSystem.TrafficControl
 
         private static void LoadUnloadTask_OnReleaseEntryPointRequesting(object? sender, LoadUnloadTask.ReleaseEntryPtRequest releasePtRequest)
         {
+
+
             //GOAL:若有其他AGV任務的目標為此TAG 則不允許解註冊,
             int portTagNumber = releasePtRequest.Agv.currentMapPoint.TagNumber;
             List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(releasePtRequest.Agv).ToList();
@@ -469,15 +471,31 @@ namespace VMSystem.TrafficControl
 
             bool IsUnloadAtBuffer = portTagNumber.IsRackPortStation() && releasePtRequest.Agv.CurrentRunningTask().ActionType == ACTION_TYPE.Unload;
             bool IsLoadAtMainEQ = portTagNumber.IsMainEQStation() && releasePtRequest.Agv.CurrentRunningTask().ActionType == ACTION_TYPE.Load;
+            bool isAGVAtRack = vehicleCurrentStationType == STATION_TYPE.Buffer || vehicleCurrentStationType == STATION_TYPE.Buffer_EQ || vehicleCurrentStationType == STATION_TYPE.Charge_Buffer;
+            bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle) || _IsGoToNearPortOfCurrentRack(vehicle));
 
-            if (IsLoadAtMainEQ)
+
+            if (releasePtRequest.Agv.CurrentRunningTask().OrderData.IsHighestPriorityTask && !releaseForbidden) //當超級訂單且沒有任何車子的終點是鄰近點時
+            {
+                releasePtRequest.Accept = false;
+                releasePtRequest.Message = "超級訂單[取放貨]時不允許解除進入點註冊!";
+                return;
+            }
+            else
+            {
+                releasePtRequest.Accept = true;
+                return;
+            }
+
+
+            if (IsLoadAtMainEQ && !releaseForbidden)
             {
                 releasePtRequest.Accept = false;
                 releasePtRequest.Message = "在主設備[放貨]時不允許解除進入點註冊!";
                 return;
             }
 
-            if (IsUnloadAtBuffer)
+            if (IsUnloadAtBuffer && !releaseForbidden)
             {
                 releasePtRequest.Accept = false;
                 releasePtRequest.Message = "在Buffer[取貨]時不允許解除進入點註冊!";
@@ -485,13 +503,6 @@ namespace VMSystem.TrafficControl
             }
             releasePtRequest.Accept = true;
             return;
-
-            bool isAGVAtRack = vehicleCurrentStationType == STATION_TYPE.Buffer || vehicleCurrentStationType == STATION_TYPE.Buffer_EQ || vehicleCurrentStationType == STATION_TYPE.Charge_Buffer;
-
-            bool releaseForbidden = otherVehicles.Any(vehicle => _IsGoToReleaseTagOrEntryPort(vehicle) || _IsGoToNearPortOfCurrentRack(vehicle));
-            if (releaseForbidden)
-                releasePtRequest.Message = $"有車輛目的地為 Tag {portTagNumber} 或 Tag {releasePtRequest.EntryPoint.TagNumber}";
-            releasePtRequest.Accept = !releaseForbidden;
 
             //車輛任務是否為鄰近Port
             bool _IsGoToNearPortOfCurrentRack(IAGV _agv)
