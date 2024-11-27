@@ -68,7 +68,7 @@ namespace VMSystem
 
                 // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
                 // TODO: 將大型欄位設為 Null
-                agvsDb?.Dispose();
+                //agvsDb?.Dispose();
                 disposedValue = true;
             }
         }
