@@ -153,42 +153,49 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         private async Task WaitPathToDestineNotConflicToYieldedVehicelAsync()
         {
-            IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
-            if (currentAvoidToVehicle == null)
-                return;
-
-            PathFinder _pathFinder = new PathFinder();
-            clsPathInfo pathToGoalWrapper = _pathFinder.FindShortestPath(Agv.currentMapPoint.TagNumber, this.finalMapPoint.TagNumber,
-                                            new PathFinder.PathFinderOption() { OnlyNormalPoint = true, Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE });
-
-            if (pathToGoalWrapper.stations.Count == 0)
-                return;
-
-            Stopwatch _timer = Stopwatch.StartNew();
-            while (true)
+            try
             {
-                await Task.Delay(1000);
-                IAGV thisAGV = Agv;
-
-                if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled)
+                IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
+                if (currentAvoidToVehicle == null || currentAvoidToVehicle.NavigationState.currentConflicToAGV == null)
                     return;
 
-                List<MapRectangle> AGVBodyCoveringOfPath = Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth / 100.0, thisAGV.options.VehicleLength / 100.0);
-                bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
-                if (isPathClear)
+                PathFinder _pathFinder = new PathFinder();
+                clsPathInfo pathToGoalWrapper = _pathFinder.FindShortestPath(Agv.currentMapPoint.TagNumber, this.finalMapPoint.TagNumber,
+                                                new PathFinder.PathFinderOption() { OnlyNormalPoint = true, Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE });
+
+                if (pathToGoalWrapper.stations.Count == 0)
                     return;
-                else
-                    UpdateStateDisplayMessage($"避車點(主幹道)-等待[{currentAvoidToVehicle.Name}]通行...");
-                if (_timer.Elapsed.Seconds > 3 && currentAvoidToVehicle.NavigationState.IsWaitingConflicSolve && currentAvoidToVehicle.NavigationState.currentConflicToAGV.Name == thisAGV.Name)
+
+                Stopwatch _timer = Stopwatch.StartNew();
+                while (true)
                 {
-                    //又被你擋住
-                    UpdateStateDisplayMessage($"避車中(主幹道)但仍與[{currentAvoidToVehicle.Name}]衝突..");
                     await Task.Delay(1000);
-                    return;
+                    IAGV thisAGV = Agv;
+
+                    if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled || currentAvoidToVehicle.NavigationState.currentConflicToAGV == null)
+                        return;
+
+                    List<MapRectangle> AGVBodyCoveringOfPath = Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth / 100.0, thisAGV.options.VehicleLength / 100.0);
+                    bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
+                    if (isPathClear)
+                        return;
+                    else
+                        UpdateStateDisplayMessage($"避車點(主幹道)-等待[{currentAvoidToVehicle.Name}]通行...");
+                    if (_timer.Elapsed.Seconds > 3 && currentAvoidToVehicle.NavigationState.IsWaitingConflicSolve && currentAvoidToVehicle.NavigationState.currentConflicToAGV.Name == thisAGV.Name)
+                    {
+                        //又被你擋住
+                        UpdateStateDisplayMessage($"避車中(主幹道)但仍與[{currentAvoidToVehicle.Name}]衝突..");
+                        await Task.Delay(1000);
+                        return;
+                    }
                 }
+
+
             }
-
-
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
+            }
         }
     }
 }
