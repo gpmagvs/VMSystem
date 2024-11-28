@@ -24,7 +24,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     /// <summary>
     /// 處理訂單任務
     /// </summary>
-    public abstract class OrderHandlerBase : clsTaskDatabaseWriteableAbstract
+    public abstract partial class OrderHandlerBase : clsTaskDatabaseWriteableAbstract
     {
         public class BufferOrderState
         {
@@ -79,6 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
+            BuildTransportCommandDto();
             _ = Task.Run(async () =>
             {
 
@@ -235,6 +236,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     RunningTask.Dispose();
                 }
             });
+        }
+
+        protected virtual void BuildTransportCommandDto()
+        {
+            this.transportCommand = new MCSCIMService.TransportCommandDto()
+            {
+                CommandID = OrderData.TaskName,
+                CarrierID = OrderData.Carrier_ID,
+                Dest = OrderData.To_Station,
+                CarrierZoneName = OrderData.From_Station,
+                CarrierLoc = OrderData.From_Station,
+                ResultCode = 0
+            };
         }
 
         protected virtual void ResetVehicleRegistedPoints()
@@ -399,7 +413,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             ModifyOrder(OrderData);
         }
 
-        private async Task _SetOrderAsCancelState(string taskCancelReason)
+        protected virtual async Task _SetOrderAsCancelState(string taskCancelReason)
         {
             RunningTask.CancelTask();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
@@ -446,7 +460,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
 
-        protected async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
+        protected virtual async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
             try
             {

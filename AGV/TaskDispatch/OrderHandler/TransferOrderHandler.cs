@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using VMSystem.TrafficControl;
+using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
 using static SQLite.SQLite3;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -26,6 +27,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public override ACTION_TYPE OrderAction => ACTION_TYPE.Carry;
 
+
         protected override async Task HandleAGVActionFinishFeedback()
         {
             await base.HandleAGVActionFinishFeedback();
@@ -41,6 +43,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
             if (v.confirm == false)
                 logger.Warn($"{v.message}");
+
+            SECS_TranferInitiatedReport();
+
             if (OrderData.need_change_agv)
             {
                 // TODO 把可用的轉換站存在這listTransferStation
@@ -75,6 +80,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             OrderData.TransferToTag = intTransferToTag;
                             OrderData.TransferFromTag = tag.Value.FirstOrDefault();
+                            SECS_TransferringReport();
                             await base.StartOrder(Agv);
                             IsAllTransferStationFail = false;
                             break;
@@ -138,6 +144,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 throw ex;
             }
+        }
+
+        protected override void _SetOrderAsFinishState()
+        {
+            this.transportCommand.ResultCode = 0;
+            SECS_TransferCompletedReport();
+            base._SetOrderAsFinishState();
+        }
+
+        protected override void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
+        {
+            this.transportCommand.ResultCode = 1;
+            SECS_TransferCompletedReport();
+            base._SetOrderAsFaiiureState(FailReason, alarm);
         }
     }
 
