@@ -175,7 +175,7 @@ namespace VMSystem.AGV
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
-                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
+                    _CargoStateSimulate(_args.action, _args.CSTID);
 
                 }
 
