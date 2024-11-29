@@ -43,6 +43,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 hander.OnLoadingAtTransferStationTaskFinish += HandleOnLoadingAtTransferStationTaskFinish;
             hander.OrderData = orderData;
             hander.SequenceTaskQueue = _CreateSequenceTasks(orderData);
+            hander.BuildTransportCommandDto();
             return hander;
         }
 

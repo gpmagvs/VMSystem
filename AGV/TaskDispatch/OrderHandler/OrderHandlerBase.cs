@@ -80,10 +80,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             this.Agv = Agv;
             MCSCIMService.VehicleAssignedReport(Agv.Name, OrderData.TaskName);
-            BuildTransportCommandDto();
             _ = Task.Run(async () =>
             {
-
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
                 (bool isSourceBuffer, bool isDestineBuffer) = IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt);
 
@@ -240,16 +238,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             });
         }
 
-        protected virtual void BuildTransportCommandDto()
+        public virtual void BuildTransportCommandDto()
         {
+            var sourceStationType = OrderData.From_Station_Tag.GetMapPoint().StationType;
+            bool isSourceZone = sourceStationType == MapPoint.STATION_TYPE.Buffer ||
+                                sourceStationType == MapPoint.STATION_TYPE.Buffer_EQ ||
+                                sourceStationType == MapPoint.STATION_TYPE.Charge_Buffer;
+
             this.transportCommand = new MCSCIMService.TransportCommandDto()
             {
                 CommandID = OrderData.TaskName,
                 CarrierID = OrderData.Carrier_ID,
-                Dest = OrderData.To_Station,
-                CarrierZoneName = OrderData.From_Station,
-                CarrierLoc = OrderData.From_Station,
-                ResultCode = 0
+                CarrierLoc = OrderData.soucePortID,
+                CarrierZoneName = isSourceZone ? OrderData.sourceZoneID : "",
+                Dest = OrderData.destinePortID,
+                ResultCode = 0,
             };
         }
 

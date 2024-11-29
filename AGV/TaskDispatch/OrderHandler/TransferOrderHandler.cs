@@ -120,7 +120,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         OrderData.To_Slot = result.ReturnObj.ToString();
                     }
-
                     SECS_TranferInitiatedReport()
                         .ContinueWith(async t => await SECS_TransferringReport());
                     //SECS_TransferringReport();

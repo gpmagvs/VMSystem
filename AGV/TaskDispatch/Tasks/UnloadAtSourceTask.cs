@@ -53,9 +53,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            MCSCIMService.VehicleAcquireStartedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            MCSCIMService.VehicleAcquireStartedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.soucePortID);
             var result = await base.DistpatchToAGV();
-            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.soucePortID);
             return result;
         }
 
