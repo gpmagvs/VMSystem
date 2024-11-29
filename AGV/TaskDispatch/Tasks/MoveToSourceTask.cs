@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -33,7 +34,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
             }
-            return await base.DistpatchToAGV();
+            MCSCIMService.VehicleDepartedReport(Agv.Name, OrderData.From_Station);
+            (bool confirmed, ALARMS alarm_code, string message) result = await base.DistpatchToAGV();
+            MCSCIMService.VehicleArrivedReport(Agv.Name, OrderData.From_Station);
+
+            return result;
         }
     }
 }

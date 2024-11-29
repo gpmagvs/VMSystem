@@ -53,7 +53,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            return await base.DistpatchToAGV();
+            MCSCIMService.VehicleAcquireStartedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            var result =  await base.DistpatchToAGV();
+            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            return result;
         }
 
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()

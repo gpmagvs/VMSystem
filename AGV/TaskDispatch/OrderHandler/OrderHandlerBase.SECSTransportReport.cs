@@ -12,10 +12,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public TransportCommandDto transportCommand = new TransportCommandDto();
         public async Task SECS_TranferInitiatedReport()
         {
+            await MCSCIMService.TransferInitiatedReport(transportCommand);
         }
 
         public async Task SECS_TransferringReport()
         {
+            await MCSCIMService.TransferringReport(transportCommand);
         }
         public async Task SECS_TransferCompletedReport()
         {

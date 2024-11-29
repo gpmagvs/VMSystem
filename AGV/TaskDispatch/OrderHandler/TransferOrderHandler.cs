@@ -44,7 +44,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (v.confirm == false)
                 logger.Warn($"{v.message}");
 
-            SECS_TranferInitiatedReport();
 
             if (OrderData.need_change_agv)
             {
@@ -121,6 +120,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         OrderData.To_Slot = result.ReturnObj.ToString();
                     }
+
+                    SECS_TranferInitiatedReport()
+                        .ContinueWith(async t => await SECS_TransferringReport())
+                        .ContinueWith(async t => await MCSCIMService.VehicleAcquireStartedReport(Agv.Name, OrderData.Carrier_ID, OrderData.From_Station));
+                    //SECS_TransferringReport();
                     await base.StartOrder(Agv);
                 }
                 else
@@ -130,6 +134,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
             }
         }
+
+
         protected override async Task ActionsWhenOrderCancle()
         {
             try

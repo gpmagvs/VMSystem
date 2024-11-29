@@ -29,7 +29,7 @@ using VMSystem.Extensions;
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
 
-    public abstract class TaskBase : clsTaskDatabaseWriteableAbstract
+    public abstract partial class TaskBase : clsTaskDatabaseWriteableAbstract
     {
         public delegate Task<clsMoveTaskEvent> BeforeMoveToNextGoalDelegate(clsMoveTaskEvent args);
         public static BeforeMoveToNextGoalDelegate BeforeMoveToNextGoalTaskDispatch;

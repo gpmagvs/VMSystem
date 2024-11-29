@@ -12,6 +12,7 @@ using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.StopRegion;
@@ -263,6 +264,7 @@ namespace VMSystem.AGV
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         logger.Info($"[{Name}]-Tag Location Change to {value.TagNumber} (Previous : {previousTag})");
 
+
                         if (value.IsEquipment)
                         {
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
@@ -331,7 +333,7 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
-
+                        MCSCIMService.VehicleCoordinateChangedReport(Name, value.X.ToString() + "", value.Y.ToString());
                         RegionManager.UpdateRegion(this);
                         OnMapPointChanged?.Invoke(this, value.TagNumber);
                     }
