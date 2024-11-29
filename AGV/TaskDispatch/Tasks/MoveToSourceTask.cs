@@ -35,7 +35,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
             }
             (bool confirmed, ALARMS alarm_code, string message) result = await base.DistpatchToAGV();
-            MCSCIMService.VehicleArrivedReport(Agv.Name, OrderData.soucePortID);
+            MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.soucePortID);
 
             return result;
         }

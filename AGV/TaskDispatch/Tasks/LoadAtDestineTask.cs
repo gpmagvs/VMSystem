@@ -53,9 +53,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            MCSCIMService.VehicleDepositStartedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.soucePortID);
+            MCSCIMService.VehicleDepositStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             var result = await base.DistpatchToAGV();
-            MCSCIMService.VehicleDepositCompletedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.soucePortID);
+            MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             return result;
         }
 

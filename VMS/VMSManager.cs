@@ -204,7 +204,8 @@ namespace VMSystem.VMS
                     LowLevel = agvDto.LowBatLvThreshold,
                     MiddleLevel = agvDto.MiddleBatLvThreshold,
                     HightLevel = agvDto.HighBatLvThreshold
-                }
+                },
+                AgvID = agvDto.AGV_ID
             };
         }
 

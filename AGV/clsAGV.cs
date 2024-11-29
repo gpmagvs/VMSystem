@@ -333,7 +333,7 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
-                        MCSCIMService.VehicleCoordinateChangedReport(Name, value.X.ToString() + "", value.Y.ToString());
+                        MCSCIMService.VehicleCoordinateChangedReport(AgvIDStr, value.X.ToString() + "", value.Y.ToString());
                         RegionManager.UpdateRegion(this);
                         OnMapPointChanged?.Invoke(this, value.TagNumber);
                     }
@@ -477,6 +477,7 @@ namespace VMSystem.AGV
             }
         }
         public int currentFloor { get; set; } = 1;
+        public string AgvIDStr => options.AgvID;
 
         public async Task Run()
         {

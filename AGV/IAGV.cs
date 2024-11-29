@@ -36,6 +36,7 @@ namespace VMSystem.AGV
         AGV_TYPE model { get; set; }
         string Name { get; set; }
         int AgvID { get; set; }
+        string AgvIDStr { get;}
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }

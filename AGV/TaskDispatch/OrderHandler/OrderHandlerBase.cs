@@ -79,7 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
-            MCSCIMService.VehicleAssignedReport(Agv.Name, OrderData.TaskName);
+            MCSCIMService.VehicleAssignedReport(Agv.AgvIDStr, OrderData.TaskName);
             _ = Task.Run(async () =>
             {
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
@@ -183,7 +183,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
-                    MCSCIMService.VehicleUnassignedReport(Agv.Name, OrderData.TaskName);
+                    MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName);
                     ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
