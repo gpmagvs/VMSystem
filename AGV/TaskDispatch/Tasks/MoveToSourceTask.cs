@@ -34,7 +34,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
             }
-            MCSCIMService.VehicleDepartedReport(Agv.Name, OrderData.From_Station);
             (bool confirmed, ALARMS alarm_code, string message) result = await base.DistpatchToAGV();
             MCSCIMService.VehicleArrivedReport(Agv.Name, OrderData.From_Station);
 

@@ -122,8 +122,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
 
                     SECS_TranferInitiatedReport()
-                        .ContinueWith(async t => await SECS_TransferringReport())
-                        .ContinueWith(async t => await MCSCIMService.VehicleAcquireStartedReport(Agv.Name, OrderData.Carrier_ID, OrderData.From_Station));
+                        .ContinueWith(async t => await SECS_TransferringReport());
                     //SECS_TransferringReport();
                     await base.StartOrder(Agv);
                 }

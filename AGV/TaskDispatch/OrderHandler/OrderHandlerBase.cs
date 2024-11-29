@@ -79,6 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
+            MCSCIMService.VehicleAssignedReport(Agv.Name, OrderData.TaskName);
             BuildTransportCommandDto();
             _ = Task.Run(async () =>
             {
@@ -184,6 +185,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
+                    MCSCIMService.VehicleUnassignedReport(Agv.Name, OrderData.TaskName);
                     ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();

@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
@@ -52,7 +53,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            return await base.DistpatchToAGV();
+            MCSCIMService.VehicleDepositStartedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            var result = await base.DistpatchToAGV();
+            MCSCIMService.VehicleDepositCompletedReport(this.Agv.Name, OrderData.Carrier_ID, OrderData.From_Station);
+            return result;
         }
 
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
