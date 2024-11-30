@@ -724,7 +724,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected async Task CarrierTransferFromPortToAGVReport(string portID, string zoneID)
         {
 
-            await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Actual_Carrier_ID, portID, zoneID, 1)
+            await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, portID, zoneID, 1)
                                .ContinueWith(async t => {
                                    await MCSCIMService.CarrierInstallCompletedReport(OrderData.Actual_Carrier_ID, Agv.AgvIDStr, "", 1);
                                });
