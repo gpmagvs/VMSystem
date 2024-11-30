@@ -241,16 +241,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual void BuildTransportCommandDto()
         {
             var sourceStationType = OrderData.From_Station_Tag.GetMapPoint().StationType;
-            bool isSourceZone = sourceStationType == MapPoint.STATION_TYPE.Buffer ||
-                                sourceStationType == MapPoint.STATION_TYPE.Buffer_EQ ||
-                                sourceStationType == MapPoint.STATION_TYPE.Charge_Buffer;
-
             this.transportCommand = new MCSCIMService.TransportCommandDto()
             {
                 CommandID = OrderData.TaskName,
                 CarrierID = OrderData.Carrier_ID,
                 CarrierLoc = OrderData.soucePortID,
-                CarrierZoneName = isSourceZone ? OrderData.sourceZoneID : "",
+                CarrierZoneName = OrderData.sourceZoneID,
                 Dest = OrderData.destinePortID,
                 ResultCode = 0,
             };
