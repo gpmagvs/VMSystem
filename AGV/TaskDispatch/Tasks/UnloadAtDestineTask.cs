@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Microservices.MCS;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -36,7 +37,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var equipment = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
         }
-
+        internal override async  Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
+        {
+            MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            var result = await base.DistpatchToAGV();
+            if (result.confirmed)
+            {
+                CarrierTransferFromPortToAGVReport(OrderData.destinePortID, OrderData.destineZoneID);
+                MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            }
+            return result;
+        }
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
         {
             ReportUnloadCargoFromPortDone();

@@ -55,6 +55,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             MCSCIMService.VehicleDepositStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             var result = await base.DistpatchToAGV();
+
+            CarrierTransferFromAGVToPortReport(OrderData.destinePortID, OrderData.destineZoneID);
             MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             return result;
         }

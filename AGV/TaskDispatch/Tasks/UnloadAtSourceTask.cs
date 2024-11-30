@@ -44,8 +44,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
-                    OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                 {
@@ -55,7 +53,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             var result = await base.DistpatchToAGV();
-            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
+                OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
+            if (result.confirmed)
+            {
+                CarrierTransferFromPortToAGVReport(OrderData.soucePortID, OrderData.sourceZoneID);
+                MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            }
             return result;
         }
 
