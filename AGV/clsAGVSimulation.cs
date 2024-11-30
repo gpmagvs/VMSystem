@@ -135,6 +135,10 @@ namespace VMSystem.AGV
                         else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
                             _CargoStateSimulate(ACTION_TYPE.Load, "");
                         await _BackToHome(_currentBarcodeMoveArgs, token);
+
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                            await WaitCarrierIDReported(_currentBarcodeMoveArgs.CSTID);
+
                         async Task<bool> _confirmLeaveWorkStationConfirm()
                         {
                             return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
@@ -195,6 +199,14 @@ namespace VMSystem.AGV
             }, token);
 
             return new TaskDownloadRequestResponse() { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK };
+        }
+
+        private async Task WaitCarrierIDReported(string cSTID)
+        {
+            while (agv.states.CSTID.FirstOrDefault()!= cSTID)
+            {
+                await Task.Delay(10);
+            }
         }
 
         private async Task BarcodeMove(BarcodeMoveArguments moveArgs, CancellationToken token, bool homing = false)
