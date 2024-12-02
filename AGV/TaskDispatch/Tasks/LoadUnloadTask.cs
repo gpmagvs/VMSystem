@@ -115,7 +115,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (this.ActionType == ACTION_TYPE.Unload)
                     UpdateActualCarrierIDFromAGVStateReported();
                 UpdateLDULDTime();
-                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, EQPoint.TagNumber, ActionType, Agv.Name);
+                await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, EQPoint.TagNumber, ActionType, true, Agv.Name);
 
             }
             catch (Exception ex)

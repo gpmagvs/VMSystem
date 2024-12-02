@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Maintainance;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.ViewModels;
@@ -17,10 +18,12 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.BackgroundServices;
 using VMSystem.Extensions;
 using static AGVSystemCommonNet6.clsEnums;
 using static AGVSystemCommonNet6.MAP.MapPoint;
+using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
 using static VMSystem.AGV.clsGPMInspectionAGV;
 
 namespace VMSystem.VMS
@@ -720,11 +723,13 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static async Task<bool> TaskCancel(string task_name, string reason)
+        internal static async Task<bool> TaskCancel(string task_name, string reason, string? hostAction = "")
         {
             try
             {
                 await tasksLock.WaitAsync();
+                clsTaskDto _order = DatabaseCaches.TaskCaches.WaitExecuteTasks.FirstOrDefault(order => order.TaskName == task_name);
+
                 IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.CurrentRunningTask().OrderData.TaskName == task_name);
                 if (vehicle == null)
                 {
@@ -735,9 +740,34 @@ namespace VMSystem.VMS
                         tk.State = TASK_RUN_STATUS.CANCEL;
                     });
                     await AGVSDbContext.SaveChangesAsync();
+
+                    if (_order!= null && !string.IsNullOrEmpty(hostAction))
+                    {
+                        OrderHandlerFactory orderFactory = new OrderHandlerFactory();
+                        OrderHandlerBase Orderhander = orderFactory.CreateHandler(_order);
+
+                        TransportCommandDto transferCDto = Orderhander.transportCommand;
+
+                        if (hostAction == "cancel")
+                        {
+                           _ = MCSCIMService.TransferCancelInitiatedReport(transferCDto).ContinueWith(async t =>
+                            {
+                                await MCSCIMService.TransferCancelCompletedReport(transferCDto);
+                            });
+                        }
+
+                        if (hostAction == "abort")
+                        {
+                            _ =   MCSCIMService.TransferAbortInitiatedReport(transferCDto).ContinueWith(async t =>
+                            {
+                                await MCSCIMService.TransferAbortCompletedReport(transferCDto);
+                            });
+                        }
+                    }
+
                     return true;
                 }
-                await vehicle.CancelTaskAsync(task_name, reason);
+                await vehicle.CancelTaskAsync(task_name, reason,hostAction);
                 return true;
 
             }

@@ -393,7 +393,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
-        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "")
+        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "", string hostAction = null)
         {
             if (this.OrderData.TaskName != taskName)
             {
@@ -402,7 +402,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             TaskCancelledFlag = true;
             TaskCancelReason = reason;
-            RunningTask.CancelTask();
+            RunningTask.CancelTask(hostAction);
             _CurrnetTaskFinishResetEvent.Set();
             return (true, "");
         }

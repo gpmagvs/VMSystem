@@ -156,9 +156,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override void CancelTask()
+        public override void CancelTask(string hostAction = "")
         {
-            base.CancelTask();
+            base.CancelTask(hostAction);
         }
     }
 }

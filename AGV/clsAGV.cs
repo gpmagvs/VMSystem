@@ -980,16 +980,16 @@ namespace VMSystem.AGV
 
         }
 
-        public async Task CancelTaskAsync(string task_name, string reason)
+        public async Task CancelTaskAsync(string task_name, string reason, string? hostAction = "")
         {
-            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason);
+            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason, hostAction);
             if (confirmed)
             {
                 TaskBase currentTask = this.CurrentRunningTask();
                 bool isTaskExecuting = currentTask.TaskName == task_name;
                 OnTaskCancel?.Invoke(this, task_name);
                 if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
-                    currentTask.CancelTask();
+                    currentTask.CancelTask(hostAction);
 
                 currentTask.OnTaskDone += (sender, e) =>
                 {

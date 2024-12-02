@@ -94,7 +94,7 @@ namespace VMSystem.AGV
         int currentFloor { get; set; }
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
-        Task CancelTaskAsync(string task_name, string reason);
+        Task CancelTaskAsync(string task_name, string reason, string? hostAction = "");
         void StartDeepCharging();
         void StopDeepCharge(bool isAuto);
 

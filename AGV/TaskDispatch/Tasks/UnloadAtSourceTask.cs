@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -55,18 +56,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var result = await base.DistpatchToAGV();
             if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
                 OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
-            if (result.confirmed)
-            {
-                CarrierTransferFromPortToAGVReport(OrderData.soucePortID, OrderData.sourceZoneID);
-                MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
-            }
             return result;
         }
 
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
         {
+            var baseResult = base.ActionFinishInvoke();
+            if (baseResult.alarmCode == ALARMS.NONE)
+            {
+                CarrierTransferFromPortToAGVReport(OrderData.soucePortID, OrderData.sourceZoneID);
+            }
+            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             ReportUnloadCargoFromPortDone();
-            return base.ActionFinishInvoke();
+            return baseResult;
         }
     }
 }

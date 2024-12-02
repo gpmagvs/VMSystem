@@ -187,7 +187,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             return tags.Distinct().ToList();
         }
-        public override void CancelTask()
+        public override void CancelTask(string hostAction = "")
         {
             if (MoveTaskEvent != null)
             {
@@ -195,7 +195,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MoveTaskEvent.TrafficResponse.Wait_Traffic_Control_Finish_ResetEvent.Set();
             }
 
-            base.CancelTask();
+            base.CancelTask(hostAction);
         }
         public override async Task SendTaskToAGV()
         {

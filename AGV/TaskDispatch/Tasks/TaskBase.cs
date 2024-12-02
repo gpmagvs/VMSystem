@@ -25,6 +25,8 @@ using AGVSystemCommonNet6.Configuration;
 using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 using AGVSystemCommonNet6.DATABASE;
 using VMSystem.Extensions;
+using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -417,10 +419,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var result = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(pointNames);
             return (result.confirm, result.message, pointNames);
         }
-        public virtual async void CancelTask()
+        public virtual async void CancelTask(string hostAction = "")
         {
             try
             {
+                OrderHandlerBase? currentOrderHandler = Agv.CurrentOrderHandler();
+                TransportCommandDto transferCommand = currentOrderHandler?.transportCommand;
+                if (currentOrderHandler!=null && transferCommand !=null && !string.IsNullOrEmpty(hostAction))
+                {
+                    if (hostAction == "cancel")
+                    {
+                        _ = MCSCIMService.TransferCancelInitiatedReport(transferCommand).ContinueWith(async t =>
+                        {
+                            currentOrderHandler.isTransferCanceledByHost=true;
+                        });
+                    }
+
+                    if (hostAction == "abort")
+                    {
+                        _ =   MCSCIMService.TransferAbortInitiatedReport(transferCommand).ContinueWith(async t =>
+                        {
+                            currentOrderHandler.isTransferAbortedByHost=true;
+                        });
+
+                    }
+                };
+
                 _TaskCancelTokenSource.Cancel();
                 IsTaskCanceled = true;
                 this.Dispose();
@@ -544,43 +568,53 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         result.alarmCode = ALARMS.UNLOAD_BUT_AGV_NO_CARGO_MOUNTED;
                         result.continuetask = false;
                     }
-                    else if (idmatch == MaterialIDStatus.NG && AGVSConfigulator.SysConfigs.EQManagementConfigs.TransferToNGPortWhenCarrierIDMissmatch)
+                    else if (idmatch == MaterialIDStatus.NG)
                     {
-                        try
+                        if (AGVSConfigulator.SysConfigs.EQManagementConfigs.TransferToNGPortWhenCarrierIDMissmatch)
                         {
-                            (bool confirm, string message, object ngPortObject) = AGVSSerivces.GetNGPort().GetAwaiter().GetResult();
-                            clsTransferMaterial ngport = null;
                             try
                             {
-                                ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(ngPortObject.ToString());
+                                (bool confirm, string message, object ngPortObject) = AGVSSerivces.GetNGPort().GetAwaiter().GetResult();
+                                clsTransferMaterial ngport = null;
+                                try
+                                {
+                                    ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(ngPortObject.ToString());
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger.Error(ex);
+                                }
+                                if (ngport != null)
+                                {
+                                    OrderData.To_Station = ngport.TargetTag.ToString();
+                                    OrderData.To_Slot = ngport.TargetRow.ToString();
+                                    result.task = OrderData;
+                                    result.continuetask = true;
+                                }
+                                else
+                                {
+                                    logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
+                                    CancelTask();
+                                    result.errorMsg = "No NG port can use";
+                                    result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
+                                    result.continuetask = false;
+                                }
                             }
                             catch (Exception ex)
                             {
-                                logger.Error(ex);
-                            }
-                            if (ngport != null)
-                            {
-                                OrderData.To_Station = ngport.TargetTag.ToString();
-                                OrderData.To_Slot = ngport.TargetRow.ToString();
-                                result.task = OrderData;
-                                result.continuetask = true;
-                            }
-                            else
-                            {
-                                logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
+                                logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
+                                result.alarmCode = ALARMS.SYSTEM_ERROR;
                                 CancelTask();
-                                result.errorMsg = "No NG port can use";
-                                result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
+                                result.errorMsg = $"No NG port can use:{ex.Message}";
                                 result.continuetask = false;
                             }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
-                            result.alarmCode = ALARMS.SYSTEM_ERROR;
-                            CancelTask();
-                            result.errorMsg = $"No NG port can use:{ex.Message}";
-                            result.continuetask = false;
+                            result.continuetask=false;
+
+                            bool isIDReadFail = Agv.states.CSTID[0].ToLower() == "error";
+                            result.alarmCode =isIDReadFail ? ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL : ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                         }
                     }
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
@@ -710,11 +744,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// 載具從AGV轉移到PORT 
         /// </summary>
         /// <returns></returns>
-        protected async Task CarrierTransferFromAGVToPortReport(string portID ,string zoneID)
+        protected async Task CarrierTransferFromAGVToPortReport(string portID, string zoneID)
         {
             await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Actual_Carrier_ID, Agv.AgvIDStr, "", 1)
-                               .ContinueWith(async t => {
-                                   await MCSCIMService.CarrierInstallCompletedReport(OrderData.Actual_Carrier_ID, portID, zoneID, 1);
+                               .ContinueWith(async t =>
+                               {
+                                   //await MCSCIMService.CarrierInstallCompletedReport(OrderData.Actual_Carrier_ID, portID, zoneID, 1);
                                });
         }
         /// <summary>
@@ -725,7 +760,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
 
             await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, portID, zoneID, 1)
-                               .ContinueWith(async t => {
+                               .ContinueWith(async t =>
+                               {
                                    await MCSCIMService.CarrierInstallCompletedReport(OrderData.Actual_Carrier_ID, Agv.AgvIDStr, "", 1);
                                });
         }

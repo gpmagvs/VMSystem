@@ -138,9 +138,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
-                clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, Agv.Name);
+                clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load,false, Agv.Name);
                 logger.Info(response1.ToJson());
-                clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload, Agv.Name);
+                clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload,false, Agv.Name);
                 logger.Info(response2.ToJson());
 
             }
@@ -159,9 +159,53 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected override void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
-            this.transportCommand.ResultCode = 1;
-            SECS_TransferCompletedReport();
+            if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL)
+                transportCommand.ResultCode = 5;
+            else if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED)
+                transportCommand.ResultCode = 4;
+            else if (alarm == ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO)
+                transportCommand.ResultCode = 100;
+            else
+                transportCommand.ResultCode = 1;
+            SECS_TransferCompletedReport(alarm);
             base._SetOrderAsFaiiureState(FailReason, alarm);
+        }
+
+        protected override async Task _SetOrderAsCancelState(string taskCancelReason)
+        {
+
+            TransportCommandDto _transportCommand = _GetTransportCommandDtoByCariierLocatin(this.transportCommand);
+
+            if (isTransferCanceledByHost)
+            {
+                MCSCIMService.TransferCancelCompletedReport(_transportCommand);
+            }
+
+            if (isTransferAbortedByHost)
+            {
+                MCSCIMService.TransferAbortCompletedReport(_transportCommand);
+            }
+
+            await base._SetOrderAsCancelState(taskCancelReason);
+        }
+
+        private TransportCommandDto _GetTransportCommandDtoByCariierLocatin(TransportCommandDto transportCommand)
+        {
+            TransportCommandDto newTransportCommandDto = transportCommand.Clone();
+
+            bool isCarrierStallAtSource = RunningTask.Stage == VehicleMovementStage.Traveling_To_Source;
+            bool isCarrierAtAGV = Agv.IsAGVHasCargoOrHasCargoID() && RunningTask.Stage == VehicleMovementStage.Traveling_To_Destine;
+            if (isCarrierStallAtSource)
+            {
+                return transportCommand;
+            }
+            if (isCarrierAtAGV) //
+            {
+                newTransportCommandDto.CarrierLoc = Agv.AgvIDStr;
+                newTransportCommandDto.CarrierZoneName="";
+            }
+
+            return newTransportCommandDto;
         }
     }
 

@@ -101,6 +101,7 @@ namespace VMSystem.AGV
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;
             _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
+            _currentBarcodeMoveArgs.isIDMissmatchSimulation = false;
             _ = Task.Run(async () =>
             {
                 try
@@ -131,12 +132,12 @@ namespace VMSystem.AGV
                             await Task.Delay(500);
                         }
                         if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
-                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown", false);
                         else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
-                            _CargoStateSimulate(ACTION_TYPE.Load, "");
+                            _CargoStateSimulate(ACTION_TYPE.Load, "", false);
                         await _BackToHome(_currentBarcodeMoveArgs, token);
 
-                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation)
                             await WaitCarrierIDReported(_currentBarcodeMoveArgs.CSTID);
 
                         async Task<bool> _confirmLeaveWorkStationConfirm()
@@ -179,11 +180,11 @@ namespace VMSystem.AGV
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
-                    _CargoStateSimulate(_args.action, _args.CSTID);
+                    _CargoStateSimulate(_args.action, _args.CSTID, _args.isIDMissmatchSimulation);
 
                 }
 
-                void _CargoStateSimulate(ACTION_TYPE action, string cstID)
+                void _CargoStateSimulate(ACTION_TYPE action, string cstID, bool isIDMissmatchSimulation)
                 {
                     if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
                     {
@@ -192,7 +193,8 @@ namespace VMSystem.AGV
                     }
                     else if (action == ACTION_TYPE.Unload)
                     {
-                        runningSTatus.CSTID = new string[] { cstID };
+                        runningSTatus.CSTID = new string[] { isIDMissmatchSimulation ? "TAE00000001" : cstID };
+                        //runningSTatus.CSTID = new string[] { cstID };
                         runningSTatus.Cargo_Status = 1;
                     }
                 }
@@ -367,6 +369,7 @@ namespace VMSystem.AGV
             public int goal = 0;
             public bool isTrajectoryEndIsGoal => nextMoveTrajectory.Count() == 0 ? true : nextMoveTrajectory.Last().Point_ID == goal;
             public FeedbackData Feedback = new FeedbackData();
+            public bool isIDMissmatchSimulation = false;
         }
 
 
