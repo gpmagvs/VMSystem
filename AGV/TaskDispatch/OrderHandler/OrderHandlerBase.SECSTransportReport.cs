@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.Microservices.MCS;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Microservices.MCS;
 using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -23,7 +24,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
-                await MCSCIMService.TransferCompletedReport(transportCommand);
+                var transferComptReportCmd = transportCommand.Clone();
+                transferComptReportCmd.CarrierLoc = OrderData.destinePortID;
+                transferComptReportCmd.CarrierZoneName = OrderData.destineZoneID;
+                await MCSCIMService.TransferCompletedReport(transferComptReportCmd);
             }
             catch (Exception ex)
             {
