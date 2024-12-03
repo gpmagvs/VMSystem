@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.Notify;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.AGV;
@@ -24,6 +25,29 @@ namespace VMSystem.Controllers
             if (agv == null)
                 return BadRequest();
             agv.AgvSimulation.parameters = parameters;
+            return Ok();
+        }
+
+
+        [HttpPost("CargoReadFailSimulation")]
+        public async Task<IActionResult> CargoReadFailSimulation(string AGVName,bool isReadFail)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.CargoReadFailSimulation = isReadFail;
+            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取失敗]功能已{(isReadFail? "啟用":"關閉")}");
+            return Ok();
+        }
+
+        [HttpPost("CargoReadMismatchSimulation")]
+        public async Task<IActionResult> CargoReadMismatchSimulation(string AGVName, bool isMissmatch)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.CargoReadMismatchSimulation = isMissmatch;
+            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取Missmatch]功能已{(isMissmatch ? "啟用" : "關閉")}");
             return Ok();
         }
 

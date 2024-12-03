@@ -94,6 +94,9 @@ namespace VMSystem.AGV
             }
         }
 
+        public bool CargoReadFailSimulation { get; internal set; }
+        public bool CargoReadMismatchSimulation { get; internal set; }
+
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {
             //Console.WriteLine(data.RosTaskCommandGoal.ToJson());
@@ -101,7 +104,8 @@ namespace VMSystem.AGV
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;
             _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
-            _currentBarcodeMoveArgs.isIDMissmatchSimulation = false;
+            _currentBarcodeMoveArgs.isIDMissmatchSimulation = CargoReadMismatchSimulation;
+            _currentBarcodeMoveArgs.isIDReadFailSimulation= CargoReadFailSimulation;
             _ = Task.Run(async () =>
             {
                 try
@@ -132,12 +136,12 @@ namespace VMSystem.AGV
                             await Task.Delay(500);
                         }
                         if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
-                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown", false);
+                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown", false, false);
                         else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
-                            _CargoStateSimulate(ACTION_TYPE.Load, "", false);
+                            _CargoStateSimulate(ACTION_TYPE.Load, "", false, false);
                         await _BackToHome(_currentBarcodeMoveArgs, token);
 
-                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation)
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation&& !_currentBarcodeMoveArgs.isIDReadFailSimulation)
                             await WaitCarrierIDReported(_currentBarcodeMoveArgs.CSTID);
 
                         async Task<bool> _confirmLeaveWorkStationConfirm()
@@ -180,11 +184,11 @@ namespace VMSystem.AGV
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
-                    _CargoStateSimulate(_args.action, _args.CSTID, _args.isIDMissmatchSimulation);
+                    _CargoStateSimulate(_args.action, _args.CSTID, _args.isIDMissmatchSimulation, _args.isIDReadFailSimulation);
 
                 }
 
-                void _CargoStateSimulate(ACTION_TYPE action, string cstID, bool isIDMissmatchSimulation)
+                void _CargoStateSimulate(ACTION_TYPE action, string cstID, bool isIDMissmatchSimulation, bool isIDReadFailSimulation)
                 {
                     if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
                     {
@@ -193,8 +197,12 @@ namespace VMSystem.AGV
                     }
                     else if (action == ACTION_TYPE.Unload)
                     {
-                        runningSTatus.CSTID = new string[] { isIDMissmatchSimulation ? "TAE00000001" : cstID };
-                        //runningSTatus.CSTID = new string[] { cstID };
+                        if (isIDReadFailSimulation)
+                            runningSTatus.CSTID = new string[] { "error" };
+                        else if (isIDMissmatchSimulation)
+                            runningSTatus.CSTID = new string[] { "TAE00000001" };
+                        else
+                            runningSTatus.CSTID = new string[] { cstID };
                         runningSTatus.Cargo_Status = 1;
                     }
                 }
@@ -370,6 +378,7 @@ namespace VMSystem.AGV
             public bool isTrajectoryEndIsGoal => nextMoveTrajectory.Count() == 0 ? true : nextMoveTrajectory.Last().Point_ID == goal;
             public FeedbackData Feedback = new FeedbackData();
             public bool isIDMissmatchSimulation = false;
+            public bool isIDReadFailSimulation = false;
         }
 
 
