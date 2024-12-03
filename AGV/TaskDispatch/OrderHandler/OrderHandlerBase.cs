@@ -115,7 +115,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Agv.NavigationState.StateReset();
                         _CurrnetTaskFinishResetEvent.Reset();
                         TaskBase task = SequenceTaskQueue.Dequeue();
-                        task.OrderHandlerBase = this;
+                        task.orderHandler = this;
                         task.TaskName = OrderData.TaskName;
                         task.TaskSequence = CompleteTaskStack.Count + 1;
                         RunningTask = task;

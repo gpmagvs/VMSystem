@@ -56,16 +56,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var result = await base.DistpatchToAGV();
             if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
                 OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
+
+            if (result.confirmed)
+            {//載具在車上
+                orderHandler.transportCommand.CarrierLoc = Agv.AgvIDStr;
+                orderHandler.transportCommand.CarrierZoneName = "";
+            }
+
             return result;
         }
 
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
         {
             var baseResult = base.ActionFinishInvoke();
-            if (baseResult.alarmCode == ALARMS.NONE)
-            {
-                CarrierTransferFromPortToAGVReport(OrderData.soucePortID, OrderData.sourceZoneID);
-            }
             MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             ReportUnloadCargoFromPortDone();
             return baseResult;

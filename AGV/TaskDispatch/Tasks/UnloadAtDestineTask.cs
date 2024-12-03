@@ -42,10 +42,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             var result = await base.DistpatchToAGV();
             if (result.confirmed)
-            {
-                CarrierTransferFromPortToAGVReport(OrderData.destinePortID, OrderData.destineZoneID);
                 MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
-            }
             return result;
         }
         public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()

@@ -79,7 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             OrderData.TransferToTag = intTransferToTag;
                             OrderData.TransferFromTag = tag.Value.FirstOrDefault();
-                            SECS_TransferringReport(OrderData.soucePortID, OrderData.sourceZoneID);
+                            SECS_TransferringReport();
                             await base.StartOrder(Agv);
                             IsAllTransferStationFail = false;
                             break;
@@ -120,8 +120,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         OrderData.To_Slot = result.ReturnObj.ToString();
                     }
-                    SECS_TranferInitiatedReport().ContinueWith(async t => await SECS_TransferringReport(OrderData.soucePortID, OrderData.sourceZoneID));
-                    //SECS_TransferringReport();
+                    SECS_TranferInitiatedReport().ContinueWith(async t => await SECS_TransferringReport());
                     await base.StartOrder(Agv);
                 }
                 else
@@ -157,15 +156,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
 
         protected override void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
-        {
-            if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL)
-                transportCommand.ResultCode = 5;
-            else if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED)
-                transportCommand.ResultCode = 4;
-            else if (alarm == ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO)
-                transportCommand.ResultCode = 100;
-            else
-                transportCommand.ResultCode = 1;
+        {          
             SECS_TransferCompletedReport(alarm);
             base._SetOrderAsFaiiureState(FailReason, alarm);
         }

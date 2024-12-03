@@ -54,7 +54,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 DestineChanger.StartMonitorAsync();
 
             }
-            this.OrderHandlerBase.SECS_TransferringReport(Agv.AgvIDStr, "").ContinueWith(async t =>
+            this.orderHandler.SECS_TransferringReport().ContinueWith(async t =>
             {
                 await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.From_Station);
             });
