@@ -659,6 +659,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         internal bool NavigationPausing { get; set; } = false;
         internal string PauseNavigationReason { get; set; } = "";
+        public OrderHandlerBase OrderHandlerBase { get; internal set; }
+
         /// <summary>
         /// 暫停當前導航
         /// </summary>
@@ -740,18 +742,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             NavigationPausing = false;
         }
 
-        /// <summary>
-        /// 載具從AGV轉移到PORT 
-        /// </summary>
-        /// <returns></returns>
-        protected async Task CarrierTransferFromAGVToPortReport(string portID, string zoneID)
-        {
-            await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Actual_Carrier_ID, Agv.AgvIDStr, "", 1)
-                               .ContinueWith(async t =>
-                               {
-                                   //await MCSCIMService.CarrierInstallCompletedReport(OrderData.Actual_Carrier_ID, portID, zoneID, 1);
-                               });
-        }
         /// <summary>
         /// 載具從PORT轉移到 AGV
         /// </summary>

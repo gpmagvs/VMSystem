@@ -20,11 +20,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             await MCSCIMService.TransferInitiatedReport(transportCommand);
         }
-
-        public async Task SECS_TransferringReport()
+        public async Task SECS_TransferringReport(string carrierLoc ,string carrierZone)
         {
-            await MCSCIMService.TransferringReport(transportCommand);
+            var cmd = transportCommand.Clone();
+            cmd.CarrierLoc = carrierLoc;
+            cmd.CarrierZoneName = carrierZone;
+            await MCSCIMService.TransferringReport(cmd);
         }
+
         public async Task SECS_TransferCompletedReport(AGVSystemCommonNet6.Alarm.ALARMS alarm = AGVSystemCommonNet6.Alarm.ALARMS.NONE)
         {
             try
@@ -37,7 +40,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED || isIDReadFail)
                 {
                     if (isIDReadFail)
+                    {
                         transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayUnknownFlowID();
+                    }
                     else
                         transferComptReportCmd.CarrierID = Agv.states.CSTID.FirstOrDefault();
                     transferComptReportCmd.CarrierLoc = Agv.AgvIDStr;

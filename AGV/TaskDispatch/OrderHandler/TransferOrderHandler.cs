@@ -79,7 +79,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             OrderData.TransferToTag = intTransferToTag;
                             OrderData.TransferFromTag = tag.Value.FirstOrDefault();
-                            SECS_TransferringReport();
+                            SECS_TransferringReport(OrderData.soucePortID, OrderData.sourceZoneID);
                             await base.StartOrder(Agv);
                             IsAllTransferStationFail = false;
                             break;
@@ -120,8 +120,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         OrderData.To_Slot = result.ReturnObj.ToString();
                     }
-                    SECS_TranferInitiatedReport()
-                        .ContinueWith(async t => await SECS_TransferringReport());
+                    SECS_TranferInitiatedReport().ContinueWith(async t => await SECS_TransferringReport(OrderData.soucePortID, OrderData.sourceZoneID));
                     //SECS_TransferringReport();
                     await base.StartOrder(Agv);
                 }
@@ -138,9 +137,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
-                clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load,false, Agv.Name);
+                clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, false, Agv.Name);
                 logger.Info(response1.ToJson());
-                clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload,false, Agv.Name);
+                clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload, false, Agv.Name);
                 logger.Info(response2.ToJson());
 
             }

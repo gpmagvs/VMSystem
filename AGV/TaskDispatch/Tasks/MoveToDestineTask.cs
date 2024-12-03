@@ -54,7 +54,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 DestineChanger.StartMonitorAsync();
 
             }
-            MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.From_Station);
+            this.OrderHandlerBase.SECS_TransferringReport(Agv.AgvIDStr, "").ContinueWith(async t =>
+            {
+                await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.From_Station);
+            });
             (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
             MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.destinePortID);
             return baseResult;
