@@ -561,9 +561,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!IsCargoOnAGV())
                 return;
-
-            int tag = this.DestineTag;
-            int slot = this.GetSlotHeight();
+            int tag = OrderData.To_Station_Tag;
+            int slot = OrderData.GetToSlotInt();
             await AGVSSerivces.CargoUnloadFromPortDoneReport(Agv.Name, tag, slot);
         }
 
@@ -571,8 +570,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (IsCargoOnAGV())
                 return;
-            int tag = this.DestineTag;
-            int slot = this.GetSlotHeight();
+            int tag = OrderData.To_Station_Tag;
+            int slot = OrderData.GetToSlotInt();
             await AGVSSerivces.CargoLoadToPortDoneReport(Agv.Name, tag, slot, cargoIDMounted);
         }
     }
