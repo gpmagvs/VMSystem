@@ -76,7 +76,7 @@ try
     builder.Services.AddHostedService<TaskPathConflicDetectionService>();
     builder.Services.AddHostedService<OrderStateMonitorBackgroundService>();
     builder.Services.AddHostedService<PCPerformanceService>();
-    builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
+    //builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
     builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
     builder.Services.AddHostedService<TrafficScopeService>();
     builder.Services.AddHostedService<VMSManageHostService>();
