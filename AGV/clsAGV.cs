@@ -238,6 +238,7 @@ namespace VMSystem.AGV
                 {
                     if (value == MAIN_STATUS.DOWN)
                     {
+                        NotifyServiceHelper.ERROR($"{Name} Down!");
                         OnAGVStatusDown?.Invoke(this, EventArgs.Empty);
                     }
                     availabilityHelper?.UpdateAGVMainState(value);

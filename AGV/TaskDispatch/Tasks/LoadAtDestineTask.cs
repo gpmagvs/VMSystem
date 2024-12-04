@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
@@ -55,14 +56,19 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             MCSCIMService.VehicleDepositStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             var result = await base.DistpatchToAGV();
+            await WaitAGVNotRunning();
+            if (Agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN)
+            {
+                return (false, ALARMS.AGV_STATUS_DOWN, "");
+            }
             if (result.confirmed)
             {
                 //載具在來源
                 orderHandler.transportCommand.CarrierLoc = OrderData.destinePortID;
                 orderHandler.transportCommand.CarrierZoneName = OrderData.destineZoneID;
+                //CarrierTransferFromAGVToPortReport(OrderData.destinePortID, OrderData.destineZoneID);
+                await MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             }
-            //CarrierTransferFromAGVToPortReport(OrderData.destinePortID, OrderData.destineZoneID);
-            await MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             return result;
         }
 

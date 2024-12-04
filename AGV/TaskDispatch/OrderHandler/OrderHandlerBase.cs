@@ -79,7 +79,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
-            MCSCIMService.VehicleAssignedReport(Agv.AgvIDStr, OrderData.TaskName);
             _ = Task.Run(async () =>
             {
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
@@ -131,7 +130,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             {
                                 Alarm_Code = dispatch_result.alarm_code == ALARMS.NONE ? ALARMS.SYSTEM_ERROR : dispatch_result.alarm_code
                             };
-                            //AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
                         }
 
                         task.Dispose();
@@ -225,7 +223,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 async void _HandleVMSException(VMSExceptionAbstract ex)
                 {
-                    await Task.Delay(1000);
                     logger.Error(ex);
                     bool _isAgvDown = Agv.main_state == MAIN_STATUS.DOWN;
                     if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)

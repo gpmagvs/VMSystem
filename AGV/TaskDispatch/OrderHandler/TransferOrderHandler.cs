@@ -115,7 +115,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         OrderData.To_Slot = result.ReturnObj.ToString();
                     }
-                    SECS_TranferInitiatedReport().ContinueWith(async t => await SECS_TransferringReport());
+
+                    SECS_TranferInitiatedReport().ContinueWith(async t =>
+                    {
+                        await MCSCIMService.VehicleAssignedReport(Agv.AgvIDStr, OrderData.TaskName);
+                        await Task.Delay(200);
+                        await SECS_TransferringReport();
+                    });
+
                     await base.StartOrder(Agv);
                 }
                 else

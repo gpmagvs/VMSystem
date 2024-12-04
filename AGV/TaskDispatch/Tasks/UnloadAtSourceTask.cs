@@ -52,7 +52,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            _ = MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.soucePortID).ContinueWith(async t =>
+            {
+                await Task.Delay(100);
+                await MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            });
             var result = await base.DistpatchToAGV();
             if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
                 OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];

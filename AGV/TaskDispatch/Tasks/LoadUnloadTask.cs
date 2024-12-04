@@ -124,40 +124,40 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
-                //bool isAnyOtherVehicleRunningAndOnMainPath = OtherAGV.Where(agv => agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
-                //                                                     .Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                //                                                     .Any();
-
-                try
-                {
-
-
-                    if (TrafficControlCenter.TrafficControlParameters.Experimental.TurnToSpecificThetaWhenLeaveWorkStation &&
-                        !AgvStatusDownFlag && !isDestineTagIsSameAsSource() && isAnyOtherVehicleRunningAndOnMainPath())
-                    {
-                        await TryRotationToAvoidAngle();
-                    }
-
-
-                    bool isDestineTagIsSameAsSource()
-                    {
-                        if (this.Stage == VehicleMovementStage.WorkingAtDestination)
-                            return false;
-                        return OrderData.To_Station_Tag == OrderData.From_Station_Tag;
-                    }
-                    bool isAnyOtherVehicleRunningAndOnMainPath()
-                    {
-                        return OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal).Any();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.Error(ex);
-                }
+                await RaiseRotateActionAfertLoadUnload();
                 InvokeTaskDoneEvent();
             }
 
         }
+
+        private async Task RaiseRotateActionAfertLoadUnload()
+        {
+            try
+            {
+                if (TrafficControlCenter.TrafficControlParameters.Experimental.TurnToSpecificThetaWhenLeaveWorkStation &&
+                    !AgvStatusDownFlag && !isDestineTagIsSameAsSource() && isAnyOtherVehicleRunningAndOnMainPath())
+                {
+                    await TryRotationToAvoidAngle();
+                }
+
+
+                bool isDestineTagIsSameAsSource()
+                {
+                    if (this.Stage == VehicleMovementStage.WorkingAtDestination)
+                        return false;
+                    return OrderData.To_Station_Tag == OrderData.From_Station_Tag;
+                }
+                bool isAnyOtherVehicleRunningAndOnMainPath()
+                {
+                    return OtherAGV.Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal).Any();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+        }
+
         static SemaphoreSlim taskTableUseSemaphorse = new SemaphoreSlim(1, 1);
 
         protected LoadUnloadTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)

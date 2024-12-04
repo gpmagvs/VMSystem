@@ -54,12 +54,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 DestineChanger.StartMonitorAsync();
 
             }
-            this.orderHandler.SECS_TransferringReport().ContinueWith(async t =>
+
+            if (OrderData.Action == ACTION_TYPE.Carry)
             {
-                await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.From_Station);
-            });
+                try
+                {
+                    _ = this.orderHandler.SECS_TransferringReport().ContinueWith(async t =>
+                     {
+                         await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.From_Station);
+                     });
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            }
             (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
-            MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.destinePortID);
+
+
             return baseResult;
         }
     }

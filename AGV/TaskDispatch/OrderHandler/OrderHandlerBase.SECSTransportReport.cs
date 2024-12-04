@@ -32,6 +32,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 if (alarm == ALARMS.NONE)
                     transportCommand.ResultCode = 0;
+                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                {
+                    if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load)
+                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 102; //AGV車上還有貨:表示放貨前就異常 反之在退出設備時異常
+                }
                 else
                 {
                     if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL)

@@ -39,7 +39,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
-            MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.destinePortID).ContinueWith(async t =>
+            {
+                await MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            });
+
             var result = await base.DistpatchToAGV();
             if (result.confirmed)
                 MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);

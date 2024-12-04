@@ -489,11 +489,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             _WaitAGVTaskDoneMRE.Reset();
 
-            void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
+            async void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
             {
                 if (IsThisTaskDone(feedbackData))
                 {
                     Agv.TaskExecuter.OnActionFinishReported -= ActionFinishFeedbackHandler;
+                    await WaitAGVNotRunning();
                     _WaitAGVTaskDoneMRE.Set();
                 }
             };
@@ -656,6 +657,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         internal string PauseNavigationReason { get; set; } = "";
         public OrderHandlerBase orderHandler { get; internal set; }
 
+        /// <summary>
+        /// 等待AGV主狀態不為RUN
+        /// </summary>
+        /// <returns></returns>
+        protected async Task WaitAGVNotRunning()
+        {
+            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(1);
+            }
+        }
         /// <summary>
         /// 暫停當前導航
         /// </summary>
