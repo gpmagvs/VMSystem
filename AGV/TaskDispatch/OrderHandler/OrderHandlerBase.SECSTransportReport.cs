@@ -66,23 +66,5 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 logger.Error(ex);
             }
         }
-        public async Task SECS_TransferCompletedReport(int resultCode)
-        {
-            transportCommand.ResultCode = resultCode;
-            await SECS_TransferCompletedReport();
-        }
-        public async Task SECS_TransferAbortInitiatedReport()
-        {
-        }
-        public async Task SECS_TransferCancelInitiatedReport()
-        {
-        }
-        public async Task SECS_TransferAbortFailedReport()
-        {
-        }
-        public async Task SECS_TransferCancelFailedReport()
-        {
-
-        }
     }
 }

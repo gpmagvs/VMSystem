@@ -135,7 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         }
 
                         task.Dispose();
-                        (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) taskchange = task.ActionFinishInvoke();
+                        (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) taskchange = await task.ActionFinishInvoke();
                         if (taskchange.continuetask == false)
                         {
                             _SetOrderAsFaiiureState(taskchange.errorMsg, taskchange.alarmCode);
@@ -424,10 +424,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
 
             }
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
-            if (v.confirm == false)
-                logger.Warn($"{v.message}");
-
             await Task.Delay(300);
 
             bool isTaskCanceled = DatabaseCaches.TaskCaches.CompleteTasks.Any(tk => tk.TaskName == OrderData.TaskName && tk.State == TASK_RUN_STATUS.CANCEL);
@@ -490,10 +486,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
 
                 ModifyOrder(OrderData);
-                (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
-                if (v.confirm == false)
-                    logger.Warn($"{v.message}");
-
 
                 if (OrderData.Action == ACTION_TYPE.Carry)
                 {

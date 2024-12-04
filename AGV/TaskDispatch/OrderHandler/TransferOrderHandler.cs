@@ -40,11 +40,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 return;
             }
 
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.start));
-            if (v.confirm == false)
-                logger.Warn($"{v.message}");
-
-
             if (OrderData.need_change_agv)
             {
                 // TODO 把可用的轉換站存在這listTransferStation
@@ -151,12 +146,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         protected override void _SetOrderAsFinishState()
         {
             this.transportCommand.ResultCode = 0;
-            SECS_TransferCompletedReport();
+            SECS_TransferCompletedReport(alarm: ALARMS.NONE);
             base._SetOrderAsFinishState();
         }
 
         protected override void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
-        {          
+        {
             SECS_TransferCompletedReport(alarm);
             base._SetOrderAsFaiiureState(FailReason, alarm);
         }
@@ -192,7 +187,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (isCarrierAtAGV) //
             {
                 newTransportCommandDto.CarrierLoc = Agv.AgvIDStr;
-                newTransportCommandDto.CarrierZoneName="";
+                newTransportCommandDto.CarrierZoneName = "";
             }
 
             return newTransportCommandDto;

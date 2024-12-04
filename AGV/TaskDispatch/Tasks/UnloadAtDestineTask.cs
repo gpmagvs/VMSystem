@@ -37,7 +37,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var equipment = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
         }
-        internal override async  Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
+        internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
             MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             var result = await base.DistpatchToAGV();
@@ -45,10 +45,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             return result;
         }
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            ReportUnloadCargoFromPortDone();
-            return base.ActionFinishInvoke();
+            await ReportUnloadCargoFromPortDone();
+            return await base.ActionFinishInvoke();
         }
     }
 }

@@ -669,7 +669,7 @@ namespace VMSystem.AGV
                 return true;
             }
 
-            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI && !options.Simulation)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
                 if (!resDto.Success)
@@ -700,7 +700,7 @@ namespace VMSystem.AGV
             }
 
             online_mode_req = ONLINE_STATE.OFFLINE;
-            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI && !options.Simulation)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
                 if (!resDto.Success)

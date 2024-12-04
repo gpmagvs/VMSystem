@@ -561,8 +561,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!IsCargoOnAGV())
                 return;
-            int tag = OrderData.To_Station_Tag;
-            int slot = OrderData.GetToSlotInt();
+            int tag = OrderData.From_Station_Tag;
+            int slot = OrderData.GetFromSlotInt();
             await AGVSSerivces.CargoUnloadFromPortDoneReport(Agv.Name, tag, slot);
         }
 

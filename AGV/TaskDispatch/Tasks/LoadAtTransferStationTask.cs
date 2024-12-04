@@ -43,10 +43,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return orderInfo.TransferToTag;
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            ReportLoadCargoToPortDone();
-            return base.ActionFinishInvoke();
+            await ReportLoadCargoToPortDone();
+            return await base.ActionFinishInvoke();
         }
     }
 }

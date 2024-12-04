@@ -66,11 +66,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return result;
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            var baseResult = base.ActionFinishInvoke();
+            var baseResult = await base.ActionFinishInvoke();
             MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
-            ReportUnloadCargoFromPortDone();
+            await ReportUnloadCargoFromPortDone();
             return baseResult;
         }
     }

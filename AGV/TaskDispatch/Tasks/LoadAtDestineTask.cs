@@ -62,14 +62,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 orderHandler.transportCommand.CarrierZoneName = OrderData.destineZoneID;
             }
             //CarrierTransferFromAGVToPortReport(OrderData.destinePortID, OrderData.destineZoneID);
-            MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            await MCSCIMService.VehicleDepositCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
             return result;
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            ReportLoadCargoToPortDone();
-            return base.ActionFinishInvoke();
+            await ReportLoadCargoToPortDone();
+            return await base.ActionFinishInvoke();
         }
     }
 

@@ -425,21 +425,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 OrderHandlerBase? currentOrderHandler = Agv.CurrentOrderHandler();
                 TransportCommandDto transferCommand = currentOrderHandler?.transportCommand;
-                if (currentOrderHandler!=null && transferCommand !=null && !string.IsNullOrEmpty(hostAction))
+                if (currentOrderHandler != null && transferCommand != null && !string.IsNullOrEmpty(hostAction))
                 {
                     if (hostAction == "cancel")
                     {
                         _ = MCSCIMService.TransferCancelInitiatedReport(transferCommand).ContinueWith(async t =>
                         {
-                            currentOrderHandler.isTransferCanceledByHost=true;
+                            currentOrderHandler.isTransferCanceledByHost = true;
                         });
                     }
 
                     if (hostAction == "abort")
                     {
-                        _ =   MCSCIMService.TransferAbortInitiatedReport(transferCommand).ContinueWith(async t =>
+                        _ = MCSCIMService.TransferAbortInitiatedReport(transferCommand).ContinueWith(async t =>
                         {
-                            currentOrderHandler.isTransferAbortedByHost=true;
+                            currentOrderHandler.isTransferAbortedByHost = true;
                         });
 
                     }
@@ -512,7 +512,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public virtual async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
             (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) result = (true, null, ALARMS.NONE, "");
 
@@ -541,11 +541,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else
                     taskstate = MCSCIMService.TaskStatus.ignore;
-
-                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate)); // 各段任務結束上報
-                v.Wait();
-                if (v.Result.confirm == false)
-                    logger.Warn($"{v.Result.message}");
             }
             catch (Exception ex)
             {
@@ -611,10 +606,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         else
                         {
-                            result.continuetask=false;
+                            result.continuetask = false;
 
                             bool isIDReadFail = Agv.states.CSTID[0].ToLower() == "error";
-                            result.alarmCode =isIDReadFail ? ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL : ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
+                            result.alarmCode = isIDReadFail ? ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL : ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                         }
                     }
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,

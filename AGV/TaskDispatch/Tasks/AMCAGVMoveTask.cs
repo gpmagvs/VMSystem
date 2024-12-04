@@ -194,10 +194,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
             _waitTaskFinish.Set();
-            return base.ActionFinishInvoke();
+            return await base.ActionFinishInvoke();
         }
         private List<clsTaskDto> SplitOrder(clsTaskDto orderData)
         {

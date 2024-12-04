@@ -592,9 +592,6 @@ namespace VMSystem.AGV
         private async void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), MCSCIMService.TaskStatus.completed));
-            if (v.confirm == false)
-                logger.Warn($"{v.message}");
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
