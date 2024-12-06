@@ -26,16 +26,38 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             await MCSCIMService.TransferringReport(transportCommand);
         }
 
-        public async Task SECS_TransferCompletedReport(AGVSystemCommonNet6.Alarm.ALARMS alarm = AGVSystemCommonNet6.Alarm.ALARMS.NONE)
+        public async Task SECS_TransferCompletedReport(AGVSystemCommonNet6.Alarm.ALARMS alarm)
         {
             try
             {
+
+                if (Agv.IsAGVHasCargoOrHasCargoID())
+                {
+                    transportCommand.CarrierLoc = Agv.options.AgvID;
+                    transportCommand.CarrierZoneName = "";
+                }
+                else
+                {
+                    if (RunningTask.Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.WorkingAtDestination)
+                    {
+                        transportCommand.CarrierLoc = OrderData.destinePortID;
+                        transportCommand.CarrierZoneName = OrderData.destineZoneID;
+                    }
+                    else if (RunningTask.Stage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.WorkingAtSource)
+                    {
+                        transportCommand.CarrierLoc = OrderData.soucePortID;
+                        transportCommand.CarrierZoneName = OrderData.sourceZoneID;
+                    }
+                }
+
                 if (alarm == ALARMS.NONE)
                     transportCommand.ResultCode = 0;
                 else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                 {
                     if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load)
                         transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 102; //AGV車上還有貨:表示放貨前就異常 反之在退出設備時異常
+                    else
+                        transportCommand.ResultCode = 144;
                 }
                 else
                 {
@@ -46,7 +68,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     else if (alarm == ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO)
                         transportCommand.ResultCode = 100;
                     else
-                        transportCommand.ResultCode = 1;
+                        transportCommand.ResultCode = (int)alarm;
                 }
                 var transferComptReportCmd = transportCommand.Clone();
                 bool isIDReadFail = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL;
