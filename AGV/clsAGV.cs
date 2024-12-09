@@ -16,6 +16,8 @@ using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.StopRegion;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using Newtonsoft.Json.Linq;
 using NLog;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
@@ -65,6 +67,76 @@ namespace VMSystem.AGV
             {
                 online_state = ONLINE_STATE.ONLINE;
                 TagSetup();
+            }
+
+            Task.Run(() => HandleAlarmCodesReported());
+        }
+
+        private async Task HandleAlarmCodesReported()
+        {
+            while (true)
+            {
+                await Task.Delay(1000);
+                try
+                {
+                    int[] currentAlarmIDList = AlarmCodes.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
+                    int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
+
+                    var newAlarmodes = currentAlarmIDList.Where(id => !_previousAlarmCodes.Contains(id)).ToList();
+                    var checkedAlarmCodes = _previousAlarmCodes.Where(id => !currentAlarmIDList.Contains(id)).ToList();
+                    List<Task> alarmOpterationsList = new List<Task>();
+
+                    if (newAlarmodes.Any())
+                    {
+                        foreach (var alarCode in newAlarmodes)
+                        {
+                            var alarm = AlarmCodes.FirstOrDefault(al => al.Alarm_ID == alarCode);
+                            var alarmDto = new clsAlarmDto
+                            {
+                                AlarmCode = alarm.Alarm_ID,
+                                Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
+                                Description_En = alarm.Alarm_Description_EN,
+                                Description_Zh = alarm.Alarm_Description,
+                                Equipment_Name = Name,
+                                Checked = false,
+                                OccurLocation = currentMapPoint.Name,
+                                Time = DateTime.Now,
+                                Task_Name = taskDispatchModule.ExecutingTaskName,
+                                Source = ALARM_SOURCE.EQP,
+
+                            };
+                            alarmOpterationsList.Add(Task.Run(async () =>
+                            {
+                                await AlarmManagerCenter.AddAlarmAsync(alarmDto);
+                                previousAlarmCodes.Add(alarmDto);
+                            }));
+                        }
+
+                    }
+                    if (checkedAlarmCodes.Any())
+                    {
+                        foreach (var alarCode in checkedAlarmCodes)
+                        {
+                            var alarm = previousAlarmCodes.FirstOrDefault(al => al.AlarmCode == alarCode);
+                            if (alarm != null)
+                                alarmOpterationsList.Add(Task.Run(async () =>
+                                {
+                                    await AlarmManagerCenter.SetAlarmCheckedAsync(Name, alarm.AlarmCode);
+                                    previousAlarmCodes.RemoveAll(al => al.AlarmCode == alarCode);
+                                }));
+                        }
+                    }
+
+                    if (alarmOpterationsList.Any())
+                    {
+                        Task.WaitAll(alarmOpterationsList.ToArray());
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
             }
         }
 
@@ -348,67 +420,8 @@ namespace VMSystem.AGV
         }
 
         public List<clsAlarmDto> previousAlarmCodes = new List<clsAlarmDto>();
-        public AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] AlarmCodes
-        {
-            set
-            {
-                if (value.Length == 0 && previousAlarmCodes.Count != 0)
-                {
-                    var previousUnCheckdeAlarms = AlarmManagerCenter.uncheckedAlarms.FindAll(alarm => alarm.Equipment_Name == Name);
-                    AlarmManagerCenter.SetAlarmsAllCheckedByEquipmentName(Name);
-                    previousAlarmCodes.Clear();
-                }
-                if (value.Length > 0)
-                {
-                    int[] newAlarmodes = value.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
-                    int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
 
-                    if (newAlarmodes.Length > 0)
-                    {
-                        Task.Factory.StartNew(async () =>
-                        {
-                            foreach (int alarm_code in _previousAlarmCodes) //舊的
-                            {
-                                if (!newAlarmodes.Contains(alarm_code))
-                                {
-                                    await AlarmManagerCenter.SetAlarmCheckedAsync(Name, alarm_code);
-                                    previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
-                                }
-                            }
-                        });
-                    }
-
-                    foreach (AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode alarm in value)
-                    {
-                        if (!_previousAlarmCodes.Contains(alarm.Alarm_ID)) //New Aalrm!
-                        {
-
-                            var alarmDto = new clsAlarmDto
-                            {
-                                AlarmCode = alarm.Alarm_ID,
-                                Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
-                                Description_En = alarm.Alarm_Description_EN,
-                                Description_Zh = alarm.Alarm_Description,
-                                Equipment_Name = Name,
-                                Checked = false,
-                                OccurLocation = currentMapPoint.Name,
-                                Time = DateTime.Now,
-                                Task_Name = taskDispatchModule.ExecutingTaskName,
-                                Source = ALARM_SOURCE.EQP,
-
-                            };
-                            AlarmManagerCenter.AddAlarmAsync(alarmDto);
-                            previousAlarmCodes.Add(alarmDto);
-                        }
-                        else
-                        {
-                            AlarmManagerCenter.UpdateAlarmDuration(Name, alarm.Alarm_ID);
-                        }
-                    }
-
-                }
-            }
-        }
+        public AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] AlarmCodes = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
 
 
 
