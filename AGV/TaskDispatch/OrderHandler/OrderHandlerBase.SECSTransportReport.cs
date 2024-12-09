@@ -62,7 +62,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 else
                 {
                     if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL)
+                    {
                         transportCommand.ResultCode = 5;
+                    }
                     else if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED)
                         transportCommand.ResultCode = 4;
                     else if (alarm == ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO)
@@ -78,9 +80,21 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED || isIDReadFail)
                 {
                     if (isIDReadFail)
+                    {
                         transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayUnknownFlowID();
+                        MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
+                        {
+                            await MCSCIMService.CarrierRemoveCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
+                        });
+                    }
                     else
+                    {
                         transferComptReportCmd.CarrierID = Agv.states.CSTID.FirstOrDefault();
+                        MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
+                        {
+                            await MCSCIMService.CarrierRemoveCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
+                        });
+                    }
                 }
                 if (alarm == AGVSystemCommonNet6.Alarm.ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO) //來源空值
                 {

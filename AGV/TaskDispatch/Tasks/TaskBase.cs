@@ -608,8 +608,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         else
                         {
                             result.continuetask = false;
-
-                            bool isIDReadFail = Agv.states.CSTID[0].ToLower() == "error";
+                            bool isIDReadFail = Agv.states.CSTID == null || !Agv.states.CSTID.Any() || Agv.states.CSTID[0].ToLower() == "error" || Agv.states.CSTID[0].ToLower() == "trayunknow";
                             result.alarmCode = isIDReadFail ? ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL : ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                         }
                     }
