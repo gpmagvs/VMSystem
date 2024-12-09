@@ -192,6 +192,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 return (true, ALARMS.NONE, "");
             }
+            catch (AGVStatusDownException ex)
+            {
+                return (false, ex.Alarm_Code, "AGV Status Down");
+
+            }
             catch (TaskCanceledException ex)
             {
                 TrafficWaitingState.SetDisplayMessage("任務取消中...");
@@ -664,7 +669,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
-                await Task.Delay(1);
+                NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
+                await Task.Delay(1000);
             }
         }
         /// <summary>

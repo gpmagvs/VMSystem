@@ -163,7 +163,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             base._SetOrderAsFaiiureState(FailReason, alarm);
         }
 
-        protected override async Task _SetOrderAsCancelState(string taskCancelReason)
+        protected override async Task _SetOrderAsCancelState(string taskCancelReason, ALARMS alarmCode)
         {
 
             TransportCommandDto _transportCommand = _GetTransportCommandDtoByCariierLocatin(this.transportCommand);
@@ -177,8 +177,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 MCSCIMService.TransferAbortCompletedReport(_transportCommand);
             }
-
-            await base._SetOrderAsCancelState(taskCancelReason);
+            SECS_TransferCompletedReport(alarmCode);
+            await base._SetOrderAsCancelState(taskCancelReason, alarmCode);
         }
 
         private TransportCommandDto _GetTransportCommandDtoByCariierLocatin(TransportCommandDto transportCommand)

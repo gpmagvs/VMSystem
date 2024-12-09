@@ -106,10 +106,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
                 if (AgvStatusDownFlag)
-                    return;
+                    throw new AGVStatusDownException();
                 await WaitAGVReachWorkStationTag();
                 if (AgvStatusDownFlag)
-                    return;
+                    throw new AGVStatusDownException();
                 await WaitAGVTaskDone();
                 logger.Info("LUDLD Action End.");
                 if (this.ActionType == ACTION_TYPE.Unload)
@@ -121,6 +121,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (Exception ex)
             {
                 logger.Error(ex);
+                throw ex;
             }
             finally
             {
@@ -559,20 +560,36 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected async Task ReportUnloadCargoFromPortDone()
         {
-            if (!IsCargoOnAGV())
-                return;
-            int tag = OrderData.From_Station_Tag;
-            int slot = OrderData.GetFromSlotInt();
-            await AGVSSerivces.CargoUnloadFromPortDoneReport(Agv.Name, tag, slot);
+            try
+            {
+
+                if (!IsCargoOnAGV())
+                    return;
+                int tag = OrderData.From_Station_Tag;
+                int slot = OrderData.GetFromSlotInt();
+                await AGVSSerivces.CargoUnloadFromPortDoneReport(Agv.Name, tag, slot);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
         }
 
         protected async Task ReportLoadCargoToPortDone()
         {
-            if (IsCargoOnAGV())
-                return;
-            int tag = OrderData.To_Station_Tag;
-            int slot = OrderData.GetToSlotInt();
-            await AGVSSerivces.CargoLoadToPortDoneReport(Agv.Name, tag, slot, cargoIDMounted);
+            try
+            {
+
+                if (IsCargoOnAGV())
+                    return;
+                int tag = OrderData.To_Station_Tag;
+                int slot = OrderData.GetToSlotInt();
+                await AGVSSerivces.CargoLoadToPortDoneReport(Agv.Name, tag, slot, cargoIDMounted);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
         }
     }
 }

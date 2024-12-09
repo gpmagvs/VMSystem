@@ -126,6 +126,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
+                            if (dispatch_result.alarm_code == ALARMS.AGV_STATUS_DOWN)
+                                throw new AGVStatusDownException();
+
                             throw new VMSException(dispatch_result.message)
                             {
                                 Alarm_Code = dispatch_result.alarm_code == ALARMS.NONE ? ALARMS.SYSTEM_ERROR : dispatch_result.alarm_code
@@ -160,6 +163,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
                         LoadingAtTransferStationTaskFinishInvoke();
                     }
+                }
+                catch (AGVStatusDownException ex)
+                {
+                    _HandleVMSException(ex);
+                    return;
                 }
                 catch (VMSException ex)
                 {
@@ -214,7 +222,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (TaskCancelledFlag)
                     {
                         logger.Warn($"Task canceled.{TaskCancelReason}");
-                        _SetOrderAsCancelState(TaskCancelReason);
+                        _SetOrderAsCancelState(TaskCancelReason, ALARMS.Task_Canceled);
                         ActionsWhenOrderCancle();
                         isTaskFail = true;
                     }
@@ -226,7 +234,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     logger.Error(ex);
                     bool _isAgvDown = Agv.main_state == MAIN_STATUS.DOWN;
                     if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)
-                        _SetOrderAsCancelState(TaskCancelReason);
+                        _SetOrderAsCancelState(TaskCancelReason, ex.Alarm_Code);
                     else
                         _SetOrderAsFaiiureState(ex.Message, _isAgvDown ? ALARMS.AGV_STATUS_DOWN : ex.Alarm_Code);
                     ActionsWhenOrderCancle();
@@ -411,7 +419,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             ModifyOrder(OrderData);
         }
 
-        protected virtual async Task _SetOrderAsCancelState(string taskCancelReason)
+        protected virtual async Task _SetOrderAsCancelState(string taskCancelReason, ALARMS alarmCode)
         {
             RunningTask.CancelTask();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
