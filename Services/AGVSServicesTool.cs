@@ -11,46 +11,6 @@ namespace VMSystem.Services
 {
     public static class AGVSServicesTool
     {
-        /// <summary>
-        /// Unload: MoveToDestineTask+UnloadAtDestineTask
-        /// Load: MoveToDestineTask+LoadAtTransferStationTask or LoadAtDestineTask
-        /// Carry: MoveToSourceTask+UnloadAtSourceTask+MoveToDestineTask+LoadAtTransferStationTask or LoadAtDestineTask
-        /// </summary>
-        /// <param name="tag"></param>
-        /// <param name="TasksObj"></param>
-        /// <param name="OrderDataAction"></param>
-        /// <returns></returns>
-        public static async Task<clsAGVSTaskReportResponse> LoadUnloadActionStartReport(int tag, object TasksObj, ACTION_TYPE OrderDataAction)
-        {
-            int intSlot = -1;
-            clsAGVSTaskReportResponse response = new clsAGVSTaskReportResponse();
-            if (TasksObj.GetType() == typeof(MoveToDestineTask))
-            {
-                if (OrderDataAction == ACTION_TYPE.Charge || OrderDataAction == ACTION_TYPE.None)
-                    return new clsAGVSTaskReportResponse() { confirm = true };
-                if (OrderDataAction == ACTION_TYPE.Carry)
-                    OrderDataAction = ACTION_TYPE.Load;
-            }
-            else if (TasksObj.GetType() == typeof(UnloadAtDestineTask))
-            { }
-            else if (TasksObj.GetType() == typeof(LoadAtTransferStationTask) || TasksObj.GetType() == typeof(LoadAtDestineTask))
-            {
-                if (OrderDataAction == ACTION_TYPE.Carry)
-                    OrderDataAction = ACTION_TYPE.Load;
-            }
-            else if (TasksObj.GetType() == typeof(MoveToSourceTask))
-            {
-                if (OrderDataAction == ACTION_TYPE.Carry)
-                    OrderDataAction = ACTION_TYPE.Unload;
-            }
-            else if (TasksObj.GetType() == typeof(UnloadAtSourceTask))
-            {
-                if (OrderDataAction == ACTION_TYPE.Carry)
-                    OrderDataAction = ACTION_TYPE.Unload;
-            }
-            response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(tag, 0, OrderDataAction);
-            return response;
-        }
         public static async Task<clsAGVSTaskReportResponse> LoadUnloadActionStartReport(clsTaskDto taskData, object TasksObj)
         {
             ACTION_TYPE OrderDataAction = taskData.Action;
@@ -109,7 +69,7 @@ namespace VMSystem.Services
                 if (OrderDataAction == ACTION_TYPE.Carry)
                     OrderDataAction = ACTION_TYPE.Unload;
             }
-            response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(intTag, intSlot, OrderDataAction);
+            response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(taskData.TaskName, intTag, intSlot, OrderDataAction);
 
             if (!response.confirm)
             {
