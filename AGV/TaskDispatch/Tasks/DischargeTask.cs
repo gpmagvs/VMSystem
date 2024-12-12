@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.MCS;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -60,6 +61,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
                 await WaitAGVTaskDone();
+
+                if (OrderData.Action == ACTION_TYPE.Carry)
+                {
+                    await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.soucePortID);
+                }
+
             }
             catch (Exception ex)
             {

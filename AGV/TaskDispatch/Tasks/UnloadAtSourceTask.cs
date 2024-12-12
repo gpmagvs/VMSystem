@@ -55,6 +55,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             _ = MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.soucePortID).ContinueWith(async t =>
             {
                 await Task.Delay(100);
+                await MCSCIMService.TransferringReport(new MCSCIMService.TransportCommandDto
+                {
+                    CarrierID = OrderData.Carrier_ID,
+                    CommandID = OrderData.TaskName,
+                    CarrierLoc = OrderData.soucePortID,
+                    CarrierZoneName = OrderData.sourceZoneID,
+                    Dest = OrderData.destinePortID
+                });
+                await Task.Delay(100);
                 await MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
             });
             var result = await base.DistpatchToAGV();
@@ -73,7 +82,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
             var baseResult = await base.ActionFinishInvoke();
-            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID).ContinueWith(async t =>
+            {
+                await Task.Delay(100);
+                await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.soucePortID);
+            });
             await ReportUnloadCargoFromPortDone();
             return baseResult;
         }

@@ -54,7 +54,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            MCSCIMService.VehicleDepositStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+
+
+            _ = MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.destinePortID).ContinueWith(async t =>
+            {
+                await Task.Delay(100);
+                await MCSCIMService.TransferringReport(new MCSCIMService.TransportCommandDto
+                {
+                    CarrierID = OrderData.Carrier_ID,
+                    CommandID = OrderData.TaskName,
+                    CarrierLoc = this.Agv.AgvIDStr,
+                    CarrierZoneName = "",
+                    Dest = OrderData.destinePortID
+                });
+                await Task.Delay(100);
+                await MCSCIMService.VehicleDepositStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+
+            });
+
             var result = await base.DistpatchToAGV();
             await WaitAGVNotRunning();
             if (Agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN)

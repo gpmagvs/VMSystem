@@ -74,7 +74,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             OrderData.TransferToTag = intTransferToTag;
                             OrderData.TransferFromTag = tag.Value.FirstOrDefault();
-                            SECS_TransferringReport();
                             await base.StartOrder(Agv);
                             IsAllTransferStationFail = false;
                             break;
@@ -119,8 +118,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     SECS_TranferInitiatedReport().ContinueWith(async t =>
                     {
                         await MCSCIMService.VehicleAssignedReport(Agv.AgvIDStr, OrderData.TaskName);
-                        await Task.Delay(200);
-                        await SECS_TransferringReport();
                     });
 
                     await base.StartOrder(Agv);

@@ -21,10 +21,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             await MCSCIMService.TransferInitiatedReport(transportCommand);
         }
-        public async Task SECS_TransferringReport()
-        {
-            await MCSCIMService.TransferringReport(transportCommand);
-        }
 
         public async Task SECS_TransferCompletedReport(AGVSystemCommonNet6.Alarm.ALARMS alarm)
         {
