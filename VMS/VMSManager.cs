@@ -208,7 +208,7 @@ namespace VMSystem.VMS
                     MiddleLevel = agvDto.MiddleBatLvThreshold,
                     HightLevel = agvDto.HighBatLvThreshold
                 },
-                AgvID = agvDto.AGV_ID
+                AGV_ID = agvDto.AGV_ID
             };
         }
 
@@ -628,32 +628,29 @@ namespace VMSystem.VMS
                 var databaseDto = AGVSDbContext.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
                 if (databaseDto != null)
                 {
-                    var group = GetGroup(dto.Model);
+                    dto.Group= GetGroup(dto.Model);
                     var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
 
                     if (oriAGV == null)
                     {
                         return await AddVehicle(dto);
                     }
-                    databaseDto.IP = oriAGV.options.HostIP = dto.IP;
-                    databaseDto.Port = oriAGV.options.HostPort = dto.Port;
-                    databaseDto.Protocol = oriAGV.options.Protocol = dto.Protocol;
-                    databaseDto.Model = oriAGV.model = dto.Model;
-                    databaseDto.Group = group;
-                    databaseDto.InitTag = oriAGV.options.InitTag = dto.InitTag;
-                    oriAGV.Name = dto.AGV_Name;
-                    databaseDto.VehicleLength = oriAGV.options.VehicleLength = dto.VehicleLength;
-                    databaseDto.VehicleWidth = oriAGV.options.VehicleWidth = dto.VehicleWidth;
+
+                    var config = new MapperConfiguration(cfg => cfg.CreateMap<clsAGVStateDto, clsAGVStateDto>());
+                    var mapper = config.CreateMapper();
+                    mapper.Map(dto, databaseDto);
+                    AGVSDbContext.Entry(databaseDto).State = EntityState.Modified;
                     if (dto.Simulation && !oriAGV.options.Simulation)
                     {
                         oriAGV.AgvSimulation = new clsAGVSimulation((clsAGVTaskDisaptchModule)oriAGV.taskDispatchModule);
                         oriAGV.AgvSimulation.StartSimulation();
                     }
                     else if (!dto.Simulation && oriAGV.options.Simulation)
-                    {
                         oriAGV.AgvSimulation.Dispose();
-                    }
-                    databaseDto.Simulation = oriAGV.options.Simulation = dto.Simulation;
+
+                    config = new MapperConfiguration(cfg => cfg.CreateMap<clsAGVStateDto, clsAGVOptions>());
+                    mapper = config.CreateMapper();
+                    mapper.Map(dto, oriAGV.options);
                     await AGVSDbContext.SaveChangesAsync();
                 }
                 else

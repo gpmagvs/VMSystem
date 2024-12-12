@@ -29,7 +29,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 if (Agv.IsAGVHasCargoOrHasCargoID())
                 {
-                    transportCommand.CarrierLoc = Agv.options.AgvID;
+                    transportCommand.CarrierLoc = Agv.options.AGV_ID;
                     transportCommand.CarrierZoneName = "";
                 }
                 else

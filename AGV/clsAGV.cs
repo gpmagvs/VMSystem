@@ -491,7 +491,7 @@ namespace VMSystem.AGV
             }
         }
         public int currentFloor { get; set; } = 1;
-        public string AgvIDStr => options.AgvID;
+        public string AgvIDStr => options.AGV_ID;
 
         public async Task Run()
         {

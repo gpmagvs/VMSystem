@@ -113,6 +113,7 @@ namespace VMSystem.BackgroundServices
                 GetStationsName(agv, out string currentLocDisplay, out string sourceDisplay, out string destineDisplay);
                 clsAGVStateDto dto = originalDto ?? new clsAGVStateDto();
                 dto.AGV_Name = agv.Name;
+                dto.AGV_ID = agv.AgvIDStr;
                 dto.Enabled = agv.options.Enabled;
                 dto.BatteryLevel_1 = agv.states.Electric_Volume.Length >= 1 ? agv.states.Electric_Volume[0] : -1;
                 dto.BatteryLevel_2 = agv.states.Electric_Volume.Length >= 2 ? agv.states.Electric_Volume[1] : -1;
