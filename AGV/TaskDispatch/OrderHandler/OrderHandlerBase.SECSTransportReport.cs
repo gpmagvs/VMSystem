@@ -19,6 +19,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public async Task SECS_TranferInitiatedReport()
         {
+            if (OrderData.isVehicleAssignedChanged)
+                return;
             await MCSCIMService.TransferInitiatedReport(transportCommand);
         }
 
@@ -26,6 +28,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
+                if (OrderData.isVehicleAssignedChanged)
+                    return;
 
                 if (Agv.IsAGVHasCargoOrHasCargoID())
                 {

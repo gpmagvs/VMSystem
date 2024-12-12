@@ -95,6 +95,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
                             Log($"Wait original order owner state changed to IDLE...");
+                            await SetOrderIsChangeVehicleState();
                             (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order, "Change Vehicle To Execute");
                             if (!confirmed)
                             {
@@ -134,6 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                     {
                         Log($"Monitor process is Aborted");
                     }
+                    base.agvsDb.Dispose();
                 }
 
             });
@@ -158,7 +160,22 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 
             return orderModifiedSuccess;
         }
-
+        private async Task<bool> SetOrderIsChangeVehicleState()
+        {
+            try
+            {
+                this.order.isVehicleAssignedChanged = true;
+                return await base.ModifyOrder(this.order);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+            finally
+            {
+            }
+        }
         private async Task<bool> ModifyOrder(IAGV betterVehicle)
         {
             try

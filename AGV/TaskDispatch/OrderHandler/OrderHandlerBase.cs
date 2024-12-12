@@ -82,6 +82,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             _ = Task.Run(async () =>
             {
                 await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
+
+                if (OrderData.isVehicleAssignedChanged)
+                {
+                    NotifyServiceHelper.INFO($"{this.Agv.Name} 接收任務轉移-開始執行任務");
+                    OrderData.isVehicleAssignedChanged = false;
+                    await ModifyOrder(OrderData);
+                }
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
                 (bool isSourceBuffer, bool isDestineBuffer) = IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt);
 
