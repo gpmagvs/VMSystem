@@ -170,6 +170,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 orderDto.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
                 orderDto.FailureReason = "";
                 orderDto.DesignatedAGVName = betterVehicle.Name;
+                orderDto.isVehicleAssignedChanged = true;
                 return await base.ModifyOrder(orderDto);
             }
             catch (Exception ex)

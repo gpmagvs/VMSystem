@@ -81,6 +81,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             this.Agv = Agv;
             _ = Task.Run(async () =>
             {
+                await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
                 (bool isSourceBuffer, bool isDestineBuffer) = IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt);
 
@@ -123,6 +124,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             AbortOrder(_alarm);
                         };
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
+
+                        await SetOrderProgress(task.Stage);
+
                         var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
@@ -240,6 +244,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     ActionsWhenOrderCancle();
                     RunningTask.Dispose();
                 }
+
+
             });
         }
 
@@ -446,6 +452,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
+            OrderData.currentProgress = VehicleMovementStage.Completed;
             ModifyOrder(OrderData);
             OnOrderFinish?.Invoke(this, this);
             if (PartsAGVSHelper.NeedRegistRequestToParts)
@@ -571,6 +578,18 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             TrafficControlling = false;
             RunningTask.MoveTaskEvent.TrafficResponse.ConfirmResult = clsMoveTaskEvent.GOTO_NEXT_GOAL_CONFIRM_RESULT.ACCEPTED_GOTO_NEXT_GOAL;
+        }
+        async Task SetOrderProgress(VehicleMovementStage progress)
+        {
+            try
+            {
+                OrderData.currentProgress = progress;
+                await ModifyOrder(OrderData);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
         }
     }
 }
