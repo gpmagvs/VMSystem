@@ -670,7 +670,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
                 NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
-                await Task.Delay(1000);
+                await Task.Delay(200);
             }
         }
         /// <summary>

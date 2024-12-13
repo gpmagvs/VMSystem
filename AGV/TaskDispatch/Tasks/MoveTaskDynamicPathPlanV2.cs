@@ -611,6 +611,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (TaskCanceledException ex)
                     {
+                        await WaitAGVNotRunning();
                         throw ex;
                     }
                     catch (AGVRejectTaskException ex)
@@ -679,6 +680,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await FinalStopThetaAdjuctProcess(expectedAngle);
                     }
                     UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-角度確認({expectedAngle}) OK!");
+                    await WaitAGVNotRunning();
                     await Task.Delay(100);
                 }
 
@@ -700,6 +702,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+                await Task.Delay(500);
                 EndReocrdTrajectory();
                 TrafficWaitingState.SetStatusNoWaiting();
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);

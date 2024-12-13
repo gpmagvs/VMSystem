@@ -201,7 +201,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 finally
                 {
                     MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName);
-                    ResetVehicleRegistedPoints();
+                    await ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
@@ -270,7 +270,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             };
         }
 
-        protected virtual void ResetVehicleRegistedPoints()
+        protected virtual async Task ResetVehicleRegistedPoints()
         {
             //bool isAGVDownAtRackPort = Agv.main_state == MAIN_STATUS.DOWN && Agv.IsVehicleAtBuffer();
             //if (isAGVDownAtRackPort)
@@ -278,7 +278,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             //    StaMap.RegistPoint(Agv.Name, Agv.currentMapPoint.TargetNormalPoints(), out string mesg);
             //    return;
             //}
-            UnRegistPoints();
+            await UnRegistPoints();
             Agv.NavigationState.StateReset();
             Agv.NavigationState.ResetNavigationPoints();
         }
@@ -567,11 +567,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
             }
         }
-        private void UnRegistPoints()
+        private async Task UnRegistPoints()
         {
             if (Agv == null)
                 return;
-            StaMap.UnRegistPointsOfAGVRegisted(this.Agv);
+            while (!await StaMap.UnRegistPointsOfAGVRegisted(this.Agv))
+            {
+                await Task.Delay(200);
+            }
             Agv.NavigationState.ResetNavigationPoints();
         }
         internal void StartTrafficControl()
