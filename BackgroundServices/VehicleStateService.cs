@@ -136,8 +136,8 @@ namespace VMSystem.BackgroundServices
                 dto.VehicleWidth = agv.options.VehicleWidth;
                 dto.VehicleLength = agv.options.VehicleLength;
                 dto.Protocol = agv.options.Protocol;
-                dto.IP = agv.options.HostIP;
-                dto.Port = agv.options.HostPort;
+                dto.IP = agv.options.IP;
+                dto.Port = agv.options.Port;
                 dto.Simulation = agv.options.Simulation;
                 dto.LowBatLvThreshold = agv.options.BatteryOptions.LowLevel;
                 dto.MiddleBatLvThreshold = agv.options.BatteryOptions.MiddleLevel;

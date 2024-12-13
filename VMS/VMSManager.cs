@@ -195,8 +195,8 @@ namespace VMSystem.VMS
             return new clsAGVOptions
             {
                 Enabled = agvDto.Enabled,
-                HostIP = agvDto.IP,
-                HostPort = agvDto.Port,
+                IP = agvDto.IP,
+                Port = agvDto.Port,
                 VehicleWidth = agvDto.VehicleWidth,
                 VehicleLength = agvDto.VehicleLength,
                 Simulation = agvDto.Simulation,
@@ -628,7 +628,7 @@ namespace VMSystem.VMS
                 var databaseDto = AGVSDbContext.AgvStates.FirstOrDefault(agv => agv.AGV_Name == ordAGVName);
                 if (databaseDto != null)
                 {
-                    dto.Group= GetGroup(dto.Model);
+                    dto.Group = GetGroup(dto.Model);
                     var oriAGV = AllAGV.FirstOrDefault(agv => agv.Name == ordAGVName);
 
                     if (oriAGV == null)
@@ -651,6 +651,7 @@ namespace VMSystem.VMS
                     config = new MapperConfiguration(cfg => cfg.CreateMap<clsAGVStateDto, clsAGVOptions>());
                     mapper = config.CreateMapper();
                     mapper.Map(dto, oriAGV.options);
+                    oriAGV.model = dto.Model;
                     await AGVSDbContext.SaveChangesAsync();
                 }
                 else
@@ -738,7 +739,7 @@ namespace VMSystem.VMS
                     });
                     await AGVSDbContext.SaveChangesAsync();
 
-                    if (_order!= null && !string.IsNullOrEmpty(hostAction))
+                    if (_order != null && !string.IsNullOrEmpty(hostAction))
                     {
                         OrderHandlerFactory orderFactory = new OrderHandlerFactory();
                         OrderHandlerBase Orderhander = orderFactory.CreateHandler(_order);
@@ -747,15 +748,15 @@ namespace VMSystem.VMS
 
                         if (hostAction == "cancel")
                         {
-                           _ = MCSCIMService.TransferCancelInitiatedReport(transferCDto).ContinueWith(async t =>
-                            {
-                                await MCSCIMService.TransferCancelCompletedReport(transferCDto);
-                            });
+                            _ = MCSCIMService.TransferCancelInitiatedReport(transferCDto).ContinueWith(async t =>
+                             {
+                                 await MCSCIMService.TransferCancelCompletedReport(transferCDto);
+                             });
                         }
 
                         if (hostAction == "abort")
                         {
-                            _ =   MCSCIMService.TransferAbortInitiatedReport(transferCDto).ContinueWith(async t =>
+                            _ = MCSCIMService.TransferAbortInitiatedReport(transferCDto).ContinueWith(async t =>
                             {
                                 await MCSCIMService.TransferAbortCompletedReport(transferCDto);
                             });
@@ -764,7 +765,7 @@ namespace VMSystem.VMS
 
                     return true;
                 }
-                await vehicle.CancelTaskAsync(task_name, reason,hostAction);
+                await vehicle.CancelTaskAsync(task_name, reason, hostAction);
                 return true;
 
             }

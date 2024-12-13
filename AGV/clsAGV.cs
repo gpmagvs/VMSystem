@@ -243,7 +243,7 @@ namespace VMSystem.AGV
                     _pingSuccess = value;
                     if (!value)
                     {
-                        logger.Warn($"Ping Fail({options.HostIP})");
+                        logger.Warn($"Ping Fail({options.IP})");
                         string location = currentMapPoint == null ? states.Last_Visited_Node + "" : currentMapPoint.Name;
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.VMSDisconnectwithVehicle, Equipment_Name: Name, location: location, level: ALARM_LEVEL.WARNING);
                     }
@@ -512,7 +512,7 @@ namespace VMSystem.AGV
             }
 
 
-            AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
+            AGVHttp = new HttpHelper($"http://{options.IP}:{options.Port}");
             logger.Trace($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
@@ -541,7 +541,7 @@ namespace VMSystem.AGV
         {
             using Ping pingSender = new Ping();
             // 設定要 ping 的主機或 IP
-            string address = options.HostIP;
+            string address = options.IP;
             try
             {  // 創建PingOptions對象，並設置相關屬性
                 PingOptions options = new PingOptions
