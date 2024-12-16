@@ -105,7 +105,7 @@ namespace VMSystem.AGV
             var token = TaskCancelTokenSource.Token;
             _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
             _currentBarcodeMoveArgs.isIDMissmatchSimulation = CargoReadMismatchSimulation;
-            _currentBarcodeMoveArgs.isIDReadFailSimulation= CargoReadFailSimulation;
+            _currentBarcodeMoveArgs.isIDReadFailSimulation = CargoReadFailSimulation;
             _ = Task.Run(async () =>
             {
                 try
@@ -141,12 +141,13 @@ namespace VMSystem.AGV
                             _CargoStateSimulate(ACTION_TYPE.Load, "", false, false);
                         await _BackToHome(_currentBarcodeMoveArgs, token);
 
-                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation&& !_currentBarcodeMoveArgs.isIDReadFailSimulation)
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation && !_currentBarcodeMoveArgs.isIDReadFailSimulation)
                             await WaitCarrierIDReported(_currentBarcodeMoveArgs.CSTID);
 
                         async Task<bool> _confirmLeaveWorkStationConfirm()
                         {
-                            return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
+                            (bool accept, string message) = await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
+                            return accept;
                         }
                     }
 
@@ -213,7 +214,7 @@ namespace VMSystem.AGV
 
         private async Task WaitCarrierIDReported(string cSTID)
         {
-            while (agv.states.CSTID.FirstOrDefault()!= cSTID)
+            while (agv.states.CSTID.FirstOrDefault() != cSTID)
             {
                 await Task.Delay(10);
             }

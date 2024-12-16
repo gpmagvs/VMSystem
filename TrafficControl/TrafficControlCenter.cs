@@ -167,7 +167,7 @@ namespace VMSystem.TrafficControl
         }
         private static DateTime _lastForbiddenNotifyMsgSendTime = DateTime.MinValue;
 
-        public static async Task<bool> AGVLeaveWorkStationRequest(string AGVName, int eQTag)
+        public static async Task<(bool accept, string message)> AGVLeaveWorkStationRequest(string AGVName, int eQTag)
         {
             logger.Trace($"Get {AGVName} Leave from work station(Tag-{eQTag}) request");
             IAGV agv = VMSManager.GetAGVByName(AGVName);
@@ -188,6 +188,7 @@ namespace VMSystem.TrafficControl
             var trafficState = response.Agv.taskDispatchModule.OrderHandler.RunningTask.TrafficWaitingState;
             trafficState.SetStatusWaitingConflictPointRelease(new List<int> { EntryPointOfEQ.TagNumber }, "退出設備確認中...");
             bool allowLeve = response.ActionConfirm == LEAVE_WORKSTATION_ACTION.OK;
+            string message = response.Message;
             if (!allowLeve)
             {
                 logger.Trace($"{AGVName} Leave from work station(Tag-{eQTag}) request NOT ALLOWED.... Reason:{response.Message}");
@@ -201,17 +202,16 @@ namespace VMSystem.TrafficControl
                 trafficState.SetStatusNoWaiting();
 
             }
-            return allowLeve;
+            return (allowLeve, message);
         }
 
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
 
             IAGV _RaiseReqAGV = args.Agv;
-            Task _CycleStopTaskOfOtherVehicle = null;
             try
             {
-                await _leaveWorkStaitonReqSemaphore.WaitAsync();
+                await _leaveWorkStaitonReqSemaphore.WaitAsync(TimeSpan.FromSeconds(2));
                 var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
@@ -270,7 +270,7 @@ namespace VMSystem.TrafficControl
                 }
                 else
                 {
-                    await Task.Delay(1000);
+                    await Task.Delay(200);
                     if (!StaMap.RegistPoint(_RaiseReqAGV.Name, entryPointOfWorkStation, out string _erMsg))
                     {
                         NotifyServiceHelper.WARNING($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}尚不允許!:{_erMsg}");
@@ -337,12 +337,14 @@ namespace VMSystem.TrafficControl
                 {
                     _RaiseReqAGV.NavigationState.ResetNavigationPoints();
                 }
-                else if (_CycleStopTaskOfOtherVehicle != null)
-                {
-                    _CycleStopTaskOfOtherVehicle.Start();
-                }
-
                 return args;
+            }
+            catch (TimeoutException)
+            {
+                args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.CANCEL;
+                args.Message = $"系統流程等待超時!(_leaveWorkStaitonReqSemaphore)";
+                return args;
+
             }
             catch (TaskCanceledException)
             {

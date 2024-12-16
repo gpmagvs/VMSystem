@@ -202,10 +202,11 @@ namespace VMSystem.Controllers
         {
             try
             {
-                bool allowLeve = await TrafficControlCenter.AGVLeaveWorkStationRequest(AGVName, EQTag);
+                (bool accept, string message) = await TrafficControlCenter.AGVLeaveWorkStationRequest(AGVName, EQTag);
                 return Ok(new
                 {
-                    confirm = allowLeve
+                    confirm = accept,
+                    message = message
                 });
             }
             catch (Exception ex)
