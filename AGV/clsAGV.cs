@@ -334,6 +334,7 @@ namespace VMSystem.AGV
                     var currentCircleArea = value.GetCircleArea(ref _thisAGV);
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
+                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         logger.Info($"[{Name}]-Tag Location Change to {value.TagNumber} (Previous : {previousTag})");
 
@@ -408,7 +409,6 @@ namespace VMSystem.AGV
                         previousMapPoint = value;
                         MCSCIMService.VehicleCoordinateChangedReport(AgvIDStr, value.X.ToString() + "", value.Y.ToString());
                         RegionManager.UpdateRegion(this);
-                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                     }
                 }
                 catch (Exception ex)

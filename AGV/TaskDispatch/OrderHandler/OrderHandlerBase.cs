@@ -66,6 +66,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public event EventHandler<OrderHandlerBase> OnOrderFinish;
 
         protected Logger logger;
+
+        private List<int> TagsTracking = new List<int>();
+
         public OrderHandlerBase()
         {
             logger = LogManager.GetLogger("OrderHandle");
@@ -79,6 +82,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
+            TagsTracking = new List<int>() { Agv.currentMapPoint.TagNumber };
+            Agv.OnMapPointChanged += HandleAGVMapPointChanged;
             _ = Task.Run(async () =>
             {
                 await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
@@ -207,6 +212,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
+                    OrderData.TagsTracking = string.Join("->", TagsTracking);
                     ModifyOrder(OrderData);
                     DisposeActionOfCompleteTasks();
                 }
@@ -254,6 +260,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
 
             });
+        }
+
+        private void HandleAGVMapPointChanged(object? sender, int tag)
+        {
+            int lastTag = TagsTracking.LastOrDefault();
+            if (lastTag != tag)
+                TagsTracking.Add(tag);
         }
 
         public virtual void BuildTransportCommandDto()
