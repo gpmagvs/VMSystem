@@ -45,5 +45,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {
         }
+
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.NONE;
+            return true;
+        }
     }
 }
