@@ -667,11 +667,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// <returns></returns>
         protected async Task WaitAGVNotRunning()
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
-                NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
-                await Task.Delay(200);
+                if (stopwatch.Elapsed.Seconds>3)
+                    NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
+                await Task.Delay(10);
             }
+            stopwatch.Stop();
         }
         /// <summary>
         /// 暫停當前導航
