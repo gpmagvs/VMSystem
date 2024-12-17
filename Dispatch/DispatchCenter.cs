@@ -48,10 +48,16 @@ namespace VMSystem.Dispatch
 
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
+            bool _waitTrafficHandleSignalTimeout = true;
             try
             {
-
-                await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync();
+                _waitTrafficHandleSignalTimeout = !await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync(TimeSpan.FromSeconds(2));
+                if (_waitTrafficHandleSignalTimeout)
+                {
+                    vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"等待交管訊號逾時");
+                    await Task.Delay(1000);
+                    return null;
+                }
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
@@ -92,11 +98,14 @@ namespace VMSystem.Dispatch
             }
             finally
             {
-                _ = Task.Run(async () =>
+                if (!_waitTrafficHandleSignalTimeout)
                 {
-                    await Task.Delay(200);
-                    TrafficControlCenter._leaveWorkStaitonReqSemaphore.Release();
-                });
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(200);
+                        TrafficControlCenter._leaveWorkStaitonReqSemaphore.Release();
+                    });
+                }
                 await Task.Delay(10);
                 semaphore.Release();
             }

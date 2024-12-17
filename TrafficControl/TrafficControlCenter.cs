@@ -209,9 +209,14 @@ namespace VMSystem.TrafficControl
         {
 
             IAGV _RaiseReqAGV = args.Agv;
+            bool _waitTrafficHandleSignalTimeout = true;
             try
             {
-                await _leaveWorkStaitonReqSemaphore.WaitAsync(TimeSpan.FromSeconds(2));
+                _waitTrafficHandleSignalTimeout = !await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync(TimeSpan.FromSeconds(2));
+                if (_waitTrafficHandleSignalTimeout)
+                {
+                    throw new TimeoutException($"wait _leaveWorkStaitonReqSemaphore release timeout");
+                }
                 var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
@@ -339,10 +344,10 @@ namespace VMSystem.TrafficControl
                 }
                 return args;
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
-                args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.CANCEL;
-                args.Message = $"系統流程等待超時!(_leaveWorkStaitonReqSemaphore)";
+                args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.WAIT;
+                args.Message = $"系統流程等待超時!({ex.Message})";
                 return args;
 
             }
@@ -353,7 +358,8 @@ namespace VMSystem.TrafficControl
             }
             finally
             {
-                _leaveWorkStaitonReqSemaphore.Release();
+                if (!_waitTrafficHandleSignalTimeout)
+                    _leaveWorkStaitonReqSemaphore.Release();
             }
 
             #region region method
