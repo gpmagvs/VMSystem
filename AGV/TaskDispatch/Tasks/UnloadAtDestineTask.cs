@@ -54,5 +54,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             await ReportUnloadCargoFromPortDone();
             return await base.ActionFinishInvoke();
         }
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO;
+            return !Agv.IsAGVHasCargoOrHasCargoID();
+        }
     }
 }

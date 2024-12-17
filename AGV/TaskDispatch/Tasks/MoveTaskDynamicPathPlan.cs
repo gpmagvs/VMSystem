@@ -493,6 +493,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             OnlyNormalPoint = true,
             ContainElevatorPoint = false
         };
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.NONE;
+            return true;
+        }
         private clsPathInfo CalculateOptimizedPath(int startTag, bool justOptimePath, List<int> additionContrainTags = null)
         {
             PathFinder _pathFinder = new PathFinder();

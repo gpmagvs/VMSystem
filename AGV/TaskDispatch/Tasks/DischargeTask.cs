@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -166,6 +167,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override void CancelTask(string hostAction = "")
         {
             base.CancelTask(hostAction);
+        }
+
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.NONE;
+            return true;
         }
     }
 }

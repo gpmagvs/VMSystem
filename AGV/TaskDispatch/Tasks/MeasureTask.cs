@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
@@ -141,6 +142,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             NotifyServiceHelper.SUCCESS($"{Agv.Name}完成量測上報(Tag:{tagID})");
 
             TagsOfMeasureCompletedPoint.Add(tagID);
+        }
+
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.NONE;
+            return true;
         }
     }
 }

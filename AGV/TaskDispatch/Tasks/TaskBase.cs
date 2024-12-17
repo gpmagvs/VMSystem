@@ -180,6 +180,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                if (!CheckCargoStatus(out ALARMS alarmCode))
+                {
+                    return (false, alarmCode, alarmCode.ToString());
+                }
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
@@ -231,6 +235,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
             }
         }
+
+        internal abstract bool CheckCargoStatus(out ALARMS alarmCode);
+
         protected virtual bool IsTaskExecutable()
         {
             if (IsTaskCanceled ||
@@ -670,7 +677,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Stopwatch stopwatch = Stopwatch.StartNew();
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
-                if (stopwatch.Elapsed.Seconds>3)
+                if (stopwatch.Elapsed.Seconds > 3)
                     NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
                 await Task.Delay(10);
             }
