@@ -180,7 +180,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
-                if (CheckCargoStatus(out ALARMS alarmCode))
+                if (!CheckCargoStatus(out ALARMS alarmCode))
                 {
                     return (false, alarmCode, alarmCode.ToString());
                 }
