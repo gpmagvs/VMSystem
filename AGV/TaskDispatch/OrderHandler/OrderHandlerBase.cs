@@ -84,6 +84,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             this.Agv = Agv;
             TagsTracking = new List<int>() { Agv.currentMapPoint.TagNumber };
             Agv.OnMapPointChanged += HandleAGVMapPointChanged;
+            TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
+            trajectoryRecorder.Start();
             _ = Task.Run(async () =>
             {
                 await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
@@ -205,6 +207,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
+                    trajectoryRecorder.Stop();
+
                     MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName);
                     await ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();

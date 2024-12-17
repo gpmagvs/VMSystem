@@ -85,7 +85,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             //subStage = Stage;
-            StartRecordTrjectory();
 
             bool IsRegionNavigationEnabled = TrafficControlCenter.TrafficControlParameters.Basic.MultiRegionNavigation;
             CancellationTokenSource waitCanPassPtPassableCancle = new CancellationTokenSource();
@@ -703,7 +702,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             finally
             {
                 await Task.Delay(500);
-                EndReocrdTrajectory();
                 TrafficWaitingState.SetStatusNoWaiting();
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;

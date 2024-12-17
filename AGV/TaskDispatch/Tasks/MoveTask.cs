@@ -695,71 +695,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return new List<int>();
             }
         }
-        Task RecordTrajectoryTask = null;
 
-        protected async Task StartRecordTrjectory()
-        {
-            RecordTrajectoryTask = new Task(async () =>
-            {
-                TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
-                try
-                {
-                    while (true)
-                    {
-                        await Task.Delay(1000);
-                        if (TrajectoryRecordCancelTokenSource.IsCancellationRequested)
-                            return;
-
-                        double x = Agv.states.Coordination.X;
-                        double y = Agv.states.Coordination.Y;
-                        double theta = Agv.states.Coordination.Theta;
-
-                        if (!_IsCoordinationChanged(x, y))
-                            continue;
-
-                        _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
-
-
-                        bool _IsCoordinationChanged(double currentX, double currentY)
-                        {
-                            if (!_TrajectoryTempStorage.Any())
-                                return true;
-                            var lastRecord = _TrajectoryTempStorage.Last();
-                            return lastRecord.X != currentX || lastRecord.Y != currentY;
-                        }
-
-                    }
-                }
-                catch (Exception ex)
-                {
-
-                }
-                finally
-                {
-                    SaveTrajectoryToDatabase();
-                }
-
-                async Task SaveTrajectoryToDatabase()
-                {
-                    string taskID = OrderData.TaskName;
-                    string agvName = Agv.Name;
-                    TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-                    var result = await helper.StoreTrajectory(taskID, agvName, _TrajectoryTempStorage.ToJson(Newtonsoft.Json.Formatting.None));
-                    if (!result.success)
-                    {
-                        logger.Error($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
-                    }
-                }
-            });
-            if (RecordTrajectoryTask != null)
-                RecordTrajectoryTask.Start();
-            else
-                logger.Debug($"[{Agv.Name}]-{OrderData.TaskName} Trajectory record task is already started.");
-        }
-        public async void EndReocrdTrajectory()
-        {
-            TrajectoryRecordCancelTokenSource.Cancel();
-        }
         protected List<clsTrajCoordination> _TrajectoryTempStorage = new List<clsTrajCoordination>();
 
     }
