@@ -671,13 +671,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         /// 等待AGV主狀態不為RUN
         /// </summary>
         /// <returns></returns>
-        protected async Task WaitAGVNotRunning()
+        protected async Task WaitAGVNotRunning(string message = "")
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
                 if (stopwatch.Elapsed.Seconds > 3)
-                    NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN....");
+                    NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN...({message})");
                 await Task.Delay(10);
             }
             stopwatch.Stop();

@@ -1,9 +1,12 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using System.Collections.Concurrent;
 using System.Threading;
+using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 {
@@ -63,7 +66,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             OrderTransferTimesStore.Remove(order.TaskName, out _);
             await WatchStart();
         }
-
+        public override async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason, int timeout = 300)
+        {
+            await agv.CancelTaskAsync(order.TaskName, reason);
+            await SetOrderIsChangeVehicleState();
+            return await WaitOwnerVehicleIdle(agv, timeout);
+        }
         internal async Task WatchStart()
         {
             Log("Start Watching");
@@ -92,16 +100,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
 
                         if (found)
                         {
+                            await LogOriginalOwnerCurrentState();
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
                             Log($"Wait original order owner state changed to IDLE...");
-                            await SetOrderIsChangeVehicleState();
                             (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order, "Change Vehicle To Execute", 300);
                             if (!confirmed)
                             {
-                                Log($"Wait original order owner state changed to IDLE...TIMEOUT");
-                                continue;
+                                Log($"Wait original order owner state changed to IDLE...TIMEOUT({message})");
+                                await Task.Delay(1000);
                             }
+                            await LogOriginalOwnerCurrentState();
                             State = STATES.ORDER_TRANSFERING;
 
                             Log($"Wait order not RUN...");
@@ -141,6 +150,36 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             });
 
 
+        }
+
+        private async Task LogOriginalOwnerCurrentState()
+        {
+            try
+            {
+                MapPoint currentPoint = orderOwner.currentMapPoint;
+                bool isWaittingTrafficControlSolved = orderOwner.NavigationState.IsWaitingConflicSolve;
+                VehicleMovementStage currentStage = VehicleMovementStage.Not_Start_Yet;
+                VehicleMovementStage currentSubStage = VehicleMovementStage.Not_Start_Yet;
+                bool isCurrentTaskCancelling = false;
+                TaskBase? currentTask = orderOwner.CurrentRunningTask();
+
+                if (currentTask != null)
+                {
+                    currentStage = currentTask.Stage;
+                    currentSubStage = currentTask.subStage;
+                }
+
+                Log($"Original Order Owner AGV Current State: Main Status={orderOwner.main_state}/" +
+                    $"Current Point={currentPoint.Graph.Display}(Tag:{currentPoint.TagNumber})/" +
+                    $"等待交管狀態:{(isWaittingTrafficControlSolved ? "YES" : "NO")}/" +
+                    $"當前任務是否已取消:{(isCurrentTaskCancelling ? "YES" : "NO")}/" +
+                    $"當前任務進度:{currentStage}/" +
+                    $"當前任務子狀態:{currentSubStage}");
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, $"Exception occur when LogOriginalOwnerCurrentState:{ex.Message}");
+            }
         }
 
         /// <summary>

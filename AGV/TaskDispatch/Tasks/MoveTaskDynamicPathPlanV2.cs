@@ -129,7 +129,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     bool isGoWaitPointByNormalTravaling = false;
                     TaskExecutePauseMRE.WaitOne();
-
                     if (!Agv.NavigationState.IsWaitingConflicSolve)
                         TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
@@ -198,7 +197,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             //    await Task.Delay(1000);
                             //    continue;
                             //}
-
+                            if (OrderData.isVehicleAssignedChanged && IsTaskCanceled)
+                            {
+                                throw new TaskCanceledException($"換車且任務已取消");
+                            }
                             if (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
                             {
                                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -610,7 +612,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (TaskCanceledException ex)
                     {
-                        await WaitAGVNotRunning();
+                        await WaitAGVNotRunning(ex.Message);
                         throw ex;
                     }
                     catch (AGVRejectTaskException ex)
