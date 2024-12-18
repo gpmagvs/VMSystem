@@ -15,6 +15,7 @@ using VMSystem.AGV.TaskDispatch.OrderHandler;
 using static VMSystem.AGV.TaskDispatch.Tasks.clsLeaveFromWorkStationConfirmEventArg;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using NLog;
+using AGVSystemCommonNet6.Configuration;
 
 namespace VMSystem.Controllers
 {
@@ -197,6 +198,44 @@ namespace VMSystem.Controllers
             }
         }
 
+        [HttpGet("GetReadFailCarrierVirtualID")]
+        public async Task<IActionResult> GetReadFailCarrierVirtualID(string AGVName, int CargoType = 200)
+        {
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
+            {
+                var virtual_id = CargoType == 200 ? await AGVSConfigulator.GetTrayUnknownFlowID()
+                                                  : await AGVSConfigulator.GetRackUnknownFlowID();
+
+                return Ok(new clsCarrierVirtualIDResponseWebAPI
+                {
+                    TimeStamp = DateTime.Now,
+                    VirtualID = virtual_id
+                });
+            }
+            else
+            {
+                throw new Exception();
+            }
+        }
+
+        [HttpGet("GetReadMissMatchCarrierVirtualID")]
+        public async Task<IActionResult> GetReadMissMatchCarrierVirtualID(string AGVName, int CargoType = 200)
+        {
+            if (VMSManager.GetAGVByName(AGVName, out var agv))
+            {
+                var virtual_id = CargoType == 200 ? await AGVSConfigulator.GetTrayMissMatchFlowID()
+                                                  : await AGVSConfigulator.GetRackMissMatchFlowID();
+                return Ok(new clsCarrierVirtualIDResponseWebAPI
+                {
+                    TimeStamp = DateTime.Now,
+                    VirtualID = virtual_id
+                });
+            }
+            else
+            {
+                throw new Exception();
+            }
+        }
         [HttpPost("LeaveWorkStationRequest")]
         public async Task<IActionResult> AGVLeaveWorkStationRequest(string AGVName, int EQTag)
         {
