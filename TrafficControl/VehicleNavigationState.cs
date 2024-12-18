@@ -26,6 +26,9 @@ namespace VMSystem.TrafficControl
         public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVNoWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVStartWaitLeavingWorkStation;
+
+        internal event EventHandler OnStartWaitConflicSolve;
+        internal event EventHandler OnEndWaitConflicSolve;
         public Logger logger;
         public enum REGION_CONTROL_STATE
         {
@@ -280,12 +283,16 @@ namespace VMSystem.TrafficControl
                     else
                     {
                         StartWaitConflicSolveTime = DateTime.MinValue;
+                        OnEndWaitConflicSolve?.Invoke(this, EventArgs.Empty);
                         OnAGVNoWaitConflicSolve?.Invoke(Vehicle, Vehicle);
                     }
                 }
 
                 if (_IsWaitingConflicSolve)
+                {
+                    OnStartWaitConflicSolve?.Invoke(this, EventArgs.Empty);
                     OnAGVStartWaitConflicSolve?.Invoke(Vehicle, Vehicle);
+                }
             }
         }
         public bool IsConflicSolving { get; set; } = false;

@@ -9,6 +9,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Equipment.AGV;
 using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
@@ -17,8 +18,10 @@ using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.StopRegion;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
 using NLog;
+using RosSharp.RosBridgeClient.MessageTypes.Std;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
@@ -42,13 +45,18 @@ namespace VMSystem.AGV
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
 
         private DeepCharger? deepCharger;
+
+        private readonly AGVSDbContext dbContext;
+
+        private static SemaphoreSlim DBPassInfoTablelockSemaphoreSlim = new SemaphoreSlim(1, 1);
         public clsAGV()
         {
 
         }
-        public clsAGV(string name, clsAGVOptions options)
+        public clsAGV(string name, clsAGVOptions options, AGVSDbContext aGVSDbContext)
         {
             this.options = options;
+            dbContext = aGVSDbContext;
             IsStatusSyncFromThirdPartySystem = AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem;
             Name = name;
             TaskExecuter = new TaskExecuteHelper(this);
@@ -56,7 +64,8 @@ namespace VMSystem.AGV
             logger.Info($"AGV {name} Create. MODEL={model} ");
             NavigationState.logger = logger;
             NavigationState.Vehicle = this;
-
+            NavigationState.OnStartWaitConflicSolve += NavigationState_OnStartWaitConflicSolve;
+            NavigationState.OnEndWaitConflicSolve += NavigationState_OnEndWaitConflicSolve;
             //重置座標
             states.Last_Visited_Node = options.InitTag;
             MapPoint previousPt = StaMap.GetPointByTagNumber(options.InitTag);
@@ -68,9 +77,9 @@ namespace VMSystem.AGV
                 online_state = ONLINE_STATE.ONLINE;
                 TagSetup();
             }
-
             Task.Run(() => HandleAlarmCodesReported());
         }
+
 
         private async Task HandleAlarmCodesReported()
         {
@@ -191,7 +200,7 @@ namespace VMSystem.AGV
         public AvailabilityHelper availabilityHelper { get; private set; }
         public StopRegionHelper StopRegionHelper { get; private set; }
         private clsRunningStatus _states = new clsRunningStatus() { Odometry = -1 };
-
+        private clsPointPassInfo tagPointStayInfo = new clsPointPassInfo();
         public clsRunningStatus states
         {
             get => _states;
@@ -199,6 +208,9 @@ namespace VMSystem.AGV
             {
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
+
+                    StorePointStayInfo(value.Last_Visited_Node, currentMapPoint.TagNumber);
+
                     MapRegion previousRegion = currentMapPoint.GetRegion();
 
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
@@ -225,6 +237,105 @@ namespace VMSystem.AGV
             }
         }
 
+        private void NavigationState_OnEndWaitConflicSolve(object? sender, EventArgs e)
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    tagPointStayInfo.EndWaitTrafficSolveTime = DateTime.Now;
+                    dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+        }
+
+        private void NavigationState_OnStartWaitConflicSolve(object? sender, EventArgs e)
+        {
+
+            Task.Factory.StartNew(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    if (tagPointStayInfo.StartWaitTrafficSolveTime != DateTime.MinValue)
+                        return;
+                    tagPointStayInfo.StartWaitTrafficSolveTime = DateTime.Now;
+                    dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+
+
+        }
+        private Task StorePointStayInfo(int currentTag, int previousTag)
+        {
+            return Task.Run(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    bool isExecutingOrder = taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+                    var currentOrderStage = isExecutingOrder ? this.CurrentRunningTask().Stage : VehicleMovementStage.Not_Start_Yet;
+                    //leave previous
+                    if (tagPointStayInfo.Tag != 0)
+                    {
+                        DateTime time = DateTime.Now;
+                        tagPointStayInfo.StageWhenLeaving = (int)currentOrderStage;
+                        tagPointStayInfo.LeaveTime = time;
+                        tagPointStayInfo.Duration = (tagPointStayInfo.LeaveTime - tagPointStayInfo.Time).TotalSeconds;
+                        dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                        await dbContext.SaveChangesAsync();
+
+                    }
+                    tagPointStayInfo = new clsPointPassInfo();
+                    tagPointStayInfo.Tag = currentTag;
+                    tagPointStayInfo.DataKey = $"{DateTime.Now.ToString("yyyyMMddHHmmssffff")}_{tagPointStayInfo.Tag}";
+                    tagPointStayInfo.AGVName = Name;
+                    tagPointStayInfo.TaskName = isExecutingOrder ? taskDispatchModule.OrderHandler.OrderData.TaskName : "";
+                    tagPointStayInfo.Time = DateTime.Now;
+                    tagPointStayInfo.StageWhenReach = (int)currentOrderStage;
+                    tagPointStayInfo.StartWaitTrafficSolveTime = DateTime.MinValue;
+                    tagPointStayInfo.EndWaitTrafficSolveTime = DateTime.MinValue;
+                    dbContext.PointPassTime.Add(tagPointStayInfo);
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("StorePointStayInfo Fail", ex);
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+        }
 
         public Map map { get; set; }
 

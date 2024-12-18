@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.VMS;
 using VMSystem.TrafficControl;
 using static AGVSystemCommonNet6.clsEnums;
@@ -52,7 +53,7 @@ namespace VMSystem.AGV
         {
             taskDispatchModule = new clsInspectionAGVTaskDispatchModule(this);
         }
-        public clsGPMInspectionAGV(string name, clsAGVOptions options) : base(name, options)
+        public clsGPMInspectionAGV(string name, clsAGVOptions options, AGVSDbContext dbContext) : base(name, options, dbContext)
         {
 
         }

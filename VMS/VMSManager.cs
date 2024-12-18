@@ -85,10 +85,10 @@ namespace VMSystem.VMS
 
 
             await MaintainSettingInitialize();
-            VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
-            VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv))).ToList()));
-            VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
-            VMSList.Add(VMS_GROUP.YUNTECH_FORK, new YunTechAgvVMS(yunTechForkAgvList.Select(agv => new clsYunTechAGV(agv.AGV_Name, CreateOptions(agv))).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_FORK, new GPMForkAgvVMS(forkAgvList.Select(agv => new clsAGV(agv.AGV_Name, CreateOptions(agv), AGVSDbContext)).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_SUBMARINE_SHIELD, new GPMSubmarine_ShieldVMS(submarineAgvList.Select(agv => new clsGPMSubmarine_Shield(agv.AGV_Name, CreateOptions(agv), AGVSDbContext)).ToList()));
+            VMSList.Add(VMS_GROUP.GPM_INSPECTION_AGV, new GPMInspectionAGVVMS(inspectionAgvList.Select(agv => new clsGPMInspectionAGV(agv.AGV_Name, CreateOptions(agv), AGVSDbContext)).ToList()));
+            VMSList.Add(VMS_GROUP.YUNTECH_FORK, new YunTechAgvVMS(yunTechForkAgvList.Select(agv => new clsYunTechAGV(agv.AGV_Name, CreateOptions(agv), AGVSDbContext)).ToList()));
 
             List<Task> tasks = new List<Task>();
 
@@ -541,19 +541,19 @@ namespace VMSystem.VMS
             switch (dto.Model)
             {
                 case AGV_TYPE.FORK:
-                    agv = new clsAGV(dto.AGV_Name, option);
+                    agv = new clsAGV(dto.AGV_Name, option, AGVSDbContext);
                     break;
                 case AGV_TYPE.YUNTECH_FORK_AGV:
-                    agv = new clsYunTechAGV(dto.AGV_Name, option);
+                    agv = new clsYunTechAGV(dto.AGV_Name, option, AGVSDbContext);
                     break;
                 case AGV_TYPE.INSPECTION_AGV:
-                    agv = new clsGPMInspectionAGV(dto.AGV_Name, option);
+                    agv = new clsGPMInspectionAGV(dto.AGV_Name, option, AGVSDbContext);
                     break;
                 case AGV_TYPE.SUBMERGED_SHIELD:
-                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option);
+                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option, AGVSDbContext);
                     break;
                 case AGV_TYPE.SUBMERGED_SHIELD_Parts:
-                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option);
+                    agv = new clsGPMSubmarine_Shield(dto.AGV_Name, option, AGVSDbContext);
                     break;
                 case AGV_TYPE.Any:
                     break;
