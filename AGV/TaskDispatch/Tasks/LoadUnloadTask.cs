@@ -567,7 +567,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return;
                 int tag = OrderData.From_Station_Tag;
                 int slot = OrderData.GetFromSlotInt();
-                await AGVSSerivces.CargoUnloadFromPortDoneReport(Agv.Name, tag, slot);
+                await AGVSSerivces.CargoUnloadFromPortDoneReport(OrderData.TaskName, Agv.Name, tag, slot);
             }
             catch (Exception ex)
             {
@@ -584,7 +584,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return;
                 int tag = OrderData.To_Station_Tag;
                 int slot = OrderData.GetToSlotInt();
-                await AGVSSerivces.CargoLoadToPortDoneReport(Agv.Name, tag, slot, cargoIDMounted);
+                await AGVSSerivces.CargoLoadToPortDoneReport(OrderData.TaskName, Agv.Name, tag, slot, cargoIDMounted);
             }
             catch (Exception ex)
             {
