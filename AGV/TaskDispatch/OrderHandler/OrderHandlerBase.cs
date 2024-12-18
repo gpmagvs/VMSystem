@@ -217,7 +217,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
                     Agv.OnMapPointChanged -= HandleAGVMapPointChanged;
-                    OrderData.TagsTracking = string.Join("->", TagsTracking);
+                    OrderData.TagsTracking = string.Join("-", TagsTracking);
                     ModifyOrder(OrderData);
                     DisposeActionOfCompleteTasks();
                 }
