@@ -46,8 +46,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         if (!_IsCoordinationChanged(x, y))
                             continue;
 
-                        _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
-
+                        DateTime time = DateTime.Now;
+                        _TrajectoryTempStorage.Add(new clsTrajCoordination() { Time = time, X = x, Y = y, Theta = theta });
 
                         bool _IsCoordinationChanged(double currentX, double currentY)
                         {
