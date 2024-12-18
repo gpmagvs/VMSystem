@@ -50,7 +50,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                     if (IsNeedChange())
                     {
                         OnStartChangedInovke();
-                        await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station");
+                        await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station", 300);
                         await WaitOrderNotRun(order);
                         var newOrder = order.Clone();
                         newOrder.TaskName = order.TaskName + "-NewChargeStation";

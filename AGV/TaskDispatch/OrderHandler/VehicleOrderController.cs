@@ -16,10 +16,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             agvsDb = new AGVSDatabase().tables;
         }
 
-        public async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason)
+        public async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason, int timeout = 300)
         {
             await agv.CancelTaskAsync(order.TaskName, reason);
-            return await WaitOwnerVehicleIdle(agv);
+            return await WaitOwnerVehicleIdle(agv, timeout);
         }
 
         public async Task<bool> AddNewOrder(clsTaskDto newOrder)
@@ -80,9 +80,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
         }
 
-        private async Task<(bool, string)> WaitOwnerVehicleIdle(IAGV agv)
+        private async Task<(bool, string)> WaitOwnerVehicleIdle(IAGV agv, int timeout = 300)
         {
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
             while (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN ||
                 agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
             {
