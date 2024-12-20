@@ -59,6 +59,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 102; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
                     else if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload) //取貨
                         transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 144; //AGV車上有貨:表示取貨後異常 反之在侵入設備時異常
+                    else
+                        transportCommand.ResultCode = 145;
                 }
                 else
                 {
@@ -79,9 +81,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 bool isIDReadMissmatch = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                 if (isIDReadMissmatch || isIDReadFail)
                 {
+                    bool isTrayTypeCargo = OrderData.Carrier_ID.StartsWith("T");
                     if (isIDReadFail)
                     {
-                        transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayUnknownFlowID();
+                        transferComptReportCmd.CarrierID = isTrayTypeCargo ? await AGVSConfigulator.GetTrayUnknownFlowID() : await AGVSConfigulator.GetRackUnknownFlowID();
                         MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
                         {
                             await MCSCIMService.CarrierInstallCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
@@ -89,7 +92,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
                     else // misbatch
                     {
-                        transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayMissMatchFlowID();
+                        transferComptReportCmd.CarrierID = isTrayTypeCargo ? await AGVSConfigulator.GetTrayMissMatchFlowID() : await AGVSConfigulator.GetRackMissMatchFlowID();
                         MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
                         {
                             await MCSCIMService.CarrierInstallCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
