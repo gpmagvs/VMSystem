@@ -80,6 +80,7 @@ try
     builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
     builder.Services.AddHostedService<TrafficScopeService>();
     builder.Services.AddHostedService<VMSManageHostService>();
+    builder.Services.AddScoped<SECSConfigsService>(service => new SECSConfigsService(Path.Combine(AGVSConfigulator.SysConfigs.CONFIGS_ROOT_FOLDER, "SECSConfigs")));
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {

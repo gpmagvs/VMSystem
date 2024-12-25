@@ -2,6 +2,7 @@ using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.MAP;
@@ -65,6 +66,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public event EventHandler<OrderHandlerBase> OnTaskCanceled;
         public event EventHandler<OrderHandlerBase> OnOrderFinish;
 
+        internal static event EventHandler<OrderStartEvnetArgs> OnOrderStart;
+
+        private SECSConfigsService secsConfigsService = new SECSConfigsService();
+
         protected Logger logger;
 
         private List<int> TagsTracking = new List<int>();
@@ -84,6 +89,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             this.Agv = Agv;
             TagsTracking = new List<int>() { Agv.currentMapPoint.TagNumber };
             Agv.OnMapPointChanged += HandleAGVMapPointChanged;
+            OrderStartEvnetArgs _OrderStartEventArgs = new OrderStartEvnetArgs(this);
+            OnOrderStart?.Invoke(this, _OrderStartEventArgs);
+            secsConfigsService = _OrderStartEventArgs.secsConfigsService;
             TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
             trajectoryRecorder.Start();
             _ = Task.Run(async () =>
@@ -619,5 +627,17 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 logger.Error(ex);
             }
         }
+
+
+        internal class OrderStartEvnetArgs : EventArgs
+        {
+            internal SECSConfigsService secsConfigsService = new SECSConfigsService();
+            internal readonly OrderHandlerBase OrderHandler;
+            internal OrderStartEvnetArgs(OrderHandlerBase OrderHandler)
+            {
+                this.OrderHandler = OrderHandler;
+            }
+        }
+
     }
 }

@@ -28,6 +28,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
+                AGVSystemCommonNet6.Microservices.MCSCIM.TransferReportConfiguration.clsResultCodes transferResultCodes = secsConfigsService.transferReportConfiguration.ResultCodes;
                 if (OrderData.isVehicleAssignedChanged)
                     return;
 
@@ -52,28 +53,20 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 if (alarm == ALARMS.NONE)
                     transportCommand.ResultCode = 0;
-                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN || alarm == ALARMS.AGV_STATUS_DOWN)
                 {
 
                     if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load) // 放貨
-                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 102; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
+                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenLDWithoutCargoResultCode; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
                     else if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload) //取貨
-                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? 101 : 144; //AGV車上有貨:表示取貨後異常 反之在侵入設備時異常
+                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenULDWithoutCargoResultCode; //AGV車上有貨:表示取貨後異常 反之在侵入設備時異常
                     else
-                        transportCommand.ResultCode = 145;
+                        transportCommand.ResultCode = transferResultCodes.AGVDownWhenMovingToDestineResultCode;
                 }
                 else
                 {
-                    if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL)
-                    {
-                        transportCommand.ResultCode = 5;
-                    }
-                    else if (alarm == ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED)
-                        transportCommand.ResultCode = 4;
-                    else if (alarm == ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO)
-                        transportCommand.ResultCode = 100;
-                    else
-                        transportCommand.ResultCode = (int)alarm;
+                    transportCommand.ResultCode = secsConfigsService.transferReportConfiguration.GetResultCode(alarm);
+
                 }
                 var transferComptReportCmd = transportCommand.Clone();
                 bool isCargoOnVehicle = Agv.IsAGVHasCargoOrHasCargoID();
