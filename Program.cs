@@ -30,6 +30,9 @@ var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentCla
 logger.Info("VMSystem Program Start");
 try
 {
+    SECSConfigsService _secsConfigsService = new SECSConfigsService(Path.Combine(AGVSConfigulator.SysConfigs.CONFIGS_ROOT_FOLDER, "SECSConfigs"));
+    _secsConfigsService.Reload();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Logging.ClearProviders();
     builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information);
@@ -80,7 +83,7 @@ try
     builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
     builder.Services.AddHostedService<TrafficScopeService>();
     builder.Services.AddHostedService<VMSManageHostService>();
-    builder.Services.AddScoped<SECSConfigsService>(service => new SECSConfigsService(Path.Combine(AGVSConfigulator.SysConfigs.CONFIGS_ROOT_FOLDER, "SECSConfigs")));
+    builder.Services.AddScoped<SECSConfigsService>(service => _secsConfigsService);
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
