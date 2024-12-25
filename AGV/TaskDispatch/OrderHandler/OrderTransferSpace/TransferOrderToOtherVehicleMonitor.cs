@@ -38,10 +38,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 if (distanceToWorkStationOfOwner < 3)
                     throw new TaskCanceledException("因距離目的地剩餘走行距離小於3m,拋出TaskCanceledException例外結束訂單轉移追蹤.");
 
-                var moreNearToGoalVehicles = OtherVehicles.ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
-                             .OrderBy(kp => kp.Value)
-                             .Where(kp => kp.Value < distanceToWorkStationOfOwner)
-                             .ToDictionary(kp => kp.Key, kp => kp.Value);
+                var moreNearToGoalVehicles = OtherVehicles.Where(agv=>agv.model== orderOwner.model)
+                                                          .ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
+                                                          .OrderBy(kp => kp.Value)
+                                                          .Where(kp => kp.Value < distanceToWorkStationOfOwner)
+                                                          .ToDictionary(kp => kp.Key, kp => kp.Value);
                 //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
                 List<KeyValuePair<IAGV, double>> idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.main_state != clsEnums.MAIN_STATUS.DOWN) //不是當機的車輛
                                                                                                 .Where(kp => !kp.Key.IsAGVHasCargoOrHasCargoID()) //車上無貨的車輛
