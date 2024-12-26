@@ -72,31 +72,29 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 bool isCargoOnVehicle = Agv.IsAGVHasCargoOrHasCargoID();
                 bool isIDReadFail = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL;
                 bool isIDReadMissmatch = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
+                await MCSCIMService.TransferCompletedReport(transferComptReportCmd);
+
                 if (isIDReadMissmatch || isIDReadFail)
                 {
+                    await Task.Delay(200);
+                    await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1);
+                    await Task.Delay(200);
                     bool isTrayTypeCargo = OrderData.Carrier_ID.StartsWith("T");
                     if (isIDReadFail)
                     {
-                        transferComptReportCmd.CarrierID = isTrayTypeCargo ? await AGVSConfigulator.GetTrayUnknownFlowID() : await AGVSConfigulator.GetRackUnknownFlowID();
-                        MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
-                        {
-                            await MCSCIMService.CarrierInstallCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
-                        });
+                        string unid = isTrayTypeCargo ? await AGVSConfigulator.GetTrayUnknownFlowID() : await AGVSConfigulator.GetRackUnknownFlowID();
+                        await MCSCIMService.CarrierInstallCompletedReport(unid, Agv.AgvIDStr, "", 1);
                     }
                     else // misbatch
                     {
-                        transferComptReportCmd.CarrierID = isTrayTypeCargo ? await AGVSConfigulator.GetTrayMissMatchFlowID() : await AGVSConfigulator.GetRackMissMatchFlowID();
-                        MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1).ContinueWith(async t =>
-                        {
-                            await MCSCIMService.CarrierInstallCompletedReport(transferComptReportCmd.CarrierID, Agv.AgvIDStr, "", 1);
-                        });
+                        string actualID = Agv.states.CSTID.FirstOrDefault();
+                        await MCSCIMService.CarrierInstallCompletedReport(actualID, Agv.AgvIDStr, "", 1);
                     }
                 }
                 if (alarm == AGVSystemCommonNet6.Alarm.ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO) //來源空值
                 {
                     transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayUnknownFlowID();
                 }
-                await MCSCIMService.TransferCompletedReport(transferComptReportCmd);
             }
             catch (Exception ex)
             {
