@@ -185,6 +185,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             WaitAGVReachWorkStationMRE.Set();
             base.HandleAGVStatusDown(sender, e);
+            waitReachPortCancelTokenSource.Cancel();
         }
 
 
@@ -197,17 +198,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         private async Task WaitAGVReachWorkStationTag()
         {
             WaitAGVReachWorkStationMRE.Reset();
-            Agv.TaskExecuter.OnNavigatingReported += TaskExecuter_OnNavigatingReported;
+            WaitAGVCurrentTagIsPort();
             WaitAGVReachWorkStationMRE.WaitOne();
         }
-        private async void TaskExecuter_OnNavigatingReported(object? sender, FeedbackData e)
+
+        CancellationTokenSource waitReachPortCancelTokenSource;
+        private async Task WaitAGVCurrentTagIsPort()
         {
-            if (e.PointIndex == 1 && Agv.currentMapPoint.TagNumber == EQPoint.TagNumber)
+            waitReachPortCancelTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            await Task.Delay(10).ContinueWith(async t =>
             {
-                Agv.TaskExecuter.OnNavigatingReported -= TaskExecuter_OnNavigatingReported;
+                while (Agv.currentMapPoint.TagNumber != EQPoint.TagNumber)
+                {
+                    await Task.Delay(1000);
+                    if (waitReachPortCancelTokenSource.IsCancellationRequested)
+                    {
+                        if (Agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN)
+                            return;
+                        else
+                            break;
+                    }
+                }
                 WaitAGVReachWorkStationMRE.Set();
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
-                NotifyServiceHelper.INFO($"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})");
+                string _log = $"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})";
+                logger.Trace(_log);
+                NotifyServiceHelper.INFO(_log);
                 await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
 
@@ -225,13 +241,97 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
                         if (confirmed)
                         {
+                            _log = $"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}";
                             //Notify
-                            NotifyServiceHelper.INFO($"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}");
+                            NotifyServiceHelper.INFO(_log);
+                            logger.Trace(_log);
                         }
                     }
                     else
                     {
-                        NotifyServiceHelper.WARNING($"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}");
+                        _log = $"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}";
+                        NotifyServiceHelper.WARNING(_log);
+                        logger.Trace(_log);
+                        //將進入點的鎖定點也都註冊掉
+                        RegistPointOfEntryPointNear();
+                    }
+
+                }
+                else
+                {
+                    //將進入點的鎖定點也都註冊掉
+                    RegistPointOfEntryPointNear();
+                }
+                void RegistPointOfEntryPointNear()
+                {
+                    string[] splitedIndexStr = EntryPoint.InvolvePoint.Split(",");
+                    if (splitedIndexStr.Length > 0)
+                    {
+                        List<int> unregistedInvolvePtTags = EntryPoint.RegistsPointIndexs.Select(_ptIndex => StaMap.GetPointByIndex(_ptIndex))
+                                                                                         .Where(pt => !StaMap.RegistDictionary.Keys.Contains(pt.TagNumber))
+                                                                                         .Select(unRegistedPt => unRegistedPt.TagNumber)
+                                                                                         .ToList();
+                        string _tagsStr = string.Join(",", unregistedInvolvePtTags);
+                        logger.Info($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+                        bool registedAllSuccess = StaMap.RegistPoint(Agv.Name, unregistedInvolvePtTags, out string msg);
+                        if (registedAllSuccess)
+                        {
+                            string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case)";
+                            NotifyServiceHelper.INFO(_log);
+                            logger.Info(_log);
+                        }
+                        else
+                        {
+                            string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case) FAIL :{msg}";
+                            NotifyServiceHelper.ERROR(_log);
+                            logger.Warn(_log);
+                        }
+                    }
+                }
+
+            });
+        }
+
+
+
+        private async void TaskExecuter_OnNavigatingReported(object? sender, FeedbackData e)
+        {
+            if (e.PointIndex == 1 && Agv.currentMapPoint.TagNumber == EQPoint.TagNumber)
+            {
+                Agv.TaskExecuter.OnNavigatingReported -= TaskExecuter_OnNavigatingReported;
+                WaitAGVReachWorkStationMRE.Set();
+                string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
+                string _log = $"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})";
+                logger.Trace(_log);
+                NotifyServiceHelper.INFO(_log);
+                await Task.Delay(20);
+                Agv.NavigationState.ResetNavigationPoints();
+
+                if (TrafficControl.TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment) //釋放入口點
+                {
+                    ReleaseEntryPtRequest request = new ReleaseEntryPtRequest()
+                    {
+                        Agv = Agv,
+                        EntryPoint = EntryPoint,
+                        Accept = false
+                    };
+                    OnReleaseEntryPointRequesting?.Invoke(this, request);
+                    if (request.Accept)
+                    {
+                        (bool confirmed, string errMsg) = await StaMap.UnRegistPoint(Agv.Name, EntryPoint.TagNumber);
+                        if (confirmed)
+                        {
+                            _log = $"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}";
+                            //Notify
+                            NotifyServiceHelper.INFO(_log);
+                            logger.Trace(_log);
+                        }
+                    }
+                    else
+                    {
+                        _log = $"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}";
+                        NotifyServiceHelper.WARNING(_log);
+                        logger.Trace(_log);
                         //將進入點的鎖定點也都註冊掉
                         RegistPointOfEntryPointNear();
                     }

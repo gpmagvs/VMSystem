@@ -78,7 +78,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.Agv = Agv;
             this.OrderData = orderData;
             this.TaskName = orderData.TaskName;
-            logger = LogManager.GetLogger("TaskDispatch");
+            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}");
         }
         public TaskBase() : base()
         {
@@ -91,7 +91,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
-            logger = LogManager.GetLogger("TaskDispatch");
+            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}");
+
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
@@ -325,14 +326,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 try
                 {
-                    logger.Warn($"嘗試下載任務給AGV..({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]..({retryCnt})");
                     return await _DownloadTaskInvoke(_TaskDonwloadToAGV);
                 }
                 catch (HttpRequestException ex)
                 {
                     _exceptionHappening = ex;
                     retryCnt++;
-                    logger.Warn($"嘗試下載任務給AGV過程中發生 [HttpRequestException] 例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]過程中發生 [HttpRequestException] 例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
                     await Task.Delay(1000);
                     continue;
                 }
@@ -344,7 +345,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     _exceptionHappening = ex;
                     retryCnt++;
-                    logger.Warn($"嘗試下載任務給AGV過程中發生例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]過程中發生例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
                     await Task.Delay(1000);
                     continue;
                 }
@@ -352,7 +353,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     if (_exceptionHappening == null)
                     {
-                        logger.Info($"_DispatchTaskToAGV Success!");
+                        logger.Info($"_DispatchTaskToAGV to [{Agv.Name}] Success!");
                     }
                 }
             }
@@ -569,9 +570,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
                     if (cargoinstall != MaterialInstallStatus.OK)
                     {
-                        logger.Fatal("[ActionFinishInvoke] cargo not install");
+                        logger.Fatal($"[ActionFinishInvoke] [{Agv.Name}] cargo not install");
                         CancelTask();
-                        result.errorMsg = "AGV載貨可能發生騎Tray/框(Cargo maybe not mounted on AGV)";
+                        result.errorMsg = $"[{Agv.Name}]載貨可能發生騎Tray/框(Cargo maybe not mounted on AGV)";
                         result.alarmCode = ALARMS.UNLOAD_BUT_AGV_NO_CARGO_MOUNTED;
                         result.continuetask = false;
                     }
