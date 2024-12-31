@@ -16,6 +16,9 @@ using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using AGVSystemCommonNet6.DATABASE;
 using NLog;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using static AGVSystemCommonNet6.clsEnums;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.AGV
 {
@@ -721,6 +724,38 @@ namespace VMSystem.AGV
                 agv.AgvSimulation.runningSTatus.Coordination.X = -12;
                 agv.AgvSimulation.runningSTatus.Coordination.Y = 0;
             }
+        }
+
+        internal bool VMSOnline(out string message)
+        {
+            message = "Test Online Rejected";
+            bool isAMCAGV = agv.model == AGV_TYPE.INSPECTION_AGV;
+
+            MapPoint currentPoint = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+
+            if (!isAMCAGV && currentPoint.IsVirtualPoint)
+            {
+                message = "Current_Tag_Cannot_Online_At_Virtual_Point";
+                return false;
+            }
+
+            if (currentPoint.StationType != STATION_TYPE.Normal && !currentPoint.IsCharge && !_IsParkAtBuffer())
+            {
+                message = "Cant_Online_In_Equipment";
+                return false;
+            }
+            if (runningSTatus.Cargo_Status == 0 && runningSTatus.CSTID.Any() && runningSTatus.CSTID.First() != "")
+            {
+                message = "AGV_HasIDBut_No_Cargo";
+                return false;
+            }
+
+            bool _IsParkAtBuffer()
+            {
+                return currentPoint.StationType == STATION_TYPE.Buffer || currentPoint.StationType == STATION_TYPE.Charge_Buffer;
+            }
+
+            return true;
         }
     }
 }

@@ -96,7 +96,10 @@ namespace VMSystem.Services
             if (results.alarmCode == ALARMS.NONE)
             {
                 if (!Vehicle.AGVOnlineFromAGVS(out string msg))
+                {
+                    results.alarmCode = ALARMS.CannotOnlineVehicleBecauseAtVirtualPoint;
                     results.message = msg;
+                }
             }
 
             return results;

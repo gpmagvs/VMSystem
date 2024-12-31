@@ -784,8 +784,9 @@ namespace VMSystem.AGV
             }
             if (options.Simulation)
             {
-                online_state = clsEnums.ONLINE_STATE.ONLINE;
-                return true;
+                bool success = this.AgvSimulation.VMSOnline(out message);
+                online_state = success ? clsEnums.ONLINE_STATE.ONLINE : ONLINE_STATE.OFFLINE;
+                return success;
             }
 
             if (IsStatusSyncFromThirdPartySystem)
@@ -794,13 +795,11 @@ namespace VMSystem.AGV
                 return true;
             }
 
-            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI && !options.Simulation)
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
-                var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
+                clsAPIRequestResult resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
                 if (!resDto.Success)
-                {
                     AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
-                }
                 else
                     online_state = ONLINE_STATE.ONLINE;
                 message = resDto.Message;
