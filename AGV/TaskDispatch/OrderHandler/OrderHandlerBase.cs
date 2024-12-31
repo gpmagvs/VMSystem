@@ -217,7 +217,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     trajectoryRecorder.Stop();
 
-                    MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName);
+                    Task.Delay(1000).ContinueWith(async t => await MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName));
                     await ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();

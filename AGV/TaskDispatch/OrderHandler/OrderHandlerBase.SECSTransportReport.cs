@@ -32,6 +32,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 if (OrderData.isVehicleAssignedChanged)
                     return;
 
+                bool isCargoOnVehicle = Agv.IsAGVHasCargoOrHasCargoID();
+                bool isIDReadFail = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL;
+                bool isIDReadMissmatch = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                 if (Agv.IsAGVHasCargoOrHasCargoID())
                 {
                     transportCommand.CarrierLoc = Agv.options.AGV_ID;
@@ -51,50 +54,50 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
                 }
 
-                if (alarm == ALARMS.NONE)
+                if (alarm == ALARMS.NONE && Agv.main_state != clsEnums.MAIN_STATUS.DOWN)
                     transportCommand.ResultCode = 0;
-                else if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN || alarm == ALARMS.AGV_STATUS_DOWN)
-                {
-
-                    if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load) // 放貨
-                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenLDWithoutCargoResultCode; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
-                    else if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload) //取貨
-                        transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenULDWithoutCargoResultCode; //AGV車上有貨:表示取貨後異常 反之在侵入設備時異常
-                    else
-                        transportCommand.ResultCode = transferResultCodes.AGVDownWhenMovingToDestineResultCode;
-                }
                 else
                 {
-                    transportCommand.ResultCode = secsConfigsService.transferReportConfiguration.GetResultCode(alarm);
+                    if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN || alarm == ALARMS.AGV_STATUS_DOWN)
+                    {
+
+                        if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load) // 放貨
+                            transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenLDWithoutCargoResultCode; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
+                        else if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload) //取貨
+                            transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenULDWithoutCargoResultCode; //AGV車上有貨:表示取貨後異常 反之在侵入設備時異常
+                        else
+                            transportCommand.ResultCode = transferResultCodes.AGVDownWhenMovingToDestineResultCode;
+                    }
+                    else
+                    {
+                        transportCommand.ResultCode = secsConfigsService.transferReportConfiguration.GetResultCode(alarm);
+                    }
+
+                    await MCSCIMService.TransferAbortFailedReport(transportCommand);
+                    await Task.Delay(100);
 
                 }
-                var transferComptReportCmd = transportCommand.Clone();
-                bool isCargoOnVehicle = Agv.IsAGVHasCargoOrHasCargoID();
-                bool isIDReadFail = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL;
-                bool isIDReadMissmatch = alarm == AGVSystemCommonNet6.Alarm.ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
-                await MCSCIMService.TransferCompletedReport(transferComptReportCmd);
 
                 if (isIDReadMissmatch || isIDReadFail)
                 {
+                    bool isTrayTypeCargo = OrderData.Carrier_ID.StartsWith("T");
+                    string newInstallID = "";
+                    if (isIDReadFail)
+                        newInstallID = isTrayTypeCargo ? await AGVSConfigulator.GetTrayUnknownFlowID() : await AGVSConfigulator.GetRackUnknownFlowID();
+                    else // misbatch
+                    {
+                        newInstallID = Agv.states.CSTID.FirstOrDefault();
+                        await MCSCIMService.CarrierIDReadReport(OrderData.Carrier_ID, Agv.AgvIDStr, ID_READ_STATE.Mismatch);
+                        await Task.Delay(200);
+                    }
+                    await MCSCIMService.TransferCompletedReport(transportCommand);
                     await Task.Delay(200);
                     await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1);
                     await Task.Delay(200);
-                    bool isTrayTypeCargo = OrderData.Carrier_ID.StartsWith("T");
-                    if (isIDReadFail)
-                    {
-                        string unid = isTrayTypeCargo ? await AGVSConfigulator.GetTrayUnknownFlowID() : await AGVSConfigulator.GetRackUnknownFlowID();
-                        await MCSCIMService.CarrierInstallCompletedReport(unid, Agv.AgvIDStr, "", 1);
-                    }
-                    else // misbatch
-                    {
-                        string actualID = Agv.states.CSTID.FirstOrDefault();
-                        await MCSCIMService.CarrierInstallCompletedReport(actualID, Agv.AgvIDStr, "", 1);
-                    }
+                    await MCSCIMService.CarrierInstallCompletedReport(newInstallID, Agv.AgvIDStr, "", 1);
                 }
-                if (alarm == AGVSystemCommonNet6.Alarm.ALARMS.EQ_UNLOAD_REQUEST_ON_BUT_NO_CARGO) //來源空值
-                {
-                    transferComptReportCmd.CarrierID = await AGVSConfigulator.GetTrayUnknownFlowID();
-                }
+                else
+                    await MCSCIMService.TransferCompletedReport(transportCommand);
             }
             catch (Exception ex)
             {
