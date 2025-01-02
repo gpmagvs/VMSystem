@@ -593,9 +593,25 @@ namespace VMSystem.VMS
                     VehicleStateService.AGVStatueDtoStored.Remove(aGV_Name);
                     return (true, "");
                 }
+                List<VehicleMaintain> maintainsItems = AGVSDbContext.VehicleMaintain.Where(m => m.AGV_Name == aGV_Name).ToList();
+                if (maintainsItems.Any())
+                {
 
-                AGVSDbContext.VehicleMaintain.RemoveRange(AGVSDbContext.VehicleMaintain.Where(m => m.AGV_Name == aGV_Name));
-                await AGVSDbContext.SaveChangesAsync();
+                    foreach (var item in maintainsItems)
+                    {
+                        try
+                        {
+                            AGVSDbContext.VehicleMaintain.Remove(item);
+                            AGVSDbContext.Entry(item).State = EntityState.Deleted;
+                            await AGVSDbContext.SaveChangesAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex);
+                        }
+
+                    }
+                }
                 AGVSDbContext.AgvStates.Remove(existData);
 
                 var group = VMSList.FirstOrDefault(kpair => kpair.Value.AGVList.ContainsKey(aGV_Name));
