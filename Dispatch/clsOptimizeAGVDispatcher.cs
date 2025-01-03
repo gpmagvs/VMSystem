@@ -10,30 +10,60 @@ using NLog;
 using System.Collections.Concurrent;
 using System.Diagnostics.Eventing.Reader;
 using VMSystem.AGV;
+using VMSystem.Dispatch.Configurations;
 using VMSystem.Dispatch.Equipment;
 using VMSystem.Extensions;
 using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 
-namespace VMSystem.VMS
+namespace VMSystem.Dispatch
 {
-    public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule
+    public class clsOptimizeAGVDispatcher : clsAGVTaskDisaptchModule, IHostedService
     {
         public List<string> NoAcceptRandomCarryHotRunAGVNameList { get; set; } = new List<string>();
 
+        private string _baseConfigsFilesFolder = @"C:/AGVS";
+
+        public string ConfigsFileFolder => Path.Combine(_baseConfigsFilesFolder, "DispatchConfigs");
+        public string OptimizeVehicleConfigsFile => Path.Combine(ConfigsFileFolder, "OptimizeVehicleConfigs.json");
+
+        public EQStationDedicatedConfiguration eqStationDedicatedConfig { get; private set; }
+
+        public string Test { get; private set; }
+
         Logger logger = LogManager.GetLogger("OptimizeAGVDispatcher");
 
-        public override async Task Run()
+        SpecificVehicleAssigner specificVehicleAssinger;
+        public clsOptimizeAGVDispatcher()
         {
+
+        }
+
+        public clsOptimizeAGVDispatcher(string baseConfigsFilesFolder)
+        {
+            _baseConfigsFilesFolder = baseConfigsFilesFolder;
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(ConfigsFileFolder);
+            eqStationDedicatedConfig = new EQStationDedicatedConfiguration(OptimizeVehicleConfigsFile);
+            specificVehicleAssinger = new SpecificVehicleAssigner(eqStationDedicatedConfig);
             TaskAssignWorker();
         }
 
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
+        }
         protected override async Task TaskAssignWorker()
         {
             while (true)
             {
                 try
                 {
+                    Test = DateTime.Now.ToString();
                     await Task.Delay(500);
 
                     List<clsTaskDto> _taskList_waiting_and_no_DesignatedAGV = DatabaseCaches.TaskCaches.WaitExecuteTasks.Where(f => f.DesignatedAGVName == "").OrderBy(t => t.Priority).OrderBy(t => t.RecieveTime).ToList();
@@ -61,7 +91,7 @@ namespace VMSystem.VMS
                         CannotAssignOrderAGVNames.AddRange(VMSManager.AllAGV.Where(agv => agv.batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING)
                                                                             .Select(agv => agv.Name));
 
-                        List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == clsEnums.MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
+                        List<string> List_idlecarryAGV = VMSManager.AllAGV.Where(agv => agv.states.AGV_Status == MAIN_STATUS.IDLE && (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != string.Empty))).Select(agv => agv.Name).ToList();
                         CannotAssignOrderAGVNames.AddRange(List_idlecarryAGV);
 
 
@@ -78,7 +108,7 @@ namespace VMSystem.VMS
                                 CannotAssignOrderAGVNames.AddRange(NoAcceptRandomCarryHotRunAGVNameList);
                             }
 
-                            IAGV AGV = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
+                            (IAGV AGV, bool isSpeficVehicleAssigned) = await GetOptimizeAGVToExecuteTaskAsync(_taskDto, CannotAssignOrderAGVNames);
                             if (AGV == null)
                                 continue;
                             else
@@ -86,6 +116,7 @@ namespace VMSystem.VMS
                                 agv = AGV;
                                 _taskDto.DesignatedAGVName = AGV.Name;
                                 _taskDto = ChechGenerateTransferTaskOrNot(AGV, ref _taskDto);
+                                _taskDto.isSpeficVehicleAssigned = isSpeficVehicleAssigned;
                             }
 
                             using (AGVSDatabase db = new AGVSDatabase())
@@ -94,6 +125,7 @@ namespace VMSystem.VMS
                                 model.DesignatedAGVName = AGV.Name;
                                 model.need_change_agv = _taskDto.need_change_agv;
                                 model.transfer_task_stage = _taskDto.transfer_task_stage;
+                                model.isSpeficVehicleAssigned = isSpeficVehicleAssigned;
                                 await db.SaveChanges();
                             }
                             await Task.Delay(2000);
@@ -117,7 +149,7 @@ namespace VMSystem.VMS
         /// </summary>
         /// <param name="taskDto"></param>
         /// <returns></returns>
-        private async Task<IAGV> GetOptimizeAGVToExecuteTaskAsync(clsTaskDto taskDto, List<string> List_ExceptAGV)
+        private async Task<(IAGV agv, bool isSpeficVehilceAssinged)> GetOptimizeAGVToExecuteTaskAsync(clsTaskDto taskDto, List<string> List_ExceptAGV)
         {
             MapPoint goalStation = null;
             MapPoint FromStation = null;
@@ -164,6 +196,13 @@ namespace VMSystem.VMS
                     }
                 }
             }
+
+
+            bool hasVehicle = specificVehicleAssinger.TryGetSpeficVehicle(taskDto, out IAGV speficVehicle);
+            if (hasVehicle)
+            {
+                return (speficVehicle, true);
+            }
             List<IAGV> agvSortedByDistance = new List<IAGV>();
             try
             {
@@ -202,22 +241,22 @@ namespace VMSystem.VMS
             }
 
             var AGVListRemoveTaskAGV = agvSortedByDistance.Where(item => !List_ExceptAGV.Contains(item.Name));
-            AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(item => item.states.AGV_Status != clsEnums.MAIN_STATUS.Charging || (item.states.AGV_Status == clsEnums.MAIN_STATUS.Charging));
+            AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(item => item.states.AGV_Status != MAIN_STATUS.Charging || item.states.AGV_Status == MAIN_STATUS.Charging);
 
-            if ((taskDto.Action == ACTION_TYPE.Unload || taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.Carry) && taskDto.To_Station_AGV_Type != clsEnums.AGV_TYPE.Any)
+            if ((taskDto.Action == ACTION_TYPE.Unload || taskDto.Action == ACTION_TYPE.Load || taskDto.Action == ACTION_TYPE.Carry) && taskDto.To_Station_AGV_Type != AGV_TYPE.Any)
             {
                 AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.model == taskDto.To_Station_AGV_Type);
             }
             AGVListRemoveTaskAGV = AGVListRemoveTaskAGV.Where(agv => agv.CheckOutOrderExecutableByBatteryStatusAndChargingStatus(taskDto.Action, out string _));
 
             if (AGVListRemoveTaskAGV.Count() == 0)
-                return null;
+                return (null, false);
             if (AGVListRemoveTaskAGV.Count() > 1)
             {
-                if (AGVListRemoveTaskAGV.All(agv => agv.main_state == clsEnums.MAIN_STATUS.RUN))
-                    return AGVListRemoveTaskAGV.FirstOrDefault();
+                if (AGVListRemoveTaskAGV.All(agv => agv.main_state == MAIN_STATUS.RUN))
+                    return (AGVListRemoveTaskAGV.FirstOrDefault(), false);
             }
-            return AGVListRemoveTaskAGV.First();
+            return (AGVListRemoveTaskAGV.First(), false);
         }
 
         /// <summary>
@@ -289,6 +328,12 @@ namespace VMSystem.VMS
             //    else
             //        _taskDto.need_change_agv = true;
             //return _taskDto;
+        }
+
+        internal void SeEQStationDedicatedSetting(List<EQStationDedicatedSetting> eQStationDedicatedSettings)
+        {
+            eqStationDedicatedConfig.EQStationDedicatedSettings = eQStationDedicatedSettings;
+            eqStationDedicatedConfig.Save();
         }
     }
 }

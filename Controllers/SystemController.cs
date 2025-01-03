@@ -12,6 +12,7 @@ namespace VMSystem.Controllers
     [ApiController]
     public class SystemController : ControllerBase
     {
+
         [HttpGet("VMSAliveCheck")]
         public async Task<IActionResult> AliveCheckHttp()
         {
@@ -65,6 +66,5 @@ namespace VMSystem.Controllers
         {
             return Ok();
         }
-
     }
 }

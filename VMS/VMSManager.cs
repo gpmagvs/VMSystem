@@ -38,7 +38,7 @@ namespace VMSystem.VMS
         public static AGVSDbContext AGVSDbContext { get; internal set; }
         public static GPMForkAgvVMS ForkAGVVMS;
         public static Dictionary<VMS_GROUP, VMSAbstract> VMSList = new Dictionary<VMS_GROUP, VMSAbstract>();
-        public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
+        //public static clsOptimizeAGVDispatcher OptimizeAGVDisaptchModule = new clsOptimizeAGVDispatcher();
         public static Dictionary<string, clsAGVStatusSimple> OthersAGVInfos = new Dictionary<string, clsAGVStatusSimple>();
         internal static SemaphoreSlim tasksLock = new SemaphoreSlim(1, 1);
         internal static SemaphoreSlim AgvStateDbTableLock = new SemaphoreSlim(1, 1);
@@ -99,7 +99,7 @@ namespace VMSystem.VMS
 
             await Task.WhenAll(tasks);
             var _object = VMSList.ToDictionary(grop => grop.Key, grop => new { AGV_List = grop.Value.AGVList.ToDictionary(a => a.Key, a => a.Value.options) });
-            OptimizeAGVDisaptchModule.Run();
+            //OptimizeAGVDisaptchModule.Run();
             TaskAssignToAGVWorker();
         }
 

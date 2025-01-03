@@ -50,7 +50,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         }
         public void Abort()
         {
-            cancellationTokenSource.Cancel();
+            cancellationTokenSource?.Cancel();
         }
 
         internal bool OrderDone()
@@ -74,6 +74,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         }
         internal async Task WatchStart()
         {
+            if (this.order.isSpeficVehicleAssigned)
+                return;
             Log("Start Watching");
             cancellationTokenSource = new CancellationTokenSource();
             bool _isOrderTransferStateStored = OrderTransferTimesStore.TryGetValue(order.TaskName, out int times);

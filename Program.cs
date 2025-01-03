@@ -13,6 +13,7 @@ using NLog;
 using NLog.Web;
 using VMSystem;
 using VMSystem.BackgroundServices;
+using VMSystem.Dispatch;
 using VMSystem.Services;
 
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
@@ -84,6 +85,10 @@ try
     builder.Services.AddHostedService<TrafficScopeService>();
     builder.Services.AddHostedService<VMSManageHostService>();
     builder.Services.AddScoped<SECSConfigsService>(service => _secsConfigsService);
+
+    var optimizedVehicleDispatcher = new clsOptimizeAGVDispatcher(AGVSConfigulator.ConfigsFilesFolder);
+    builder.Services.AddSingleton<clsOptimizeAGVDispatcher>(optimizedVehicleDispatcher);
+    builder.Services.AddHostedService(sp => optimizedVehicleDispatcher);
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
