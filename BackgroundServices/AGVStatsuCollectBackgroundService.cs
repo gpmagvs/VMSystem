@@ -68,6 +68,12 @@ namespace VMSystem.BackgroundServices
             status.Connected = _vehicle.connected;
             status.BatLevel = _vehicle.states.Electric_Volume.First();
             status.BatDisChargeCurrent = 122000;
+
+            status.CoordinateX = _vehicle.states.Coordination.X;
+            status.CoordinateY = _vehicle.states.Coordination.Y;
+
+            status.CurrentPathTag = string.Join("-", _vehicle.NavigationState.NextNavigtionPoints.Select(pt => pt.TagNumber));
+
             return status;
         }
     }
