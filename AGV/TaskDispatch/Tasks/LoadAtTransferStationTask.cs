@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 
@@ -9,10 +10,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     public class LoadAtTransferStationTask : LoadAtDestineTask
     {
         public Dictionary<int, List<int>> dict_Transfer_to_from_tags = new Dictionary<int, List<int>>();
-        public LoadAtTransferStationTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+
+        public LoadAtTransferStationTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
-            //DestineTag = order.TransferToTag;
         }
+
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.LoadingAtTransferStation;
         public override ACTION_TYPE ActionType => ACTION_TYPE.Load;
 
@@ -41,10 +43,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return orderInfo.TransferToTag;
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            ReportLoadCargoToPortDone();
-            return base.ActionFinishInvoke();
+            await ReportLoadCargoToPortDone();
+            return await base.ActionFinishInvoke();
         }
     }
 }

@@ -7,21 +7,28 @@ using AGVSystemCommonNet6.Availability;
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
+using AGVSystemCommonNet6.Equipment.AGV;
 using AGVSystemCommonNet6.Exceptions;
+using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.HttpTools;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.StopRegion;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json.Linq;
 using NLog;
+using RosSharp.RosBridgeClient.MessageTypes.Std;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.Regions;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using WebSocketSharp;
@@ -36,13 +43,20 @@ namespace VMSystem.AGV
         public NLog.Logger logger { get; set; }
         public TaskExecuteHelper TaskExecuter { get; set; }
         public clsAGVSimulation AgvSimulation { get; set; } = new clsAGVSimulation();
+
+        private DeepCharger? deepCharger;
+
+        private readonly AGVSDbContext dbContext;
+
+        private static SemaphoreSlim DBPassInfoTablelockSemaphoreSlim = new SemaphoreSlim(1, 1);
         public clsAGV()
         {
 
         }
-        public clsAGV(string name, clsAGVOptions options)
+        public clsAGV(string name, clsAGVOptions options, AGVSDbContext aGVSDbContext)
         {
             this.options = options;
+            dbContext = aGVSDbContext;
             IsStatusSyncFromThirdPartySystem = AGVSConfigulator.SysConfigs.BaseOnKGSWebAGVSystem;
             Name = name;
             TaskExecuter = new TaskExecuteHelper(this);
@@ -50,16 +64,88 @@ namespace VMSystem.AGV
             logger.Info($"AGV {name} Create. MODEL={model} ");
             NavigationState.logger = logger;
             NavigationState.Vehicle = this;
-
+            NavigationState.OnStartWaitConflicSolve += NavigationState_OnStartWaitConflicSolve;
+            NavigationState.OnEndWaitConflicSolve += NavigationState_OnEndWaitConflicSolve;
             //重置座標
             states.Last_Visited_Node = options.InitTag;
             MapPoint previousPt = StaMap.GetPointByTagNumber(options.InitTag);
             states.Coordination = new clsCoordination(previousPt.X, previousPt.Y, previousPt.Direction);
             this.states = states;
+            deepCharger = new DeepCharger(this);
             if (options.Simulation)
             {
                 online_state = ONLINE_STATE.ONLINE;
                 TagSetup();
+            }
+            Task.Run(() => HandleAlarmCodesReported());
+        }
+
+
+        private async Task HandleAlarmCodesReported()
+        {
+            while (true)
+            {
+                await Task.Delay(1000);
+                try
+                {
+                    int[] currentAlarmIDList = AlarmCodes.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
+                    int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
+
+                    var newAlarmodes = currentAlarmIDList.Where(id => !_previousAlarmCodes.Contains(id)).ToList();
+                    var checkedAlarmCodes = _previousAlarmCodes.Where(id => !currentAlarmIDList.Contains(id)).ToList();
+                    List<Task> alarmOpterationsList = new List<Task>();
+
+                    if (newAlarmodes.Any())
+                    {
+                        foreach (var alarCode in newAlarmodes)
+                        {
+                            var alarm = AlarmCodes.FirstOrDefault(al => al.Alarm_ID == alarCode);
+                            var alarmDto = new clsAlarmDto
+                            {
+                                AlarmCode = alarm.Alarm_ID,
+                                Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
+                                Description_En = alarm.Alarm_Description_EN,
+                                Description_Zh = alarm.Alarm_Description,
+                                Equipment_Name = Name,
+                                Checked = false,
+                                OccurLocation = currentMapPoint.Name,
+                                Time = DateTime.Now,
+                                Task_Name = taskDispatchModule.ExecutingTaskName,
+                                Source = ALARM_SOURCE.EQP,
+
+                            };
+                            alarmOpterationsList.Add(Task.Run(async () =>
+                            {
+                                await AlarmManagerCenter.AddAlarmAsync(alarmDto);
+                                previousAlarmCodes.Add(alarmDto);
+                            }));
+                        }
+
+                    }
+                    if (checkedAlarmCodes.Any())
+                    {
+                        foreach (var alarCode in checkedAlarmCodes)
+                        {
+                            var alarm = previousAlarmCodes.FirstOrDefault(al => al.AlarmCode == alarCode);
+                            if (alarm != null)
+                                alarmOpterationsList.Add(Task.Run(async () =>
+                                {
+                                    await AlarmManagerCenter.SetAlarmCheckedAsync(Name, alarm.AlarmCode);
+                                    previousAlarmCodes.RemoveAll(al => al.AlarmCode == alarCode);
+                                }));
+                        }
+                    }
+
+                    if (alarmOpterationsList.Any())
+                    {
+                        Task.WaitAll(alarmOpterationsList.ToArray());
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
             }
         }
 
@@ -85,7 +171,6 @@ namespace VMSystem.AGV
         public static event EventHandler<(IAGV agv, double currentMileage)> OnMileageChanged;
         public event EventHandler<string> OnTaskCancel;
         public event EventHandler OnAGVStatusDown;
-
         public IAGV.BATTERY_STATUS batteryStatus
         {
             get
@@ -93,6 +178,9 @@ namespace VMSystem.AGV
                 var volumes = states.Electric_Volume;
                 if (volumes == null || volumes.Length == 0)
                     return IAGV.BATTERY_STATUS.UNKNOWN;
+
+                if (deepCharger.GetIsDeepCharging())
+                    return IAGV.BATTERY_STATUS.DEEPCHARGING;
 
                 double avgVolume = volumes.Average();
                 if (avgVolume < options.BatteryOptions.LowLevel)
@@ -112,6 +200,7 @@ namespace VMSystem.AGV
         public AvailabilityHelper availabilityHelper { get; private set; }
         public StopRegionHelper StopRegionHelper { get; private set; }
         private clsRunningStatus _states = new clsRunningStatus() { Odometry = -1 };
+        private clsPointPassInfo tagPointStayInfo = new clsPointPassInfo();
         public clsRunningStatus states
         {
             get => _states;
@@ -119,6 +208,9 @@ namespace VMSystem.AGV
             {
                 if (currentMapPoint.TagNumber != value.Last_Visited_Node)
                 {
+
+                    StorePointStayInfo(value.Last_Visited_Node, currentMapPoint.TagNumber);
+
                     MapRegion previousRegion = currentMapPoint.GetRegion();
 
                     currentMapPoint = StaMap.GetPointByTagNumber(value.Last_Visited_Node);
@@ -136,15 +228,114 @@ namespace VMSystem.AGV
                     OnMileageChanged?.Invoke(this, (this, value.Odometry));
                 }
 
+
                 AlarmCodes = value.Alarm_Code;
                 _states = value;
                 main_state = value.AGV_Status;
-
-
-
+                if (deepCharger != null)
+                    deepCharger.DeepChargeRequesting = IsDeepChargeRequired();
             }
         }
 
+        private void NavigationState_OnEndWaitConflicSolve(object? sender, EventArgs e)
+        {
+            Task.Factory.StartNew(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    tagPointStayInfo.EndWaitTrafficSolveTime = DateTime.Now;
+                    dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+        }
+
+        private void NavigationState_OnStartWaitConflicSolve(object? sender, EventArgs e)
+        {
+
+            Task.Factory.StartNew(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    if (tagPointStayInfo.StartWaitTrafficSolveTime != DateTime.MinValue)
+                        return;
+                    tagPointStayInfo.StartWaitTrafficSolveTime = DateTime.Now;
+                    dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+
+
+        }
+        private Task StorePointStayInfo(int currentTag, int previousTag)
+        {
+            return Task.Run(async () =>
+            {
+                bool waitDone = await DBPassInfoTablelockSemaphoreSlim.WaitAsync(TimeSpan.FromSeconds(1));
+                if (!waitDone)
+                    return;
+                try
+                {
+                    bool isExecutingOrder = taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+                    var currentOrderStage = isExecutingOrder ? this.CurrentRunningTask().Stage : VehicleMovementStage.Not_Start_Yet;
+                    //leave previous
+                    if (tagPointStayInfo.Tag != 0)
+                    {
+                        DateTime time = DateTime.Now;
+                        tagPointStayInfo.StageWhenLeaving = (int)currentOrderStage;
+                        tagPointStayInfo.LeaveTime = time;
+                        tagPointStayInfo.Duration = (tagPointStayInfo.LeaveTime - tagPointStayInfo.Time).TotalSeconds;
+                        dbContext.Entry(tagPointStayInfo).State = EntityState.Modified;
+                        await dbContext.SaveChangesAsync();
+
+                    }
+                    tagPointStayInfo = new clsPointPassInfo();
+                    tagPointStayInfo.Tag = currentTag;
+                    tagPointStayInfo.DataKey = $"{DateTime.Now.ToString("yyyyMMddHHmmssffff")}_{tagPointStayInfo.Tag}";
+                    tagPointStayInfo.AGVName = Name;
+                    tagPointStayInfo.TaskName = isExecutingOrder ? taskDispatchModule.OrderHandler.OrderData.TaskName : "";
+                    tagPointStayInfo.Time = DateTime.Now;
+                    tagPointStayInfo.StageWhenReach = (int)currentOrderStage;
+                    tagPointStayInfo.StartWaitTrafficSolveTime = DateTime.MinValue;
+                    tagPointStayInfo.EndWaitTrafficSolveTime = DateTime.MinValue;
+                    dbContext.PointPassTime.Add(tagPointStayInfo);
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("StorePointStayInfo Fail", ex);
+                }
+                finally
+                {
+                    DBPassInfoTablelockSemaphoreSlim.Release();
+                }
+
+            });
+        }
 
         public Map map { get; set; }
 
@@ -163,7 +354,7 @@ namespace VMSystem.AGV
                     _pingSuccess = value;
                     if (!value)
                     {
-                        logger.Warn($"Ping Fail({options.HostIP})");
+                        logger.Warn($"Ping Fail({options.IP})");
                         string location = currentMapPoint == null ? states.Last_Visited_Node + "" : currentMapPoint.Name;
                         AlarmManagerCenter.AddAlarmAsync(ALARMS.VMSDisconnectwithVehicle, Equipment_Name: Name, location: location, level: ALARM_LEVEL.WARNING);
                     }
@@ -230,6 +421,7 @@ namespace VMSystem.AGV
                 {
                     if (value == MAIN_STATUS.DOWN)
                     {
+                        NotifyServiceHelper.ERROR($"{Name} Down!");
                         OnAGVStatusDown?.Invoke(this, EventArgs.Empty);
                     }
                     availabilityHelper?.UpdateAGVMainState(value);
@@ -253,11 +445,13 @@ namespace VMSystem.AGV
                     var currentCircleArea = value.GetCircleArea(ref _thisAGV);
                     if (previousMapPoint.TagNumber != value.TagNumber)
                     {
+                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                         int previousTag = (int)(previousMapPoint?.TagNumber);
                         logger.Info($"[{Name}]-Tag Location Change to {value.TagNumber} (Previous : {previousTag})");
-                        if (value.IsEquipment && !TrafficControlCenter.TrafficControlParameters.Basic.UnLockEntryPointWhenParkAtEquipment)
+
+
+                        if (value.IsEquipment)
                         {
-                            //NotifyServiceHelper.INFO($"AGV {Name} 抵達{value.Graph.Display},系統設置入口點({previousMapPoint.Graph.Display})不可解除註冊!");
                             StaMap.RegistPoint(Name, value, out string _Registerrmsg);
                             previousMapPoint = value;
                             return;
@@ -324,9 +518,8 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
-
+                        MCSCIMService.VehicleCoordinateChangedReport(AgvIDStr, value.X.ToString() + "", value.Y.ToString());
                         RegionManager.UpdateRegion(this);
-                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                     }
                 }
                 catch (Exception ex)
@@ -338,67 +531,8 @@ namespace VMSystem.AGV
         }
 
         public List<clsAlarmDto> previousAlarmCodes = new List<clsAlarmDto>();
-        public AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] AlarmCodes
-        {
-            set
-            {
-                if (value.Length == 0 && previousAlarmCodes.Count != 0)
-                {
-                    var previousUnCheckdeAlarms = AlarmManagerCenter.uncheckedAlarms.FindAll(alarm => alarm.Equipment_Name == Name);
-                    AlarmManagerCenter.SetAlarmsAllCheckedByEquipmentName(Name);
-                    previousAlarmCodes.Clear();
-                }
-                if (value.Length > 0)
-                {
-                    int[] newAlarmodes = value.Where(al => al.Alarm_ID != 0).Select(alarm => alarm.Alarm_ID).ToArray();
-                    int[] _previousAlarmCodes = previousAlarmCodes.Select(alarm => alarm.AlarmCode).ToArray();
 
-                    if (newAlarmodes.Length > 0)
-                    {
-                        Task.Factory.StartNew(async () =>
-                        {
-                            foreach (int alarm_code in _previousAlarmCodes) //舊的
-                            {
-                                if (!newAlarmodes.Contains(alarm_code))
-                                {
-                                    await AlarmManagerCenter.SetAlarmCheckedAsync(Name, alarm_code);
-                                    previousAlarmCodes.RemoveAt(_previousAlarmCodes.ToList().IndexOf(alarm_code));
-                                }
-                            }
-                        });
-                    }
-
-                    foreach (AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode alarm in value)
-                    {
-                        if (!_previousAlarmCodes.Contains(alarm.Alarm_ID)) //New Aalrm!
-                        {
-
-                            var alarmDto = new clsAlarmDto
-                            {
-                                AlarmCode = alarm.Alarm_ID,
-                                Level = alarm.Alarm_Level == 1 ? ALARM_LEVEL.ALARM : ALARM_LEVEL.WARNING,
-                                Description_En = alarm.Alarm_Description_EN,
-                                Description_Zh = alarm.Alarm_Description,
-                                Equipment_Name = Name,
-                                Checked = false,
-                                OccurLocation = currentMapPoint.Name,
-                                Time = DateTime.Now,
-                                Task_Name = taskDispatchModule.ExecutingTaskName,
-                                Source = ALARM_SOURCE.EQP,
-
-                            };
-                            AlarmManagerCenter.AddAlarmAsync(alarmDto);
-                            previousAlarmCodes.Add(alarmDto);
-                        }
-                        else
-                        {
-                            AlarmManagerCenter.UpdateAlarmDuration(Name, alarm.Alarm_ID);
-                        }
-                    }
-
-                }
-            }
-        }
+        public AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[] AlarmCodes = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
 
 
 
@@ -468,6 +602,7 @@ namespace VMSystem.AGV
             }
         }
         public int currentFloor { get; set; } = 1;
+        public string AgvIDStr => options.AGV_ID;
 
         public async Task Run()
         {
@@ -488,7 +623,7 @@ namespace VMSystem.AGV
             }
 
 
-            AGVHttp = new HttpHelper($"http://{options.HostIP}:{options.HostPort}");
+            AGVHttp = new HttpHelper($"http://{options.IP}:{options.Port}");
             logger.Trace($"IAGV-{Name} Created, [vehicle length={options.VehicleLength} cm]");
 
             taskDispatchModule.Run();
@@ -517,7 +652,7 @@ namespace VMSystem.AGV
         {
             using Ping pingSender = new Ping();
             // 設定要 ping 的主機或 IP
-            string address = options.HostIP;
+            string address = options.IP;
             try
             {  // 創建PingOptions對象，並設置相關屬性
                 PingOptions options = new PingOptions
@@ -587,7 +722,7 @@ namespace VMSystem.AGV
             }
             catch (Exception ex)
             {
-                LOG.Critical($"發送多車動態資訊至AGV- {Name} 失敗", ex);
+                logger.Fatal($"發送多車動態資訊至AGV- {Name} 失敗", ex);
             }
 
         }
@@ -613,7 +748,7 @@ namespace VMSystem.AGV
 
                     if (availabilityHelper.IDLING_TIME > 30)
                     {
-                        LOG.WARN($"{Name} IDLE時間超過設定秒數");
+                        logger.Warn($"{Name} IDLE時間超過設定秒數");
                         var taskData = new clsTaskDto
                         {
                             Action = ACTION_TYPE.Park,
@@ -649,8 +784,9 @@ namespace VMSystem.AGV
             }
             if (options.Simulation)
             {
-                online_state = clsEnums.ONLINE_STATE.ONLINE;
-                return true;
+                bool success = this.AgvSimulation.VMSOnline(out message);
+                online_state = success ? clsEnums.ONLINE_STATE.ONLINE : ONLINE_STATE.OFFLINE;
+                return success;
             }
 
             if (IsStatusSyncFromThirdPartySystem)
@@ -661,11 +797,9 @@ namespace VMSystem.AGV
 
             if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
             {
-                var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
+                clsAPIRequestResult resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_online").Result;
                 if (!resDto.Success)
-                {
                     AddNewAlarm(ALARMS.GET_ONLINE_REQ_BUT_AGV_STATE_ERROR, ALARM_SOURCE.AGVS);
-                }
                 else
                     online_state = ONLINE_STATE.ONLINE;
                 message = resDto.Message;
@@ -690,7 +824,7 @@ namespace VMSystem.AGV
             }
 
             online_mode_req = ONLINE_STATE.OFFLINE;
-            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI)
+            if (options.Protocol == clsAGVOptions.PROTOCOL.RESTFulAPI && !options.Simulation)
             {
                 var resDto = AGVHttp.GetAsync<clsAPIRequestResult>($"/api/AGV/agv_offline").Result;
                 if (!resDto.Success)
@@ -868,9 +1002,10 @@ namespace VMSystem.AGV
             }
         }
 
-        public bool IsAGVIdlingAtChargeStationButBatteryLevelLow()
+        public bool IsAGVIdlingAtParkableStationButBatteryLevelLow()
         {
-            return currentMapPoint.IsCharge && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
+            bool isAtBuffer = currentMapPoint.StationType == STATION_TYPE.Buffer || currentMapPoint.StationType == STATION_TYPE.Charge_Buffer;
+            return (currentMapPoint.IsCharge || isAtBuffer) && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
         }
         public bool IsAGVIdlingAtNormalPoint()
         {
@@ -916,12 +1051,11 @@ namespace VMSystem.AGV
             message = "";
 
             //一律接受充電任務
-            if (orderAction == ACTION_TYPE.Charge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
+            if (orderAction == ACTION_TYPE.Charge || orderAction == ACTION_TYPE.DeepCharge || batteryStatus == IAGV.BATTERY_STATUS.HIGH)
                 return true;
             //電池低電量與電量未知不可接收任務
-            if (batteryStatus <= IAGV.BATTERY_STATUS.LOW)
+            if (batteryStatus != IAGV.BATTERY_STATUS.DEEPCHARGING && batteryStatus <= IAGV.BATTERY_STATUS.LOW)
             {
-
                 message = batteryStatus == IAGV.BATTERY_STATUS.LOW ? "電量過低無法接收訂單任務" : "電量狀態未知無法接收訂單任務";
                 return false;
             }
@@ -929,6 +1063,12 @@ namespace VMSystem.AGV
             //充電中:
             if (main_state == MAIN_STATUS.Charging)
             {
+                if (batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING)
+                {
+                    message = $"深度充電中不可執行任務!";
+                    return false;
+                }
+
                 bool chargingAndAboveMiddle = batteryStatus == IAGV.BATTERY_STATUS.MIDDLE_HIGH;
                 message = chargingAndAboveMiddle ? "" : "充電中但當前電量仍無法接收訂單任務。";
                 return chargingAndAboveMiddle;
@@ -964,16 +1104,16 @@ namespace VMSystem.AGV
 
         }
 
-        public async Task CancelTaskAsync(string task_name, string reason)
+        public async Task CancelTaskAsync(string task_name, string reason, string? hostAction = "")
         {
-            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason);
+            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason, hostAction);
             if (confirmed)
             {
                 TaskBase currentTask = this.CurrentRunningTask();
                 bool isTaskExecuting = currentTask.TaskName == task_name;
                 OnTaskCancel?.Invoke(this, task_name);
                 if (isTaskExecuting && currentTask.ActionType == ACTION_TYPE.None && !currentTask.IsTaskCanceled)
-                    currentTask.CancelTask();
+                    currentTask.CancelTask(hostAction);
 
                 currentTask.OnTaskDone += (sender, e) =>
                 {
@@ -1004,6 +1144,29 @@ namespace VMSystem.AGV
         private void CurrentTask_OnTaskDone(object? sender, EventArgs e)
         {
             throw new NotImplementedException();
+        }
+
+        public void StartDeepCharging()
+        {
+            deepCharger.StartDeepCharging();
+        }
+
+        public void StopDeepCharge(bool isAuto)
+        {
+            deepCharger.StopDeepCharging(isAuto);
+        }
+
+        public bool IsDeepChargeRequired()
+        {
+            int _socAlarm = 56780;
+            return states.Alarm_Code.Any(al => al.Alarm_ID == _socAlarm);
+        }
+
+        public void UpdateDeepChargeRecorder(DeepChargeRecorder recoder)
+        {
+            if (deepCharger.Recorder != null)
+                deepCharger.StopDeepCharging(true);
+            deepCharger.Recorder = recoder;
         }
     }
 }

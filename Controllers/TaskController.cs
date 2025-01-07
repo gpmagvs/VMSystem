@@ -23,11 +23,11 @@ namespace VMSystem.Controllers
         }
 
         [HttpGet("Cancel")]
-        public async Task<IActionResult> Cancel(string task_name, string reason = "")
+        public async Task<IActionResult> Cancel(string task_name, string reason = "", string? hostAction = "cancel")
         {
             try
             {
-                await VMSManager.TaskCancel(task_name, reason);
+                await VMSManager.TaskCancel(task_name, reason, hostAction);
                 return Ok("done");
             }
             catch (Exception ex)
@@ -50,14 +50,15 @@ namespace VMSystem.Controllers
         [HttpPost("SettingNoRunRandomCarryHotRunAGVList")]
         public async Task<IActionResult> SettingNoRunRandomCarryHotRunAGVList([FromBody] List<string> agvNameList)
         {
-            VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList = agvNameList;
+            // VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList = agvNameList;
             return Ok(true);
         }
 
         [HttpGet("NoRunRandomCarryHotRunAGVList")]
         public async Task<IActionResult> GetNoRunRandomCarryHotRunAGVList()
         {
-            return Ok(VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList);
+            //return Ok(VMSManager.OptimizeAGVDisaptchModule.NoAcceptRandomCarryHotRunAGVNameList);
+            return Ok();
         }
     }
 }

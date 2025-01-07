@@ -368,7 +368,7 @@ namespace VMSystem
                 else
                 {
                     OnTagUnregisted?.Invoke("", TagNumber);
-                    //logger.Trace($"{Name} UnRegist Tag {TagNumber}");
+                    logger.Trace($"{Name} UnRegist Tag {TagNumber}");
                     return (true, "");
                 }
             }
@@ -454,13 +454,22 @@ namespace VMSystem
                     logger.Warn($"{agv.Name} 狀態為RUN但嘗試解除註冊點 已禁止");
                     return false;
                 }
-                var registed_tag_except_current_tag = RegistDictionary.Where(kp => kp.Value.RegisterAGVName == agv.Name && kp.Key != agv.states.Last_Visited_Node).Select(kp => kp.Key).ToList();
-                var result = await UnRegistPoints(agv.Name, registed_tag_except_current_tag);
-                if (result.success && registed_tag_except_current_tag.Any())
+                int agvLastVisitTag = agv.currentMapPoint.TagNumber;
+                List<int> tagsToUnregist = new List<int>();
+                var allRegistedPtOfAGV = RegistDictionary.Where(pt => pt.Value.RegisterAGVName == agv.Name);
+                tagsToUnregist = allRegistedPtOfAGV.Where(pt => pt.Key != agvLastVisitTag)
+                                                   .Select(pt => pt.Key)
+                                                   .ToList();
+                (bool success, string error_message) = await UnRegistPoints(agv.Name, tagsToUnregist);
+                if (!success)
                 {
-                    NotifyServiceHelper.SUCCESS($"{agv.Name} Unregist tags={(string.Join(",", registed_tag_except_current_tag))}");
+                    logger.Warn($"{agv.Name}解除當前所有註冊點失敗:{error_message}");
                 }
-                return result.success;
+                else if (success && tagsToUnregist.Any())
+                {
+                    NotifyServiceHelper.SUCCESS($"{agv.Name} Unregist tags={(string.Join(",", tagsToUnregist))}");
+                }
+                return success;
             }
             catch (Exception ex)
             {

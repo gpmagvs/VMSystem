@@ -1,8 +1,11 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.MCS;
 using VMSystem.Dispatch.Regions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
@@ -11,7 +14,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class DischargeTask : TaskBase
     {
-        public DischargeTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public DischargeTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+        public DischargeTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 
@@ -56,6 +62,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
                 await WaitAGVTaskDone();
+
+                if (OrderData.Action == ACTION_TYPE.Carry)
+                {
+                    await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.soucePortID);
+                }
+
             }
             catch (Exception ex)
             {
@@ -152,9 +164,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
 
-        public override void CancelTask()
+        public override void CancelTask(string hostAction = "")
         {
-            base.CancelTask();
+            base.CancelTask(hostAction);
+        }
+
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.NONE;
+            return true;
         }
     }
 }

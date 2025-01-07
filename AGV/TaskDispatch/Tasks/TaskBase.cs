@@ -4,7 +4,6 @@ using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Material;
 using AGVSystemCommonNet6.Microservices.AGVS;
@@ -23,11 +22,16 @@ using static SQLite.SQLite3;
 using static VMSystem.AGV.TaskDispatch.Tasks.MoveTask;
 using static VMSystem.TrafficControl.TrafficControlCenter;
 using AGVSystemCommonNet6.Configuration;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
+using AGVSystemCommonNet6.DATABASE;
+using VMSystem.Extensions;
+using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
+using VMSystem.AGV.TaskDispatch.OrderHandler;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
 
-    public abstract class TaskBase : clsTaskDatabaseWriteableAbstract, IDisposable
+    public abstract partial class TaskBase : clsTaskDatabaseWriteableAbstract
     {
         public delegate Task<clsMoveTaskEvent> BeforeMoveToNextGoalDelegate(clsMoveTaskEvent args);
         public static BeforeMoveToNextGoalDelegate BeforeMoveToNextGoalTaskDispatch;
@@ -56,6 +60,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public TaskDiagnosis taskdiagnosisTool { get; set; } = new TaskDiagnosis();
 
         protected bool AgvStatusDownFlag = false;
+
+        internal AGV.TaskDispatch.OrderHandler.OrderTransferSpace.OrderTransfer? OrderTransfer { get; set; } = null;
         protected virtual void HandleAGVStatusDown(object? sender, EventArgs e)
         {
             AgvStatusDownFlag = true;
@@ -67,15 +73,26 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 _WaitAGVTaskDoneMRE.Set();
             });
         }
-        public TaskBase() { }
         public TaskBase(IAGV Agv, clsTaskDto orderData)
+        {
+            this.Agv = Agv;
+            this.OrderData = orderData;
+            this.TaskName = orderData.TaskName;
+            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}");
+        }
+        public TaskBase() : base()
+        {
+            logger = LogManager.GetLogger("TaskDispatch");
+        }
+        public TaskBase(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
         {
             this.Agv = Agv;
             this.OrderData = orderData;
             this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
-            logger = LogManager.GetLogger("TaskDispatch");
+            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}");
+
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
         public bool IsFinalAction { get; set; } = false;
@@ -86,6 +103,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public VehicleMovementStage subStage { get; protected set; } = VehicleMovementStage.Not_Start_Yet;
 
         public TransferStage TransferStage { get; set; } = TransferStage.NO_Transfer;
+
+
         public abstract ACTION_TYPE ActionType { get; }
         /// <summary>
         /// 目的地Tag
@@ -162,9 +181,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                if (!CheckCargoStatus(out ALARMS alarmCode))
+                {
+                    return (false, alarmCode, alarmCode.ToString());
+                }
                 MoveTaskEvent = new clsMoveTaskEvent();
                 _TaskCancelTokenSource = new CancellationTokenSource();
                 CreateTaskToAGV();
+                _ = OrderTransfer?.WatchStart();
                 await SendTaskToAGV();
                 if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                     return (false, ALARMS.AGV_STATUS_DOWN, "AGV STATUS DOWN");
@@ -172,6 +196,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (false, ALARMS.Task_Canceled, "TASK CANCELED");
 
                 return (true, ALARMS.NONE, "");
+            }
+            catch (AGVStatusDownException ex)
+            {
+                return (false, ex.Alarm_Code, "AGV Status Down");
+
             }
             catch (TaskCanceledException ex)
             {
@@ -195,7 +224,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 logger.Error(ex);
                 return (false, ALARMS.TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION, "TASK_DOWNLOAD_TO_AGV_FAIL_SYSTEM_EXCEPTION");
             }
+            finally
+            {
+                if (OrderTransfer != null)
+                {
+                    OrderTransfer.Abort();
+                    if (OrderTransfer.State == OrderHandler.OrderTransferSpace.OrderTransfer.STATES.ORDER_TRANSFERIED)
+                    {
+                        OrderTransfer.OrderDone();
+                    }
+                }
+            }
         }
+
+        internal abstract bool CheckCargoStatus(out ALARMS alarmCode);
+
         protected virtual bool IsTaskExecutable()
         {
             if (IsTaskCanceled ||
@@ -283,14 +326,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 try
                 {
-                    logger.Warn($"嘗試下載任務給AGV..({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]..({retryCnt})");
                     return await _DownloadTaskInvoke(_TaskDonwloadToAGV);
                 }
                 catch (HttpRequestException ex)
                 {
                     _exceptionHappening = ex;
                     retryCnt++;
-                    logger.Warn($"嘗試下載任務給AGV過程中發生 [HttpRequestException] 例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]過程中發生 [HttpRequestException] 例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
                     await Task.Delay(1000);
                     continue;
                 }
@@ -302,7 +345,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     _exceptionHappening = ex;
                     retryCnt++;
-                    logger.Warn($"嘗試下載任務給AGV過程中發生例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]過程中發生例外({ex.Message})，等待一秒後重新嘗試...({retryCnt})");
                     await Task.Delay(1000);
                     continue;
                 }
@@ -310,7 +353,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     if (_exceptionHappening == null)
                     {
-                        logger.Info($"_DispatchTaskToAGV Success!");
+                        logger.Info($"_DispatchTaskToAGV to [{Agv.Name}] Success!");
                     }
                 }
             }
@@ -358,9 +401,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
-        public CancellationTokenSource TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
-        protected bool disposedValue;
-
         public virtual void UpdateStateDisplayMessage(string msg)
         {
             TrafficWaitingState.SetDisplayMessage(msg);
@@ -391,10 +431,32 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var result = await TrafficControl.PartsAGVSHelper.RegistStationRequestToAGVS(pointNames);
             return (result.confirm, result.message, pointNames);
         }
-        public virtual async void CancelTask()
+        public virtual async void CancelTask(string hostAction = "")
         {
             try
             {
+                OrderHandlerBase? currentOrderHandler = Agv.CurrentOrderHandler();
+                TransportCommandDto transferCommand = currentOrderHandler?.transportCommand;
+                if (currentOrderHandler != null && transferCommand != null && !string.IsNullOrEmpty(hostAction))
+                {
+                    if (hostAction == "cancel")
+                    {
+                        _ = MCSCIMService.TransferCancelInitiatedReport(transferCommand).ContinueWith(async t =>
+                        {
+                            currentOrderHandler.isTransferCanceledByHost = true;
+                        });
+                    }
+
+                    if (hostAction == "abort")
+                    {
+                        _ = MCSCIMService.TransferAbortInitiatedReport(transferCommand).ContinueWith(async t =>
+                        {
+                            currentOrderHandler.isTransferAbortedByHost = true;
+                        });
+
+                    }
+                };
+
                 _TaskCancelTokenSource.Cancel();
                 IsTaskCanceled = true;
                 this.Dispose();
@@ -439,11 +501,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             _WaitAGVTaskDoneMRE.Reset();
 
-            void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
+            async void ActionFinishFeedbackHandler(object sender, FeedbackData feedbackData)
             {
                 if (IsThisTaskDone(feedbackData))
                 {
                     Agv.TaskExecuter.OnActionFinishReported -= ActionFinishFeedbackHandler;
+                    await WaitAGVNotRunning();
                     _WaitAGVTaskDoneMRE.Set();
                 }
             };
@@ -462,7 +525,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.TaskSimplex == Agv.TaskExecuter.TrackingTaskSimpleName;
         }
 
-        public virtual (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public virtual async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
             (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) result = (true, null, ALARMS.NONE, "");
 
@@ -491,11 +554,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 else
                     taskstate = MCSCIMService.TaskStatus.ignore;
-
-                Task<(bool confirm, string message)> v = AGVSSerivces.TaskReporter((OrderData, taskstate)); // 各段任務結束上報
-                v.Wait();
-                if (v.Result.confirm == false)
-                    logger.Warn($"{v.Result.message}");
             }
             catch (Exception ex)
             {
@@ -512,49 +570,58 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         TaskSource: OrderData.From_Station, TaskTarget: OrderData.To_Station, installStatus: cargoinstall, IDStatus: idmatch, materialType: cargotype, materialCondition: MaterialCondition.Transfering);
                     if (cargoinstall != MaterialInstallStatus.OK)
                     {
-                        logger.Fatal("[ActionFinishInvoke] cargo not install");
+                        logger.Fatal($"[ActionFinishInvoke] [{Agv.Name}] cargo not install");
                         CancelTask();
-                        result.errorMsg = "AGV載貨可能發生騎Tray/框(Cargo maybe not mounted on AGV)";
+                        result.errorMsg = $"[{Agv.Name}]載貨可能發生騎Tray/框(Cargo maybe not mounted on AGV)";
                         result.alarmCode = ALARMS.UNLOAD_BUT_AGV_NO_CARGO_MOUNTED;
                         result.continuetask = false;
                     }
-                    else if (idmatch == MaterialIDStatus.NG && AGVSConfigulator.SysConfigs.EQManagementConfigs.TransferToNGPortWhenCarrierIDMissmatch)
+                    else if (idmatch == MaterialIDStatus.NG)
                     {
-                        try
+                        if (AGVSConfigulator.SysConfigs.EQManagementConfigs.TransferToNGPortWhenCarrierIDMissmatch)
                         {
-                            (bool confirm, string message, object ngPortObject) = AGVSSerivces.GetNGPort().GetAwaiter().GetResult();
-                            clsTransferMaterial ngport = null;
                             try
                             {
-                                ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(ngPortObject.ToString());
+                                (bool confirm, string message, object ngPortObject) = AGVSSerivces.GetNGPort().GetAwaiter().GetResult();
+                                clsTransferMaterial ngport = null;
+                                try
+                                {
+                                    ngport = JsonConvert.DeserializeObject<clsTransferMaterial>(ngPortObject.ToString());
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger.Error(ex);
+                                }
+                                if (ngport != null)
+                                {
+                                    OrderData.To_Station = ngport.TargetTag.ToString();
+                                    OrderData.To_Slot = ngport.TargetRow.ToString();
+                                    result.task = OrderData;
+                                    result.continuetask = true;
+                                }
+                                else
+                                {
+                                    logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
+                                    CancelTask();
+                                    result.errorMsg = "No NG port can use";
+                                    result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
+                                    result.continuetask = false;
+                                }
                             }
                             catch (Exception ex)
                             {
-                                logger.Error(ex);
-                            }
-                            if (ngport != null)
-                            {
-                                OrderData.To_Station = ngport.TargetTag.ToString();
-                                OrderData.To_Slot = ngport.TargetRow.ToString();
-                                result.task = OrderData;
-                                result.continuetask = true;
-                            }
-                            else
-                            {
-                                logger.Fatal("[ActionFinishInvoke] No NG port can use, task fail");
+                                logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
+                                result.alarmCode = ALARMS.SYSTEM_ERROR;
                                 CancelTask();
-                                result.errorMsg = "No NG port can use";
-                                result.alarmCode = ALARMS.No_NG_Port_Can_Be_Used;
+                                result.errorMsg = $"No NG port can use:{ex.Message}";
                                 result.continuetask = false;
                             }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            logger.Fatal($"[ActionFinishInvoke] get No NG port with exception: {ex.Message}, task fail");
-                            result.alarmCode = ALARMS.SYSTEM_ERROR;
-                            CancelTask();
-                            result.errorMsg = $"No NG port can use:{ex.Message}";
                             result.continuetask = false;
+                            bool isIDReadFail = Agv.states.CSTID == null || !Agv.states.CSTID.Any() || Agv.states.CSTID[0].ToLower() == "error" || Agv.states.CSTID[0].ToLower() == "trayunknow";
+                            result.alarmCode = isIDReadFail ? ALARMS.UNLOAD_BUT_CARGO_ID_READ_FAIL : ALARMS.UNLOAD_BUT_CARGO_ID_NOT_MATCHED;
                         }
                     }
                     MaterialManager.CreateMaterialInfo(OrderData.Carrier_ID, ActualID: Agv.states.CSTID[0], SourceStation: OrderData.From_Station, TargetStation: Agv.Name,
@@ -588,34 +655,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             TaskBase.OnPathConflicForSoloveRequest?.Invoke(this, request);
         }
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: 處置受控狀態 (受控物件)
-                }
-
-                // TODO: 釋出非受控資源 (非受控物件) 並覆寫完成項
-                // TODO: 將大型欄位設為 Null
-                disposedValue = true;
-            }
-        }
-
-        // // TODO: 僅有當 'Dispose(bool disposing)' 具有會釋出非受控資源的程式碼時，才覆寫完成項
-        // ~TaskBase()
-        // {
-        //     // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
-        //     Dispose(disposing: false);
-        // }
-
-        public void Dispose()
-        {
-            // 請勿變更此程式碼。請將清除程式碼放入 'Dispose(bool disposing)' 方法
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
 
         internal virtual void HandleAGVNavigatingFeedback(FeedbackData feedbackData)
         {
@@ -627,6 +666,26 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         internal bool NavigationPausing { get; set; } = false;
         internal string PauseNavigationReason { get; set; } = "";
+        public OrderHandlerBase orderHandler { get; internal set; }
+
+        /// <summary>
+        /// 等待AGV主狀態不為RUN
+        /// </summary>
+        /// <returns></returns>
+        protected async Task WaitAGVNotRunning(string message = "")
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                if (stopwatch.Elapsed.Seconds > 3)
+                {
+                    NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN...({message})");
+                    stopwatch.Restart();
+                }
+                await Task.Delay(10);
+            }
+            stopwatch.Stop();
+        }
         /// <summary>
         /// 暫停當前導航
         /// </summary>

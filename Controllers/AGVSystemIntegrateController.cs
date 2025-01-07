@@ -1,5 +1,4 @@
 ﻿using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.Log;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.VMS;
@@ -10,6 +9,11 @@ namespace VMSystem.Controllers
     [ApiController]
     public class AGVSystemIntegrateController : ControllerBase
     {
+        ILogger logger;
+        public AGVSystemIntegrateController(ILogger logger)
+        {
+            this.logger = logger;
+        }
         [HttpPost("ReportAGVStatus")]
         public async Task<IActionResult> ReportAGVLocation([FromBody] Dictionary<string, string> payload)
         {
@@ -22,7 +26,7 @@ namespace VMSystem.Controllers
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.Message);
+                logger.LogError(ex, ex.Message);
                 return new BadRequestResult();
             }
         }

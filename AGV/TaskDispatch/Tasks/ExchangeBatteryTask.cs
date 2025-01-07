@@ -1,13 +1,13 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.DATABASE;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class ExchangeBatteryTask : ChargeTask
     {
-
-        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        public ExchangeBatteryTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 

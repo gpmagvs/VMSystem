@@ -2,7 +2,6 @@
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
@@ -14,13 +13,14 @@ using NLog;
 using NLog.Web;
 using VMSystem;
 using VMSystem.BackgroundServices;
+using VMSystem.Dispatch;
 using VMSystem.Services;
 
 Console.WriteLine("Hello world!");
 if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
 {
     Console.WriteLine($"VMS Program is already running({string.Join(",", pids)})");
-    Console.WriteLine("Press any key to exit...");
+    Console.WriteLine("Press any key to exit..."); Console.WriteLine("Press any key to exit...");
     Console.ReadKey(true);
 }
 
@@ -32,6 +32,9 @@ var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentCla
 logger.Info("VMSystem Program Start");
 try
 {
+    SECSConfigsService _secsConfigsService = new SECSConfigsService(Path.Combine(AGVSConfigulator.SysConfigs.CONFIGS_ROOT_FOLDER, "SECSConfigs"));
+    _secsConfigsService.Reload();
+
     var builder = WebApplication.CreateBuilder(args);
     builder.Logging.ClearProviders();
     builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information);
@@ -45,9 +48,9 @@ try
         options.AddPolicy("AllowAll", policy =>
         {
             policy.AllowAnyMethod()
-                   .AllowAnyHeader()
-                    .SetIsOriginAllowed(origin => true) // 允许任何来源
-                    .AllowCredentials(); // 允许凭据
+                  .AllowAnyHeader()
+                  .SetIsOriginAllowed(origin => true) // 允许任何来源
+                  .AllowCredentials(); // 允许凭据
         });
     });
     builder.Services.AddWebSockets(options =>
@@ -78,9 +81,15 @@ try
     builder.Services.AddHostedService<TaskPathConflicDetectionService>();
     builder.Services.AddHostedService<OrderStateMonitorBackgroundService>();
     builder.Services.AddHostedService<PCPerformanceService>();
-    builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
+    //builder.Services.AddHostedService<VehicleStatusDownSoundAlarmBackgroundService>();
     builder.Services.AddHostedService<AGVStatsuCollectBackgroundService>();
     builder.Services.AddHostedService<TrafficScopeService>();
+    builder.Services.AddHostedService<VMSManageHostService>();
+    builder.Services.AddScoped<SECSConfigsService>(service => _secsConfigsService);
+
+    var optimizedVehicleDispatcher = new clsOptimizeAGVDispatcher(AGVSConfigulator.ConfigsFilesFolder);
+    builder.Services.AddSingleton<clsOptimizeAGVDispatcher>(optimizedVehicleDispatcher);
+    builder.Services.AddHostedService(sp => optimizedVehicleDispatcher);
 
     if (AGVSConfigulator.SysConfigs.LinkPartsAGVSystem)
     {
@@ -109,13 +118,11 @@ try
     {
         Startup.ConsoleInit();
         Startup.DBInit(builder, app);
-        Startup.LOGInstanceInit();
         Startup.VMSInit();
         Startup.StaticFileInit(app);
     }
     catch (Exception ex)
     {
-        LOG.Critical(ex);
         Thread.Sleep(3000);
         Environment.Exit(1);
     }

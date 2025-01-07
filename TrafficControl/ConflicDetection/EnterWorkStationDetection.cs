@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Drawing;
 using VMSystem.AGV;
+using VMSystem.Extensions;
 
 namespace VMSystem.TrafficControl.ConflicDetection
 {

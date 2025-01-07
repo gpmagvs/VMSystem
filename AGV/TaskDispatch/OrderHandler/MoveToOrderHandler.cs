@@ -1,9 +1,16 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.DATABASE;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class MoveToOrderHandler : OrderHandlerBase
     {
+        public MoveToOrderHandler() : base() { }
+        public MoveToOrderHandler(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
+        {
+        }
+
         public override ACTION_TYPE OrderAction => ACTION_TYPE.None;
 
         public override async Task StartOrder(IAGV Agv)

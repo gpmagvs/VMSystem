@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
@@ -13,8 +12,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
+using VMSystem.Extensions;
 using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static VMSystem.TrafficControl.VehicleNavigationState;
 
@@ -25,6 +26,9 @@ namespace VMSystem.TrafficControl
         public static event EventHandler<IAGV> OnAGVStartWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVNoWaitConflicSolve;
         public static event EventHandler<IAGV> OnAGVStartWaitLeavingWorkStation;
+
+        internal event EventHandler OnStartWaitConflicSolve;
+        internal event EventHandler OnEndWaitConflicSolve;
         public Logger logger;
         public enum REGION_CONTROL_STATE
         {
@@ -268,16 +272,27 @@ namespace VMSystem.TrafficControl
                 {
                     _IsWaitingConflicSolve = value;
                     if (_IsWaitingConflicSolve)
+                    {
+                        OrderTransfer orderTransfer = Vehicle?.CurrentRunningTask()?.OrderTransfer;
+                        if (orderTransfer != null && orderTransfer.State == OrderTransfer.STATES.ABORTED)
+                        {
+                            _ = orderTransfer.ReStartAsync("Waiting for traffic conflic solving");
+                        }
                         StartWaitConflicSolveTime = DateTime.Now;
+                    }
                     else
                     {
                         StartWaitConflicSolveTime = DateTime.MinValue;
+                        OnEndWaitConflicSolve?.Invoke(this, EventArgs.Empty);
                         OnAGVNoWaitConflicSolve?.Invoke(Vehicle, Vehicle);
                     }
                 }
 
                 if (_IsWaitingConflicSolve)
+                {
+                    OnStartWaitConflicSolve?.Invoke(this, EventArgs.Empty);
                     OnAGVStartWaitConflicSolve?.Invoke(Vehicle, Vehicle);
+                }
             }
         }
         public bool IsConflicSolving { get; set; } = false;
@@ -417,7 +432,7 @@ namespace VMSystem.TrafficControl
 
         private void Log(string message)
         {
-            LOG.INFO($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
+            logger.Trace($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
         }
 
         internal void StateReset()
@@ -489,5 +504,6 @@ namespace VMSystem.TrafficControl
         public REGION_CONTROL_STATE State { get; set; } = REGION_CONTROL_STATE.NONE;
         public MapRegion NextToGoRegion { get; set; } = new();
         public bool IsWaitingForEntryRegion { get; internal set; }
+        public ManualResetEvent CurrentAllowEnterRegionSignal { get; internal set; }
     }
 }

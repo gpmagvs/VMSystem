@@ -10,14 +10,15 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
 using System.Net.Sockets;
 using System.Text;
-using AGVSystemCommonNet6.Log;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
-
-using System.Drawing;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using AGVSystemCommonNet6.DATABASE;
+using NLog;
+using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using static AGVSystemCommonNet6.clsEnums;
+using static AGVSystemCommonNet6.MAP.MapPoint;
 
 namespace VMSystem.AGV
 {
@@ -26,6 +27,7 @@ namespace VMSystem.AGV
     /// </summary>
     public partial class clsAGVSimulation : IDisposable
     {
+        Logger logger = LogManager.GetLogger("AGVSimulationLog");
         private IAGV agv => dispatcherModule.agv;
         private double[] batteryLevelSim = new double[] { 100.0 };
         private readonly clsAGVTaskDisaptchModule dispatcherModule;
@@ -90,10 +92,13 @@ namespace VMSystem.AGV
                 if (_waitReplanflag != value)
                 {
                     _waitReplanflag = value;
-                    LOG.TRACE($"{agv.Name} Replan Flag change to {value}");
+                    logger.Trace($"{agv.Name} Replan Flag change to {value}");
                 }
             }
         }
+
+        public bool CargoReadFailSimulation { get; internal set; }
+        public bool CargoReadMismatchSimulation { get; internal set; }
 
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {
@@ -102,14 +107,15 @@ namespace VMSystem.AGV
             TaskCancelTokenSource = new CancellationTokenSource();
             var token = TaskCancelTokenSource.Token;
             _currentBarcodeMoveArgs = CreateBarcodeMoveArgsFromAGVSOrder(data);
-            SemaphoreSlim.Wait();
+            _currentBarcodeMoveArgs.isIDMissmatchSimulation = CargoReadMismatchSimulation;
+            _currentBarcodeMoveArgs.isIDReadFailSimulation = CargoReadFailSimulation;
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    await SemaphoreSlim.WaitAsync();
                     runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.RUN;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = data.Action_Type == ACTION_TYPE.None ? TASK_RUN_STATUS.NAVIGATING : TASK_RUN_STATUS.ACTION_START;
-
                     await BarcodeMove(_currentBarcodeMoveArgs, token);
                     bool _hasUnRecoveryAlarm = runningSTatus.Alarm_Code.Any(al => al.Alarm_Level == 1);
                     if (_hasUnRecoveryAlarm)
@@ -117,9 +123,9 @@ namespace VMSystem.AGV
                         runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.DOWN;
                         await Task.Delay(200);
                         _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                        await WaitStatusNotRunReported();
                         dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
                         agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
-                        SemaphoreSlim.Release();
                         return;
                     }
 
@@ -127,23 +133,25 @@ namespace VMSystem.AGV
                     if (hasAction)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(parameters.WorkingTimeAwait));
-
                         int GoalTag = _currentBarcodeMoveArgs.orderTrajectory.First().Point_ID;
-                        async Task<bool> _confirmLeaveWorkStationConfirm()
-                        {
-                            return await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
-                        }
-
                         while (!await _confirmLeaveWorkStationConfirm())
                         {
-                            await Task.Delay(1000);
+                            await Task.Delay(500);
                         }
-
                         if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload)
-                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown");
+                            _CargoStateSimulate(ACTION_TYPE.Unload, "TrayUnknown", false, false);
                         else if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Load)
-                            _CargoStateSimulate(ACTION_TYPE.Load, "");
+                            _CargoStateSimulate(ACTION_TYPE.Load, "", false, false);
                         await _BackToHome(_currentBarcodeMoveArgs, token);
+
+                        if (_currentBarcodeMoveArgs.action == ACTION_TYPE.Unload && !_currentBarcodeMoveArgs.isIDMissmatchSimulation && !_currentBarcodeMoveArgs.isIDReadFailSimulation)
+                            await WaitCarrierIDReported(_currentBarcodeMoveArgs.CSTID);
+
+                        async Task<bool> _confirmLeaveWorkStationConfirm()
+                        {
+                            (bool accept, string message) = await TrafficControlCenter.AGVLeaveWorkStationRequest(agv.Name, GoalTag);
+                            return accept;
+                        }
                     }
 
                     bool _isChargeAction = _currentBarcodeMoveArgs.action == ACTION_TYPE.Charge;
@@ -156,6 +164,7 @@ namespace VMSystem.AGV
                         await Task.Delay(200);
                     _currentBarcodeMoveArgs.Feedback.PointIndex = hasAction ? 0 : _currentBarcodeMoveArgs.Feedback.PointIndex;
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    await WaitStatusNotRunReported();
                     dispatcherModule.TaskFeedback(_currentBarcodeMoveArgs.Feedback); //回報任務狀態
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                 }
@@ -163,8 +172,12 @@ namespace VMSystem.AGV
                 {
                     Console.WriteLine($"[Emu]-Previous Task Interupted.");
                 }
+                finally
+                {
+                    SemaphoreSlim.Release();
+                    runningSTatus.Alarm_Code = new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode[0];
+                }
                 //runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
-                SemaphoreSlim.Release();
 
                 async Task _BackToHome(BarcodeMoveArguments _args, CancellationToken _token)
                 {
@@ -175,11 +188,11 @@ namespace VMSystem.AGV
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_args.Feedback);
                     _ = Task.Run(() => ReportTaskStateToEQSimulator(_args.action, _args.nextMoveTrajectory.First().Point_ID.ToString()));
                     await BarcodeMove(_args, _token, homing: true);
-                    _CargoStateSimulate(_args.action, $"TAF{DateTime.Now.ToString("ddHHmmssff")}");
+                    _CargoStateSimulate(_args.action, _args.CSTID, _args.isIDMissmatchSimulation, _args.isIDReadFailSimulation);
 
                 }
 
-                void _CargoStateSimulate(ACTION_TYPE action, string cstID)
+                void _CargoStateSimulate(ACTION_TYPE action, string cstID, bool isIDMissmatchSimulation, bool isIDReadFailSimulation)
                 {
                     if (action == ACTION_TYPE.Load || action == ACTION_TYPE.LoadAndPark)
                     {
@@ -188,13 +201,26 @@ namespace VMSystem.AGV
                     }
                     else if (action == ACTION_TYPE.Unload)
                     {
-                        runningSTatus.CSTID = new string[] { cstID };
+                        if (isIDReadFailSimulation)
+                            runningSTatus.CSTID = new string[] { "error" };
+                        else if (isIDMissmatchSimulation)
+                            runningSTatus.CSTID = new string[] { "TAE00000001" };
+                        else
+                            runningSTatus.CSTID = new string[] { cstID };
                         runningSTatus.Cargo_Status = 1;
                     }
                 }
             }, token);
 
             return new TaskDownloadRequestResponse() { ReturnCode = TASK_DOWNLOAD_RETURN_CODES.OK };
+        }
+
+        private async Task WaitCarrierIDReported(string cSTID)
+        {
+            while (agv.states.CSTID.FirstOrDefault() != cSTID)
+            {
+                await Task.Delay(10);
+            }
         }
 
         private async Task BarcodeMove(BarcodeMoveArguments moveArgs, CancellationToken token, bool homing = false)
@@ -204,6 +230,8 @@ namespace VMSystem.AGV
 
                 int currentTag = runningSTatus.Last_Visited_Node;
                 int currentTagIndex = moveArgs.nextMoveTrajectory.GetTagList().ToList().IndexOf(currentTag);
+
+
                 moveArgs.nextMoveTrajectory = moveArgs.action == ACTION_TYPE.Measure ? moveArgs.orderTrajectory : moveArgs.orderTrajectory.Skip(currentTagIndex).ToArray();
 
                 clsMapPoint[] Trajectory = moveArgs.nextMoveTrajectory.Count() == 1 ?
@@ -211,6 +239,10 @@ namespace VMSystem.AGV
                 ACTION_TYPE action = moveArgs.action;
 
                 var taskFeedbackData = moveArgs.Feedback;
+
+                int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+                agv.TaskExecuter.HandleVehicleTaskStatusFeedback(taskFeedbackData);
+
                 int idx = 0;
                 //轉向第一個點
                 if (moveArgs.action == ACTION_TYPE.None)
@@ -265,8 +297,16 @@ namespace VMSystem.AGV
                     taskFeedbackData.PointIndex = moveArgs.orderTrajectory.GetTagList().ToList().IndexOf(stationTag);
                     taskFeedbackData.TaskStatus = TASK_RUN_STATUS.NAVIGATING;
                     taskFeedbackData.LastVisitedNode = stationTag;
-                    int feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
+
+                    while (agv.states.Last_Visited_Node != stationTag)
+                    {
+                        await Task.Delay(1);
+                    }
+
+                    feedBackCode = dispatcherModule.TaskFeedback(taskFeedbackData).Result; //回報任務狀態
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(taskFeedbackData);
+
+
                     if (action == ACTION_TYPE.Measure && !homing)
                     {
                         await MeasureSimulation(stationTag);
@@ -341,6 +381,8 @@ namespace VMSystem.AGV
             public int goal = 0;
             public bool isTrajectoryEndIsGoal => nextMoveTrajectory.Count() == 0 ? true : nextMoveTrajectory.Last().Point_ID == goal;
             public FeedbackData Feedback = new FeedbackData();
+            public bool isIDMissmatchSimulation = false;
+            public bool isIDReadFailSimulation = false;
         }
 
 
@@ -558,6 +600,21 @@ namespace VMSystem.AGV
             };
             CancelTask(100);
         }
+
+        internal void BatterySOCDistortionWarningRaise()
+        {
+            var currentAlarms = runningSTatus.Alarm_Code.ToList();
+            currentAlarms.Add(new AGVSystemCommonNet6.AGVDispatch.Model.clsAlarmCode
+            {
+                Alarm_ID = 56780,
+                Alarm_Level = 0,
+                Alarm_Category = 0,
+                Alarm_Description = "Battery SOC Distortion",
+                Alarm_Description_EN = "Battery SOC Distortion"
+            });
+            runningSTatus.Alarm_Code = currentAlarms.ToArray();
+        }
+
         internal void EMO()
         {
             runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.DOWN;
@@ -581,7 +638,6 @@ namespace VMSystem.AGV
             {
                 await Task.Delay(delay); //模擬車控走行到一半還不能馬上停下的狀況
 
-                SemaphoreSlim = new SemaphoreSlim(1, 1);
                 waitReplanflag = false;
                 moveCancelTokenSource?.Cancel();
                 TaskCancelTokenSource?.Cancel();
@@ -589,6 +645,7 @@ namespace VMSystem.AGV
                 if (runningSTatus.AGV_Status != clsEnums.MAIN_STATUS.RUN)
                 {
                     _currentBarcodeMoveArgs.Feedback.TaskStatus = TASK_RUN_STATUS.ACTION_FINISH;
+                    await WaitStatusNotRunReported();
                     agv.TaskExecuter.HandleVehicleTaskStatusFeedback(_currentBarcodeMoveArgs.Feedback);
                 }
             });
@@ -615,6 +672,15 @@ namespace VMSystem.AGV
             runningSTatus.Cargo_Status = 0;
             runningSTatus.CSTID = new string[1] { "" };
         }
+
+        private async Task WaitStatusNotRunReported()
+        {
+            while (agv.main_state == clsEnums.MAIN_STATUS.RUN)
+            {
+                await Task.Delay(100);
+            }
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -658,6 +724,38 @@ namespace VMSystem.AGV
                 agv.AgvSimulation.runningSTatus.Coordination.X = -12;
                 agv.AgvSimulation.runningSTatus.Coordination.Y = 0;
             }
+        }
+
+        internal bool VMSOnline(out string message)
+        {
+            message = "Test Online Rejected";
+            bool isAMCAGV = agv.model == AGV_TYPE.INSPECTION_AGV;
+
+            MapPoint currentPoint = StaMap.GetPointByTagNumber(runningSTatus.Last_Visited_Node);
+
+            if (!isAMCAGV && currentPoint.IsVirtualPoint)
+            {
+                message = "Current_Tag_Cannot_Online_At_Virtual_Point";
+                return false;
+            }
+
+            if (currentPoint.StationType != STATION_TYPE.Normal && !currentPoint.IsCharge && !_IsParkAtBuffer())
+            {
+                message = "Cant_Online_In_Equipment";
+                return false;
+            }
+            if (runningSTatus.Cargo_Status == 0 && runningSTatus.CSTID.Any() && runningSTatus.CSTID.First() != "")
+            {
+                message = "AGV_HasIDBut_No_Cargo";
+                return false;
+            }
+
+            bool _IsParkAtBuffer()
+            {
+                return currentPoint.StationType == STATION_TYPE.Buffer || currentPoint.StationType == STATION_TYPE.Charge_Buffer;
+            }
+
+            return true;
         }
     }
 }

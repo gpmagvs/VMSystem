@@ -7,7 +7,6 @@ using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -17,6 +16,7 @@ using NLog;
 using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.TrafficControl.Solvers;
 using VMSystem.VMS;
@@ -45,6 +45,7 @@ namespace VMSystem.AGV
             Disconnection
         }
 
+        internal int previousNoUsableChargerTag = -1;
         public IAGV agv;
         private PathFinder pathFinder = new PathFinder();
         private DateTime LastNonNoOrderTime;
@@ -123,6 +124,8 @@ namespace VMSystem.AGV
             {
                 await Task.Delay(10);
 
+                _waitAutoSearchStationFailDelaySignal.WaitOne();
+
                 if (SystemModes.RunMode == RUN_MODE.MAINTAIN)
                     continue;
 
@@ -158,20 +161,25 @@ namespace VMSystem.AGV
                 if (_IsAnyTaskQueuing)
                     continue;
 
+                bool _IsAnyChargeTaskAssigned = DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.DesignatedAGVName == agv.Name && (tk.Action == ACTION_TYPE.Charge || tk.Action == ACTION_TYPE.DeepCharge));
+
+                if (_IsAnyChargeTaskAssigned)
+                    continue;
+
                 if (IsAGVIdleNeedCharge(out string caseDescription))
                 {
                     logger.Info($"AGV {agv.Name} Auto Dispatch Charge Order.  Reason={caseDescription}");
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                     _charge_forbid_alarm = null;
-                    CreateChargeTask();
+                    CreateChargeTask(_autoSearchParkStation ? ACTION_TYPE.Park : ACTION_TYPE.Charge);
                 }
 
                 bool IsAGVIdleNeedCharge(out string caseDescription)
                 {
                     caseDescription = "";
 
-                    if (agv.IsAGVIdlingAtChargeStationButBatteryLevelLow())
+                    if (agv.IsAGVIdlingAtParkableStationButBatteryLevelLow())
                     {
                         caseDescription = $"AGV在充電站內電量低於閥值且主狀態非充電中(當前狀態={agv.main_state})";
                         return true;
@@ -231,6 +239,11 @@ namespace VMSystem.AGV
         //}
 
         private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1, 1);
+
+        private CancellationTokenSource _DelayWhenAutoSearchStationFailCts = new CancellationTokenSource();
+        private ManualResetEvent _waitAutoSearchStationFailDelaySignal = new ManualResetEvent(true);
+        private bool _autoSearchParkStation = false;
+
         public async void AsyncTaskQueueFromDatabase()
         {
             try
@@ -286,11 +299,11 @@ namespace VMSystem.AGV
                 if (notInQuqueOrders.Any())
                 {
                     taskList.AddRange(notInQuqueOrders);
-
                     bool isAnyCarryOrderIn = notInQuqueOrders.Any(tk => tk.Action == ACTION_TYPE.Carry);
+
                     if (SystemModes.RunMode == RUN_MODE.RUN && isAnyCarryOrderIn)
                     {
-
+                        _DelayWhenAutoSearchStationFailCts.Cancel();
                         TryAbortCurrentChargeOrderForCarryOrderGet(notInQuqueOrders);
                         TryCancelAllWaitingForRunChargeOrder();
                     }
@@ -311,40 +324,43 @@ namespace VMSystem.AGV
             {
                 try
                 {
+                    await VMSManager.tasksLock.WaitAsync();
+                    AGVSDbContext dbContext = VMSManager.AGVSDbContext;
 
                     List<string> taskNamesOfChargeWaiting = taskList.Where(_order => _order.State == TASK_RUN_STATUS.WAIT && _order.Action == ACTION_TYPE.Charge)
                                                                    .Select(waiting_order => waiting_order.TaskName).ToList();
                     if (!taskNamesOfChargeWaiting.Any())
                         return;
 
-                    using (var database = new AGVSDatabase())
+                    foreach (var taskName in taskNamesOfChargeWaiting)
                     {
-                        foreach (var taskName in taskNamesOfChargeWaiting)
+                        taskList.Remove(taskList.First(tk => tk.TaskName == taskName));
+                        var dataDto = dbContext.Tasks.FirstOrDefault(task => task.TaskName == taskName);
+                        if (dataDto != null)
                         {
-                            taskList.Remove(taskList.First(tk => tk.TaskName == taskName));
-
-                            var dataDto = database.tables.Tasks.FirstOrDefault(task => task.TaskName == taskName);
-                            if (dataDto != null)
-                            {
-                                dataDto.FinishTime = DateTime.Now;
-                                dataDto.State = TASK_RUN_STATUS.CANCEL;
-                                dataDto.FailureReason = "Carry Order Get.Auto Cancel Charge Task";
-                            }
+                            dataDto.FinishTime = DateTime.Now;
+                            dataDto.State = TASK_RUN_STATUS.CANCEL;
+                            dataDto.FailureReason = "Carry Order Get.Auto Cancel Charge Task";
                         }
-                        await database.SaveChanges();
                     }
+                    await dbContext.SaveChangesAsync();
+
                 }
                 catch (Exception ex)
                 {
                     logger.Error(ex);
                     NotifyServiceHelper.WARNING($"嘗試取消駐列中的充電任務過程中發生錯誤({agv.Name})");
                 }
+                finally
+                {
+                    VMSManager.tasksLock.Release();
+                }
             });
         }
 
         private async void TryAbortCurrentChargeOrderForCarryOrderGet(IEnumerable<clsTaskDto> newOrders)
         {
-            bool isAgvChargeOrderRunning = OrderHandler.OrderAction == ACTION_TYPE.Charge && agv.main_state == MAIN_STATUS.RUN;
+            bool isAgvChargeOrderRunning = this.OrderExecuteState == AGV_ORDERABLE_STATUS.EXECUTING && OrderHandler.OrderAction == ACTION_TYPE.Charge;
             if (isAgvChargeOrderRunning)
             {
                 await OrderHandler.CancelOrder(OrderHandler.OrderData.TaskName, "更換任務(Change Task)");
@@ -428,14 +444,14 @@ namespace VMSystem.AGV
                                     taskList.Clear();
                                     continue;
                                 }
-                                var _ExecutingTask = taskOrderedByPriority.First();
+                                clsTaskDto _ExecutingTask = taskOrderedByPriority.First();
 
                                 if (_ExecutingTask.Action == ACTION_TYPE.Carry && _ExecutingTask.From_Station != agv.Name && agv.IsAGVHasCargoOrHasCargoID())
                                 {
 
                                     _ExecutingTask.DesignatedAGVName = "";
                                     _ExecutingTask.StartTime = DateTime.MinValue;
-                                    this.OrderHandler.RaiseTaskDtoChange(this, _ExecutingTask);
+                                    await this.OrderHandler.ModifyOrder(_ExecutingTask);
                                     await Task.Delay(200);
                                     while (DatabaseCaches.TaskCaches.WaitExecuteTasks.Any(tk => tk.TaskName == _ExecutingTask.TaskName && tk.DesignatedAGVName == agv.Name))
                                     {
@@ -455,27 +471,63 @@ namespace VMSystem.AGV
                                 }
 
                                 ALARMS alarm_code = ALARMS.NONE;
-
+                                OrderHandlerFactory factory = new OrderHandlerFactory();
+                                OrderHandler = factory.CreateHandler(_ExecutingTask);
+                                bool isAutoSearchChargeStation = _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge;
                                 (bool autoSearchConfrim, ALARMS autoSearch_alarm_code) = await CheckTaskOrderContentAndTryFindBestWorkStation(_ExecutingTask);
+
+                                previousNoUsableChargerTag = -1;
+                                _autoSearchParkStation = false;
                                 if (!autoSearchConfrim)
                                 {
                                     _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
                                     _ExecutingTask.FinishTime = DateTime.Now;
+                                    _ExecutingTask.FailureReason = isAutoSearchChargeStation ? "找不到可用的充電站()" : autoSearch_alarm_code.ToString();
                                     await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS);
+                                    await OrderHandler.ModifyOrder(_ExecutingTask);
+                                    try
+                                    {
+                                        _waitAutoSearchStationFailDelaySignal.Reset();
+                                        _DelayWhenAutoSearchStationFailCts = new CancellationTokenSource();
+                                        if (isAutoSearchChargeStation)
+                                        {
+                                            _autoSearchParkStation = true;
+                                            OrderHandler.RunningTask.UpdateStateDisplayMessage("無可用充電樁,將尋找可停車點...");
+                                            await Task.Delay(3000, _DelayWhenAutoSearchStationFailCts.Token);
+                                        }
+                                        else
+                                        {
+                                            OrderHandler.RunningTask.UpdateStateDisplayMessage("無可用充電樁...等待中");
+                                            await Task.Delay(10000, _DelayWhenAutoSearchStationFailCts.Token);
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+                                    }
+                                    finally
+                                    {
+                                        _waitAutoSearchStationFailDelaySignal.Set();
+                                    }
+
                                     continue;
                                 }
 
                                 agv.IsTrafficTaskExecuting = _ExecutingTask.DispatcherName.ToUpper() == "TRAFFIC";
                                 _ExecutingTask.State = TASK_RUN_STATUS.NAVIGATING;
                                 //await ExecuteTaskAsync(_ExecutingTask);
-                                OrderHandlerFactory factory = new OrderHandlerFactory();
-                                OrderHandler = factory.CreateHandler(_ExecutingTask);
+
+                                if (OrderHandler.OrderAction == ACTION_TYPE.DeepCharge)
+                                {
+                                    DeepChargeRecorder deepChargeRecorder = new DeepChargeRecorder(this.agv, OrderHandler.OrderData.TaskName);
+                                    this.agv.UpdateDeepChargeRecorder(deepChargeRecorder);
+                                }
                                 OrderHandler.StartOrder(agv);
                                 OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
                                 OrderHandler.OnOrderFinish += OrderHandler_OnOrderFinish;
-                                if (_ExecutingTask.Action == ACTION_TYPE.Charge)
+                                if (_ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge)
+                                {
                                     (OrderHandler as ChargeOrderHandler).onAGVChargeOrderDone += HandleAGVChargeTaskRedoRequest;
-
+                                }
                                 OrderExecuteState = AGV_ORDERABLE_STATUS.EXECUTING;
                                 // _taskListFromAGVS.RemoveAt(_taskListFromAGVS.FindIndex(tk => tk.TaskName == _ExecutingTask.TaskName));
                                 await Task.Delay(1000);
@@ -485,9 +537,8 @@ namespace VMSystem.AGV
                                 break;
                             case AGV_ORDERABLE_STATUS.EXECUTING:
                                 //confirm 
-                                var _completedButStillExistTasks = taskList.Where(tk => DatabaseCaches.TaskCaches.CompleteTasks.Any(_ctk => _ctk.TaskName == tk.TaskName))
-                                                                           .ToList();
-                                foreach (var item in _completedButStillExistTasks)
+                                List<clsTaskDto> _completedButStillExistTasks = taskList.Where(tk => DatabaseCaches.TaskCaches.CompleteTasks.Any(_ctk => _ctk.DesignatedAGVName == agv.Name && _ctk.TaskName == tk.TaskName)).ToList();
+                                foreach (clsTaskDto item in _completedButStillExistTasks)
                                 {
                                     taskList.Remove(item);
                                     logger.Warn($"Remove {item.TaskName} from queue because it already mark as completed");
@@ -500,7 +551,10 @@ namespace VMSystem.AGV
                             case AGV_ORDERABLE_STATUS.NO_ORDER:
                                 bool isCharging = agv.main_state == clsEnums.MAIN_STATUS.Charging;
                                 if (!_IsChargeStatesChecking)
-                                    OrderHandler.RunningTask.UpdateStateDisplayMessage(isCharging ? "充電中.." : "IDLE");
+                                {
+                                    string _chargingText = agv.batteryStatus == IAGV.BATTERY_STATUS.DEEPCHARGING ? "深度充電中..." : "充電中...";
+                                    OrderHandler.RunningTask.UpdateStateDisplayMessage(isCharging ? _chargingText : "IDLE");
+                                }
                                 break;
                             case AGV_ORDERABLE_STATUS.AGV_OFFLINE:
                                 OrderHandler.RunningTask.UpdateStateDisplayMessage("OFFLINE");
@@ -538,9 +592,6 @@ namespace VMSystem.AGV
         private async void OrderHandler_OnOrderFinish(object? sender, OrderHandlerBase e)
         {
             OrderHandler.OnOrderFinish -= OrderHandler_OnOrderFinish;
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((taskList.Where(x => x.TaskName == e.OrderData.TaskName).Select(x => x).FirstOrDefault(), MCSCIMService.TaskStatus.completed));
-            if (v.confirm == false)
-                LOG.WARN($"{v.message}");
             taskList.RemoveAll(task => task.TaskName == e.OrderData.TaskName);
             NotifyServiceHelper.SUCCESS($"任務-{e.OrderData.TaskName} 已完成.");
         }
@@ -555,18 +606,19 @@ namespace VMSystem.AGV
 
         private void HandleAGVChargeTaskRedoRequest(object? sender, ChargeOrderHandler orderHandler)
         {
-
+            if (orderHandler.OrderData.Action == ACTION_TYPE.DeepCharge)
+                agv.StartDeepCharging();
             orderHandler.onAGVChargeOrderDone -= HandleAGVChargeTaskRedoRequest;
-            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE)
+            if (agv.main_state != clsEnums.MAIN_STATUS.IDLE && agv.main_state != MAIN_STATUS.Charging)
                 return;
             ConfirmAGVChargeState(orderHandler);
-
-
         }
+
         private async Task ConfirmAGVChargeState(ChargeOrderHandler orderHandler)
         {
             try
             {
+
                 _IsChargeStatesChecking = true;
                 if (agv.batteryStatus >= IAGV.BATTERY_STATUS.MIDDLE_HIGH)
                     return;
@@ -585,6 +637,7 @@ namespace VMSystem.AGV
                         return;
                     }
                 }
+
             }
             catch (Exception ex)
             {
@@ -597,12 +650,12 @@ namespace VMSystem.AGV
             }
 
         }
-        private async void CreateChargeTask(int chargeStationTag = -1)
+        private async void CreateChargeTask(ACTION_TYPE action, int chargeStationTag = -1)
         {
             _ = await TaskDBHelper.Add(new clsTaskDto
             {
-                Action = ACTION_TYPE.Charge,
-                TaskName = $"Charge-{agv.Name}_{DateTime.Now.ToString("yyMMdd_HHmmssff")}",
+                Action = action,
+                TaskName = $"{action}-{agv.Name}_{DateTime.Now.ToString("yyMMdd_HHmmssff")}",
                 DispatcherName = "",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,
@@ -776,6 +829,13 @@ namespace VMSystem.AGV
             WaitingForYieldedAGVList.Remove(agv);
             this.OrderHandler.RunningTask.WaitingForAGV = WaitingForYieldedAGVList;
         }
-
+        public void HandleDestineStartChangeEvent(object? sender, int stationTag)
+        {
+            bool isChargerChange = (sender as DestineChangeBase).GetType() == typeof(ChargeStationChanger);
+            if (isChargerChange)
+            {
+                previousNoUsableChargerTag = stationTag;
+            }
+        }
     }
 }

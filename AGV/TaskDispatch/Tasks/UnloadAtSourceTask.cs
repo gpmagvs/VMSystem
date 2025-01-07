@@ -1,10 +1,11 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6.Log;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -13,9 +14,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class UnloadAtSourceTask : LoadUnloadTask
     {
-        public UnloadAtSourceTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public UnloadAtSourceTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
-            DestineTag = order.From_Station_Tag;
         }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtSource;
@@ -45,8 +45,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             if (!OrderData.bypass_eq_status_check)
             {
-                if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
-                    OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
                 clsAGVSTaskReportResponse response = await VMSystem.Services.AGVSServicesTool.LoadUnloadActionStartReport(OrderData, this);
                 if (response.confirm == false)
                 {
@@ -54,13 +52,49 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     return (response.confirm, response.AlarmCode, response.message);
                 }
             }
-            return await base.DistpatchToAGV();
+            _ = MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.soucePortID).ContinueWith(async t =>
+            {
+                await Task.Delay(100);
+                await MCSCIMService.TransferringReport(new MCSCIMService.TransportCommandDto
+                {
+                    CarrierID = OrderData.Carrier_ID,
+                    CommandID = OrderData.TaskName,
+                    CarrierLoc = OrderData.soucePortID,
+                    CarrierZoneName = OrderData.sourceZoneID,
+                    Dest = OrderData.destinePortID
+                });
+                await Task.Delay(100);
+                await MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID);
+            });
+            var result = await base.DistpatchToAGV();
+            if (this.Agv.IsAGVHasCargoOrHasCargoID() == true)
+                OrderData.Actual_Carrier_ID = this.Agv.states.CSTID[0];
+
+            if (result.confirmed)
+            {//載具在車上
+                orderHandler.transportCommand.CarrierLoc = Agv.AgvIDStr;
+                orderHandler.transportCommand.CarrierZoneName = "";
+            }
+
+            return result;
         }
 
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
         {
-            ReportUnloadCargoFromPortDone();
-            return base.ActionFinishInvoke();
+            var baseResult = await base.ActionFinishInvoke();
+            MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.soucePortID).ContinueWith(async t =>
+            {
+                await Task.Delay(100);
+                await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.soucePortID);
+            });
+            await ReportUnloadCargoFromPortDone();
+            return baseResult;
+        }
+
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO;
+            return !Agv.IsAGVHasCargoOrHasCargoID();
         }
     }
 }

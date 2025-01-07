@@ -5,6 +5,7 @@ using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Drawing;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 

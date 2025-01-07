@@ -1,9 +1,11 @@
 ﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 
@@ -34,6 +36,12 @@ namespace VMSystem.Dispatch.YieldActions
                     {
                         if (goalPortPoint.StationType == MapPoint.STATION_TYPE.Normal)
                             return true; //
+                        int _goalTag = goalPortPoint.TagNumber;
+                        //如果該點目前有任務也不要去
+                        bool _goalTagHasOrderAssigned = DatabaseCaches.TaskCaches.InCompletedTasks.Any(order => order.To_Station_Tag == _goalTag || order.From_Station_Tag == _goalTag);
+                        if (_goalTagHasOrderAssigned)
+                            return false;
+
                         try
                         {
                             //先取得二次定位點
@@ -47,7 +55,7 @@ namespace VMSystem.Dispatch.YieldActions
                                 if (path.Count() == 0)
                                     return false;
                                 //計算干涉與註冊狀況
-                                List<MapRectangle> agvBodyCoveringWhenMoveToGoal= Tools.GetPathRegionsWithRectangle(path.ToList(), _LowProrityVehicle.options.VehicleWidth / 100.0, _LowProrityVehicle.options.VehicleLength / 100.0);
+                                List<MapRectangle> agvBodyCoveringWhenMoveToGoal = Tools.GetPathRegionsWithRectangle(path.ToList(), _LowProrityVehicle.options.VehicleWidth / 100.0, _LowProrityVehicle.options.VehicleLength / 100.0);
                                 return path.All(pt => !pt.IsRegisted(_LowProrityVehicle)) && !agvBodyCoveringWhenMoveToGoal.IsAnyVehicleConflicTo(_LowProrityVehicle);
                             }
                             else

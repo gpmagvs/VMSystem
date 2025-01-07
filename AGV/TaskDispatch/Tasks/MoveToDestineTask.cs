@@ -1,21 +1,30 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Microservices.AGVS;
+using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.ResponseModel;
 using AGVSystemCommonNet6.Notify;
 using System.Data;
+using VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class MoveToDestineTask : MoveTaskDynamicPathPlanV2
     {
         public MoveToDestineTask() : base()
-        { }
+        {
 
-        public MoveToDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        }
+        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
         }
+        public MoveToDestineTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
+        {
+        }
+
+        internal DestineChangeBase DestineChanger { get; set; } = null;
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
@@ -39,7 +48,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (response.confirm == false)
                     return (response.confirm, response.AlarmCode, response.message);
             }
-            return await base.DistpatchToAGV();
+            if (DestineChanger != null)
+            {
+                DestineChanger.OnStartChanged += Agv.taskDispatchModule.HandleDestineStartChangeEvent;
+                DestineChanger.StartMonitorAsync();
+
+            }
+            (bool confirmed, ALARMS alarm_code, string message) baseResult = await base.DistpatchToAGV();
+            return baseResult;
         }
     }
 }

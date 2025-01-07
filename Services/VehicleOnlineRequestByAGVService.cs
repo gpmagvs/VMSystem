@@ -1,7 +1,6 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using VMSystem.AGV;
 using VMSystem.VMS;
@@ -11,7 +10,7 @@ namespace VMSystem.Services
 
     public abstract class VehicleOnlineBase
     {
-        ILogger<VehicleOnlineBase> logger;
+        protected ILogger<VehicleOnlineBase> logger;
         public VehicleOnlineBase(ILogger<VehicleOnlineBase> logger)
         {
             this.logger = logger;
@@ -91,13 +90,16 @@ namespace VMSystem.Services
 
         public override (ALARMS alarmCode, string message) OnlineRequest(string VehicleName, out IAGV Vehicle)
         {
-            LOG.WARN($"User 要求 {VehicleName} 上線");
+            logger.LogWarning($"User 要求 {VehicleName} 上線");
 
             var results = base.OnlineRequest(VehicleName, out Vehicle);
             if (results.alarmCode == ALARMS.NONE)
             {
                 if (!Vehicle.AGVOnlineFromAGVS(out string msg))
+                {
+                    results.alarmCode = ALARMS.CannotOnlineVehicleBecauseAtVirtualPoint;
                     results.message = msg;
+                }
             }
 
             return results;
@@ -112,7 +114,7 @@ namespace VMSystem.Services
 
         public override (ALARMS alarmCode, string message) OnlineRequest(string VehicleName, out IAGV Vehicle)
         {
-            LOG.WARN($"車輛-{VehicleName} 請求上線");
+            logger.LogWarning($"車輛-{VehicleName} 請求上線");
             return base.OnlineRequest(VehicleName, out Vehicle);
         }
     }

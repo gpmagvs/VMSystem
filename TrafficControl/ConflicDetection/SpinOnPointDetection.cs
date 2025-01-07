@@ -4,6 +4,7 @@ using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 
 namespace VMSystem.TrafficControl.ConflicDetection
 {

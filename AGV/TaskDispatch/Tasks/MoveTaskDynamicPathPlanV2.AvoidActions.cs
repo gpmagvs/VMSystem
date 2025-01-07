@@ -10,6 +10,7 @@ using static AGVSystemCommonNet6.MAP.PathFinder;
 using System.Diagnostics;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.VMS;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -102,13 +103,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { secondaryPt, parkPortPt });
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
-                Agv.NavigationState.StateReset();
                 UpdateStateDisplayMessage($"Wait 3 sec and leave.");
+                while (!await StaMap.UnRegistPointsOfAGVRegisted(Agv))
+                {
+                    await Task.Delay(1000);
+                }
+                Agv.NavigationState.StateReset();
+                Agv.NavigationState.ResetNavigationPoints();
                 await Task.Delay(3000);
                 LeaveParkStationConflicDetection detection = new LeaveParkStationConflicDetection(secondaryPt, Agv.states.Coordination.Theta, this.Agv);
                 clsConflicDetectResultWrapper detectResultWrapper = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
                 while (detectResultWrapper.Result != DETECTION_RESULT.OK)
                 {
+                    if (_TaskCancelTokenSource.IsCancellationRequested)
+                    {
+                        throw new TaskCanceledException();
+                    }
                     detectResultWrapper = detection.Detect();
                     UpdateStateDisplayMessage($"{detectResultWrapper.Message}");
                     await Task.Delay(1000);
@@ -133,7 +143,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             else
             {
                 //計算當前位置到終點的所有路線皆沒有被另外一台衝突車輛擋道時才繼續動作
-                await WaitPathToDestineNotConflicToYieldedVehicelAsync();
+                if (!this.OrderData.IsHighestPriorityTask)
+                    await WaitPathToDestineNotConflicToYieldedVehicelAsync();
             }
 
             subStage = Stage;
@@ -142,42 +153,49 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         private async Task WaitPathToDestineNotConflicToYieldedVehicelAsync()
         {
-            IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
-            if (currentAvoidToVehicle == null)
-                return;
-
-            PathFinder _pathFinder = new PathFinder();
-            clsPathInfo pathToGoalWrapper = _pathFinder.FindShortestPath(Agv.currentMapPoint.TagNumber, this.finalMapPoint.TagNumber,
-                                            new PathFinder.PathFinderOption() { OnlyNormalPoint = true, Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE });
-
-            if (pathToGoalWrapper.stations.Count == 0)
-                return;
-
-            Stopwatch _timer = Stopwatch.StartNew();
-            while (true)
+            try
             {
-                await Task.Delay(1000);
-                IAGV thisAGV = Agv;
-
-                if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled)
+                IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
+                if (currentAvoidToVehicle == null || currentAvoidToVehicle.NavigationState.currentConflicToAGV == null)
                     return;
 
-                List<MapRectangle> AGVBodyCoveringOfPath = Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth / 100.0, thisAGV.options.VehicleLength / 100.0);
-                bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
-                if (isPathClear)
+                PathFinder _pathFinder = new PathFinder();
+                clsPathInfo pathToGoalWrapper = _pathFinder.FindShortestPath(Agv.currentMapPoint.TagNumber, this.finalMapPoint.TagNumber,
+                                                new PathFinder.PathFinderOption() { OnlyNormalPoint = true, Strategy = PathFinder.PathFinderOption.STRATEGY.SHORST_DISTANCE });
+
+                if (pathToGoalWrapper.stations.Count == 0)
                     return;
-                else
-                    UpdateStateDisplayMessage($"避車點(主幹道)-等待[{currentAvoidToVehicle.Name}]通行...");
-                if (_timer.Elapsed.Seconds > 3 && currentAvoidToVehicle.NavigationState.IsWaitingConflicSolve && currentAvoidToVehicle.NavigationState.currentConflicToAGV.Name == thisAGV.Name)
+
+                Stopwatch _timer = Stopwatch.StartNew();
+                while (true)
                 {
-                    //又被你擋住
-                    UpdateStateDisplayMessage($"避車中(主幹道)但仍與[{currentAvoidToVehicle.Name}]衝突..");
                     await Task.Delay(1000);
-                    return;
+                    IAGV thisAGV = Agv;
+
+                    if (thisAGV.main_state == clsEnums.MAIN_STATUS.DOWN || IsTaskCanceled || currentAvoidToVehicle.NavigationState.currentConflicToAGV == null)
+                        return;
+
+                    List<MapRectangle> AGVBodyCoveringOfPath = Tools.GetPathRegionsWithRectangle(pathToGoalWrapper.stations, thisAGV.options.VehicleWidth / 100.0, thisAGV.options.VehicleLength / 100.0);
+                    bool isPathClear = AGVBodyCoveringOfPath.All(rect => !rect.IsIntersectionTo(currentAvoidToVehicle.AGVRealTimeGeometery));
+                    if (isPathClear)
+                        return;
+                    else
+                        UpdateStateDisplayMessage($"避車點(主幹道)-等待[{currentAvoidToVehicle.Name}]通行...");
+                    if (_timer.Elapsed.Seconds > 3 && currentAvoidToVehicle.NavigationState.IsWaitingConflicSolve && currentAvoidToVehicle.NavigationState.currentConflicToAGV.Name == thisAGV.Name)
+                    {
+                        //又被你擋住
+                        UpdateStateDisplayMessage($"避車中(主幹道)但仍與[{currentAvoidToVehicle.Name}]衝突..");
+                        await Task.Delay(1000);
+                        return;
+                    }
                 }
+
+
             }
-
-
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
+            }
         }
     }
 }

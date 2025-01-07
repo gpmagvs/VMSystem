@@ -35,6 +35,7 @@ namespace VMSystem.AGV.TaskDispatch
         void AsyncTaskQueueFromDatabase();
 
         Task<(bool confrim, ALARMS alarm_code)> CheckTaskOrderContentAndTryFindBestWorkStation(clsTaskDto _ExecutingTask);
+        void HandleDestineStartChangeEvent(object? sender, int e);
     }
 
     public class clsWaitingInfo

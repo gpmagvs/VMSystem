@@ -2,12 +2,12 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.DATABASE;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore.Metadata;
 using RosSharp.RosBridgeClient;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.ViewModels;
 using VMSystem.VMS;
 
@@ -62,7 +62,7 @@ namespace VMSystem.TrafficControl
             {
                 if (IsConflicSolving)
                 {
-                    LOG.TRACE($"{requestDto.RaisedRequestAGV.Name} Raise Path Conflic Request but traffic solver is running.");
+                    logger.Trace($"{requestDto.RaisedRequestAGV.Name} Raise Path Conflic Request but traffic solver is running.");
                     return;
                 }
                 IsConflicSolving = true;
@@ -71,7 +71,7 @@ namespace VMSystem.TrafficControl
                 PathConflicSolver solver = new PathConflicSolver(vehicles);
                 solver.OnSloveDone += OnSloveDone;
                 solver.StartSolve();
-                LOG.WARN($"Path Conflic Solve Start ! ");
+                logger.Trace($"Path Conflic Solve Start ! ");
             }
             catch (Exception ex)
             {
@@ -84,7 +84,7 @@ namespace VMSystem.TrafficControl
         private static void OnSloveDone(object? sender, PathConflicSolver.PathConflicSolveResult result)
         {
             IsConflicSolving = false;
-            LOG.INFO($"Path Conflic Solve Done ! {result.ToJson()}");
+            logger.Trace($"Path Conflic Solve Done ! {result.ToJson()}");
         }
 
         public class PathConflicSolver
@@ -303,7 +303,7 @@ namespace VMSystem.TrafficControl
 
             private void Log(string message)
             {
-                LOG.INFO($"[PathConflicSolver]-{message}");
+                logger.Trace($"[PathConflicSolver]-{message}");
             }
         }
 

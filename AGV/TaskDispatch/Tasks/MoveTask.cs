@@ -3,9 +3,9 @@ using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch.Model;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using Microsoft.EntityFrameworkCore.SqlServer.Query.Internal;
 using RosSharp.RosBridgeClient.MessageTypes.Moveit;
@@ -13,6 +13,7 @@ using System.Diagnostics.Tracing;
 using System.Net;
 using System.Threading.Tasks;
 using System.Timers;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -23,7 +24,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public abstract class MoveTask : TaskBase
     {
-
+        public MoveTask() : base() { }
+        protected MoveTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+        protected MoveTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
+        {
+        }
         public List<List<MapPoint>> TaskSequenceList { get; private set; } = new List<List<MapPoint>>();
 
         /// <summary>
@@ -32,14 +39,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public List<MapPoint> TrafficControlPoints => TaskSequenceList.Select(traj => traj.Last()).ToList();
 
         public double FinalStopTheta = 0;
-        protected MoveTask() : base()
-        {
-
-        }
-        protected MoveTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-
-        }
 
         protected void CalculateStopAngle(MapPoint entryPoint)
         {
@@ -137,7 +136,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.DestineTag = this.TaskDonwloadToAGV.Destination = _destine_point.TagNumber;
             CalculateStopAngle(_destine_point);
 
-            LOG.TRACE($"{this.TaskDonwloadToAGV.Task_Name}_ Path Sequences:\r\n" + string.Join("r\n", this.TaskSequenceList.Select(seq => string.Join("->", seq.GetTagCollection()))));
+            logger.Trace($"{this.TaskDonwloadToAGV.Task_Name}_ Path Sequences:\r\n" + string.Join("r\n", this.TaskSequenceList.Select(seq => string.Join("->", seq.GetTagCollection()))));
         }
 
 
@@ -188,7 +187,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             return tags.Distinct().ToList();
         }
-        public override void CancelTask()
+        public override void CancelTask(string hostAction = "")
         {
             if (MoveTaskEvent != null)
             {
@@ -196,7 +195,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 MoveTaskEvent.TrafficResponse.Wait_Traffic_Control_Finish_ResetEvent.Set();
             }
 
-            base.CancelTask();
+            base.CancelTask(hostAction);
         }
         public override async Task SendTaskToAGV()
         {
@@ -207,11 +206,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exceptions.WaitNextPathNoRegistedOrConflicButTaskCanceledException ex)
             {
-                LOG.Critical($"Task canceled when wait next path no registed or conflic");
+                logger.Fatal($"Task canceled when wait next path no registed or conflic");
             }
             catch (Exceptions.WaitAGVReachGoalCanceledException ex)
             {
-                LOG.Critical("Task canceled when waiting agv reach next goal.");
+                logger.Fatal("Task canceled when waiting agv reach next goal.");
             }
             catch (Exception ex)
             {
@@ -357,7 +356,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 }
                 catch (Exception ex)
                 {
-                    LOG.Critical(ex);
+                    logger.Fatal(ex);
                     return;
                 }
             }
@@ -580,7 +579,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     break;
                 case GOTO_NEXT_GOAL_CONFIRM_RESULT.WAIT_TRAFFIC_CONTROL:
-                    LOG.Critical($"{Agv.Name} is waiting Traffic Control Action Finish");
+                    logger.Fatal($"{Agv.Name} is waiting Traffic Control Action Finish");
                     MoveTaskEvent.TrafficResponse.Wait_Traffic_Control_Finish_ResetEvent.WaitOne();
                     HandleTrafficControlAction(confirmArg, ref OriginalTaskDownloadData);
                     break;
@@ -624,7 +623,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 var finalTheta = Stage == VehicleMovementStage.Traveling ? point.Direction : FinalStopTheta;
                 var isInErrorRange = Math.Abs(thetaOfAGV - finalTheta) <= 10;
 
-                LOG.INFO($"AGV Theta check in destine tag {_goal_id} result:{isInErrorRange}, {thetaOfAGV}/{finalTheta}(AGV/Destine)");
+                logger.Info($"AGV Theta check in destine tag {_goal_id} result:{isInErrorRange}, {thetaOfAGV}/{finalTheta}(AGV/Destine)");
 
                 return isInErrorRange;
             }
@@ -632,7 +631,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected bool WaitAGVReachGoal(int goal_id, bool justAlmostReachGoal = false)
         {
-            LOG.INFO($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{goal_id}");
+            logger.Info($"[WaitAGVReachGoal] Wait {Agv.Name} Reach-{goal_id}");
             CancellationTokenSource _cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
             TrafficWaitingState.SetDisplayMessage($"Wait Reach Tag {goal_id}");
             while (!IsAGVReachGoal(goal_id, justAlmostReachGoal))
@@ -651,7 +650,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (MoveTaskEvent.TrafficResponse.ConfirmResult == GOTO_NEXT_GOAL_CONFIRM_RESULT.CANCEL)
                     throw new Exceptions.WaitAGVReachGoalCanceledException();
             }
-            LOG.INFO($"[WaitAGVReachGoal] {Agv.Name} {(justAlmostReachGoal ? "Near(0.5m) to" : "Reach ")} tag-{goal_id}!");
+            logger.Info($"[WaitAGVReachGoal] {Agv.Name} {(justAlmostReachGoal ? "Near(0.5m) to" : "Reach ")} tag-{goal_id}!");
             return true;
         }
 
@@ -692,74 +691,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex);
+                logger.Error(ex);
                 return new List<int>();
             }
         }
 
-
-        protected async Task StartRecordTrjectory()
-        {
-            TrajectoryRecordCancelTokenSource = new CancellationTokenSource();
-            await Task.Run(async () =>
-            {
-
-                try
-                {
-                    while (true)
-                    {
-                        await Task.Delay(1000);
-                        if (TrajectoryRecordCancelTokenSource.IsCancellationRequested)
-                            return;
-
-                        double x = Agv.states.Coordination.X;
-                        double y = Agv.states.Coordination.Y;
-                        double theta = Agv.states.Coordination.Theta;
-
-                        if (!_IsCoordinationChanged(x, y))
-                            continue;
-
-                        _TrajectoryTempStorage.Add(new clsTrajCoordination() { X = x, Y = y, Theta = theta });
-
-
-                        bool _IsCoordinationChanged(double currentX, double currentY)
-                        {
-                            if (!_TrajectoryTempStorage.Any())
-                                return true;
-                            var lastRecord = _TrajectoryTempStorage.Last();
-                            return lastRecord.X != currentX || lastRecord.Y != currentY;
-                        }
-
-                    }
-                }
-                catch (Exception ex)
-                {
-
-                }
-                finally
-                {
-                    await SaveTrajectoryToDatabase();
-                }
-
-                async Task SaveTrajectoryToDatabase()
-                {
-                    string taskID = OrderData.TaskName;
-                    string agvName = Agv.Name;
-                    TrajectoryDBStoreHelper helper = new TrajectoryDBStoreHelper();
-                    var result = await helper.StoreTrajectory(taskID, agvName, _TrajectoryTempStorage.ToJson(Newtonsoft.Json.Formatting.None));
-                    if (!result.success)
-                    {
-                        LOG.ERROR($"[{Agv.Name}] trajectory store of task {taskID} DB ERROR : {result.error_msg}");
-                    }
-                }
-            });
-        }
-        public async void EndReocrdTrajectory()
-        {
-            TrajectoryRecordCancelTokenSource.Cancel();
-        }
         protected List<clsTrajCoordination> _TrajectoryTempStorage = new List<clsTrajCoordination>();
-
 
     }
 }

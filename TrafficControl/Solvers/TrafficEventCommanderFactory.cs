@@ -9,8 +9,8 @@ using AGVSystemCommonNet6.DATABASE;
 using static AGVSystemCommonNet6.clsEnums;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using AGVSystemCommonNet6;
-using AGVSystemCommonNet6.Log;
 using static AGVSystemCommonNet6.MAP.MapPoint;
+using VMSystem.Extensions;
 
 namespace VMSystem.TrafficControl.Solvers
 {
@@ -244,16 +244,13 @@ namespace VMSystem.TrafficControl.Solvers
 
             while (yieldingAGV.main_state != MAIN_STATUS.RUN)
             {
-                LOG.TRACE($"Wait {this.yieldingAGV.Name} [Start] run yield move task..");
                 await Task.Delay(1000);
 
                 if (yieldingAGV.main_state == MAIN_STATUS.DOWN || _IsOrderFinish())
                     return new clsSolverResult(clsSolverResult.SOLVER_RESULT.FAIL);
             }
-            LOG.TRACE($"{this.yieldingAGV.Name} start run yield move task..Wait finish");
             while (yieldingAGV.main_state != MAIN_STATUS.IDLE)
             {
-                LOG.TRACE($"Wait {this.yieldingAGV.Name} [Finish] run yield move task..");
                 await Task.Delay(1000);
                 if (yieldingAGV.main_state == MAIN_STATUS.DOWN || _IsOrderFinish())
                     return new clsSolverResult(clsSolverResult.SOLVER_RESULT.FAIL);

@@ -1,6 +1,8 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Microservices.MCS;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -9,9 +11,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     /// </summary>
     public class UnloadAtDestineTask : LoadUnloadTask
     {
-        public UnloadAtDestineTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public UnloadAtDestineTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
-            DestineTag = order.To_Station_Tag;
         }
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.WorkingAtDestination;
@@ -36,11 +37,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             var equipment = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             TrafficWaitingState.SetDisplayMessage($"{equipment.Graph.Display}-取貨");
         }
-
-        public override (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) ActionFinishInvoke()
+        internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()
         {
-            ReportUnloadCargoFromPortDone();
-            return base.ActionFinishInvoke();
+            MCSCIMService.VehicleArrivedReport(Agv.AgvIDStr, OrderData.destinePortID).ContinueWith(async t =>
+            {
+                await MCSCIMService.VehicleAcquireStartedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            });
+
+            var result = await base.DistpatchToAGV();
+            if (result.confirmed)
+                MCSCIMService.VehicleAcquireCompletedReport(this.Agv.AgvIDStr, OrderData.Carrier_ID, OrderData.destinePortID);
+            return result;
+        }
+        public override async Task<(bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg)> ActionFinishInvoke()
+        {
+            await ReportUnloadCargoFromPortDone();
+            return await base.ActionFinishInvoke();
+        }
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.CANNOT_DISPATCH_UNLOAD_TASK_WHEN_AGV_HAS_CARGO;
+            return !Agv.IsAGVHasCargoOrHasCargoID();
         }
     }
 }

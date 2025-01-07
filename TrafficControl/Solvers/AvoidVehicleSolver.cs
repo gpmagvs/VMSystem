@@ -136,8 +136,8 @@ namespace VMSystem.TrafficControl.Solvers
             int tagOfEntryPointOfCurrentPort = _isVehicleAtPortBegin ? Vehicle.currentMapPoint.TargetNormalPoints().First().TagNumber : -1; //AGV所在位置的進入點
             CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(Debugger.IsAttached ? 30 : 300));
 
-            //等待已不在Port裡面而且也離開進入點
-            while (IsAGVStillAtPortOrEntryPoint(tagOfVehicleBegin, tagOfEntryPointOfCurrentPort))
+            //等待已不在Port裡面而
+            while (IsAGVStillAtPort(tagOfVehicleBegin))
             {
                 try
                 {
@@ -149,9 +149,9 @@ namespace VMSystem.TrafficControl.Solvers
                 }
             }
 
-            bool IsAGVStillAtPortOrEntryPoint(int tagOfVehicleBegin, int tagOfEntryPointOfCurrentPort)
+            bool IsAGVStillAtPort(int tagOfVehicleBegin)
             {
-                return Vehicle.currentMapPoint.TagNumber == tagOfVehicleBegin || Vehicle.currentMapPoint.TagNumber == tagOfEntryPointOfCurrentPort;
+                return Vehicle.currentMapPoint.TagNumber == tagOfVehicleBegin;
             }
         }
 

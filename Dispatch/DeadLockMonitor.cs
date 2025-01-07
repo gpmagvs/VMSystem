@@ -8,7 +8,9 @@ using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Exceptions;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch.YieldActions;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
+using VMSystem.TrafficControl.VehiclePrioritySolver;
 using VMSystem.VMS;
 using WebSocketSharp;
 
@@ -79,7 +81,9 @@ namespace VMSystem.Dispatch
                             if (_secondVehicle != null)
                             {
                                 _firstWaitingVehicle.NavigationState.IsConflicSolving = _secondVehicle.NavigationState.IsConflicSolving = true;
-                                await DeadLockSolve(new List<IAGV>() { _firstWaitingVehicle, _secondVehicle });
+                                IAGV yieldVehicle = await DeadLockSolve(new List<IAGV>() { _firstWaitingVehicle, _secondVehicle });
+                                if (yieldVehicle == null)
+                                    _firstWaitingVehicle.NavigationState.IsConflicSolving = _secondVehicle.NavigationState.IsConflicSolving = false;
                                 break;
                             }
                         }
@@ -90,6 +94,7 @@ namespace VMSystem.Dispatch
                     foreach (var item in WaitingConflicReleaseVehicles)
                     {
                         item.NavigationState.IsConflicSolving = false;
+                        item.CurrentRunningTask().UpdateStateDisplayMessage($"趕避車失效:{ex.Message}");
                     }
                 }
 
@@ -107,11 +112,11 @@ namespace VMSystem.Dispatch
                 {
                     if (WaitingLeaveWorkStationVehicles.Count() > 1)
                     {
-                        (IAGV lowPriorityVehicle, IAGV highPriorityVehicle, bool _) = DeterminPriorityOfVehicles(WaitingLeaveWorkStationVehicles.ToList());
-                        lowPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout =
-                            highPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
+                        PrioritySolverResult result = DeterminPriorityOfVehicles(WaitingLeaveWorkStationVehicles.ToList());
+                        result.lowPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout =
+                            result.highPriorityVehicle.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
 
-                        clsLowPriorityVehicleWaitAtWorkStation _solver = new clsLowPriorityVehicleWaitAtWorkStation(lowPriorityVehicle, highPriorityVehicle);
+                        clsLowPriorityVehicleWaitAtWorkStation _solver = new clsLowPriorityVehicleWaitAtWorkStation(result.lowPriorityVehicle, result.highPriorityVehicle);
                         await _solver.StartSolve();
                     }
                 }
@@ -134,126 +139,49 @@ namespace VMSystem.Dispatch
 
         private async Task<IAGV> DeadLockSolve(IEnumerable<IAGV> DeadLockVehicles)
         {
-            //決定誰要先移動到避車點
-
-            //Dictionary<IAGV, MapPoint> parkStationState = DeadLockVehicles.ToDictionary(vehicle => vehicle, vehicle => GetParkableStationOfCurrentRegion(vehicle));
-
-            //if (parkStationState.Any(pair => pair.Value != null))
-            //{
-            //    var _lpPair = parkStationState.First(pair => pair.Value != null);
-            //    var _lowProrityVehicle = _lpPair.Key;
-            //    var avoidPoint = _lpPair.Value;
-
-            //    var _highProrityVehicle = parkStationState.First(pair => pair.Key.Name != _lowProrityVehicle.Name).Key;
-            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidAction = ACTION_TYPE.Park;
-            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidPt = avoidPoint;
-            //    _lowProrityVehicle.NavigationState.AvoidActionState.AvoidToVehicle = _highProrityVehicle;
-            //    _lowProrityVehicle.NavigationState.AvoidActionState.IsAvoidRaising = true;
-            //    return _lowProrityVehicle;
-            //}
-
-            (IAGV lowPriorityVehicle, IAGV highPriorityVehicle, bool IsAvoidUseParkablePort) = DeterminPriorityOfVehicles(DeadLockVehicles);
-
-            if (IsAvoidUseParkablePort)
+            PrioritySolverResult solverResult = null;
+            try
             {
-                clsAvoidWithParkablePort avoidAction = new clsAvoidWithParkablePort(lowPriorityVehicle, highPriorityVehicle);
-                var _avoidVehicle = await avoidAction.StartSolve();
-                if (_avoidVehicle != null)
+                solverResult = DeterminPriorityOfVehicles(DeadLockVehicles);
+                if (solverResult == null || solverResult.lowPriorityVehicle == null || solverResult.highPriorityVehicle == null)
+                    return null;
+                if (solverResult.IsAvoidUseParkablePort)
                 {
-                    lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = false;
-                    return _avoidVehicle;
-                }
-                else
-                    lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
+                    clsAvoidWithParkablePort avoidAction = new clsAvoidWithParkablePort(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
+                    var _avoidVehicle = await avoidAction.StartSolve();
+                    if (_avoidVehicle != null)
+                    {
+                        solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = false;
+                        return _avoidVehicle;
+                    }
+                    else
+                        solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo = true;
 
+                }
+                solverResult.highPriorityVehicle = solverResult.lowPriorityVehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo || solverResult.highPriorityVehicle == null ? DeadLockVehicles.First(v => v != solverResult.lowPriorityVehicle) : solverResult.highPriorityVehicle;
+                clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.lowPriorityVehicle, solverResult.highPriorityVehicle);
+                var toAvoidVehicle = await lowPriorityWork.StartSolve();
+                if (toAvoidVehicle == null && !solverResult.IsAvoidUseParkablePort)
+                {
+                    lowPriorityWork = new clsLowPriorityVehicleMove(solverResult.highPriorityVehicle, solverResult.lowPriorityVehicle);
+                    toAvoidVehicle = await lowPriorityWork.StartSolve();
+                }
+                await Task.Delay(200);
+                return toAvoidVehicle;
             }
-            clsLowPriorityVehicleMove lowPriorityWork = new clsLowPriorityVehicleMove(lowPriorityVehicle, highPriorityVehicle);
-            var toAvoidVehicle = await lowPriorityWork.StartSolve();
-            if (toAvoidVehicle == null)
+            finally
             {
-                lowPriorityWork = new clsLowPriorityVehicleMove(highPriorityVehicle, lowPriorityVehicle);
-                toAvoidVehicle = await lowPriorityWork.StartSolve();
+                if (solverResult != null && solverResult.IsWaitingEnterRegionVehicleShouldYield)
+                {
+                    solverResult.lowPriorityVehicle.NavigationState.RegionControlState.CurrentAllowEnterRegionSignal.Set();
+                }
             }
-            await Task.Delay(200);
-            return toAvoidVehicle;
         }
 
-        public static (IAGV lowPriorityVehicle, IAGV highPriorityVehicle, bool IsAvoidUseParkablePort) DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
+        public static PrioritySolverResult DeterminPriorityOfVehicles(IEnumerable<IAGV> DeadLockVehicles)
         {
-
-            //如果是叉車與潛盾互等 而且叉車所在區域內有可停車的WIP=> 叉車停進去WIP避讓。
-
-            if (DeadLockVehicles.Any(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK && !vehicle.NavigationState.AvoidActionState.IsParkToWIPButNoPathToGo))
-            {
-                IAGV forkAGV = DeadLockVehicles.FirstOrDefault(vehicle => vehicle.model == clsEnums.AGV_TYPE.FORK);
-                if (forkAGV != null && GetParkablePointOfAGVInRegion(forkAGV).Any())
-                {
-                    IAGV HighPriortyAGV = DeadLockVehicles.First(v => v != forkAGV);
-                    NotifyServiceHelper.INFO($"叉車-{forkAGV.Name}應優先避讓至WIP PORT");
-                    return (forkAGV, HighPriortyAGV, true);
-                }
-            }
-
-            //if (_IsAnyAGVInfrontOfChargeStation(out IAGV _agv))
-            //{
-            //    var _lowPAGV = DeadLockVehicles.First(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv));
-            //    var _highPAGV = DeadLockVehicles.First(agv => agv != _lowPAGV);
-            //    NotifyServiceHelper.INFO($"{_lowPAGV.Name} 位於充電站前.應優先進入充電站避讓");
-            //    return (_lowPAGV, _highPAGV, true);
-            //}
-
-            //如果有某台車他位於另一台車之終點的相鄰位置=>先避讓
-            if (DeadLockVehicles.FirstOrDefault(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv)) != null)
-            {
-                var _lowPAGV = DeadLockVehicles.First(agv => _IsAnyAGVInNearbyOfDestineOfOthers(agv));
-                var _highPAGV = DeadLockVehicles.First(agv => agv != _lowPAGV);
-                NotifyServiceHelper.INFO($"{_lowPAGV.Name} 位於其他車輛任務終點或鄰近點.應優先避讓");
-                return (_lowPAGV, _highPAGV, false);
-            }
-
-            Dictionary<IAGV, int> orderedByWeight = DeadLockVehicles.ToDictionary(v => v, v => CalculateWeights(v));
-            IEnumerable<IAGV> ordered = new List<IAGV>();
-            if (orderedByWeight.First().Value == orderedByWeight.Last().Value)
-            {
-                //權重相同,先等待者為高優先權車輛
-                ordered = DeadLockVehicles.OrderBy(vehicle => (DateTime.Now - vehicle.NavigationState.StartWaitConflicSolveTime).TotalSeconds);
-            }
-            else
-                ordered = orderedByWeight.OrderBy(kp => kp.Value).Select(kp => kp.Key);
-            return (ordered.First(), ordered.Last(), false);
-
-            IEnumerable<MapPoint> GetParkablePointOfAGVInRegion(IAGV forkAGV)
-            {
-                IEnumerable<MapPoint> parkablePortPointsInRegion = forkAGV.currentMapPoint.GetRegion().GetParkablePointOfRegion(forkAGV);
-                if (!parkablePortPointsInRegion.Any())
-                    return new List<MapPoint>();
-
-                //
-
-                return parkablePortPointsInRegion;
-            }
-
-
-            //判斷AGV是否在其他車輛任務的終點或鄰近點
-            bool _IsAnyAGVInNearbyOfDestineOfOthers(IAGV _agv)
-            {
-                var otherAgvList = DeadLockVehicles.Where(agv => agv != _agv);
-                var otherAGVDestineMapPoints = otherAgvList.Select(agv => StaMap.GetPointByTagNumber(agv.CurrentRunningTask().DestineTag)).ToList();
-                bool _isAGVAtSomeoneDestine = otherAGVDestineMapPoints.Any(pt => pt.TagNumber == _agv.currentMapPoint.TagNumber);
-                if (_isAGVAtSomeoneDestine)
-                    return true;
-                var allNearbyPtOfDestines = otherAGVDestineMapPoints.SelectMany(destinePt => destinePt.TargetNormalPoints());
-                bool _isAGVAtSomeoneNearPointOfDestine = allNearbyPtOfDestines.Any(pt => pt.TagNumber == _agv.currentMapPoint.TagNumber);
-                return _isAGVAtSomeoneNearPointOfDestine;
-            }
-
-            bool _IsAnyAGVInfrontOfChargeStation(out IAGV _agv)
-            {
-                _agv = DeadLockVehicles.FirstOrDefault(agv => agv.currentMapPoint.TargetWorkSTationsPoints().Any(pt => pt.IsCharge));
-                return _agv != null;
-            }
-
+            IVehiclePriorityResolver priorityResolver = new StandardVehiclePriorityResolver();
+            return priorityResolver.ResolvePriority(DeadLockVehicles);
         }
         public static int CalculateWeights(IAGV vehicle)
         {
@@ -310,7 +238,8 @@ namespace VMSystem.Dispatch
 
         internal static MapPoint GetParkableStationOfCurrentRegion(IAGV agvToPark)
         {
-
+            if (agvToPark == null)
+                return null;
             bool _isAGVHasCargo = agvToPark.states.Cargo_Status == 1 || agvToPark.states.CSTID.Any(_id => !_id.IsNullOrEmpty());
             if (_isAGVHasCargo)
                 return null;

@@ -1,12 +1,17 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
+using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
     public class ChargeTask : TaskBase
     {
-        public ChargeTask(IAGV Agv, clsTaskDto order) : base(Agv, order)
+        public ChargeTask(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+        }
+        public ChargeTask(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
         }
 
@@ -34,7 +39,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override async Task SendTaskToAGV()
         {
-
             Agv.NavigationState.UpdateNavigationPoints(TaskDonwloadToAGV.Homing_Trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
             MapPoint stationPt = StaMap.GetPointByTagNumber(this.TaskDonwloadToAGV.Homing_Trajectory.Last().Point_ID);
             UpdateMoveStateMessage($"進入充電站-[{stationPt.Graph.Display}]...");
@@ -59,6 +63,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         public override void HandleTrafficControlAction(clsMoveTaskEvent confirmArg, ref clsTaskDownloadData OriginalTaskDownloadData)
         {
             throw new NotImplementedException();
+        }
+        internal override bool CheckCargoStatus(out ALARMS alarmCode)
+        {
+            alarmCode = ALARMS.AGVCargoStatusNotMatchWithTask;
+            return !Agv.IsAGVHasCargoOrHasCargoID();
         }
     }
 }

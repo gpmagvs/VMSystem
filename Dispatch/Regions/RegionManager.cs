@@ -1,6 +1,5 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using NLog;
@@ -8,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
@@ -111,7 +111,12 @@ namespace VMSystem.Dispatch.Regions
                 agv.OnTaskCancel += HandleTaskCanceled;
                 try
                 {
+                    agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
+                    agv.NavigationState.RegionControlState.CurrentAllowEnterRegionSignal = regionGet.WaitingForEnterVehicles[agv].allowEnterSignal;
+                    CancellationTokenSource cancelRefreshConflicVehicleStateToskSource = new CancellationTokenSource();
+                    UpdateConflicVehicleContinuely(agv, region, cancelRefreshConflicVehicleStateToskSource, token);
                     regionGet.WaitingForEnterVehicles[agv].allowEnterSignal?.WaitOne();
+                    cancelRefreshConflicVehicleStateToskSource.Cancel();
                 }
                 catch (Exception ex)
                 {
@@ -123,6 +128,38 @@ namespace VMSystem.Dispatch.Regions
             });
         }
 
+        private static async Task UpdateConflicVehicleContinuely(IAGV agv, MapRegion region, CancellationTokenSource cancelRefreshConflicVehicleStateToskSource, CancellationToken token)
+        {
+            await Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        UpdateVehicleConflicTo(agv, region);
+                        agv.NavigationState.IsWaitingConflicSolve = agv.NavigationState.currentConflicToAGV != null;
+                        await Task.Delay(100, cancelRefreshConflicVehicleStateToskSource.Token);
+                        TaskBase currentTask = agv.CurrentRunningTask();
+                        if (currentTask.IsTaskCanceled)
+                            break;
+                        agv.CurrentRunningTask().UpdateMoveStateMessage($"等待-{region.Name}可進入(等待[{agv.NavigationState.currentConflicToAGV?.Name}離開])");
+
+                    }
+                    catch (TaskCanceledException ex)
+                    {
+                        return;
+                    }
+                }
+            }, cancelRefreshConflicVehicleStateToskSource.Token);
+        }
+
+        private static void UpdateVehicleConflicTo(IAGV agv, MapRegion region)
+        {
+            List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(agv).ToList();
+            List<IAGV> vehiclesInRegion = otherVehicles.Where(vehicle => vehicle.currentMapPoint.GetRegion().Name == region.Name).ToList();
+            vehiclesInRegion = vehiclesInRegion.OrderBy(vehicle => vehicle.currentMapPoint.CalculateDistance(agv.currentMapPoint)).ToList();
+            agv.NavigationState.currentConflicToAGV = vehiclesInRegion.FirstOrDefault();
+        }
 
         private static clsRegionControlState GetRegionControlState(MapRegion region)
         {

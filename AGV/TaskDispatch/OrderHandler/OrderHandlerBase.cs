@@ -1,9 +1,10 @@
-﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
+using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
@@ -11,9 +12,12 @@ using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
 using System.Threading.Tasks;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Dispatch;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
+using VMSystem.VMS;
 using static AGVSystemCommonNet6.clsEnums;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -21,7 +25,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     /// <summary>
     /// 處理訂單任務
     /// </summary>
-    public abstract class OrderHandlerBase : clsTaskDatabaseWriteableAbstract
+    public abstract partial class OrderHandlerBase : clsTaskDatabaseWriteableAbstract
     {
         public class BufferOrderState
         {
@@ -62,19 +66,44 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public event EventHandler<OrderHandlerBase> OnTaskCanceled;
         public event EventHandler<OrderHandlerBase> OnOrderFinish;
 
+        internal static event EventHandler<OrderStartEvnetArgs> OnOrderStart;
+
+        private SECSConfigsService secsConfigsService = new SECSConfigsService();
+
         protected Logger logger;
+
+        private List<int> TagsTracking = new List<int>();
 
         public OrderHandlerBase()
         {
             logger = LogManager.GetLogger("OrderHandle");
         }
+        public OrderHandlerBase(SemaphoreSlim taskTbModifyLock) : base(taskTbModifyLock)
+        {
+            logger = LogManager.GetLogger("OrderHandle");
+        }
+
 
         public virtual async Task StartOrder(IAGV Agv)
         {
             this.Agv = Agv;
+            TagsTracking = new List<int>() { Agv.currentMapPoint.TagNumber };
+            Agv.OnMapPointChanged += HandleAGVMapPointChanged;
+            OrderStartEvnetArgs _OrderStartEventArgs = new OrderStartEvnetArgs(this);
+            OnOrderStart?.Invoke(this, _OrderStartEventArgs);
+            secsConfigsService = _OrderStartEventArgs.secsConfigsService;
+            TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
+            trajectoryRecorder.Start();
             _ = Task.Run(async () =>
             {
+                await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
 
+                if (OrderData.isVehicleAssignedChanged)
+                {
+                    NotifyServiceHelper.INFO($"{this.Agv.Name} 接收任務轉移-開始執行任務");
+                    OrderData.isVehicleAssignedChanged = false;
+                    await ModifyOrder(OrderData);
+                }
                 //TODO 如果取放貨的起終點為 buffer 類，需將其趕至可停車點停車
                 (bool isSourceBuffer, bool isDestineBuffer) = IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt);
 
@@ -108,7 +137,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Agv.NavigationState.StateReset();
                         _CurrnetTaskFinishResetEvent.Reset();
                         TaskBase task = SequenceTaskQueue.Dequeue();
-
+                        task.orderHandler = this;
                         task.TaskName = OrderData.TaskName;
                         task.TaskSequence = CompleteTaskStack.Count + 1;
                         RunningTask = task;
@@ -117,25 +146,30 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                             AbortOrder(_alarm);
                         };
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
+
+                        await SetOrderProgress(task.Stage);
+
                         var dispatch_result = await task.DistpatchToAGV();
                         if (!dispatch_result.confirmed)
                         {
+                            if (dispatch_result.alarm_code == ALARMS.AGV_STATUS_DOWN)
+                                throw new AGVStatusDownException();
+
                             throw new VMSException(dispatch_result.message)
                             {
                                 Alarm_Code = dispatch_result.alarm_code == ALARMS.NONE ? ALARMS.SYSTEM_ERROR : dispatch_result.alarm_code
                             };
-                            //AlarmManagerCenter.AddAlarmAsync(dispatch_result.alarm_code, level: ALARM_LEVEL.ALARM, Equipment_Name: this.Agv.Name, location: this.Agv.currentMapPoint.Graph.Display, taskName: this.RunningTask.TaskName);
                         }
 
                         task.Dispose();
-                        (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) taskchange = task.ActionFinishInvoke();
+                        (bool continuetask, clsTaskDto task, ALARMS alarmCode, string errorMsg) taskchange = await task.ActionFinishInvoke();
                         if (taskchange.continuetask == false)
                         {
                             _SetOrderAsFaiiureState(taskchange.errorMsg, taskchange.alarmCode);
                             return;
                         }
                         if (taskchange.task != null)
-                            RaiseTaskDtoChange(this, taskchange.task);
+                            ModifyOrder(taskchange.task);
 
                         logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
@@ -155,6 +189,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         Console.WriteLine("轉送任務-[來源->轉運站任務] 結束");
                         LoadingAtTransferStationTaskFinishInvoke();
                     }
+                }
+                catch (AGVStatusDownException ex)
+                {
+                    _HandleVMSException(ex);
+                    return;
                 }
                 catch (VMSException ex)
                 {
@@ -176,16 +215,19 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 finally
                 {
-                    Agv.NavigationState.StateReset();
-                    Agv.NavigationState.ResetNavigationPoints();
+                    trajectoryRecorder.Stop();
+
+                    Task.Delay(1000).ContinueWith(async t => await MCSCIMService.VehicleUnassignedReport(Agv.AgvIDStr, OrderData.TaskName));
+                    await ResetVehicleRegistedPoints();
                     Agv.taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
                     ActionsWhenOrderCancle();
                     //Agv.taskDispatchModule.AsyncTaskQueueFromDatabase();
-
                     double finalMileageOfVehicle = Agv.states.Odometry;
                     OrderData.TotalMileage = finalMileageOfVehicle - beginMileageOfVehicle;
-                    RaiseTaskDtoChange(this, OrderData);
-
+                    Agv.OnMapPointChanged -= HandleAGVMapPointChanged;
+                    OrderData.TagsTracking = string.Join("-", TagsTracking);
+                    ModifyOrder(OrderData);
+                    DisposeActionOfCompleteTasks();
                 }
 
                 async Task<bool> DetermineTaskState()
@@ -210,7 +252,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (TaskCancelledFlag)
                     {
                         logger.Warn($"Task canceled.{TaskCancelReason}");
-                        _SetOrderAsCancelState(TaskCancelReason);
+                        _SetOrderAsCancelState(TaskCancelReason, ALARMS.Task_Canceled);
                         ActionsWhenOrderCancle();
                         isTaskFail = true;
                     }
@@ -219,17 +261,60 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 async void _HandleVMSException(VMSExceptionAbstract ex)
                 {
-                    await Task.Delay(1000);
                     logger.Error(ex);
                     bool _isAgvDown = Agv.main_state == MAIN_STATUS.DOWN;
                     if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)
-                        _SetOrderAsCancelState(TaskCancelReason);
+                        _SetOrderAsCancelState(TaskCancelReason, ex.Alarm_Code);
                     else
                         _SetOrderAsFaiiureState(ex.Message, _isAgvDown ? ALARMS.AGV_STATUS_DOWN : ex.Alarm_Code);
                     ActionsWhenOrderCancle();
                     RunningTask.Dispose();
                 }
+
+
             });
+        }
+
+        private void HandleAGVMapPointChanged(object? sender, int tag)
+        {
+            int lastTag = TagsTracking.LastOrDefault();
+            if (lastTag != tag)
+                TagsTracking.Add(tag);
+        }
+
+        public virtual void BuildTransportCommandDto()
+        {
+            var sourceStationType = OrderData.From_Station_Tag.GetMapPoint().StationType;
+            this.transportCommand = new MCSCIMService.TransportCommandDto()
+            {
+                CommandID = OrderData.TaskName,
+                CarrierID = OrderData.Carrier_ID,
+                CarrierLoc = OrderData.soucePortID,
+                CarrierZoneName = OrderData.sourceZoneID,
+                Dest = OrderData.destinePortID,
+                ResultCode = 0,
+            };
+        }
+
+        protected virtual async Task ResetVehicleRegistedPoints()
+        {
+            //bool isAGVDownAtRackPort = Agv.main_state == MAIN_STATUS.DOWN && Agv.IsVehicleAtBuffer();
+            //if (isAGVDownAtRackPort)
+            //{
+            //    StaMap.RegistPoint(Agv.Name, Agv.currentMapPoint.TargetNormalPoints(), out string mesg);
+            //    return;
+            //}
+            await UnRegistPoints();
+            Agv.NavigationState.StateReset();
+            Agv.NavigationState.ResetNavigationPoints();
+        }
+
+        private void DisposeActionOfCompleteTasks()
+        {
+            CompleteTaskStack.Where(tk => tk.OrderTransfer != null && tk.OrderTransfer.State == OrderTransfer.STATES.BETTER_VEHICLE_SEARCHING)
+                             .Select(tk => tk.OrderTransfer.OrderDone());
+
+            CompleteTaskStack.Clear();
         }
 
         public (bool isSourceBuffer, bool isDestineBuffer) IsWorkStationContainBuffer(out MapPoint sourcePt, out MapPoint destinePt)
@@ -352,7 +437,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
-        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "")
+        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "", string hostAction = null)
         {
             if (this.OrderData.TaskName != taskName)
             {
@@ -361,7 +446,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             TaskCancelledFlag = true;
             TaskCancelReason = reason;
-            RunningTask.CancelTask();
+            RunningTask.CancelTask(hostAction);
             _CurrnetTaskFinishResetEvent.Set();
             return (true, "");
         }
@@ -370,13 +455,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderData.StartTime = DateTime.Now;
             OrderData.State = TASK_RUN_STATUS.NAVIGATING;
             OrderData.StartLocationTag = Agv.currentMapPoint.TagNumber;
-            RaiseTaskDtoChange(this, OrderData);
+            ModifyOrder(OrderData);
         }
 
-        private async void _SetOrderAsCancelState(string taskCancelReason)
+        protected virtual async Task _SetOrderAsCancelState(string taskCancelReason, ALARMS alarmCode)
         {
             RunningTask.CancelTask();
-            UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.CANCEL;
             OrderData.FinishTime = DateTime.Now;
             OrderData.FailureReason = TaskCancelReason;
@@ -384,18 +468,25 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
 
             }
-            (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.cancel));
-            if (v.confirm == false)
-                LOG.WARN($"{v.message}");
-            RaiseTaskDtoChange(this, OrderData);
+            await Task.Delay(300);
+
+            bool isTaskCanceled = DatabaseCaches.TaskCaches.CompleteTasks.Any(tk => tk.TaskName == OrderData.TaskName && tk.State == TASK_RUN_STATUS.CANCEL);
+            bool isTaskReAssigned = DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.TaskName == OrderData.TaskName && tk.DesignatedAGVName != Agv.Name);
+            bool isOrderAlreadyTransferToOtherVehicle = VMSManager.AllAGV.FilterOutAGVFromCollection(this.Agv).Any(v => v.taskDispatchModule.taskList.Any(tk => tk.TaskName == OrderData.TaskName));
+            if (isTaskCanceled || isTaskReAssigned || isOrderAlreadyTransferToOtherVehicle)
+            {
+                return;
+            }
+
+            ModifyOrder(OrderData);
             OnTaskCanceled?.Invoke(this, this);
         }
         protected virtual void _SetOrderAsFinishState()
         {
-            UnRegistPoints();
             OrderData.State = TASK_RUN_STATUS.ACTION_FINISH;
             OrderData.FinishTime = DateTime.Now;
-            RaiseTaskDtoChange(this, OrderData);
+            OrderData.currentProgress = VehicleMovementStage.Completed;
+            ModifyOrder(OrderData);
             OnOrderFinish?.Invoke(this, this);
             if (PartsAGVSHelper.NeedRegistRequestToParts)
             {
@@ -411,7 +502,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         }
 
-        protected async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
+        protected virtual async void _SetOrderAsFaiiureState(string FailReason, ALARMS alarm)
         {
             try
             {
@@ -429,7 +520,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
 
                 RunningTask.CancelTask();
-                UnRegistPoints();
                 OrderData.State = TASK_RUN_STATUS.FAILURE;
                 OrderData.FinishTime = DateTime.Now;
                 OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description})";
@@ -440,11 +530,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     OrderData.FailureReason = agvAlarmsDescription;
                 }
 
-                RaiseTaskDtoChange(this, OrderData);
-                (bool confirm, string message) v = await AGVSSerivces.TaskReporter((OrderData, MCSCIMService.TaskStatus.fail));
-                if (v.confirm == false)
-                    LOG.WARN($"{v.message}");
-
+                ModifyOrder(OrderData);
 
                 if (OrderData.Action == ACTION_TYPE.Carry)
                 {
@@ -507,11 +593,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
             }
         }
-        private void UnRegistPoints()
+        private async Task UnRegistPoints()
         {
             if (Agv == null)
                 return;
-            StaMap.UnRegistPointsOfAGVRegisted(this.Agv);
+            while (!await StaMap.UnRegistPointsOfAGVRegisted(this.Agv))
+            {
+                await Task.Delay(200);
+            }
             Agv.NavigationState.ResetNavigationPoints();
         }
         internal void StartTrafficControl()
@@ -526,5 +615,29 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             TrafficControlling = false;
             RunningTask.MoveTaskEvent.TrafficResponse.ConfirmResult = clsMoveTaskEvent.GOTO_NEXT_GOAL_CONFIRM_RESULT.ACCEPTED_GOTO_NEXT_GOAL;
         }
+        async Task SetOrderProgress(VehicleMovementStage progress)
+        {
+            try
+            {
+                OrderData.currentProgress = progress;
+                await ModifyOrder(OrderData);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+            }
+        }
+
+
+        internal class OrderStartEvnetArgs : EventArgs
+        {
+            internal SECSConfigsService secsConfigsService = new SECSConfigsService();
+            internal readonly OrderHandlerBase OrderHandler;
+            internal OrderStartEvnetArgs(OrderHandlerBase OrderHandler)
+            {
+                this.OrderHandler = OrderHandler;
+            }
+        }
+
     }
 }

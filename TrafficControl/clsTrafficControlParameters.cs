@@ -1,4 +1,5 @@
 ﻿using AGVSystemCommonNet6.Configuration;
+using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using static AGVSystemCommonNet6.MAP.PathFinder;
 
 namespace VMSystem.TrafficControl
@@ -90,11 +91,28 @@ namespace VMSystem.TrafficControl
             /// </summary>
             public bool TurnToAvoidDirectionWhenLDULDActionReject { get; set; } = false;
 
+            /// <summary>
+            /// 當退出工作站時，是否要轉向特定角度
+            /// </summary>
+            public bool TurnToSpecificThetaWhenLeaveWorkStation { get; set; } = true;
+
 
             /// <summary>
             /// 使用交管檢查點進行分段路徑導航
             /// </summary>
             public bool NavigationWithTrafficControlPoints { get; set; } = true;
+
+            /// <summary>
+            /// 停到RACK裡面避車
+            /// </summary>
+            public bool UseRackToAvoid { get; set; } = true;
+
+            public bool NearRackPortParkable { get; set; } = false;
+
+            /// <summary>
+            /// 訂單轉移參數配置
+            /// </summary>
+            public OrderTransferConfiguration OrderTransfer { get; set; } = new OrderTransferConfiguration();
 
         }
     }

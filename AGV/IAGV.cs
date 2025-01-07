@@ -21,6 +21,7 @@ namespace VMSystem.AGV
         public enum BATTERY_STATUS
         {
             UNKNOWN,
+            DEEPCHARGING,
             LOW,
             MIDDLE_LOW,
             MIDDLE_HIGH,
@@ -35,6 +36,7 @@ namespace VMSystem.AGV
         AGV_TYPE model { get; set; }
         string Name { get; set; }
         int AgvID { get; set; }
+        string AgvIDStr { get;}
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }
@@ -76,7 +78,7 @@ namespace VMSystem.AGV
         /// AGV是否在充電站內閒置且電量低於閥值
         /// </summary>
         /// <returns></returns>
-        bool IsAGVIdlingAtChargeStationButBatteryLevelLow();
+        bool IsAGVIdlingAtParkableStationButBatteryLevelLow();
 
         bool IsAGVIdlingAtNormalPoint();
 
@@ -92,7 +94,17 @@ namespace VMSystem.AGV
         int currentFloor { get; set; }
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
-        Task CancelTaskAsync(string task_name, string reason);
+        Task CancelTaskAsync(string task_name, string reason, string? hostAction = "");
+        void StartDeepCharging();
+        void StopDeepCharge(bool isAuto);
+
+        void UpdateDeepChargeRecorder(DeepChargeRecorder recoder);
+
+        /// <summary>
+        /// AGV當前是否需要深充(通常是從車載狀態決定 ex.上報了異常碼)
+        /// </summary>
+        /// <returns></returns>
+        bool IsDeepChargeRequired();
 
         event EventHandler<string> OnTaskCancel;
         event EventHandler<int> OnMapPointChanged;

@@ -3,7 +3,6 @@
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.Helpers;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -58,14 +57,6 @@ namespace VMSystem
                 Environment.Exit(4);
             }
         }
-
-        internal static void LOGInstanceInit()
-        {
-
-            LOG.SetLogFolderName("VMS LOG");
-            LOG.INFO("VMS System Start");
-        }
-
         internal static void StaticFileInit(WebApplication app)
         {
 
@@ -74,16 +65,9 @@ namespace VMSystem
         internal static void VMSInit()
         {
             StaMap.Download();
-            VMSManager.Initialize().ContinueWith(tk =>
-            {
-                Dispatch.DispatchCenter.Initialize();
-            });
             TrafficControlCenter.Initialize();
             RegionManager.Initialze();
-
-
             NotifyServiceHelper.OnMessage += NotifyServiceHelper_OnMessage;
-
         }
 
         private static void NotifyServiceHelper_OnMessage(object? sender, NotifyServiceHelper.NotifyMessage notifyMessage)

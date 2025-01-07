@@ -1,4 +1,5 @@
-﻿using AGVSystemCommonNet6.MAP;
+﻿using AGVSystemCommonNet6.AGVDispatch;
+using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
@@ -6,11 +7,29 @@ using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.VMS;
 
-namespace VMSystem.TrafficControl
+namespace VMSystem.Extensions
 {
-    public static class Extensions
+    public static class TrafficControlExtension
     {
-        public static TaskBase CurrentRunningTask(this IAGV agv)
+
+
+        public static bool IsVehicleAtBuffer(this IAGV agv)
+        {
+            if (agv == null)
+                return false;
+            var stationType = agv.currentMapPoint.StationType;
+            return stationType == MapPoint.STATION_TYPE.Buffer || stationType == MapPoint.STATION_TYPE.Buffer_EQ || stationType == MapPoint.STATION_TYPE.Charge_Buffer;
+        }
+
+        public static bool IsVehicleAtWorkStation(this IAGV agv)
+        {
+            if (agv == null)
+                return false;
+            var stationType = agv.currentMapPoint.StationType;
+            return stationType != MapPoint.STATION_TYPE.Normal;
+        }
+
+        public static TaskBase? CurrentRunningTask(this IAGV agv)
         {
             if (agv == null)
                 return null;
@@ -20,6 +39,24 @@ namespace VMSystem.TrafficControl
         {
             return agv.taskDispatchModule.OrderHandler;
         }
+
+        public static int GetNextWorkStationTag(this IAGV agv)
+        {
+            if (agv == null)
+                return 0;
+            if (agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                return 0;
+            TaskBase currentTask = agv.CurrentRunningTask();
+            clsTaskDto currentOrder = currentTask.OrderData;
+
+            if (currentTask.Stage == VehicleMovementStage.Traveling_To_Source)
+                return currentOrder.From_Station_Tag;
+            else if (currentTask.Stage == VehicleMovementStage.Traveling_To_Destine || currentTask.Stage == VehicleMovementStage.WorkingAtSource)
+                return currentOrder.To_Station_Tag;
+            else
+                return 0;
+        }
+
         public static TaskBase PreviousSegmentTask(this IAGV agv)
         {
             var completeTaskStack = agv.taskDispatchModule.OrderHandler.CompleteTaskStack;
@@ -96,7 +133,7 @@ namespace VMSystem.TrafficControl
         public static bool IsAnyVehicleConflicTo(this IEnumerable<MapRectangle> coveryRegion, IAGV requestAGV)
         {
             List<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(requestAGV).ToList();
-            return coveryRegion.Any(rect=> otherVehicles.Select(agv=>agv.AGVRealTimeGeometery).Any(agvBody=>agvBody.IsIntersectionTo(rect)) );
+            return coveryRegion.Any(rect => otherVehicles.Select(agv => agv.AGVRealTimeGeometery).Any(agvBody => agvBody.IsIntersectionTo(rect)));
         }
     }
 }

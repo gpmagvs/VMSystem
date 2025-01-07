@@ -40,5 +40,13 @@ namespace VMSystem.Controllers
                 throw ex;
             }
         }
+
+        [HttpGet("IsDeepChargeTaskExeutable")]
+        public async Task<object> IsDeepChargeTaskExeutable(string agvName)
+        {
+            bool confirmed = VMSManager.ConfirmDeepChargeExecutable(agvName, out string message);
+            return new { confirm = confirmed, message = message };
+        }
+
     }
 }

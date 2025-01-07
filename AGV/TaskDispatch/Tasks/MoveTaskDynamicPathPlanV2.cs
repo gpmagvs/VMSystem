@@ -2,9 +2,9 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Configuration;
+using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using MessagePack;
@@ -32,13 +32,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     public partial class MoveTaskDynamicPathPlanV2 : MoveTaskDynamicPathPlan
     {
         public MapPoint finalMapPoint { get; private set; }
-        public MoveTaskDynamicPathPlanV2() : base()
-        {
-        }
-        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto order) : base(Agv, order)
-        {
-            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
-        }
 
 
         public override void CreateTaskToAGV()
@@ -92,7 +85,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.NavigationState.IsWaitingForLeaveWorkStationTimeout = false;
             Agv.OnMapPointChanged += Agv_OnMapPointChanged;
             //subStage = Stage;
-            StartRecordTrjectory();
 
             bool IsRegionNavigationEnabled = TrafficControlCenter.TrafficControlParameters.Basic.MultiRegionNavigation;
             CancellationTokenSource waitCanPassPtPassableCancle = new CancellationTokenSource();
@@ -124,7 +116,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 _previsousTrajectorySendToAGV = new List<clsMapPoint>();
                 int _seq = 0;
-                if (Stage != VehicleMovementStage.AvoidPath && Stage != VehicleMovementStage.AvoidPath_Park)
+                if (Stage != VehicleMovementStage.AvoidPath && Stage != VehicleMovementStage.AvoidPath_Park && subStage == VehicleMovementStage.Traveling_To_Destine || subStage == VehicleMovementStage.Traveling_To_Source)
                     Agv.NavigationState.StateReset();
 
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
@@ -137,7 +129,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 {
                     bool isGoWaitPointByNormalTravaling = false;
                     TaskExecutePauseMRE.WaitOne();
-
                     if (!Agv.NavigationState.IsWaitingConflicSolve)
                         TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
@@ -155,7 +146,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.CurrentConflicRegion = null;
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = false;
 
-                        if (IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
+                        if (!OrderData.IsHighestPriorityTask && !Agv.NavigationState.AvoidActionState.IsAvoidRaising && IsPathPassMuiltRegions(Agv.currentMapPoint, _finalMapPoint, out List<MapRegion> regions, out _))
                         {
                             (bool conofirmed, MapRegion nextRegion, MapPoint waitingPoint, isGoWaitPointByNormalTravaling) = await GetNextRegionWaitingPoint(regions);
 
@@ -188,9 +179,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         searchStartPt = lastNavigationgoal == null || Agv.main_state == clsEnums.MAIN_STATUS.IDLE ? Agv.currentMapPoint : lastNavigationgoal;
                         DispatchCenter.GOAL_SELECT_METHOD goalSelectMethod = subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point ? DispatchCenter.GOAL_SELECT_METHOD.TO_GOAL_DIRECTLY :
                                                                                                                                              DispatchCenter.GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL;
-                        IEnumerable<MapPoint> dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
-                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
+                        IEnumerable<MapPoint> dispatchCenterReturnPath = null;
+                        bool isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack = _IsVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack();
+                        if (isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack)
+                            dispatchCenterReturnPath = new List<MapPoint> { Agv.currentMapPoint };
+                        else
+                            dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
+
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                         {
                             //if (SecondaryPathSearching)//表示第二路徑也沒有辦法通行
                             //{
@@ -200,7 +197,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             //    await Task.Delay(1000);
                             //    continue;
                             //}
-
+                            if (OrderData.isVehicleAssignedChanged && IsTaskCanceled)
+                            {
+                                throw new TaskCanceledException($"換車且任務已取消");
+                            }
                             if (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
                             {
                                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -496,7 +496,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             throw new AGVRejectTaskException(responseOfVehicle.ReturnCode);
                         }
 
-                        bool isAGVStatusRun = isAgvAlreadyAtDestine ? true : await WaitVehicleStatusRun();
+                        bool isAGVStatusRun = isAgvAlreadyAtDestine || isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack ? true : await WaitVehicleStatusRun();
 
                         _seq += 1;
                         _previsousTrajectorySendToAGV = _trajectory.ToList();
@@ -612,6 +612,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (TaskCanceledException ex)
                     {
+                        await WaitAGVNotRunning(ex.Message);
                         throw ex;
                     }
                     catch (AGVRejectTaskException ex)
@@ -660,9 +661,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
                         var agvInWaitingRegion = OtherAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == waitingRegion.Name ||
                                               agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == waitingRegion.Name));
-                        UpdateMoveStateMessage($"等待-{waitingRegion.Name}可進入(等待[{Agv.NavigationState.currentConflicToAGV?.Name}離開])");
                         await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
-                        subStage = Stage;
+                        subStage = Agv.NavigationState.AvoidActionState.IsAvoidRaising ? subStage : Stage;
                         await SendTaskToAGV(this.finalMapPoint);
 
                     }
@@ -681,6 +681,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await FinalStopThetaAdjuctProcess(expectedAngle);
                     }
                     UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-角度確認({expectedAngle}) OK!");
+                    await WaitAGVNotRunning();
                     await Task.Delay(100);
                 }
 
@@ -702,7 +703,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
-                EndReocrdTrajectory();
+                await Task.Delay(500);
                 TrafficWaitingState.SetStatusNoWaiting();
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
@@ -712,6 +713,21 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
 
 
+        }
+
+        /// <summary>
+        /// AGV當前需要去RACK PORT避車，且目前的位置已在避車PORT前面且朝向避車PORK
+        /// </summary>
+        /// <returns></returns>
+        private bool _IsVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack()
+        {
+            if (subStage != VehicleMovementStage.AvoidPath_Park)
+                return false;
+            if (Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine.TagNumber != Agv.currentMapPoint.TagNumber)
+                return false;
+            //agv need forward to work_station
+            double expectThetaForwardTo = Tools.CalculationForwardAngle(Agv.currentMapPoint, Agv.NavigationState.AvoidActionState.AvoidPt);
+            return Tools.CalculateTheateDiff(Agv.states.Coordination.Theta, expectThetaForwardTo) < 30;
         }
 
         private bool IsContainsReversePath(IEnumerable<int> previosPath, IEnumerable<int> newPath)
@@ -887,7 +903,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return;
 
 
-            LOG.TRACE($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
+            logger.Trace($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
 
             _previsousTrajectorySendToAGV.Clear();
             List<MapPoint> _trajPath = new List<MapPoint>() {
@@ -923,6 +939,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY WaitPointSelectStrategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.ANY;
+        public MoveTaskDynamicPathPlanV2() : base() { }
+
+        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
+        {
+            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
+        }
+
+        public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
+        {
+            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
+        }
 
         private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint, bool isGoWaitPointByNormalSegmentTravaling)> GetNextRegionWaitingPoint(List<MapRegion> regions)
         {

@@ -1,8 +1,8 @@
 ﻿
 using AGVSystemCommonNet6.Configuration;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.Notify;
 using Newtonsoft.Json;
+using NLog;
 using System.IO;
 using VMSystem.Dispatch.Equipment;
 using static AGVSystemCommonNet6.clsEnums;
@@ -12,6 +12,7 @@ namespace VMSystem.BackgroundServices
     public class EquipmentScopeBackgroundService : BackgroundService
     {
         FileSystemWatcher fileSystemWatcher;
+        Logger logger = LogManager.GetCurrentClassLogger();
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             UpdateEQInfoFromConfigFile(Path.Combine(AGVSConfigulator.SysConfigs.PATHES_STORE[SystemConfigs.PATH_ENUMS.EQ_CONFIGS_FOLDER_PATH], "EQConfigs.json"));
@@ -48,7 +49,7 @@ namespace VMSystem.BackgroundServices
             }
             catch (Exception ex)
             {
-                LOG.ERROR(ex.Message);
+                logger.Error(ex, ex.Message);
             }
             finally
             {

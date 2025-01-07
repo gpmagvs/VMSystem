@@ -1,11 +1,11 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.MAP;
-using VMSystem.TrafficControl;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using AGVSystemCommonNet6;
+using VMSystem.AGV;
 
-namespace VMSystem.AGV
+namespace VMSystem.Extensions
 {
     public static class VehicleExtension
     {
@@ -16,7 +16,7 @@ namespace VMSystem.AGV
         /// <returns></returns>
         public static IEnumerable<int> GetCanNotReachTags(this IAGV vehicle)
         {
-            return vehicle.model == AGVSystemCommonNet6.clsEnums.AGV_TYPE.SUBMERGED_SHIELD ?
+            return vehicle.model == clsEnums.AGV_TYPE.SUBMERGED_SHIELD ?
                                                  StaMap.Map.TagForbiddenForSubMarineAGV : StaMap.Map.TagForbiddenForForkAGV;
         }
 
@@ -38,7 +38,7 @@ namespace VMSystem.AGV
         public static bool IsTravalingToSourceWhenExecutingTransferOrder(this IAGV vehicle)
         {
             if (vehicle.IsExecutingOrder(out TaskBase currentRunningTask))
-                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && (currentRunningTask.Stage == VehicleMovementStage.Traveling_To_Source);
+                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && currentRunningTask.Stage == VehicleMovementStage.Traveling_To_Source;
             else
                 return false;
         }
@@ -50,7 +50,7 @@ namespace VMSystem.AGV
         public static bool IsTravalingToDestineWhenExecutingTransferOrder(this IAGV vehicle)
         {
             if (vehicle.IsExecutingOrder(out TaskBase currentRunningTask))
-                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && (currentRunningTask.Stage == VehicleMovementStage.Traveling_To_Destine);
+                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && currentRunningTask.Stage == VehicleMovementStage.Traveling_To_Destine;
             else
                 return false;
         }
@@ -62,7 +62,7 @@ namespace VMSystem.AGV
         public static bool IsWorkingAtSourceEQWhenExecutingTransferOrder(this IAGV vehicle)
         {
             if (vehicle.IsExecutingOrder(out TaskBase currentRunningTask))
-                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && (currentRunningTask.Stage == VehicleMovementStage.WorkingAtSource);
+                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && currentRunningTask.Stage == VehicleMovementStage.WorkingAtSource;
             else
                 return false;
         }
@@ -74,7 +74,7 @@ namespace VMSystem.AGV
         public static bool IsWorkingAtDestineEQWhenExecutingTransferOrder(this IAGV vehicle)
         {
             if (vehicle.IsExecutingOrder(out TaskBase currentRunningTask))
-                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && (currentRunningTask.Stage == VehicleMovementStage.WorkingAtDestination);
+                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && currentRunningTask.Stage == VehicleMovementStage.WorkingAtDestination;
             else
                 return false;
         }
@@ -88,7 +88,7 @@ namespace VMSystem.AGV
         public static bool IsLeavingFromChargeStationWhenExecutingTransferOrder(this IAGV vehicle)
         {
             if (vehicle.IsExecutingOrder(out TaskBase currentRunningTask))
-                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && (currentRunningTask.Stage == VehicleMovementStage.LeaveFrom_ChargeStation);
+                return currentRunningTask.OrderData.Action == ACTION_TYPE.Carry && currentRunningTask.Stage == VehicleMovementStage.LeaveFrom_ChargeStation;
             else
                 return false;
         }
@@ -120,5 +120,17 @@ namespace VMSystem.AGV
                 return false;
             return vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
         }
+
+
+        public static bool TryGetNextOrder(this IAGV agv, string currentTaskID, out clsTaskDto nextOrder)
+        {
+            nextOrder = null;
+            if (agv == null)
+                return false;
+            nextOrder = agv.taskDispatchModule.taskList.OrderBy(order => order.RecieveTime)
+                                                        .FirstOrDefault(order => order.TaskName != currentTaskID && order.State == TASK_RUN_STATUS.WAIT);
+            return nextOrder != null;
+        }
+
     }
 }

@@ -1,7 +1,6 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.Exceptions;
-using AGVSystemCommonNet6.Log;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Microservices.AGVS;
@@ -11,6 +10,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
@@ -48,43 +48,39 @@ namespace VMSystem.Dispatch
 
         public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
+            bool _waitTrafficHandleSignalTimeout = true;
             try
             {
-                await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync();
+                _waitTrafficHandleSignalTimeout = !await TrafficControlCenter._leaveWorkStaitonReqSemaphore.WaitAsync(TimeSpan.FromSeconds(2));
+                if (_waitTrafficHandleSignalTimeout)
+                {
+                    vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"等待交管訊號逾時");
+                    await Task.Delay(1000);
+                    return null;
+                }
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
                 var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
+                if (path == null)
+                    return null;
+                path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
+                if (path == null)
+                    return null;
 
-                if (path != null && path.Count() != 0 && TrafficControlCenter.TrafficControlParameters.Experimental.NavigationWithTrafficControlPoints)
-                {
-                    var _path = path.Clone().ToList();
-                    var firstTrafficControlPt = _path.Skip(1).FirstOrDefault(pt => pt.IsTrafficCheckPoint);
-                    if (firstTrafficControlPt != null)
-                    {
-                        NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
-                        int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
-                        path = _path.Take(index + 1);
-                    }
-                }
-                if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
-                {
-                    List<MapPoint> _pathDetecting = path.ToList();
-                    //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
-                    double agvCurrentAngle = vehicle.states.Coordination.Theta;
-                    //行駛至下一個點的朝向角
-                    double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
-                    double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
-                    if (angleToTurn > 45)
-                    {
-                        vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
-                        {
-                            StartPoint = _pathDetecting[0],
-                            EndPoint = _pathDetecting[1]
-                        };
-                        throw new RotatingOnSpinForbidPtException();
-                    }
-                }
-                return path = path == null ? path : path.Clone();
+                //if (!TrafficControlCenter.TrafficControlParameters.Experimental.NearRackPortParkable)
+                //{
+                //    path = GetPathWithDestineWorkStationNearbyStatucCheck(vehicle, path);
+                //    if (path == null)
+                //        return null;
+                //}
+
+                path = taskDto.IsHighestPriorityTask ? path : GetPathNavToTrafficCheckPoint(vehicle, path);
+                if (path == null)
+                    return null;
+                path = GetPathWithPathReverseCheck(vehicle, startPoint, path);
+                if (path == null)
+                    return null;
+                return path.Clone();
             }
             catch (RotatingOnSpinForbidPtException ex)
             {
@@ -102,26 +98,155 @@ namespace VMSystem.Dispatch
             }
             finally
             {
-                _ = Task.Run(async () =>
+                if (!_waitTrafficHandleSignalTimeout)
                 {
-                    await Task.Delay(200);
-                    TrafficControlCenter._leaveWorkStaitonReqSemaphore.Release();
-                });
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(200);
+                        TrafficControlCenter._leaveWorkStaitonReqSemaphore.Release();
+                    });
+                }
                 await Task.Delay(10);
                 semaphore.Release();
             }
         }
+
+
+        private static IEnumerable<MapPoint>? GetPathWithDestineWorkStationNearbyStatucCheck(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
+            //判斷目的地包含有工作站之鄰近點是否有車
+            MapPoint workStationPt = vehicle.GetNextWorkStationTag().GetMapPoint();
+
+            //若目的地是一般點位，檢查當前路徑是否已包含目的地
+            if (workStationPt.StationType == MapPoint.STATION_TYPE.Normal && !path.Any(pt => pt.TagNumber == workStationPt.TagNumber))
+                return path;
+
+            //若目的地是工作站點，檢查當前路徑是否已包含工作站進入點
+            if (workStationPt.StationType != MapPoint.STATION_TYPE.Normal && !workStationPt.TargetNormalPoints().Any(pt => path.GetTagCollection().Contains(pt.TagNumber)))
+                return path;
+            List<MapPoint> nearbyWorkStations = workStationPt.GetNearByWorkStationAndEntryPoint();
+            if (!nearbyWorkStations.Any())
+                return path;
+
+            List<MapPoint> ptToCheckVehicleExist = new List<MapPoint>();
+            ptToCheckVehicleExist.AddRange(nearbyWorkStations);
+            foreach (var item in nearbyWorkStations)
+                ptToCheckVehicleExist.AddRange(item.TargetNormalPoints());
+            if (ptToCheckVehicleExist.Any(pt => otherVehicles.Any(v => v.currentMapPoint.TagNumber == pt.TagNumber)))
+            {
+                vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"鄰近點不可停車，所以需等待其他車輛離開...");
+                return null;
+            }
+            return path;
+
+        }
+
+        private static IEnumerable<MapPoint>? GetPathWithDestineWorkStationStatusCheck(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            if (path == null)
+                return null;
+
+            IEnumerable<IAGV> otherVehicles = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
+            //判斷是否有其他車輛當前位置位於目的地工作站內且當前路徑包含工作站進入點或進入點前
+            int currentWorkStationTagToGo = vehicle.GetNextWorkStationTag();
+            bool isDestineBelongEntryPointsOfWorkStations = currentWorkStationTagToGo.IsEntryPointOfWorkStation(out IEnumerable<MapPoint> workStations);
+
+
+            List<int> constrainTags = new List<int>();
+            IAGV vehicleAtWorkStation = null;
+
+            if (isDestineBelongEntryPointsOfWorkStations)
+            {
+                vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => workStations.Select(pt => pt.TagNumber).Contains(_vehicle.currentMapPoint.TagNumber));
+                if (vehicleAtWorkStation != null && isRotationWillConflicToVehicleAtWorkStation(vehicle, vehicleAtWorkStation))
+                    constrainTags.Add(currentWorkStationTagToGo);
+
+                bool isRotationWillConflicToVehicleAtWorkStation(IAGV agvGoTo, IAGV atWorkStationAGV)
+                {
+                    MapPoint toGoMapPoint = StaMap.GetPointByTagNumber(currentWorkStationTagToGo);
+                    var agvRotationGeo = agvGoTo.AGVRotaionGeometry.Clone();
+                    agvRotationGeo.SetCenter(toGoMapPoint.X, toGoMapPoint.Y);
+                    //要假裝AGV已達終點
+                    return agvRotationGeo.IsIntersectionTo(atWorkStationAGV.AGVRotaionGeometry);
+                }
+            }
+            else
+            {
+                IEnumerable<MapPoint> entryPoints = StaMap.GetPointByTagNumber(currentWorkStationTagToGo).TargetNormalPoints();
+                constrainTags.AddRange(entryPoints.GetTagCollection());
+                constrainTags.AddRange(entryPoints.SelectMany(entryPt => entryPt.TargetNormalPoints().GetTagCollection()));
+                vehicleAtWorkStation = otherVehicles.FirstOrDefault(_vehicle => _vehicle.currentMapPoint.TagNumber == currentWorkStationTagToGo);
+            }
+            if (vehicleAtWorkStation != null && path.GetTagCollection().Intersect(constrainTags).Any())
+            {
+                vehicle.CurrentRunningTask().UpdateStateDisplayMessage($"等待位於目的地-{currentWorkStationTagToGo.GetDisplayAtCurrentMap()} 車輛({vehicleAtWorkStation.Name})離開...");
+                return null;
+            }
+
+            return path;
+        }
+
+        private static IEnumerable<MapPoint>? GetPathWithPathReverseCheck(IAGV vehicle, MapPoint startPoint, IEnumerable<MapPoint>? path)
+        {
+            if (path != null && path.Count() > 1 && startPoint.SpinMode == 1)
+            {
+                List<MapPoint> _pathDetecting = path.ToList();
+                //檢查是否當前位置是否為不可旋轉點且轉向下一個目標需旋轉
+                double agvCurrentAngle = vehicle.states.Coordination.Theta;
+                //行駛至下一個點的朝向角
+                double forwardAngleToNextPoint = Tools.CalculationForwardAngle(_pathDetecting[0], _pathDetecting[1]);
+                double angleToTurn = Tools.CalculateTheateDiff(agvCurrentAngle, forwardAngleToNextPoint);
+                if (angleToTurn > 45)
+                {
+                    vehicle.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
+                    {
+                        StartPoint = _pathDetecting[0],
+                        EndPoint = _pathDetecting[1]
+                    };
+                    throw new RotatingOnSpinForbidPtException();
+                }
+                else
+                    return path;
+            }
+            else
+                return path;
+        }
+
+        private static IEnumerable<MapPoint>? GetPathNavToTrafficCheckPoint(IAGV vehicle, IEnumerable<MapPoint>? path)
+        {
+            if (path != null && path.Count() != 0 && TrafficControlCenter.TrafficControlParameters.Experimental.NavigationWithTrafficControlPoints)
+            {
+                var _path = path.Clone().ToList();
+                var firstTrafficControlPt = _path.Skip(1).FirstOrDefault(pt => pt.IsTrafficCheckPoint);
+                if (firstTrafficControlPt != null)
+                {
+                    NotifyServiceHelper.INFO($"{vehicle.Name} Go to traffic check point [{firstTrafficControlPt.TagNumber}] now!");
+                    int index = _path.IndexOf(firstTrafficControlPt); // 0,1,2,3,4
+                    path = _path.Take(index + 1);
+                }
+            }
+
+            return path;
+        }
+
         private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
         {
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = goalPoint;
-            IEnumerable<MapPoint> optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, new List<MapPoint>(), vehicle.states.Coordination.Theta);
+            IEnumerable<MapPoint> optimizePath_Init_No_constrain = null;
+
+            optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(vehicle), vehicle.states.Coordination.Theta);
+
             IEnumerable<MapPoint> optimizePath_Init = null;
 
             try
             {
-                optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
+                if (order.IsHighestPriorityTask)
+                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfHighestPriorityOdrder(vehicle, otherAGV, finalMapPoint, ref optimizePath_Init_No_constrain), vehicle.states.Coordination.Theta);
+                else
+                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
             }
             catch (Exception ex)
             {
@@ -253,7 +378,7 @@ namespace VMSystem.Dispatch
                 }
                 catch (Exception ex)
                 {
-                    LOG.ERROR(ex);
+                    logger.Error(ex);
                     return null;
                 }
             }
@@ -401,7 +526,7 @@ namespace VMSystem.Dispatch
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
-
+            constrains.AddRange(GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle));
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
                 if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
@@ -413,10 +538,30 @@ namespace VMSystem.Dispatch
             }
             if (MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt != null)
                 constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
+
+
             return constrains;
         }
 
+        private static List<MapPoint> GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(IAGV agv)
+        {
+            int nextWorkStationTag = agv.GetNextWorkStationTag();
+            MapRegion agvCurrentRegion = agv.currentMapPoint.GetRegion();
+            List<MapRegion> regionsExcept = StaMap.Map.Regions.Where(region => region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && region.Name != agvCurrentRegion.Name && region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion.Any()).ToList();
+            List<int> acceptGoalTags = regionsExcept.SelectMany(region => region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion).ToList();
+            if (acceptGoalTags.Contains(nextWorkStationTag))
+                return new List<MapPoint>();
+            var result = regionsExcept.SelectMany(region => region.GetPointsInRegion()).ToList();
+            return result;
+        }
 
+        private static List<MapPoint> GetConstrainsOfHighestPriorityOdrder(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint, ref IEnumerable<MapPoint> optimizePath_Init_No_constrain)
+        {
+            List<int> tagsOfTopPriorityOrderPath = optimizePath_Init_No_constrain.GetTagCollection().ToList();
+            List<MapPoint> exceptPoints = StaMap.Map.Points.Values.Where(pt => !tagsOfTopPriorityOrderPath.Contains(pt.TagNumber)).ToList();
+            return exceptPoints;
+
+        }
         internal static async Task SyncTrafficStateFromAGVSystemInvoke()
         {
             try
