@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.DATABASE.Helpers;
 using Microsoft.Extensions.Options;
 using System.Net.Sockets;
 using System.Text;
+using static VMSystem.AGV.clsAGVSimulation;
 
 namespace VMSystem.AGV
 {
@@ -44,5 +45,11 @@ namespace VMSystem.AGV
 
             internal double WorkingTimeAwait => WorkingTime / SpeedUpRate;
         }
+    }
+
+    public class clsAGVSimulationParametersViewModel : clsAGVSimulationParameters
+    {
+        public bool IsCIDReadFailSimulation { get; set; } = false;
+        public bool IsCIDReadMismatchSimulation { get; set; } = false;
     }
 }

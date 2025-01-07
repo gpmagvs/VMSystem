@@ -1,5 +1,6 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.Notify;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMSystem.AGV;
@@ -13,9 +14,21 @@ namespace VMSystem.Controllers
     public class AGVSimulationController : ControllerBase
     {
         [HttpGet("GetSimulationParameters")]
-        public async Task<Dictionary<string, clsAGVSimulation.clsAGVSimulationParameters>> GetSimulationParameters()
+        public async Task<Dictionary<string, clsAGVSimulationParametersViewModel>> GetSimulationParameters()
         {
-            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => agv.AgvSimulation.parameters);
+
+            // 配置 AutoMapper
+            var config = new MapperConfiguration(cfg => cfg.CreateMap<clsAGVSimulation.clsAGVSimulationParameters, clsAGVSimulationParametersViewModel>());
+            var mapper = config.CreateMapper();
+            return VMSManager.AllAGV.ToDictionary(agv => agv.Name, agv => GetViewModel(agv, mapper));
+
+            static clsAGVSimulationParametersViewModel GetViewModel(IAGV agv, IMapper mapper)
+            {
+                clsAGVSimulationParametersViewModel vm = mapper.Map<clsAGVSimulationParametersViewModel>(agv.AgvSimulation.parameters);
+                vm.IsCIDReadMismatchSimulation = agv.AgvSimulation.CargoReadMismatchSimulation;
+                vm.IsCIDReadFailSimulation = agv.AgvSimulation.CargoReadFailSimulation;
+                return vm;
+            }
         }
 
         [HttpPost("ModifySimulationParamters")]
@@ -30,13 +43,13 @@ namespace VMSystem.Controllers
 
 
         [HttpPost("CargoReadFailSimulation")]
-        public async Task<IActionResult> CargoReadFailSimulation(string AGVName,bool isReadFail)
+        public async Task<IActionResult> CargoReadFailSimulation(string AGVName, bool isReadFail)
         {
             IAGV agv = VMSManager.GetAGVByName(AGVName);
             if (agv == null)
                 return BadRequest();
             agv.AgvSimulation.CargoReadFailSimulation = isReadFail;
-            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取失敗]功能已{(isReadFail? "啟用":"關閉")}");
+            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取失敗]功能已{(isReadFail ? "啟用" : "關閉")}");
             return Ok();
         }
 
@@ -50,7 +63,16 @@ namespace VMSystem.Controllers
             NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取Missmatch]功能已{(isMissmatch ? "啟用" : "關閉")}");
             return Ok();
         }
-
+        [HttpPost("SetCIDAbnormalSimualtion")]
+        public async Task SetCIDAbnormalSimualtion(string AGVName, bool isCIDReadFail, bool isCIDReadMismatch)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return;
+            agv.AgvSimulation.CargoReadFailSimulation = isCIDReadFail;
+            agv.AgvSimulation.CargoReadMismatchSimulation = isCIDReadMismatch;
+            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取失敗]功能已{(isCIDReadFail ? "啟用" : "關閉")}/ [卡匣ID讀取Mismatch]功能已{(isCIDReadMismatch ? "啟用" : "關閉")}");
+        }
 
         [HttpPost("SetTag")]
         public async Task<IActionResult> SetTag(string AGVName, int tag)
