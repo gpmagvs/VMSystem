@@ -90,6 +90,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         await MCSCIMService.CarrierIDReadReport(OrderData.Carrier_ID, Agv.AgvIDStr, ID_READ_STATE.Mismatch);
                         await Task.Delay(200);
                     }
+                    transportCommand.CarrierID = newInstallID;
                     await MCSCIMService.TransferCompletedReport(transportCommand);
                     await Task.Delay(200);
                     await MCSCIMService.CarrierRemoveCompletedReport(OrderData.Carrier_ID, Agv.AgvIDStr, "", 1);
