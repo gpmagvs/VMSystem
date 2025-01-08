@@ -60,7 +60,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 {
                     if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN || alarm == ALARMS.AGV_STATUS_DOWN)
                     {
-
                         if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Load) // 放貨
                             transportCommand.ResultCode = Agv.IsAGVHasCargoOrHasCargoID() ? transferResultCodes.AGVDownWhenLDULDWithCargoResultCode : transferResultCodes.AGVDownWhenLDWithoutCargoResultCode; //AGV車上還有貨:表示放貨前就異常 反之在放好貨後(退出設備)時異常
                         else if (RunningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.Unload) //取貨
@@ -72,10 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     {
                         transportCommand.ResultCode = secsConfigsService.transferReportConfiguration.GetResultCode(alarm);
                     }
-
-                    await MCSCIMService.TransferAbortFailedReport(transportCommand);
                     await Task.Delay(100);
-
                 }
 
                 if (isIDReadMissmatch || isIDReadFail)
