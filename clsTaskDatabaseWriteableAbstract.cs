@@ -38,9 +38,14 @@ namespace VMSystem
                 if (dto == null)
                     return;
 
+
                 var entity = agvsDb.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
                 if (entity != null)
                 {
+                    while (agvsDb.tables.IsTaskTableLocking())
+                    {
+                        await Task.Delay(100);
+                    }
                     mapper.Map(dto, entity);
                     int save_cnt = await agvsDb.SaveChanges();
                     logger.Trace($"Task Order-[{dto.TaskName}](Assigned For={entity.DesignatedAGVName},State={entity.StateName}) content changed \r\n{dto.ToJson()}");
