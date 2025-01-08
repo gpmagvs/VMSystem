@@ -66,7 +66,11 @@ try
     string DBConnection = AGVSConfigulator.SysConfigs.DBConnection;
     builder.Services.AddDbContext<AGVSDbContext>(options =>
     {
-        options.UseSqlServer(DBConnection);
+        options.UseSqlServer(DBConnection, opt =>
+        {
+            opt.CommandTimeout(10);
+            opt.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+        });
     });
 
 
