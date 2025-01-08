@@ -109,6 +109,9 @@ namespace VMSystem.TrafficControl
 
             public bool NearRackPortParkable { get; set; } = false;
 
+
+            public bool ChangeChargeStationWhenWaitTrafficControlTooLong { get; set; } = false;
+
             /// <summary>
             /// 訂單轉移參數配置
             /// </summary>

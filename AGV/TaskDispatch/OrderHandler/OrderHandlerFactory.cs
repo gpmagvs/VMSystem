@@ -104,7 +104,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             var _queue = new Queue<TaskBase>();
             MapPoint _agv_current_map_point = _agv.currentMapPoint;
 
-
             bool _isHotRunOrderSourceAtMainEQ = orderData.TaskName.ToLower().Contains("hr_") && !orderData.From_Station_Tag.IsRackPortStation();
             bool _isHotRunOrderDestineAtMainEQ = orderData.TaskName.ToLower().Contains("hr_") && !orderData.To_Station_Tag.IsRackPortStation();
 
@@ -170,10 +169,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             if (orderData.Action == ACTION_TYPE.Charge || orderData.Action == ACTION_TYPE.DeepCharge)
             {
+                bool _tryChangeCharger = TrafficControlCenter.TrafficControlParameters.Experimental.ChangeChargeStationWhenWaitTrafficControlTooLong;
+
                 _queue.Enqueue(new MoveToDestineTask(_agv, orderData, taskTbModifyLock)
                 {
                     NextAction = ACTION_TYPE.Charge,
-                    DestineChanger = new ChargeStationChanger(_agv, orderData, taskTbModifyLock)
+                    DestineChanger = _tryChangeCharger ? new ChargeStationChanger(_agv, orderData, taskTbModifyLock) : null
                 });
                 _queue.Enqueue(new ChargeTask(_agv, orderData, taskTbModifyLock));
                 return _queue;
