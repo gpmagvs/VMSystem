@@ -20,7 +20,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
     public class OrderHandlerFactory
     {
-        static AGVSDbContext agvsDb => VMSManager.AGVSDbContext;
         static SemaphoreSlim taskTbModifyLock => VMSManager.tasksLock;
 
         private Dictionary<ACTION_TYPE, OrderHandlerBase> _OrderHandlerMap = new Dictionary<ACTION_TYPE, OrderHandlerBase>() {

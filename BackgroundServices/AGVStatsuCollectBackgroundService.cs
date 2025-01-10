@@ -10,11 +10,10 @@ namespace VMSystem.BackgroundServices
 {
     public class AGVStatsuCollectBackgroundService : BackgroundService
     {
-        AGVSDbContext dbContext;
+        IServiceScopeFactory _scopeFactory;
         public AGVStatsuCollectBackgroundService(IServiceScopeFactory scopeFactory)
         {
-            this.dbContext = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<AGVSDbContext>();
-            //dbContext;
+            _scopeFactory = scopeFactory;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,7 +31,7 @@ namespace VMSystem.BackgroundServices
                     {
 
                         await Task.Delay(1000);
-
+                        using AGVSDbContext dbContext = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<AGVSDbContext>();
                         foreach (IAGV vehicle in VMSManager.AllAGV)
                         {
                             AGVStatus agvStatus = CreateAGVStatus(vehicle);
@@ -50,7 +49,7 @@ namespace VMSystem.BackgroundServices
 
                         }
 
-                        await dbContext.SaveChangesAsync();
+                        int num = await dbContext.SaveChangesAsync();
                     }
                     catch (Exception ex)
                     {

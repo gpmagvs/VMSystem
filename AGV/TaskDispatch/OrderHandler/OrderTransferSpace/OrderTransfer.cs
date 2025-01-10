@@ -146,7 +146,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                     {
                         Log($"Monitor process is Aborted");
                     }
-                    base.agvsDb.Dispose();
                 }
 
             });
@@ -195,7 +194,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
             // Transfer order to other vehicle
             if (betterVehicle == null)
                 return false;
-
+            await Task.Delay(1000);
             //Second, Transfer the order to the target vehicle
             bool orderModifiedSuccess = await ModifyOrder(betterVehicle);
 
@@ -221,9 +220,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
         {
             try
             {
-                clsTaskDto orderDto = agvsDb.Tasks.AsNoTracking().FirstOrDefault(t => t.TaskName == order.TaskName);
+                using AGVSDatabase agvsDb = new AGVSDatabase();
+                clsTaskDto orderDto = agvsDb.tables.Tasks.AsNoTracking().FirstOrDefault(t => t.TaskName == order.TaskName);
                 if (orderDto == null)
                     return false;
+
                 orderDto.FinishTime = DateTime.MinValue;
                 orderDto.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
                 orderDto.FailureReason = "";

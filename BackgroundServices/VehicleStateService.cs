@@ -71,14 +71,16 @@ namespace VMSystem.BackgroundServices
                 try
                 {
                     await VMSManager.AgvStateDbTableLock.WaitAsync();
+                    using AGVSDbContext dbContext = _scopeFactory.CreateAsyncScope().ServiceProvider.GetRequiredService<AGVSDbContext>();
+
                     foreach (IAGV agv in VMSManager.AllAGV)
                     {
-                        clsAGVStateDto? entityInDatabase = context.AgvStates.Where(state => state.AGV_Name == agv.Name).FirstOrDefault();
+                        clsAGVStateDto? entityInDatabase = dbContext.AgvStates.Where(state => state.AGV_Name == agv.Name).FirstOrDefault();
 
                         if (entityInDatabase == null)//不存在
                         {
                             clsAGVStateDto _newEntity = UpdateDTO(ref entityInDatabase, agv);
-                            context.AgvStates.Add(_newEntity);
+                            dbContext.AgvStates.Add(_newEntity);
                         }
                         else
                         {
@@ -90,12 +92,12 @@ namespace VMSystem.BackgroundServices
                             if (statesCache.HasChanged(modifiedEntity))
                             {
                                 mapper.Map(modifiedEntity, entityInDatabase);
-                                context.Entry(entityInDatabase).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+                                dbContext.Entry(entityInDatabase).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
 
                             }
                         }
                     }
-                    int changedNum = await context.SaveChangesAsync();
+                    int changedNum = await dbContext.SaveChangesAsync();
 
                 }
                 catch (Exception ex)

@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6;
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AutoMapper;
 using Nini.Config;
 using NLog;
@@ -35,33 +36,38 @@ namespace VMSystem
             try
             {
                 await taskTbModifyLock.WaitAsync();
-                if (dto == null)
-                    return;
+                DBDataService.OperationResult result = await AGVSSerivces.DATABASE.ModifyTaskDto(dto);
 
-
-                var entity = agvsDb.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
-                if (entity != null)
+                if (result.IsSuccess)
                 {
-                    while (agvsDb.tables.IsTaskTableLocking())
-                    {
-                        await Task.Delay(100);
-                    }
-                    mapper.Map(dto, entity);
-                    int save_cnt = await agvsDb.SaveChanges();
-                    logger.Trace($"Task Order-[{dto.TaskName}](Assigned For={entity.DesignatedAGVName},State={entity.StateName}) content changed \r\n{dto.ToJson()}");
+                    logger.Trace($"Task Order-[{dto.TaskName}](Assigned For={dto.DesignatedAGVName},State={dto.StateName}) content changed \r\n{dto.ToJson()}");
+                }
+                else
+                {
+                    logger.Error($"Task Order-[{dto.TaskName}] content change failed \r\n{dto.ToJson()}");
                 }
             }
             catch (Exception ex)
             {
-
-                throw ex;
+                await ModifyOrderAccessDataBaseDirectly(dto);
             }
             finally
             {
                 taskTbModifyLock.Release();
             }
         }
-
+        private async Task ModifyOrderAccessDataBaseDirectly(clsTaskDto dto)
+        {
+            if (dto == null)
+                return;
+            var entity = agvsDb.tables.Tasks.FirstOrDefault(tk => tk.TaskName == dto.TaskName);
+            if (entity != null)
+            {
+                mapper.Map(dto, entity);
+                int save_cnt = await agvsDb.SaveChanges();
+                logger.Trace($"Task Order-[{dto.TaskName}](Assigned For={entity.DesignatedAGVName},State={entity.StateName}) content changed \r\n{dto.ToJson()}");
+            }
+        }
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
