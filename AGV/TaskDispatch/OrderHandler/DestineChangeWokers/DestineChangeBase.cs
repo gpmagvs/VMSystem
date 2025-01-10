@@ -69,7 +69,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
 
                 }
                 Console.WriteLine($"{this.GetType().Name}-Finish Monitor");
-                base.agvsDb.Dispose();
             });
         }
 

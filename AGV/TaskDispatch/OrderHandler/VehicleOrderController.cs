@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Equipment;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AutoMapper;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
@@ -8,12 +9,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     public class VehicleOrderController
     {
 
-        public AGVSDbContext agvsDb;
         public readonly SemaphoreSlim tasksTableDbLock;
         public VehicleOrderController(SemaphoreSlim taskTableLocker)
         {
             tasksTableDbLock = taskTableLocker;
-            agvsDb = new AGVSDatabase().tables;
         }
 
         public virtual async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason, int timeout = 300)
@@ -27,10 +26,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             try
             {
                 await this.tasksTableDbLock.WaitAsync();
-                if (agvsDb == null)
-                    return false;
-                agvsDb.Tasks.Add(newOrder);
-                await agvsDb.SaveChangesAsync();
+
+                try
+                {
+                    await AddOrderWithWebAPI(newOrder);
+                }
+                catch (Exception)
+                {
+                    await AddOrderWithDataBaseAccessDirectly(newOrder);
+                }
                 return true;
             }
             catch (Exception ex)
@@ -48,18 +52,14 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             try
             {
                 await this.tasksTableDbLock.WaitAsync();
-                if (agvsDb == null)
-                    return false;
-
-                MapperConfiguration mapperConfig = new MapperConfiguration(cfg => cfg.CreateMap<clsTaskDto, clsTaskDto>());
-                IMapper mapper = mapperConfig.CreateMapper();
-
-                clsTaskDto orderDto = agvsDb.Tasks.FirstOrDefault(t => t.TaskName == orderModified.TaskName);
-                if (orderDto == null)
-                    return false;
-                mapper.Map(orderModified, orderDto);
-                agvsDb.Entry(orderDto).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
-                await agvsDb.SaveChangesAsync();
+                try
+                {
+                    await ModifyOrderWithWebAPI(orderModified);
+                }
+                catch (Exception)
+                {
+                    await ModifyOrderWithDataBaseAccessDirectly(orderModified);
+                }
                 return true;
             }
             catch (Exception ex)
@@ -79,6 +79,35 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 await Task.Delay(1000);
             }
         }
+
+        private async Task AddOrderWithWebAPI(clsTaskDto order)
+        {
+            await AGVSSerivces.DATABASE.AddTaskDto(order);
+        }
+        private async Task AddOrderWithDataBaseAccessDirectly(clsTaskDto order)
+        {
+            using AGVSDatabase agvsDb = new AGVSDatabase();
+            agvsDb.tables.Tasks.Add(order);
+            await agvsDb.SaveChanges();
+        }
+
+        private async Task ModifyOrderWithWebAPI(clsTaskDto order)
+        {
+            await AGVSSerivces.DATABASE.ModifyTaskDto(order);
+        }
+        private async Task ModifyOrderWithDataBaseAccessDirectly(clsTaskDto order)
+        {
+            using AGVSDatabase agvsDb = new AGVSDatabase();
+            MapperConfiguration mapperConfig = new MapperConfiguration(cfg => cfg.CreateMap<clsTaskDto, clsTaskDto>());
+            IMapper mapper = mapperConfig.CreateMapper();
+            clsTaskDto orderDto = agvsDb.tables.Tasks.FirstOrDefault(t => t.TaskName == order.TaskName);
+            if (orderDto == null)
+                return;
+            mapper.Map(order, orderDto);
+            agvsDb.tables.Entry(orderDto).State = Microsoft.EntityFrameworkCore.EntityState.Modified;
+            await agvsDb.SaveChanges();
+        }
+
 
         protected async Task<(bool, string)> WaitOwnerVehicleIdle(IAGV agv, int timeout = 300)
         {

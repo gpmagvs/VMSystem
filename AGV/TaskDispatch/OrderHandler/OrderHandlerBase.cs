@@ -92,6 +92,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OrderStartEvnetArgs _OrderStartEventArgs = new OrderStartEvnetArgs(this);
             OnOrderStart?.Invoke(this, _OrderStartEventArgs);
             secsConfigsService = _OrderStartEventArgs.secsConfigsService;
+
             TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
             trajectoryRecorder.Start();
             _ = Task.Run(async () =>
@@ -123,8 +124,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         return;
                     }
                 }
-
-                //
                 await SyncTrafficStateFromAGVSystem();
                 double beginMileageOfVehicle = Agv.states.Odometry;
                 _SetOrderAsRunningState();
@@ -141,6 +140,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         task.TaskName = OrderData.TaskName;
                         task.TaskSequence = CompleteTaskStack.Count + 1;
                         RunningTask = task;
+
                         task.OnTaskDownloadToAGVButAGVRejected += (_alarm) =>
                         {
                             AbortOrder(_alarm);
