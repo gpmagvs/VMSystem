@@ -11,6 +11,8 @@ using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.ConflicDetection;
 using VMSystem.VMS;
+using static AGVSystemCommonNet6.MAP.PathFinder.PathFinderOption;
+using static VMSystem.AGV.TaskDispatch.Tasks.MoveTaskDynamicPathPlanV2;
 
 namespace VMSystem.Dispatch.Regions
 {
@@ -264,8 +266,19 @@ namespace VMSystem.Dispatch.Regions
                 {
                     bool _IsEnterable()
                     {
+                        List<IAGV> vehiclesInRegion = VMSManager.AllAGV.Where(vehicle => vehicle.currentMapPoint.GetRegion().Name == Region.Name).ToList();
+
                         BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name))
                                                                  .ToList();
+
+
+                        int NumberOfIdlingVehicleNotOnMainPath = vehiclesInRegion.Count(v => v.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
+                        bool IsUpToLimit = vehiclesInRegion.Count() - NumberOfIdlingVehicleNotOnMainPath >= Region.MaxVehicleCapacity;
+                        if (!IsUpToLimit)
+                        {
+                            return true;
+                        }
+
                         int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
                         return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
                     }
