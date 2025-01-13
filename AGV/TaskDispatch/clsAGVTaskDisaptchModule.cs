@@ -194,50 +194,6 @@ namespace VMSystem.AGV
 
             }
         }
-        // 原本自動充電相關function 如之後沒問題可刪
-        //private void TryToCharge()
-        //{
-        //    if (agv.currentMapPoint.IsCharge)
-        //        return;
-
-        //    Task.Run(async () =>
-        //    {
-        //        //Delay一下再確認可不可充電
-        //        await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
-
-        //        if (SystemModes.RunMode != RUN_MODE.RUN)
-        //            return;
-
-        //        if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-        //        {
-        //            var _charge_forbid_alarm = await AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
-        //            WaitingToChargable(_charge_forbid_alarm);
-        //            return;
-        //        }
-        //        if (agv.main_state == clsEnums.MAIN_STATUS.IDLE)
-        //        {
-        //            CreateChargeTask();
-        //            await Task.Delay(200);
-        //        }
-        //    });
-        //    Task.Factory.StartNew(() => { }, TaskCreationOptions.LongRunning);
-        //}
-
-        //private async void WaitingToChargable(clsAlarmDto _charge_forbid_alarm)
-        //{
-        //    while (OrderExecuteState == AGV_ORDERABLE_STATUS.NO_ORDER && SystemModes.RunMode == RUN_MODE.RUN)
-        //    {
-        //        await Task.Delay(1000);
-        //        if (agv.states.Cargo_Status == 1 || agv.states.CSTID.Any(id => id != ""))
-        //            continue;
-
-        //        CreateChargeTask();
-        //        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm);
-        //        break;
-        //    }
-        //    logger.Info($"Wait AGV ({agv.Name}) Cargo Status is Chargable Process end.");
-        //}
-
         private SemaphoreSlim _syncTaskQueueFronDBSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         private CancellationTokenSource _DelayWhenAutoSearchStationFailCts = new CancellationTokenSource();
