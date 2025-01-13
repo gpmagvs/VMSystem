@@ -34,22 +34,23 @@ namespace VMSystem.TrafficControl.ConflicDetection
         public virtual clsConflicDetectResultWrapper Detect()
         {
             logger.Info($"{this.GetType().Name} Basic Detect start: DetectPoint(Tag)={DetectPoint.TagNumber}/AGV={AGVToDetect.Name}/ThetaOfPridiction={ThetaOfPridiction}.");
-
-            if (OtherAGV.Count() == 0)
-            {
-                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
-            }
-            logger.Info($"OtherAGV={OtherAGV.GetNames()}");
-
             clsConflicDetectResultWrapper _baseResult = new clsConflicDetectResultWrapper(DETECTION_RESULT.NG, "");
+
             if (IsRegisted(out IAGV registedAGV))
             {
                 _baseResult.Result = DETECTION_RESULT.NG;
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.REGISTED;
                 _baseResult.ConflicToAGVList = new() { registedAGV };
                 _baseResult.Message = $"Point({DetectPoint.GetName()}) be registed by {registedAGV.Name}";
+                return _baseResult;
             }
-            else if (IsConflicToOtherVehicleBody(out List<IAGV> conflicAGVList))
+            if (OtherAGV.Count() == 0)
+            {
+                return new clsConflicDetectResultWrapper(DETECTION_RESULT.OK, "");
+            }
+            logger.Info($"OtherAGV={OtherAGV.GetNames()}");
+
+            if (IsConflicToOtherVehicleBody(out List<IAGV> conflicAGVList))
             {
                 _baseResult.Result = DETECTION_RESULT.NG;
                 _baseResult.ConflicStatusCode = CONFLIC_STATUS_CODE.CONFLIC_TO_OTHER_AGV_BODY;

@@ -15,7 +15,7 @@ namespace VMSystem.TrafficControl.ConflicDetection
         }
         protected override IEnumerable<IAGV> GetOtherVehicles()
         {
-            return base.GetOtherVehicles().Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal);
+            return base.GetOtherVehicles().Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal || agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING);
         }
         public override clsConflicDetectResultWrapper Detect()
         {
