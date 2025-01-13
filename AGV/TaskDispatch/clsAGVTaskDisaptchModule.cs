@@ -112,6 +112,7 @@ namespace VMSystem.AGV
                 }
             }
         }
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
         /// <summary>
         /// 自動派AGV去充電
@@ -172,7 +173,24 @@ namespace VMSystem.AGV
                     if (_charge_forbid_alarm != null)
                         AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
                     _charge_forbid_alarm = null;
-                    CreateChargeTask(_autoSearchParkStation ? ACTION_TYPE.Park : ACTION_TYPE.Charge);
+
+                    ParkStationSearch _parkStationSearcher = new ParkStationSearch();
+                    try
+                    {
+                        await semaphore.WaitAsync();
+                        ParkStationSearch.ParkStationSearchResult searchReuslt = await _parkStationSearcher.FindStationToPark(this.agv);
+                        await CreateAutoParkOrder(searchReuslt.ActionType, searchReuslt.Tag);
+                        await Task.Delay(500);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error(ex);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                    //CreateAutoParkOrder(_autoSearchParkStation ? ACTION_TYPE.Park : ACTION_TYPE.Charge);
                 }
 
                 bool IsAGVIdleNeedCharge(out string caseDescription)
@@ -604,18 +622,18 @@ namespace VMSystem.AGV
                 orderHandler.RunningTask.TrafficWaitingState.SetStatusNoWaiting();
                 _IsChargeStatesChecking = false;
             }
-
         }
-        private async void CreateChargeTask(ACTION_TYPE action, int chargeStationTag = -1)
+
+        private async Task CreateAutoParkOrder(ACTION_TYPE action, int StationTag = -1)
         {
-            _ = await TaskDBHelper.Add(new clsTaskDto
+            await TaskDBHelper.Add(new clsTaskDto
             {
                 Action = action,
                 TaskName = $"{action}-{agv.Name}_{DateTime.Now.ToString("yyMMdd_HHmmssff")}",
                 DispatcherName = "",
                 DesignatedAGVName = agv.Name,
                 RecieveTime = DateTime.Now,
-                To_Station = chargeStationTag + ""
+                To_Station = StationTag + ""
             });
         }
 
