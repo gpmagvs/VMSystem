@@ -40,6 +40,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public override bool IsAGVReachDestine => Agv?.states?.Last_Visited_Node == DestineTag;
 
+
+
         public enum SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY
         {
             ANY,
@@ -955,14 +957,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
 
             List<MapRegion> regionsFiltered = regions.Where(reg => reg.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && reg.Name != Agv.currentMapPoint.GetRegion()?.Name).ToList();
-            //bool isAllRegionNowIsEntrable = regionsFiltered.All(reg => RegionManager.IsRegionEnterable(Agv, reg));
-            //if (isAllRegionNowIsEntrable)
-            //{
-            //    MapRegion _NextRegion = regionsFiltered.FirstOrDefault(reg => RegionManager.IsRegionEnterable(Agv, reg));
-            //    //_NextRegion
-            //    var nearstPt = _NextRegion.GetNearestPointOfRegion(this.Agv);
-            //    return (true, _NextRegion, nearstPt, true);
-            //}
 
             MapRegion NextRegion = regionsFiltered.FirstOrDefault(reg => !RegionManager.IsRegionEnterable(Agv, reg));
 
@@ -1039,6 +1033,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             IAGV inRegionVehicle = inRegionVehicles.FirstOrDefault();
             if (inRegionVehicle == null)
                 return false;
+            int NumberOfIdlingVehicleNotOnMainPath = inRegionVehicles.Count(v => v.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
+
+            bool IsUpToLimit = inRegionVehicles.Count() - NumberOfIdlingVehicleNotOnMainPath >= region.MaxVehicleCapacity;
+            if (!IsUpToLimit)
+            {
+                Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING;
+                return true;
+            }
 
             List<MapPoint> pointsOfRegion = region.GetPointsInRegion();
 

@@ -112,6 +112,7 @@ namespace VMSystem.AGV.TaskDispatch
         /// <returns></returns>
         private double GetDistanceWithWeightByCarrierExistRack(int tag, double distance)
         {
+            return distance;
             //try get station info from database by tag
             using AGVSDatabase db = new AGVSDatabase();
             var stationsInfo = db.tables.StationStatus.Where(st => st.StationTag == tag.ToString());
