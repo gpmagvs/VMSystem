@@ -205,6 +205,9 @@ namespace VMSystem.TrafficControl
             return (allowLeve, message);
         }
 
+
+        private static Dictionary<int, CancellationTokenSource> _EntryPointToLeaveToCTSMap = new Dictionary<int, CancellationTokenSource>();
+
         internal static async Task<clsLeaveFromWorkStationConfirmEventArg> HandleAgvLeaveFromWorkstationRequest(clsLeaveFromWorkStationConfirmEventArg args)
         {
 
@@ -219,9 +222,20 @@ namespace VMSystem.TrafficControl
                 }
                 var otherAGVList = VMSManager.AllAGV.FilterOutAGVFromCollection(_RaiseReqAGV);
                 MapPoint goalPoint = StaMap.GetPointByTagNumber(args.GoalTag);
+
+                if (!_EntryPointToLeaveToCTSMap.TryGetValue(args.GoalTag, out CancellationTokenSource cts))
+                {
+                    cts = new CancellationTokenSource();
+                    _EntryPointToLeaveToCTSMap.Add(args.GoalTag, cts);
+                }
+                else
+                {
+                    cts.Dispose();
+                    cts = new CancellationTokenSource();
+                }
+
                 bool isLeaveFromChargeStation = _RaiseReqAGV.currentMapPoint.IsCharge;
                 string _waitMessage = "";
-
                 clsConflicDetectResultWrapper _result = new(DETECTION_RESULT.NG, "");
                 if (isLeaveFromChargeStation)
                 {
@@ -253,10 +267,7 @@ namespace VMSystem.TrafficControl
                 var entryPointOfWorkStation = StaMap.GetPointByTagNumber(args.GoalTag);
                 bool _isAllowLeaveByDeadLockDetection = _RaiseReqAGV.NavigationState.LeaveWorkStationHighPriority;
                 bool _isNeedWait = _isAllowLeaveByDeadLockDetection ? false :
-                                    (_result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG) || _parkResult.Result == DETECTION_RESULT.NG;
-
-
-
+                    (_result.Result == DETECTION_RESULT.NG || workstationLeaveAddictionCheckResult.Result == DETECTION_RESULT.NG) || _parkResult.Result == DETECTION_RESULT.NG;
 
                 CONFLIC_STATUS_CODE conflicStatus = _result.ConflicStatusCode;
                 _RaiseReqAGV.NavigationState.IsWaitingForLeaveWorkStation = _isNeedWait;
@@ -294,44 +305,75 @@ namespace VMSystem.TrafficControl
                         _navingPointsForbid.Add(entryPointOfWorkStation);
 
                         //計算AGV若抵達進入點，車體長度延伸1.2倍後，車體涵蓋範圍會與那些路徑重疊
-                        List<MapRectangle> agvConverRegions = Tools.GetPathRegionsWithRectangle(_navingPointsForbid, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength * 1.2 / 100.0);
 
-                        List<MapPath> intersectionPathes = StaMap.Map.Segments.Where(seg => IsIntersection(seg)).ToList();
-                        bool IsIntersection(MapPath seg)
-                        {
-                            MapPoint _startPt = StaMap.GetPointByIndex(seg.StartPtIndex);
-                            MapPoint _endPt = StaMap.GetPointByIndex(seg.EndPtIndex);
-                            if (_startPt.StationType != STATION_TYPE.Normal || _endPt.StationType != STATION_TYPE.Normal)
-                                return false;
-                            var _pathRectangle = Tools.GetPathRegionsWithRectangle(new List<MapPoint>() { _startPt, _endPt }, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength / 100.0);
-                            return _pathRectangle.Any(reg => reg.IsIntersectionTo(agvConverRegions.First()));
-                        }
-                        List<int> addictionRegistedTags = new List<int>();
-                        foreach (MapPath _path in intersectionPathes)
-                        {
-                            MapPoint _startPt = StaMap.GetPointByIndex(_path.StartPtIndex);
-                            MapPoint _endPt = StaMap.GetPointByIndex(_path.EndPtIndex);
-                            if (_startPt.StationType == STATION_TYPE.Normal)
-                            {
+                        MapCircleArea rotationArea = entryPointOfWorkStation.GetCircleArea(ref args.Agv, 1.05);
 
-                                bool registedResult1 = StaMap.RegistPoint(_RaiseReqAGV.Name, _startPt, out _);
-                                if (registedResult1)
-                                    addictionRegistedTags.Add(_startPt.TagNumber);
-                            }
-                            if (_endPt.StationType == STATION_TYPE.Normal)
-                            {
-                                bool registedResult2 = StaMap.RegistPoint(_RaiseReqAGV.Name, _endPt, out _);
-                                if (registedResult2)
-                                    addictionRegistedTags.Add(_endPt.TagNumber);
-                            }
-                        }
-
+                        List<int> addictionRegistedTags = StaMap.Map.Points.Values.Where(pt => pt.StationType == STATION_TYPE.Normal)
+                                                                                  .Where(pt => rotationArea.IsIntersectionTo(pt.GetCircleArea(ref args.Agv, 1)))
+                                                                                  .Select(pt => pt.TagNumber).ToList();
                         addictionRegistedTags = addictionRegistedTags.Distinct().OrderBy(t => t).ToList();
-                        NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可!");
+
+                        foreach (var tag in addictionRegistedTags)
+                        {
+                            bool registedResult = await _RegistTask();
+
+                            if (!registedResult)
+                            {
+                                _ = Task.Run(async () =>
+                                {
+                                    NotifyServiceHelper.SUCCESS($"Regist Tag {tag} fail. Start retry...");
+                                    while (!await _RegistTask())
+                                    {
+                                        try
+                                        {
+                                            await Task.Delay(100, cts.Token);
+                                        }
+                                        catch (Exception)
+                                        {
+                                            NotifyServiceHelper.INFO($"Regist Tag {tag} retry process is canceled!");
+                                            return;
+                                        }
+                                    }
+
+                                    NotifyServiceHelper.SUCCESS($"Regist Tag {tag} retry success!");
+
+                                });
+                            }
+
+                            async Task<bool> _RegistTask()
+                            {
+                                return StaMap.RegistPoint(_RaiseReqAGV.Name, new List<int> { tag }, out _);
+                            }
+                        }
+
+
                         logger.Info($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可! 額外註冊點:{string.Join(",", addictionRegistedTags)}");
+                        NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 請求退出至 Tag-{args.GoalTag}已許可! 額外註冊點:{string.Join(",", addictionRegistedTags)}");
                         _RaiseReqAGV.NavigationState.UpdateNavigationPoints(_navingPointsForbid);
                         (_RaiseReqAGV.CurrentRunningTask() as LoadUnloadTask)?.UpdateEQActionMessageDisplay();
                         args.ActionConfirm = clsLeaveFromWorkStationConfirmEventArg.LEAVE_WORKSTATION_ACTION.OK;
+
+                        //watch agv reach entry point 
+
+                        _ = Task.Run(async () =>
+                        {
+                            while (_RaiseReqAGV.currentMapPoint.TagNumber != args.GoalTag)
+                            {
+                                await Task.Delay(100);
+                            }
+                            NotifyServiceHelper.SUCCESS($"AGV {_RaiseReqAGV.Name} 已退出至 Tag {args.GoalTag} !");
+                            cts.Cancel();
+                        });
+
+                        //bool IsIntersection(MapPath seg)
+                        //{
+                        //    MapPoint _startPt = StaMap.GetPointByIndex(seg.StartPtIndex);
+                        //    MapPoint _endPt = StaMap.GetPointByIndex(seg.EndPtIndex);
+                        //    if (_startPt.StationType != STATION_TYPE.Normal || _endPt.StationType != STATION_TYPE.Normal)
+                        //        return false;
+                        //    var _pathRectangle = Tools.GetPathRegionsWithRectangle(new List<MapPoint>() { _startPt, _endPt }, _RaiseReqAGV.options.VehicleWidth / 100.0, _RaiseReqAGV.options.VehicleLength / 100.0);
+                        //    return _pathRectangle.Any(reg => reg.IsIntersectionTo(agvRotationConverRegions.First()));
+                        //}
                     }
 
                 }

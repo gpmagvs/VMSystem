@@ -225,7 +225,6 @@ namespace VMSystem
                     RegistDictionary[point.TagNumber].NearRegistInfo.RegistByPointTag = CenterPoints.TagNumber;
                 }
             }
-            //registAgv.AGVRotaionGeometry
         }
 
         internal static bool RegistPoint(string Name, MapPoint mapPoint, out string error_message, bool IsBySystem = false, bool registNearPoints = true)
@@ -325,14 +324,6 @@ namespace VMSystem
                 }
                 if (RegistDictionary.ContainsKey(TagNumber))
                 {
-                    //var mapPt = registedPointsByConflic.FirstOrDefault(pt => pt.TagNumber == TagNumber);
-                    //if (mapPt != null && mapPt.GetCircleArea(ref agv, 0.5).IsIntersectionTo(agv.AGVRotaionGeometry))
-                    //{
-                    //    var msg = $"Too Near Point cannot unregist-{Name}";
-                    //    logger.Trace(msg);
-                    //    return (false, msg);
-                    //}
-
                     var error_message = "";
                     string registerName = RegistDictionary[TagNumber].RegisterAGVName;
                     bool allow_remove = registerName == Name;
@@ -345,17 +336,6 @@ namespace VMSystem
                         OnTagUnregisted?.Invoke("", TagNumber);
                         TrafficControl.PartsAGVSHelper.UnRegistStationRequestToAGVS(new List<string>() { mapPoint.Graph.Display });
                         logger.Trace($"{Name} UnRegist Tag {TagNumber}");
-
-                        //var nearRegistedPoints = RegistDictionary.Where(pair => pair.Value.NearRegistInfo.RegistByPointTag == TagNumber).Select(p => p.Key);
-
-                        //if (nearRegistedPoints.Any())
-                        //{
-                        //    foreach (var tag in nearRegistedPoints)
-                        //    {
-                        //        RegistDictionary.Remove(tag);
-                        //    }
-                        //}
-
                     }
                     else
                     {
