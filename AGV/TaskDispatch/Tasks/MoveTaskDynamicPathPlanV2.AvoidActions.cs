@@ -155,6 +155,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
+                Agv.NavigationState.ResetNavigationPoints();
+
                 IAGV currentAvoidToVehicle = Agv.NavigationState.AvoidActionState.AvoidToVehicle; //正在避讓那車
                 if (currentAvoidToVehicle == null || currentAvoidToVehicle.NavigationState.currentConflicToAGV == null)
                     return;
