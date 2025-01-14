@@ -125,6 +125,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
+                ChangeWorkStationMoveStateForwarding();
                 await RaiseRotateActionAfertLoadUnload();
                 InvokeTaskDoneEvent();
             }
@@ -605,6 +606,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
             await Task.Delay(1500);
             Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
+        }
+        private void ChangeWorkStationMoveStateForwarding()
+        {
+            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
         }
         internal async Task UpdateEQActionMessageDisplay()
         {

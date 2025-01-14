@@ -143,6 +143,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     try
                     {
+                        if (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
+                        {
+                            Agv.NavigationState.ResetNavigationPoints();
+                            await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+                        }
 
                         Agv.NavigationState.currentConflicToAGV = null;
                         Agv.NavigationState.CurrentConflicRegion = null;
@@ -189,8 +194,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         else
                             dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
 
+                        if (subStage == VehicleMovementStage.AvoidPath && !OtherAGV.Any(v => v.NavigationState.currentConflicToAGV == this.Agv))
+                        {
+                            subStage = Stage;
+                            _finalMapPoint = this.finalMapPoint;
+                        }
+
                         if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising)
                         {
+
+
                             //if (SecondaryPathSearching)//表示第二路徑也沒有辦法通行
                             //{
                             //    RestoreClosedPathes();
@@ -205,6 +218,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             if (Agv.main_state != clsEnums.MAIN_STATUS.RUN)
                             {
+                                Agv.NavigationState.ResetNavigationPoints();
                                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             }
 
@@ -711,6 +725,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                 DispatchCenter.OnPtPassableBecausePartsReplaceFinish -= EQFinishPartsReplacedHandler;
                 Agv.NavigationState.StateReset();
+                RestoreClosedPathes();
                 InvokeTaskDoneEvent();
             }
 

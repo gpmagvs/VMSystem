@@ -495,6 +495,7 @@ namespace VMSystem.AGV
                                     DeepChargeRecorder deepChargeRecorder = new DeepChargeRecorder(this.agv, OrderHandler.OrderData.TaskName);
                                     this.agv.UpdateDeepChargeRecorder(deepChargeRecorder);
                                 }
+                                agv.NavigationState.StateReset();
                                 OrderHandler.StartOrder(agv);
                                 OrderHandler.OnTaskCanceled += OrderHandler_OnTaskCanceled;
                                 OrderHandler.OnOrderFinish += OrderHandler_OnOrderFinish;

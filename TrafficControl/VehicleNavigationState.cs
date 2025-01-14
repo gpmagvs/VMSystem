@@ -91,7 +91,7 @@ namespace VMSystem.TrafficControl
             FORWARDING,
             BACKWARDING
         }
-        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.BACKWARDING;
+        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.FORWARDING;
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
@@ -445,6 +445,7 @@ namespace VMSystem.TrafficControl
             LastWaitingForPassableTimeoutPt = new MapPoint("", 0);
             currentConflicToAGV = null;
             AvoidActionState.Reset();
+            WorkStationMoveState = WORKSTATION_MOVE_STATE.FORWARDING;
         }
 
         internal void CancelSpinAtPointRequest()
