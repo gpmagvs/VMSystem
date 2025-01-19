@@ -145,10 +145,11 @@ namespace VMSystem.AGV
                 await Task.Delay(TimeSpan.FromSeconds(AGVSConfigulator.SysConfigs.AutoModeConfigs.AGVIdleTimeUplimitToExecuteChargeTask));
                 if (agv.IsAGVHasCargoOrHasCargoID() && !agv.currentMapPoint.IsCharge)
                 {
-                    if (_charge_forbid_alarm != null)
-                        AlarmManagerCenter.RemoveAlarm(_charge_forbid_alarm.Result);
+                    bool alarmAddedButNotChecked=DatabaseCaches.Alarms.UnCheckedAlarms.Any(al=>al.Equipment_Name== agv.Name && al.AlarmCode== (int)ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo);
+                    if (alarmAddedButNotChecked)
+                        continue;
                     _charge_forbid_alarm = AlarmManagerCenter.AddAlarmAsync(ALARMS.Cannot_Auto_Parking_When_AGV_Has_Cargo, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING, agv.Name, agv.currentMapPoint.Graph.Display);
-                    _charge_forbid_alarm.Wait();
+                    await Task.Delay(500);
                     continue;
                 }
 
