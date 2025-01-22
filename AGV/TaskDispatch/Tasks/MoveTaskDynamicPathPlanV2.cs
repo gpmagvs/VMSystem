@@ -1128,8 +1128,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 var ocupyRegionTags = Agv.NavigationState.NextPathOccupyRegions.SelectMany(rect => new int[] { rect.StartPoint.TagNumber, rect.EndPoint.TagNumber })
                                                                                 .DistinctBy(tag => tag);
-
-                UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
+                if (!IsTaskCanceled)
+                    UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
 
             }
         }
