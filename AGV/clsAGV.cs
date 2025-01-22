@@ -13,6 +13,7 @@ using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.HttpTools;
 using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
+using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
@@ -21,6 +22,7 @@ using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
 using NLog;
+using Polly;
 using RosSharp.RosBridgeClient.MessageTypes.Std;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
@@ -401,7 +403,12 @@ namespace VMSystem.AGV
                     NavigationState.StateReset();
                     if (value == ONLINE_STATE.ONLINE)
                     {
+                        TryRestoreOccupiedRackColumn();
                         taskDispatchModule.OrderHandler.RunningTask = new MoveToDestineTask();
+                    }
+                    else
+                    {
+                        TryDisableOccupiedRackColumn();
                     }
                     //taskDispatchModule.AsyncTaskQueueFromDatabase();
                     if (main_state == clsEnums.MAIN_STATUS.IDLE)
@@ -421,6 +428,7 @@ namespace VMSystem.AGV
                 {
                     if (value == MAIN_STATUS.DOWN)
                     {
+                        TryDisableOccupiedRackColumn();
                         NotifyServiceHelper.ERROR($"{Name} Down!");
                         OnAGVStatusDown?.Invoke(this, EventArgs.Empty);
                     }
@@ -1167,6 +1175,51 @@ namespace VMSystem.AGV
             if (deepCharger.Recorder != null)
                 deepCharger.StopDeepCharging(true);
             deepCharger.Recorder = recoder;
+        }
+        private int _disableRackColumnTagTemp = -1;
+
+        private async Task<bool> TryDisableOccupiedRackColumn()
+        {
+            try
+            {
+                bool isAGVAtBuffer = currentMapPoint.StationType == STATION_TYPE.Buffer || currentMapPoint.StationType == STATION_TYPE.Buffer_EQ || currentMapPoint.StationType == STATION_TYPE.Charge_Buffer;
+                if (!isAGVAtBuffer)
+                {
+                    _disableRackColumnTagTemp = -1;
+                    return false;
+                }
+                _disableRackColumnTagTemp = currentMapPoint.TagNumber;
+                await Policy.Handle<Exception>()
+                            .WaitAndRetryAsync(3, _ => TimeSpan.FromSeconds(1))
+                            .ExecuteAsync(async () => await AGVSSerivces.TRAFFICS.DisableRackColumnTemptory(_disableRackColumnTagTemp, 500)
+                );
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+                return false;
+            }
+        }
+
+        private async Task<bool> TryRestoreOccupiedRackColumn()
+        {
+            if (_disableRackColumnTagTemp == -1)
+                return false;
+            try
+            {
+                await Policy.Handle<Exception>()
+                            .WaitAndRetryAsync(3, _ => TimeSpan.FromSeconds(1))
+                            .ExecuteAsync(async () => await AGVSSerivces.TRAFFICS.RestoreRackColumnByDisabledTemptory(_disableRackColumnTagTemp));
+
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+                return false;
+            }
         }
     }
 }
