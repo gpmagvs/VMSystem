@@ -628,7 +628,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (TaskCanceledException ex)
                     {
-                        await WaitAGVNotRunning(ex.Message);
                         throw ex;
                     }
                     catch (AGVRejectTaskException ex)
@@ -704,6 +703,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (TaskCanceledException ex)
             {
+                await WaitAGVNotRunning();
                 logger.Fatal(ex);
                 throw ex;
             }
