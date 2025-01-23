@@ -8,8 +8,8 @@
 		<ApplicationIcon>favicon2.ico</ApplicationIcon>
 		<UserSecretsId>5aaaca2e-7b5d-4629-ac34-12d155a519a9</UserSecretsId>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<AssemblyVersion>1.4.11</AssemblyVersion>
-		<FileVersion>1.4.11</FileVersion>
+		<AssemblyVersion>1.4.12</AssemblyVersion>
+		<FileVersion>1.4.12</FileVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>

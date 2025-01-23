@@ -37,7 +37,7 @@ namespace VMSystem.AGV.TaskDispatch
                     return autoSearchChargeResult;
 
                 List<MapPoint> points = new List<MapPoint>();
-                List<MapPoint> parkablePoints = StaMap.GetAvoidStations().Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal).ToList();
+                List<MapPoint> parkablePoints = StaMap.GetParkableStations().Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal).ToList();
                 points.AddRange(parkablePoints);
                 points.AddRange(StaMap.GetChargeableStations(agv).ToList());
 
@@ -115,9 +115,6 @@ namespace VMSystem.AGV.TaskDispatch
             if (pathInfo == null || pathInfo.tags.Count == 0)
                 return double.MaxValue;
             double _weight = 1;
-            if (!pt.IsCharge && pt.IsAvoid)
-                _weight = 100000;
-
             return pathInfo.total_travel_distance * _weight;
         }
 
