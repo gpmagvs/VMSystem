@@ -40,7 +40,7 @@ namespace VMSystem.AGV
             (bool confirm, MapPoint workstation, ALARMS alarm_code) = await SearchDestineStation(_ExecutingTask.Action);
             if (!confirm)
             {
-                return (false, _alarm_code);
+                return (false, alarm_code);
             }
             logger.Info($"Auto Search Workstation to {_ExecutingTask.Action} Result => {workstation.Name}(Tag:{workstation.TagNumber})");
             _ExecutingTask.To_Station = workstation.TagNumber.ToString();

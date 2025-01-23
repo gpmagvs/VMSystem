@@ -464,9 +464,13 @@ namespace VMSystem.AGV
                                 _autoSearchParkStation = false;
                                 if (!autoSearchConfrim)
                                 {
-                                    _ExecutingTask.State = TASK_RUN_STATUS.FAILURE;
+                                    if (autoSearch_alarm_code != ALARMS.NONE && AlarmManagerCenter.AlarmCodes.TryGetValue(autoSearch_alarm_code, out var alarmDto))
+                                        _ExecutingTask.FailureReason = alarmDto.Description;
+                                    else
+                                        _ExecutingTask.FailureReason = isAutoSearchChargeStation ? "找不到可用的充電站()" : autoSearch_alarm_code.ToString();
                                     _ExecutingTask.FinishTime = DateTime.Now;
-                                    _ExecutingTask.FailureReason = isAutoSearchChargeStation ? "找不到可用的充電站()" : autoSearch_alarm_code.ToString();
+                                    _ExecutingTask.State = _ExecutingTask.TaskName.Contains("NewChargeStation") ? TASK_RUN_STATUS.CANCEL : TASK_RUN_STATUS.FAILURE;
+
                                     await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS);
                                     await OrderHandler.ModifyOrder(_ExecutingTask);
                                     try
