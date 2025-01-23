@@ -471,7 +471,7 @@ namespace VMSystem.AGV
                                     _ExecutingTask.FinishTime = DateTime.Now;
                                     _ExecutingTask.State = _ExecutingTask.TaskName.Contains("NewChargeStation") ? TASK_RUN_STATUS.CANCEL : TASK_RUN_STATUS.FAILURE;
 
-                                    await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS);
+                                    await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
                                     await OrderHandler.ModifyOrder(_ExecutingTask);
                                     try
                                     {
