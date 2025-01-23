@@ -466,7 +466,6 @@ namespace VMSystem.TrafficControl
         {
             AvoidVehicleSolver? makeVehicleLeavingFromSourcePortSolver = _TryCreateAvoidSolver(bufferOrderState.bufferFrom);
             AvoidVehicleSolver? makeVehicleLeavingFromDestinePortSolver = _TryCreateAvoidSolver(bufferOrderState.bufferTo);
-
             if (makeVehicleLeavingFromDestinePortSolver == null && makeVehicleLeavingFromSourcePortSolver == null)
             {
                 bufferOrderState.message = "Source station and Destine station is reachable!";
@@ -476,13 +475,17 @@ namespace VMSystem.TrafficControl
             }
             List<Task<ALARMS>> solverTasks = new List<Task<ALARMS>>();
 
+            bool isSourceDestineSameRack = (makeVehicleLeavingFromDestinePortSolver != null && makeVehicleLeavingFromSourcePortSolver != null &&
+                                            bufferOrderState.bufferFrom.TagNumber == bufferOrderState.bufferTo.TagNumber);
 
-            solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromDestinePortSolver));
+            solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
+            if (!isSourceDestineSameRack)
+                solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromDestinePortSolver));
 
-            if (bufferOrderState.bufferFrom != null && bufferOrderState.bufferFrom.TagNumber != bufferOrderState.bufferTo.TagNumber)
-                solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
+            //if (bufferOrderState.bufferFrom != null && bufferOrderState.bufferFrom.TagNumber != bufferOrderState.bufferTo.TagNumber)
+            //    solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
 
-            Task.WaitAll(solverTasks.ToArray());
+            Task.WhenAll(solverTasks.ToArray());
 
             var failureSolver = solverTasks.FirstOrDefault(task => task.Result != ALARMS.NONE);
             bufferOrderState.returnCode = failureSolver == null ? ALARMS.NONE : failureSolver.Result;
@@ -504,7 +507,7 @@ namespace VMSystem.TrafficControl
                 if (agvAtPoint == null)
                     return null;
 
-                return new AvoidVehicleSolver(agvAtPoint, ACTION_TYPE.Park, AGVDbContext);
+                return new AvoidVehicleSolver(agvAtPoint, orderOwnerAGV, ACTION_TYPE.Park, AGVDbContext);
             }
         }
 

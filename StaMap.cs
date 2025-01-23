@@ -86,6 +86,7 @@ namespace VMSystem
             var chargeableStations = Map.Points.Values.ToList().FindAll(sta => sta.IsParking);
             return chargeableStations;
         }
+
         internal static List<MapPoint> GetChargeableStations(IAGV TargetAGV = null)
         {
             if (Map == null)

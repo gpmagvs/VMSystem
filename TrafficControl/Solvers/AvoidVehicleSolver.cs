@@ -1,13 +1,17 @@
-﻿using AGVSystemCommonNet6.AGVDispatch;
+﻿using AGVSystemCommonNet6;
+using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.AGVDispatch.Messages;
 using AGVSystemCommonNet6.Alarm;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.MAP;
+using Microsoft.Data.SqlClient.Server;
+using Newtonsoft.Json;
 using System.Diagnostics;
 using VMSystem.AGV;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Extensions;
 using VMSystem.VMS;
 using static AGVSystemCommonNet6.DATABASE.DatabaseCaches;
 using static AGVSystemCommonNet6.MAP.PathFinder;
@@ -20,6 +24,7 @@ namespace VMSystem.TrafficControl.Solvers
     public class AvoidVehicleSolver
     {
         public IAGV Vehicle { get; }
+        public IAGV RaiseAvoidVehicle { get; }
         public ACTION_TYPE Action { get; }
 
         public clsTaskDto Order { get; private set; }
@@ -28,9 +33,10 @@ namespace VMSystem.TrafficControl.Solvers
 
         private static SemaphoreSlim _CreateOrderSemaphore = new SemaphoreSlim(1, 1);
 
-        public AvoidVehicleSolver(IAGV Vehicle, ACTION_TYPE Action, AGVSDbContext agvsDb)
+        public AvoidVehicleSolver(IAGV Vehicle, IAGV RaiseAvoidVehicle, ACTION_TYPE Action, AGVSDbContext agvsDb)
         {
             this.Vehicle = Vehicle;
+            this.RaiseAvoidVehicle = RaiseAvoidVehicle;
             this.Action = Action;
             this.agvsDb = agvsDb;
 
@@ -41,24 +47,58 @@ namespace VMSystem.TrafficControl.Solvers
             try
             {
                 if (Vehicle.online_state == AGVSystemCommonNet6.clsEnums.ONLINE_STATE.OFFLINE)
+                {
+                    _Log($"{RaiseAvoidVehicle.Name} Request {Vehicle.Name} Leave from but online state of {Vehicle.Name} is OFFLine. return ALARMS.TrafficDriveVehicleAwaybutVehicleNotOnline");
                     return ALARMS.TrafficDriveVehicleAwaybutVehicleNotOnline;
+                }
+                bool _IsVehicleWhereShouldLeaveIsExecutingOrderNow = IsVehicleWhereShouldLeaveIsExecutingOrderNow();
 
-                if (Vehicle.main_state != AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN)
-                    await TryAddOrderToDatabase();
-
+                if (!_IsVehicleWhereShouldLeaveIsExecutingOrderNow)
+                {
+                    _Log($"{Vehicle.Name} NOT Executing Order,Add a avoid command order");
+                    try
+                    {
+                        await TryAddOrderToDatabase();
+                        _Log($"Order add to {Vehicle.Name} Success! Order info: \r\n{JsonConvert.SerializeObject(this.Order, Formatting.Indented)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _Log($"Order add to {Vehicle.Name} Failure! Return ALARMS.TrafficDriveVehicleAwaybutAppendOrderToDatabaseFail. {ex.Message},{ex.StackTrace}");
+                        return ALARMS.TrafficDriveVehicleAwaybutAppendOrderToDatabaseFail;
+                    }
+                }
+                RaiseAvoidVehicle.CurrentRunningTask()?.UpdateStateDisplayMessage($"Waiting [{Vehicle.Name}] Leave Pt:{Vehicle.currentMapPoint.Graph.Display}", true);
                 await WaitVehicleLeave();
+                _Log($"Now is clear Start Order");
                 return ALARMS.NONE;
             }
             catch (VMSException ex)
             {
+                _Log(ex.Message + ex.StackTrace);
                 return ex.Alarm_Code;
             }
             catch (OperationCanceledException ex)
             {
+                _Log(ex.Message + ex.StackTrace);
                 return ALARMS.TrafficDriveVehicleAwaybutAppendOrderToDatabaseFail;
+            }
+            catch (Exception ex)
+            {
+                _Log(ex.Message + ex.StackTrace);
+                return ALARMS.TrafficDriveVehicleAwaybutWaitOtherVehicleReleasePointTimeout;
             }
         }
 
+        /// <summary>
+        /// 檢查被趕車是否有任務正在執行
+        /// </summary>
+        /// <returns></returns>
+        private bool IsVehicleWhereShouldLeaveIsExecutingOrderNow()
+        {
+            if (Vehicle.online_state == AGVSystemCommonNet6.clsEnums.ONLINE_STATE.OFFLINE)
+                return false;
+            return Vehicle.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+        }
         private async Task TryAddOrderToDatabase()
         {
             try
@@ -74,7 +114,7 @@ namespace VMSystem.TrafficControl.Solvers
                 order.RecieveTime = DateTime.Now;
                 order.TaskName = $"Avoid-{this.Action}-{DateTime.Now.ToString("yyyyMMdd_HHmmssfff")}";
                 order.DesignatedAGVName = Vehicle.Name;
-                order.Action = Action;
+                order.Action = destinePt.IsChargeAble() ? ACTION_TYPE.Charge : Action;
                 order.State = TASK_RUN_STATUS.WAIT;
                 order.To_Station = destinePt.TagNumber.ToString();
                 order.To_Slot = "0";
@@ -142,9 +182,16 @@ namespace VMSystem.TrafficControl.Solvers
                 try
                 {
                     await Task.Delay(1000, cancellation.Token);
+
+                    if (Vehicle.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN || Vehicle.online_state != AGVSystemCommonNet6.clsEnums.ONLINE_STATE.ONLINE)
+                    {
+                        throw new VMSException() { Alarm_Code = ALARMS.TrafficDriveVehicleAwaybutVehicleCannotLeaveNow };
+                    }
+
                 }
                 catch (TaskCanceledException ex)
                 {
+                    _Log($"Wait {Vehicle.Name} leave Tag {tagOfVehicleBegin} Timeout");
                     throw new VMSException() { Alarm_Code = ALARMS.TrafficDriveVehicleAwaybutWaitOtherVehicleReleasePointTimeout };
                 }
             }
@@ -164,8 +211,9 @@ namespace VMSystem.TrafficControl.Solvers
             assignToOrderTags.AddRange(DatabaseCaches.TaskCaches.RunningTasks.Select(tk => tk.From_Station_Tag).ToList());
             assignToOrderTags.AddRange(DatabaseCaches.TaskCaches.RunningTasks.Select(tk => tk.To_Station_Tag).ToList());
 
-            var allParkablePoints = StaMap.Map.Points.Values.Where(pt => pt.TagNumber != Vehicle.currentMapPoint.TagNumber)
-                                                            .Where(pt => pt.IsParking) //可停車點
+            var allParkablePoints = StaMap.Map.Points.Values.Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal)
+                                                            .Where(pt => pt.TagNumber != Vehicle.currentMapPoint.TagNumber)
+                                                            .Where(pt => pt.IsAvoid || pt.IsChargeAble()) //可停車點
                                                             .Where(pt => !VMSManager.AllAGV.Select(v => v.currentMapPoint.TagNumber).Contains(pt.TagNumber)) //沒有車子停著的點
                                                             .Where(pt => !assignToOrderTags.Contains(pt.TagNumber)); //沒有被指派任務起終點的點
             if (!allParkablePoints.Any())
@@ -192,6 +240,10 @@ namespace VMSystem.TrafficControl.Solvers
         {
             return null;
         }
-
+        private void _Log(string message)
+        {
+            //用AGV Log實例
+            RaiseAvoidVehicle?.logger.Trace("[AvoidVehicleSolver]" + message);
+        }
     }
 }

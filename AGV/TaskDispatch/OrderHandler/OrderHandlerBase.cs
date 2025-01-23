@@ -123,6 +123,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (state.returnCode != ALARMS.NONE)
                     {
                         _SetOrderAsFaiiureState(state.message, state.returnCode);
+                        //因為根本沒有開始訂單要直接上報TransferCompleted,
+                        this.transportCommand.ResultCode = 1;
+                        MCSCIMService.TransferCompletedReport(this.transportCommand);
                         return;
                     }
                 }

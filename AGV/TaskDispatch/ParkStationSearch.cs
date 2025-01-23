@@ -36,9 +36,14 @@ namespace VMSystem.AGV.TaskDispatch
                 if (IsForceChargeState())
                     return autoSearchChargeResult;
 
-                List<MapPoint> parkablePoints = StaMap.GetParkableStations();
-                if (!parkablePoints.Any() || !TryFindNearestParkableSpot(parkablePoints, out MapPoint parkableSpot))
+                List<MapPoint> points = new List<MapPoint>();
+                List<MapPoint> parkablePoints = StaMap.GetAvoidStations().Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal).ToList();
+                points.AddRange(parkablePoints);
+                points.AddRange(StaMap.GetChargeableStations(agv).ToList());
+
+                if (!points.Any() || !TryFindNearestParkableSpot(points, out MapPoint parkableSpot))
                     return autoSearchChargeResult;
+
                 return new ParkStationSearchResult()
                 {
                     Tag = parkableSpot.TagNumber,
@@ -54,6 +59,13 @@ namespace VMSystem.AGV.TaskDispatch
             }
         }
 
+        private bool IsAssignOrder(MapPoint pt)
+        {
+            var tagCollection = DatabaseCaches.TaskCaches.InCompletedTasks.SelectMany(order => new int[] { order.From_Station_Tag, order.To_Station_Tag })
+                                                                           .Where(tag => tag > 0)
+                                                                           .ToList();
+            return tagCollection.Contains(pt.TagNumber);
+        }
 
         private bool IsForceChargeState()
         {
@@ -70,20 +82,22 @@ namespace VMSystem.AGV.TaskDispatch
             //filter :該站點不為禁用 且沒有任何車輛任務終點為該站 且沒有任何車輛正位於該站 且沒有任何車輛正位於該站的入口
 
             var parkablePointsFiltered = parkablePoints.Where(pt => pt.Enable)
-                          .Where(pt => !IsAnyVehicleLocatin(pt))
-                          .Where(pt => !IsAnyVehicleLocatinEntryPt(pt))
-                          .Where(pt => !IsAnyVehicleOrderDestineAssigned(pt));
+                                                        .Where(pt => !IsAnyVehicleLocatin(pt))
+                                                        .Where(pt => !IsAnyVehicleLocatinEntryPt(pt))
+                                                        .Where(pt => !IsAnyVehicleOrderDestineAssigned(pt));
 
             if (!parkablePointsFiltered.Any())
                 return false;
 
             //按照走行距離排序
 
-            Dictionary<MapPoint, double> distanceOfVehicleMoveTo = parkablePointsFiltered.ToDictionary(pt => pt, pt => CalculateDistanceFromVehicleToDestine(pt));
+            Dictionary<MapPoint, double> distanceOfVehicleMoveTo = parkablePointsFiltered.DistinctBy(p => p.TagNumber)
+                                                                                         .ToDictionary(pt => pt, pt => CalculateDistanceFromVehicleToDestine(pt));
 
             distanceOfVehicleMoveTo = distanceOfVehicleMoveTo.OrderBy(pair => GetDistanceWithWeightByCarrierExistRack(pair.Key.TagNumber, pair.Value))
                                                              .ToDictionary(pair => pair.Key, pair => pair.Value);
-
+            distanceOfVehicleMoveTo = distanceOfVehicleMoveTo.ToDictionary(p => p.Key, p => IsAssignOrder(p.Key) ? p.Value * 1000000 : p.Value);
+            distanceOfVehicleMoveTo = distanceOfVehicleMoveTo.OrderBy(p => p.Value).ToDictionary(pair => pair.Key, pair => pair.Value);
             parkableSpot = distanceOfVehicleMoveTo.FirstOrDefault().Key;
             return parkableSpot != null;
         }
@@ -100,8 +114,11 @@ namespace VMSystem.AGV.TaskDispatch
             });
             if (pathInfo == null || pathInfo.tags.Count == 0)
                 return double.MaxValue;
+            double _weight = 1;
+            if (!pt.IsCharge && pt.IsAvoid)
+                _weight = 100000;
 
-            return pathInfo.total_travel_distance;
+            return pathInfo.total_travel_distance * _weight;
         }
 
         /// <summary>

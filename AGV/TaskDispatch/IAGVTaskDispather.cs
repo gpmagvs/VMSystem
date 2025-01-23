@@ -131,16 +131,17 @@ namespace VMSystem.AGV.TaskDispatch
             SetStatusWaitingConflictPointRelease(blockedTags, $"等待-{string.Join(",", blockedTags)}可通行");
         }
 
-        internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags, string customMessage)
+        internal void SetStatusWaitingConflictPointRelease(List<int> blockedTags, string customMessage, bool append = false)
         {
+            string msg = append ? Descrption += customMessage : customMessage;
             this.IsWaiting = true;
             this.WaitingPoint = new MapPoint("", -1);
-            Descrption = customMessage;
+            Descrption = msg;
             StartWaitingTime = DateTime.Now;
             Status = WAIT_STATUS.WAITING;
         }
 
-        internal void SetDisplayMessage(string message)
+        internal void SetDisplayMessage(string message, bool append = false)
         {
             SetStatusWaitingConflictPointRelease(new List<int>(), message);
         }

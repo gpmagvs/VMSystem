@@ -401,7 +401,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
-        public virtual void UpdateStateDisplayMessage(string msg)
+        public virtual void UpdateStateDisplayMessage(string msg, bool append = false)
         {
             TrafficWaitingState.SetDisplayMessage(msg);
 
