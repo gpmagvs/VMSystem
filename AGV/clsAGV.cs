@@ -1112,9 +1112,9 @@ namespace VMSystem.AGV
 
         }
 
-        public async Task CancelTaskAsync(string task_name, string reason, string? hostAction = "")
+        public async Task CancelTaskAsync(string task_name, bool ismanual, string reason, string? hostAction = "")
         {
-            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, reason, hostAction);
+            (bool confirmed, string message) = await taskDispatchModule.OrderHandler.CancelOrder(task_name, ismanual, reason, hostAction);
             if (confirmed)
             {
                 TaskBase currentTask = this.CurrentRunningTask();

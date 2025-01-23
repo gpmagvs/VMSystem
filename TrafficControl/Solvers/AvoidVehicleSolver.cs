@@ -42,7 +42,7 @@ namespace VMSystem.TrafficControl.Solvers
 
         }
 
-        public async Task<ALARMS> Solve()
+        public async Task<ALARMS> Solve(CancellationToken cancellationToken)
         {
             try
             {
@@ -68,7 +68,7 @@ namespace VMSystem.TrafficControl.Solvers
                     }
                 }
                 RaiseAvoidVehicle.CurrentRunningTask()?.UpdateStateDisplayMessage($"Waiting [{Vehicle.Name}] Leave Pt:{Vehicle.currentMapPoint.Graph.Display}", true);
-                await WaitVehicleLeave();
+                await WaitVehicleLeave(cancellationToken);
                 _Log($"Now is clear Start Order");
                 return ALARMS.NONE;
             }
@@ -169,19 +169,18 @@ namespace VMSystem.TrafficControl.Solvers
             }
         }
 
-        private async Task WaitVehicleLeave()
+        private async Task WaitVehicleLeave(CancellationToken cancellationToken)
         {
             int tagOfVehicleBegin = Vehicle.currentMapPoint.TagNumber; //AGV起始位置(在 port裡面)
             bool _isVehicleAtPortBegin = Vehicle.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal;
             int tagOfEntryPointOfCurrentPort = _isVehicleAtPortBegin ? Vehicle.currentMapPoint.TargetNormalPoints().First().TagNumber : -1; //AGV所在位置的進入點
-            CancellationTokenSource cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(Debugger.IsAttached ? 30 : 300));
 
             //等待已不在Port裡面而
             while (IsAGVStillAtPort(tagOfVehicleBegin))
             {
                 try
                 {
-                    await Task.Delay(1000, cancellation.Token);
+                    await Task.Delay(1000, cancellationToken);
 
                     if (Vehicle.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.DOWN || Vehicle.online_state != AGVSystemCommonNet6.clsEnums.ONLINE_STATE.ONLINE)
                     {

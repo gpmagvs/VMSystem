@@ -737,14 +737,14 @@ namespace VMSystem.VMS
             }
         }
 
-        internal static async Task<bool> TaskCancel(string task_name, string reason, string? hostAction = "")
+        internal static async Task<bool> TaskCancel(string task_name, bool ismanual, string reason, string? hostAction = "")
         {
             try
             {
                 await tasksLock.WaitAsync();
                 clsTaskDto _order = DatabaseCaches.TaskCaches.WaitExecuteTasks.FirstOrDefault(order => order.TaskName == task_name);
-
-                IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.CurrentRunningTask().OrderData.TaskName == task_name);
+                IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.taskDispatchModule.OrderHandler.OrderData.TaskName == task_name);
+                //IAGV vehicle = AllAGV.FirstOrDefault(agv => agv.CurrentRunningTask().OrderData.TaskName == task_name);
                 if (vehicle == null)
                 {
                     AGVSDbContext.Tasks.Where(tk => tk.TaskName == task_name).ToList().ForEach(tk =>
@@ -781,7 +781,7 @@ namespace VMSystem.VMS
 
                     return true;
                 }
-                await vehicle.CancelTaskAsync(task_name, reason, hostAction);
+                await vehicle.CancelTaskAsync(task_name, ismanual, reason, hostAction);
                 return true;
 
             }

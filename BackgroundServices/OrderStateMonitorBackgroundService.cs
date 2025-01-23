@@ -148,7 +148,7 @@ namespace VMSystem.BackgroundServices
                         OnTimeout?.Invoke(this, EventArgs.Empty);
                         clsAlarmDto alarmDto = await AlarmManagerCenter.AddAlarmAsync(AlarmCode, level: ALARM_LEVEL.WARNING, taskName: Order.TaskName, Equipment_Name: Order.DesignatedAGVName);
                         if (TimeoutAction == TIMEOUT_ACTION.CANCEL_TASK)
-                            VMSManager.TaskCancel(this.Order.TaskName, $"{alarmDto.Description}");
+                            VMSManager.TaskCancel(this.Order.TaskName, false, $"{alarmDto.Description}");
                     }
                     else
                     {

@@ -27,7 +27,7 @@ namespace VMSystem.Controllers
         {
             try
             {
-                await VMSManager.TaskCancel(task_name, reason, hostAction);
+                await VMSManager.TaskCancel(task_name, true, reason, hostAction);
                 return Ok("done");
             }
             catch (Exception ex)

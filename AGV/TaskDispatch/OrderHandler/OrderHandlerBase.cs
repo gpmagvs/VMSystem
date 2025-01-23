@@ -13,6 +13,7 @@ using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
 using Polly;
 using Polly.Retry;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -41,6 +42,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
             public ALARMS returnCode { get; set; } = ALARMS.NONE;
 
+            public CancellationToken cancellationToken { get; set; } = new CancellationToken();
+
         }
 
 
@@ -51,6 +54,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         public TaskBase RunningTask { get; internal set; } = new MoveToDestineTask();
         protected ManualResetEvent _CurrnetTaskFinishResetEvent = new ManualResetEvent(false);
         private CancellationTokenSource _TaskCancelTokenSource = new CancellationTokenSource();
+        private CancellationTokenSource _WaitOtherVehicleLeaveFromPortCancelTokenSource = new CancellationTokenSource();
+        private bool _UserAortOrderFlag = false;
         internal static event EventHandler<BufferOrderState> OnBufferOrderStarted;
 
         public bool TaskCancelledFlag { get; private set; } = false;
@@ -112,20 +117,26 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 if (isSourceBuffer || isDestineBuffer)
                 {
+                    _WaitOtherVehicleLeaveFromPortCancelTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(Debugger.IsAttached ? 10 : 300));
                     BufferOrderState state = new()
                     {
                         orderBase = this,
                         bufferFrom = isSourceBuffer ? sourcePt : null,
-                        bufferTo = isDestineBuffer ? destinePt : null
+                        bufferTo = isDestineBuffer ? destinePt : null,
+                        cancellationToken = _WaitOtherVehicleLeaveFromPortCancelTokenSource.Token
                     };
-                    OnBufferOrderStarted?.Invoke(this, state);
 
+                    await SetOrderProgress(VehicleMovementStage.WaitingOtherVehicleLeaveAwayPort);
+                    OnBufferOrderStarted?.Invoke(this, state);
                     if (state.returnCode != ALARMS.NONE)
                     {
-                        _SetOrderAsFaiiureState(state.message, state.returnCode);
+                        ALARMS alarmCode = _UserAortOrderFlag ? ALARMS.TrafficDriveVehicleAwayTaskCanceledByManualWhenWaitingVehicleLeave : state.returnCode;
+                        _SetOrderAsFaiiureState(state.message, alarmCode);
                         //因為根本沒有開始訂單要直接上報TransferCompleted,
                         this.transportCommand.ResultCode = 1;
-                        MCSCIMService.TransferCompletedReport(this.transportCommand);
+                        if (this.OrderAction == ACTION_TYPE.Carry)
+                            MCSCIMService.TransferCompletedReport(this.transportCommand);
+                        _SetOrderAsFaiiureState("", alarmCode);
                         return;
                     }
                 }
@@ -443,7 +454,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             RunningTask.CancelTask();
             _CurrnetTaskFinishResetEvent.Set();
         }
-        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, string reason = "", string hostAction = null)
+        internal async Task<(bool confirmed, string message)> CancelOrder(string taskName, bool isManual, string reason = "", string hostAction = null)
         {
             if (this.OrderData.TaskName != taskName)
             {
@@ -454,6 +465,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             TaskCancelReason = reason;
             RunningTask.CancelTask(hostAction);
             _CurrnetTaskFinishResetEvent.Set();
+            _WaitOtherVehicleLeaveFromPortCancelTokenSource?.Cancel();
+            _UserAortOrderFlag = isManual;
             return (true, "");
         }
         private void _SetOrderAsRunningState()

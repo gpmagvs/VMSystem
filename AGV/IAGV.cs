@@ -36,7 +36,7 @@ namespace VMSystem.AGV
         AGV_TYPE model { get; set; }
         string Name { get; set; }
         int AgvID { get; set; }
-        string AgvIDStr { get;}
+        string AgvIDStr { get; }
         clsAGVOptions options { get; set; }
         HttpHelper AGVHttp { get; set; }
         bool connected { get; set; }
@@ -94,7 +94,7 @@ namespace VMSystem.AGV
         int currentFloor { get; set; }
 
         bool IsDirectionHorizontalTo(IAGV OtherAGV);
-        Task CancelTaskAsync(string task_name, string reason, string? hostAction = "");
+        Task CancelTaskAsync(string task_name, bool ismanual, string reason, string? hostAction = "");
         void StartDeepCharging();
         void StopDeepCharge(bool isAuto);
 

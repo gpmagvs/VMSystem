@@ -17,7 +17,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         public virtual async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason, int timeout = 300)
         {
-            await agv.CancelTaskAsync(order.TaskName, reason);
+            await agv.CancelTaskAsync(order.TaskName, false, reason);
             return await WaitOwnerVehicleIdle(agv, timeout);
         }
 

@@ -478,9 +478,9 @@ namespace VMSystem.TrafficControl
             bool isSourceDestineSameRack = (makeVehicleLeavingFromDestinePortSolver != null && makeVehicleLeavingFromSourcePortSolver != null &&
                                             bufferOrderState.bufferFrom.TagNumber == bufferOrderState.bufferTo.TagNumber);
 
-            solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
+            solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver, bufferOrderState.cancellationToken));
             if (!isSourceDestineSameRack)
-                solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromDestinePortSolver));
+                solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromDestinePortSolver, bufferOrderState.cancellationToken));
 
             //if (bufferOrderState.bufferFrom != null && bufferOrderState.bufferFrom.TagNumber != bufferOrderState.bufferTo.TagNumber)
             //    solverTasks.Add(_WaitSolverDoneTask(makeVehicleLeavingFromSourcePortSolver));
@@ -490,11 +490,11 @@ namespace VMSystem.TrafficControl
             var failureSolver = solverTasks.FirstOrDefault(task => task.Result != ALARMS.NONE);
             bufferOrderState.returnCode = failureSolver == null ? ALARMS.NONE : failureSolver.Result;
 
-            async Task<ALARMS> _WaitSolverDoneTask(AvoidVehicleSolver solver)
+            async Task<ALARMS> _WaitSolverDoneTask(AvoidVehicleSolver solver, CancellationToken cancellationToken)
             {
                 if (solver == null)
                     return ALARMS.NONE;
-                return await solver.Solve();
+                return await solver.Solve(cancellationToken);
             }
 
             AvoidVehicleSolver? _TryCreateAvoidSolver(MapPoint pt)

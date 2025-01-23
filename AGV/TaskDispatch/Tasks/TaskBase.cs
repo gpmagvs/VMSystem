@@ -69,7 +69,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             Task.Run(() =>
             {
                 var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
-                Agv.CancelTaskAsync(this.OrderData.TaskName, agvAlarmsDescription);
+                Agv.CancelTaskAsync(this.OrderData.TaskName, false, agvAlarmsDescription);
                 _WaitAGVTaskDoneMRE.Set();
             });
         }
