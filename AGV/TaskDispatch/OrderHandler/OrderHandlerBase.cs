@@ -11,6 +11,8 @@ using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using NLog;
+using Polly;
+using Polly.Retry;
 using System.Threading.Tasks;
 using VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace;
 using VMSystem.AGV.TaskDispatch.Tasks;
@@ -262,7 +264,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 async void _HandleVMSException(VMSExceptionAbstract ex)
                 {
                     logger.Error(ex);
-                    bool _isAgvDown = Agv.main_state == MAIN_STATUS.DOWN;
+
+                    bool _isAgvDown = ex.Alarm_Code == ALARMS.AGV_STATUS_DOWN || Agv.main_state == MAIN_STATUS.DOWN;
                     if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)
                         _SetOrderAsCancelState(TaskCancelReason, ex.Alarm_Code);
                     else
@@ -522,13 +525,10 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 RunningTask.CancelTask();
                 OrderData.State = TASK_RUN_STATUS.FAILURE;
                 OrderData.FinishTime = DateTime.Now;
-                OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description})";
-
                 if (Agv != null && (alarm == ALARMS.AGV_STATUS_DOWN || Agv?.main_state == MAIN_STATUS.DOWN))
-                {
-                    var agvAlarmsDescription = string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
-                    OrderData.FailureReason = agvAlarmsDescription;
-                }
+                    OrderData.FailureReason = CreateFailReasonOfAGVDown();
+                else
+                    OrderData.FailureReason = alarmDto.AlarmCode == 0 ? FailReason : $"[{alarmDto.AlarmCode}] {alarmDto.Description})";
 
                 ModifyOrder(OrderData);
 
@@ -549,6 +549,29 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             {
                 logger.Fatal(ex);
             }
+        }
+
+        private string CreateFailReasonOfAGVDown()
+        {
+            // 定义重试策略
+            RetryPolicy<string> retryPolicy = Policy<string>.HandleResult(result => string.IsNullOrEmpty(result))
+                                                            .WaitAndRetry(3, retryAttempt => TimeSpan.FromMilliseconds(500),
+                                                                (result, timeSpan, retryCount, context) =>
+                                                                {
+                                                                    logger.Warn($"嘗試同步車輛({Agv.Name})的即時異常碼失敗，重試次數：{retryCount}，等待時間：{timeSpan}");
+                                                                });
+            string agvAlarmsDescription = retryPolicy.Execute(() =>
+            {
+                return string.Join(",", Agv.states.Alarm_Code.Where(alarm => alarm.Alarm_Category != 0).Select(alarm => alarm.FullDescription));
+            });
+
+            if (string.IsNullOrEmpty(agvAlarmsDescription))
+                if (AlarmManagerCenter.AlarmCodes.TryGetValue(ALARMS.AGV_STATUS_DOWN, out var alarmDto))
+                    return alarmDto.Description;
+                else
+                    return "AGV 狀態異常(AGV Status Down)";
+            else
+                return agvAlarmsDescription;
         }
 
         internal virtual List<int> GetNavPathTags()
