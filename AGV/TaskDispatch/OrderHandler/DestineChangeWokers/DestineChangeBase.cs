@@ -44,31 +44,45 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
         {
             await Task.Delay(1).ContinueWith(async t =>
             {
-                while (!IsCurrentSubTaskFinish())
+                try
                 {
-                    await Task.Delay(100);
-                    if (IsNeedChange())
+                    while (!IsCurrentSubTaskFinish())
                     {
-                        OnStartChangedInovke();
-                        await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station", 300);
-                        await WaitOrderNotRun(order);
-                        var newOrder = order.Clone();
-                        newOrder.TaskName = order.TaskName + "-NewChargeStation";
-                        newOrder.RecieveTime = DateTime.Now;
-                        newOrder.FinishTime = DateTime.MinValue;
-                        newOrder.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
-                        newOrder.Priority = 12300;
-                        newOrder.FailureReason = "";
-                        newOrder.To_Station = GetNewDestineTag() + "";
-                        bool orderModifySuccess = await AddNewOrder(newOrder);
-                        if (orderModifySuccess)
+                        await Task.Delay(100);
+                        if (IsNeedChange())
                         {
-                            break;
+                            OnStartChangedInovke();
+                            (bool confirm, string message) = await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station", 60);
+                            if (!confirm)
+                            {
+                                throw new TimeoutException(message);
+                            }
+                            await WaitOrderNotRun(order);
+                            var newOrder = order.Clone();
+                            newOrder.TaskName = order.TaskName + "-NewChargeStation";
+                            newOrder.RecieveTime = DateTime.Now;
+                            newOrder.FinishTime = DateTime.MinValue;
+                            newOrder.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
+                            newOrder.Priority = 12300;
+                            newOrder.FailureReason = "";
+                            newOrder.To_Station = GetNewDestineTag() + "";
+                            bool orderModifySuccess = await AddNewOrder(newOrder);
+                            if (orderModifySuccess)
+                            {
+                                break;
+                            }
                         }
-                    }
 
+                    }
                 }
-                Console.WriteLine($"{this.GetType().Name}-Finish Monitor");
+                catch (Exception ex)
+                {
+                    agv.logger.Error("[DestineChangeBase]-" + ex.Message + ex.StackTrace);
+                }
+                finally
+                {
+                    agv.logger.Info($"[DestineChangeBase]-Finish Monitor");
+                }
             });
         }
 
