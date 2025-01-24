@@ -322,7 +322,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             //    return;
             //}
             await UnRegistPoints();
-            Agv.NavigationState.StateReset();
+            Agv.NavigationState.StateReset(this.OrderAction == ACTION_TYPE.Charge || OrderAction == ACTION_TYPE.Park ? VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING : VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING);
             Agv.NavigationState.ResetNavigationPoints();
         }
 

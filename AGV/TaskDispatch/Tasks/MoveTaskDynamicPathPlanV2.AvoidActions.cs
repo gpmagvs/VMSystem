@@ -103,6 +103,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.UpdateNavigationPoints(new MapPoint[2] { secondaryPt, parkPortPt });
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.Reset();
                 Agv.TaskExecuter.WaitACTIONFinishReportedMRE.WaitOne();
+                ChangeWorkStationMoveStateBackwarding();
                 UpdateStateDisplayMessage($"Wait 3 sec and leave.");
                 while (!await StaMap.UnRegistPointsOfAGVRegisted(Agv))
                 {

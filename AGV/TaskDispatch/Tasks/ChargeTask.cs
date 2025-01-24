@@ -20,6 +20,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override void CreateTaskToAGV()
         {
+            ChangeWorkStationMoveStateBackwarding();
             base.CreateTaskToAGV();
             MapPoint destinMapPoint = StaMap.GetPointByTagNumber(OrderData.To_Station_Tag);
             MapPoint sourceMapPoint = StaMap.GetPointByIndex(destinMapPoint.Target.Keys.First());
@@ -44,8 +45,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             UpdateMoveStateMessage($"進入充電站-[{stationPt.Graph.Display}]...");
             Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
             Agv.OnAGVStatusDown += HandleAGVStatusDown;
-            await base.SendTaskToAGV();
-            await WaitAGVTaskDone();
+            try
+            {
+                await base.SendTaskToAGV();
+                await WaitAGVTaskDone();
+            }
+            finally
+            {
+                if (Agv.currentMapPoint.TagNumber == stationPt.TagNumber)
+                    ChangeWorkStationMoveStateForwarding();
+            }
         }
 
         public override bool IsThisTaskDone(FeedbackData feedbackData)

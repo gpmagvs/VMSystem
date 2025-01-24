@@ -1,6 +1,7 @@
 ﻿using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.MAP.Geometry;
 using VMSystem.AGV;
+using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Extensions;
 using VMSystem.VMS;
 
@@ -15,7 +16,39 @@ namespace VMSystem.TrafficControl.ConflicDetection
         }
         protected override IEnumerable<IAGV> GetOtherVehicles()
         {
-            return base.GetOtherVehicles().Where(agv => agv.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal || agv.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING);
+            return base.GetOtherVehicles().Where(agv => _IsOnMainPath(agv) || _IsOnWorkStationBackwarding(agv));
+            bool _IsOnMainPath(IAGV vehicle)
+            {
+                return vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal;
+            }
+
+            bool _IsOnWorkStationBackwarding(IAGV vehicle)
+            {
+                try
+                {
+                    // 快速失敗檢查：如果不在執行狀態或沒有運行中的任務，直接返回 false
+                    if (vehicle?.taskDispatchModule?.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING ||
+                        vehicle.CurrentRunningTask() is not TaskBase runningTask)
+                    {
+                        return false;
+                    }
+
+                    // 特殊情況處理：避讓停車邏輯
+                    if (runningTask.ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None &&
+                        runningTask.subStage == AGVSystemCommonNet6.AGVDispatch.VehicleMovementStage.AvoidPath_Park &&
+                        vehicle.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                    {
+                        return false;
+                    }
+                    // 檢查車輛是否處於後退狀態
+                    return vehicle.NavigationState.WorkStationMoveState == VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"檢查車輛狀態時發生錯誤: {ex.Message}");
+                    return false;
+                }
+            }
         }
         public override clsConflicDetectResultWrapper Detect()
         {

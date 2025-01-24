@@ -23,7 +23,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override void CreateTaskToAGV()
         {
-
             MapPoint destinMapPoint = AGVCurrentMapPoint.TargetNormalPoints().FirstOrDefault();
             if (destinMapPoint == null)
             {
@@ -50,6 +49,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
                 DetermineThetaOfDestine(this.TaskDonwloadToAGV);
+
+                ChangeWorkStationMoveStateForwarding();
                 await WaitLeaveWorkStationAllowable(new clsLeaveFromWorkStationConfirmEventArg
                 {
                     Agv = this.Agv,
@@ -61,8 +62,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 StaMap.RegistPoint(Agv.Name, TaskDonwloadToAGV.ExecutingTrajecory.GetTagList(), out var msg);
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
+                ChangeWorkStationMoveStateBackwarding();
                 await WaitAGVTaskDone();
-
                 if (OrderData.Action == ACTION_TYPE.Carry)
                 {
                     await MCSCIMService.VehicleDepartedReport(Agv.AgvIDStr, OrderData.soucePortID);

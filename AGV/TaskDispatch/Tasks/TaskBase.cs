@@ -646,6 +646,16 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return result;
         }
 
+        protected async Task ChangeWorkStationMoveStateBackwarding(int delayTime = 0)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(delayTime));
+            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
+        }
+        protected async Task ChangeWorkStationMoveStateForwarding(int delayTime = 0)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(delayTime));
+            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
+        }
         protected void InvokeTaskDoneEvent()
         {
             OnTaskDone?.Invoke(this, EventArgs.Empty);

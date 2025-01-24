@@ -71,6 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public override async Task SendTaskToAGV()
         {
+            ChangeWorkStationMoveStateBackwarding();
             bool _isHotRun = OrderData.TaskName.ToLower().Contains("hr_");
             if (!_isHotRun && ActionType == ACTION_TYPE.Unload && Agv.IsAGVHasCargoOrHasCargoID())
             {
@@ -102,7 +103,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 Agv.NavigationState.LeaveWorkStationHighPriority = Agv.NavigationState.IsWaitingForLeaveWorkStation = false;
 
                 UpdateEQActionMessageDisplay();
-                ChangeWorkStationMoveStateBackwarding();
                 Agv.OnAGVStatusDown += HandleAGVStatusDown;
                 await base.SendTaskToAGV();
                 if (AgvStatusDownFlag)
@@ -110,6 +110,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await WaitAGVReachWorkStationTag();
                 if (AgvStatusDownFlag)
                     throw new AGVStatusDownException();
+                ChangeWorkStationMoveStateForwarding();
+                ChangeWorkStationMoveStateBackwarding(1000);
                 await WaitAGVTaskDone();
                 logger.Info("LUDLD Action End.");
                 if (this.ActionType == ACTION_TYPE.Unload)
@@ -125,7 +127,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             finally
             {
-                ChangeWorkStationMoveStateForwarding();
                 await RaiseRotateActionAfertLoadUnload();
                 InvokeTaskDoneEvent();
             }
@@ -600,17 +601,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return feedbackData.PointIndex == 0;
         }
 
-        private async Task ChangeWorkStationMoveStateBackwarding()
-        {
-            await Task.Delay(1500);
-            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
-            await Task.Delay(1500);
-            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.BACKWARDING;
-        }
-        private void ChangeWorkStationMoveStateForwarding()
-        {
-            Agv.NavigationState.WorkStationMoveState = VehicleNavigationState.WORKSTATION_MOVE_STATE.FORWARDING;
-        }
         internal async Task UpdateEQActionMessageDisplay()
         {
             ACTION_TYPE orderAction = OrderData.Action;

@@ -91,7 +91,7 @@ namespace VMSystem.TrafficControl
             FORWARDING,
             BACKWARDING
         }
-        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.FORWARDING;
+        public WORKSTATION_MOVE_STATE WorkStationMoveState { get; set; } = WORKSTATION_MOVE_STATE.BACKWARDING;
         public IEnumerable<MapPoint> NextNavigtionPoints { get; private set; } = new List<MapPoint>();
         public IEnumerable<MapPoint> NextNavigtionPointsForPathCalculation { get; private set; } = new List<MapPoint>();
         public clsSpinAtPointRequest SpinAtPointRequest { get; set; } = new();
@@ -435,7 +435,7 @@ namespace VMSystem.TrafficControl
             logger.Trace($"[VehicleNavigationState]-[{Vehicle.Name}] " + message);
         }
 
-        internal void StateReset()
+        internal void StateReset(WORKSTATION_MOVE_STATE work_station_move_state = WORKSTATION_MOVE_STATE.BACKWARDING)
         {
             State = VehicleNavigationState.NAV_STATE.IDLE;
             RegionControlState.State = REGION_CONTROL_STATE.NONE;
@@ -445,7 +445,7 @@ namespace VMSystem.TrafficControl
             LastWaitingForPassableTimeoutPt = new MapPoint("", 0);
             currentConflicToAGV = null;
             AvoidActionState.Reset();
-            WorkStationMoveState = WORKSTATION_MOVE_STATE.FORWARDING;
+            WorkStationMoveState = work_station_move_state;
         }
 
         internal void CancelSpinAtPointRequest()
