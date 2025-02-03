@@ -455,6 +455,7 @@ namespace VMSystem.AGV
                                 }
 
                                 ALARMS alarm_code = ALARMS.NONE;
+                                agv.StopDeepCharge(true);
                                 OrderHandlerFactory factory = new OrderHandlerFactory();
                                 OrderHandler = factory.CreateHandler(_ExecutingTask);
                                 bool isAutoSearchChargeStation = _ExecutingTask.Action == ACTION_TYPE.Charge || _ExecutingTask.Action == ACTION_TYPE.DeepCharge;

@@ -553,6 +553,7 @@ namespace VMSystem.AGV
 
         private async Task BatterSimulation()
         {
+
             while (!disposedValue)
             {
                 if (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.Charging)
@@ -560,6 +561,8 @@ namespace VMSystem.AGV
                     if (batteryLevelSim[0] >= 100)
                     {
                         batteryLevelSim[0] = 100;
+                        runningSTatus.AGV_Status = MAIN_STATUS.IDLE;
+                        runningSTatus.IsCharging = false;
                     }
                     else
                     {
@@ -756,6 +759,12 @@ namespace VMSystem.AGV
             }
 
             return true;
+        }
+
+        internal void UnCharge()
+        {
+            runningSTatus.IsCharging = false;
+            runningSTatus.AGV_Status = clsEnums.MAIN_STATUS.IDLE;
         }
     }
 }

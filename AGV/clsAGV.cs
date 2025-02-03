@@ -426,6 +426,10 @@ namespace VMSystem.AGV
             {
                 if (value != _main_state)
                 {
+                    if (value != MAIN_STATUS.Charging && _main_state == MAIN_STATUS.Charging)
+                    {
+                        StopDeepCharge(true);
+                    }
                     if (value == MAIN_STATUS.DOWN)
                     {
                         TryDisableOccupiedRackColumn();

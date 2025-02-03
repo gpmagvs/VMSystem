@@ -259,5 +259,19 @@ namespace VMSystem.Controllers
                 return;
             agv.AgvSimulation.BatterySOCDistortionWarningRaise();
         }
+
+        /// <summary>
+        /// 模擬移除貨物
+        /// </summary>
+        /// <param name="AGVName"></param>
+        /// <returns></returns>
+        [HttpGet("UnCharge")]
+        public async Task UnCharge(string AGVName)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return;
+            agv.AgvSimulation.UnCharge();
+        }
     }
 }
