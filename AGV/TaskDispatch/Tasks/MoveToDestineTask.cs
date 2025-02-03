@@ -24,7 +24,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
         }
 
-        internal DestineChangeBase DestineChanger { get; set; } = null;
 
         public override VehicleMovementStage Stage { get; set; } = VehicleMovementStage.Traveling_To_Destine;
         internal override async Task<(bool confirmed, ALARMS alarm_code, string message)> DistpatchToAGV()

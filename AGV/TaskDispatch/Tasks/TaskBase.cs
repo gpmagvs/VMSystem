@@ -61,6 +61,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         protected bool AgvStatusDownFlag = false;
 
+        internal DestineChangeBase DestineChanger { get; set; } = null;
         internal AGV.TaskDispatch.OrderHandler.OrderTransferSpace.OrderTransfer? OrderTransfer { get; set; } = null;
         protected virtual void HandleAGVStatusDown(object? sender, EventArgs e)
         {

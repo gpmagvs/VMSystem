@@ -134,6 +134,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     if (!Agv.NavigationState.IsWaitingConflicSolve)
                         TrafficWaitingState.SetStatusNoWaiting();
                     await Task.Delay(10);
+
+                    if (DestineChanger != null && DestineChanger.IsCycleStopRaised)
+                    {
+                        DestineChanger.ReadyToCycleStop();
+                        DestineChanger.WaitCycleStopProgressRun();
+                    }
+                    if (OrderTransfer != null && OrderTransfer.IsCycleStopRaised)
+                    {
+                        OrderTransfer.ReadyToCycleStop();
+                        OrderTransfer.WaitCycleStopProgressRun();
+                    }
+
                     if (IsTaskAborted())
                     {
                         if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
@@ -147,6 +159,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             Agv.NavigationState.ResetNavigationPoints();
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
+
                         }
 
                         Agv.NavigationState.currentConflicToAGV = null;
@@ -511,7 +524,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             }
                             throw new AGVRejectTaskException(responseOfVehicle.ReturnCode);
                         }
-
+                        if (DestineChanger != null && DestineChanger.IsCycleStopRaised)
+                        {
+                            DestineChanger.ReStart();
+                        }
                         bool isAGVStatusRun = isAgvAlreadyAtDestine || isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack ? true : await WaitVehicleStatusRun();
 
                         _seq += 1;

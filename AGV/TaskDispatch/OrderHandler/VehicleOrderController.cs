@@ -3,6 +3,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Equipment;
 using AGVSystemCommonNet6.Microservices.AGVS;
 using AutoMapper;
+using VMSystem.Extensions;
 
 namespace VMSystem.AGV.TaskDispatch.OrderHandler
 {
@@ -10,11 +11,25 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
     {
 
         public readonly SemaphoreSlim tasksTableDbLock;
+
+        public bool IsCycleStopRaised { get; protected set; }
+        protected ManualResetEvent CancelTaskMRE = new ManualResetEvent(false);
+        protected ManualResetEvent CycleStopProgressRunMRE = new ManualResetEvent(false);
+        protected bool _RestartFlag = false;
+
+
         public VehicleOrderController(SemaphoreSlim taskTableLocker)
         {
             tasksTableDbLock = taskTableLocker;
         }
-
+        internal bool WaitCycleStopProgressRun()
+        {
+            return CycleStopProgressRunMRE.WaitOne(TimeSpan.FromSeconds(5));
+        }
+        internal void ReadyToCycleStop()
+        {
+            CancelTaskMRE.Set();
+        }
         public virtual async Task<(bool confirm, string message)> CancelOrderAndWaitVehicleIdle(IAGV agv, clsTaskDto order, string reason, int timeout = 300)
         {
             await agv.CancelTaskAsync(order.TaskName, false, reason);
@@ -112,8 +127,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         protected async Task<(bool, string)> WaitOwnerVehicleIdle(IAGV agv, int timeout = 300)
         {
             CancellationTokenSource cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
-            while (agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN ||
-                agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+            while (IsVehicleNotIDLE(agv))
             {
                 try
                 {
@@ -127,6 +141,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             return (true, "");
         }
+
+        protected virtual bool IsVehicleNotIDLE(IAGV agv)
+        {
+            return agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN ||
+                agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+        }
+
         private bool IsOrderRunning(clsTaskDto order)
         {
             return DatabaseCaches.TaskCaches.InCompletedTasks.Any(tk => tk.TaskName == order.TaskName);

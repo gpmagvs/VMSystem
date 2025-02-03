@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.AGVDispatch;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.MAP;
+using System.Diagnostics;
 using VMSystem.AGV.TaskDispatch.Tasks;
 using VMSystem.Extensions;
 using VMSystem.VMS;
@@ -29,6 +30,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
         /// 除了監控車之外的所有車輛
         /// </summary>
         public List<IAGV> othersVehicles => VMSManager.AllAGV.FilterOutAGVFromCollection(agv).ToList();
+
+
         /// <summary>
         /// 
         /// </summary>
@@ -40,6 +43,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
             this.order = order;
         }
 
+
+        internal void ReStart()
+        {
+            IsCycleStopRaised = false;
+            _RestartFlag = true;
+            CancelTaskMRE.Set();
+        }
         internal async Task StartMonitorAsync()
         {
             await Task.Delay(1).ContinueWith(async t =>
@@ -51,21 +61,35 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                         await Task.Delay(100);
                         if (IsNeedChange())
                         {
+                            if (agv.NavigationState.IsWaitingConflicSolve)
+                            {
+                                CancelTaskMRE.Reset();
+                                CycleStopProgressRunMRE.Reset();
+                                IsCycleStopRaised = true;
+                                if (!CancelTaskMRE.WaitOne(TimeSpan.FromSeconds(10)))
+                                    break;
+                            }
+                            if (_RestartFlag)
+                                continue;
+
                             OnStartChangedInovke();
                             (bool confirm, string message) = await CancelOrderAndWaitVehicleIdle(agv, order, "Change Charge Station", 60);
                             if (!confirm)
                             {
                                 throw new TimeoutException(message);
                             }
+                            //await Task.Delay(Debugger.IsAttached ? 3000 : 1);
+                            CycleStopProgressRunMRE.Set();
                             await WaitOrderNotRun(order);
                             var newOrder = order.Clone();
-                            newOrder.TaskName = order.TaskName + "-NewChargeStation";
+                            newOrder.TaskName = order.TaskName + "_Chg";
                             newOrder.RecieveTime = DateTime.Now;
                             newOrder.FinishTime = DateTime.MinValue;
                             newOrder.State = AGVSystemCommonNet6.AGVDispatch.Messages.TASK_RUN_STATUS.WAIT;
                             newOrder.Priority = 12300;
                             newOrder.FailureReason = "";
                             newOrder.To_Station = GetNewDestineTag() + "";
+                            newOrder.DispatcherName = "";
                             bool orderModifySuccess = await AddNewOrder(newOrder);
                             if (orderModifySuccess)
                             {
@@ -84,6 +108,11 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
                     agv.logger.Info($"[DestineChangeBase]-Finish Monitor");
                 }
             });
+        }
+
+        protected override bool IsVehicleNotIDLE(IAGV agv)
+        {
+            return agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN;
         }
 
         private void OnStartChangedInovke()

@@ -106,6 +106,16 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                             Log($"Try transfer order to {betterVehicle.Name}");
                             Log($"Cancel Task Of Order Owner");
                             Log($"Wait original order owner state changed to IDLE...");
+
+                            if (orderOwner.NavigationState.IsWaitingConflicSolve)
+                            {
+                                CancelTaskMRE.Reset();
+                                CycleStopProgressRunMRE.Reset();
+                                IsCycleStopRaised = true;
+                                if (!CancelTaskMRE.WaitOne(TimeSpan.FromSeconds(10)))
+                                    break;
+                            }
+
                             (bool confirmed, string message) = await CancelOrderAndWaitVehicleIdle(orderOwner, order, "Change Vehicle To Execute", 300);
                             if (!confirmed)
                             {
