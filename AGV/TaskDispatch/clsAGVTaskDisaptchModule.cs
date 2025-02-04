@@ -214,7 +214,7 @@ namespace VMSystem.AGV
                     }
                     if (agv.IsAGVIdlingAtNormalPoint())
                     {
-                        caseDescription = "AGV在一般點位且電量低於閥值";
+                        caseDescription = $"AGV在一般點位且IDLE(當前狀態={agv.main_state})";
                         return true;
                     }
                     return false;
@@ -473,7 +473,11 @@ namespace VMSystem.AGV
                                     _ExecutingTask.State = _ExecutingTask.TaskName.Contains("NewChargeStation") ? TASK_RUN_STATUS.CANCEL : TASK_RUN_STATUS.FAILURE;
 
                                     await AlarmManagerCenter.AddAlarmAsync(autoSearch_alarm_code, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
-                                    await OrderHandler.ModifyOrder(_ExecutingTask);
+                                    if (!isAutoSearchChargeStation)
+                                        await OrderHandler.ModifyOrder(_ExecutingTask);
+                                    else
+                                        await AGVSSerivces.DATABASE.DeleteTaskDto(_ExecutingTask);
+
                                     try
                                     {
                                         _waitAutoSearchStationFailDelaySignal.Reset();
