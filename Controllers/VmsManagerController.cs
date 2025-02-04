@@ -30,22 +30,6 @@ namespace VMSystem.Controllers
             return Ok(VehicleStateService.AGVStatueDtoStored.Values.ToArray());
         }
 
-        [HttpPost("ExecuteTask")]
-        public async Task<IActionResult> ExecuteTask(clsTaskDto taskData)
-        {
-            logger.LogInformation($"Get Task Data Transfer Object : {taskData.DesignatedAGVName}");
-            bool Confirm = VMSManager.TryRequestAGVToExecuteTask(ref taskData, out IAGV agv);
-            if (Confirm)
-            {
-                taskData.DesignatedAGVName = agv.Name;
-            }
-
-            return Ok(new { Confirm = Confirm, AGV = agv, taskData });
-        }
-
-
-
-
         [HttpGet("OnlineRequet")]
         public async Task<IActionResult> OnlineRequet(string agv_name, clsEnums.AGV_TYPE model = clsEnums.AGV_TYPE.FORK)
         {

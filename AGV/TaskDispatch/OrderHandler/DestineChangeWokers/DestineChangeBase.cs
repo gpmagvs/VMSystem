@@ -110,10 +110,6 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.DestineChangeWokers
             });
         }
 
-        protected override bool IsVehicleNotIDLE(IAGV agv)
-        {
-            return agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN;
-        }
 
         private void OnStartChangedInovke()
         {

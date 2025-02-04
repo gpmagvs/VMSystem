@@ -142,10 +142,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             return (true, "");
         }
 
-        protected virtual bool IsVehicleNotIDLE(IAGV agv)
+        protected bool IsVehicleNotIDLE(IAGV agv)
         {
-            return agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN ||
-                agv.taskDispatchModule.OrderExecuteState == clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING;
+            return agv.main_state == AGVSystemCommonNet6.clsEnums.MAIN_STATUS.RUN;
         }
 
         private bool IsOrderRunning(clsTaskDto order)

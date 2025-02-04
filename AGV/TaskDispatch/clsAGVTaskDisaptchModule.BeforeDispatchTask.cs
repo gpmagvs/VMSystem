@@ -47,22 +47,18 @@ namespace VMSystem.AGV
             return (true, ALARMS.NONE);
         }
 
-        protected virtual async Task<(bool confirm, MapPoint optimized_workstation, ALARMS alarm_code)> SearchDestineStation(ACTION_TYPE action)
+        protected virtual async Task<(bool confirm, MapPoint? optimized_workstation, ALARMS alarm_code)> SearchDestineStation(ACTION_TYPE action)
         {
             try
             {
                 await autoSearchSemaphoreSlim.WaitAsync();
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 MapPoint optimized_workstation = null;
-                ALARMS alarm_code = ALARMS.NONE;
 
                 var alarm_code_if_occur = action == ACTION_TYPE.Charge || action == ACTION_TYPE.DeepCharge ? ALARMS.NO_AVAILABLE_CHARGE_PILE : ALARMS.NO_AVAILABLE_PARK_STATION;
 
                 if (action != ACTION_TYPE.Park && action != ACTION_TYPE.Charge && action != ACTION_TYPE.DeepCharge)
-                {
-                    alarm_code = ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH;
-                    return (false, null, alarm_code);
-                }
+                    return (false, null, ALARMS.STATION_TYPE_CANNOT_USE_AUTO_SEARCH);
                 var map_points = StaMap.Map.Points.Values.ToList();
                 List<MapPoint> workstations = new List<MapPoint>();
                 if (action == ACTION_TYPE.Park)
@@ -74,10 +70,7 @@ namespace VMSystem.AGV
                     Console.WriteLine(stopwatch.Elapsed.TotalMilliseconds);
                     stopwatch.Restart();
                     if (!response.confirm)
-                    {
-                        alarm_code = ALARMS.INVALID_CHARGE_STATION;
-                        return (false, null, alarm_code);
-                    }
+                        return (false, null, ALARMS.INVALID_CHARGE_STATION);
                     workstations = workstations.Where(station => response.usableChargeStationTags.Contains(station.TagNumber)).ToList();
                 }
 
@@ -108,10 +101,7 @@ namespace VMSystem.AGV
                 }
 
                 if (workstations.Count == 0)
-                {
-                    alarm_code = alarm_code_if_occur;
-                    return (false, null, alarm_code);
-                }
+                    return (false, null, alarm_code_if_occur);
                 if (workstations.Count == 1)
                 {
                     return (true, workstations.First(), ALARMS.NONE);
