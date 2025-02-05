@@ -18,6 +18,7 @@ using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Microservices.VMS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.StopRegion;
+using AGVSystemCommonNet6.Utilis;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
@@ -419,6 +420,9 @@ namespace VMSystem.AGV
             }
         }
         public clsEnums.MAIN_STATUS _main_state = MAIN_STATUS.Unknown;
+
+        private Debouncer _StopDeepChargeDebouncer = new Debouncer();
+
         public clsEnums.MAIN_STATUS main_state
         {
             get => _main_state;
@@ -427,9 +431,8 @@ namespace VMSystem.AGV
                 if (value != _main_state)
                 {
                     if (value != MAIN_STATUS.Charging && _main_state == MAIN_STATUS.Charging)
-                    {
-                        StopDeepCharge(true);
-                    }
+                        _StopDeepChargeDebouncer.Debounce(() => StopDeepCharge(true), 1000);
+
                     if (value == MAIN_STATUS.DOWN)
                     {
                         TryDisableOccupiedRackColumn();
@@ -1017,7 +1020,7 @@ namespace VMSystem.AGV
         public bool IsAGVIdlingAtParkableStationButBatteryLevelLow()
         {
             bool isAtBuffer = currentMapPoint.StationType == STATION_TYPE.Buffer || currentMapPoint.StationType == STATION_TYPE.Charge_Buffer;
-            return (currentMapPoint.IsCharge || isAtBuffer) && batteryStatus <= IAGV.BATTERY_STATUS.MIDDLE_LOW && main_state == clsEnums.MAIN_STATUS.IDLE;
+            return (currentMapPoint.IsCharge || isAtBuffer) && main_state == clsEnums.MAIN_STATUS.IDLE && (batteryStatus == IAGV.BATTERY_STATUS.LOW || batteryStatus == IAGV.BATTERY_STATUS.MIDDLE_LOW);
         }
         public bool IsAGVIdlingAtNormalPoint()
         {
