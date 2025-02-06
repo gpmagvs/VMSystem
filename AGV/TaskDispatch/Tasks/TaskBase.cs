@@ -27,6 +27,7 @@ using AGVSystemCommonNet6.DATABASE;
 using VMSystem.Extensions;
 using static AGVSystemCommonNet6.Microservices.MCS.MCSCIMService;
 using VMSystem.AGV.TaskDispatch.OrderHandler;
+using AGVSystemCommonNet6.Utilis;
 
 namespace VMSystem.AGV.TaskDispatch.Tasks
 {
@@ -470,24 +471,22 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             }
         }
-
-        internal async Task<SimpleRequestResponse> SendCancelRequestToAGV()
+        Debouncer _SendCancleRequestToAGVDebouncer = new Debouncer();
+        internal async Task SendCancelRequestToAGV()
         {
-            try
-            {
-                if (Agv == null)
+            _SendCancleRequestToAGVDebouncer.Debounce(async() => {
+                try
                 {
-                    return new SimpleRequestResponse();
+                    if (Agv == null)
+                        return ;
+                    await Agv?.TaskExecuter?.TaskCycleStop(this.OrderData?.TaskName);
                 }
-
-                await Agv?.TaskExecuter?.TaskCycleStop(this.OrderData?.TaskName);
-                return new SimpleRequestResponse();
-            }
-            catch (Exception ex)
-            {
-                logger?.Error(ex);
-                throw ex;
-            }
+                catch (Exception ex)
+                {
+                    logger?.Error(ex);
+                    throw ex;
+                }
+            },200);
         }
 
         internal void Replan(List<int> tags)
@@ -771,7 +770,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             if (!isResumeByWaitTimeout && Agv != null)
             {
                 Agv.NavigationState.LastWaitingForPassableTimeoutPt = null;
-                NotifyServiceHelper.INFO($"{Agv.Name} 導航動作已繼續({(isResumeByWaitTimeout ? "因等待超時" : "解除路徑封閉")})");
             }
             TaskExecutePauseMRE.Set();
             PauseNavigationReason = "";

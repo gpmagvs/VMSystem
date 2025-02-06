@@ -149,7 +149,7 @@ namespace VMSystem.AGV
                 string _newTaskSimplex = ExecutingTaskName + "_" + _sequence;
                 _TaskDonwloadToAGV.Task_Sequence = _sequence;
                 _TaskDonwloadToAGV.Task_Simplex = _newTaskSimplex;
-                lastTaskDonwloadToAGV = _TaskDonwloadToAGV;
+                lastTaskDonwloadToAGV = _TaskDonwloadToAGV.Clone();
                 TrackingTaskSimpleName = _newTaskSimplex;
                 sequence += 1;
                 bool IsAMVAGV = Vehicle.model == clsEnums.AGV_TYPE.INSPECTION_AGV;
@@ -438,9 +438,6 @@ namespace VMSystem.AGV
                     NotifyServiceHelper.WARNING($"{Vehicle.Name} TaskCycleStop: Not support for non-normal move task!");
                     return;
                 }
-
-                NotifyServiceHelper.WARNING($"{Vehicle.Name} Cycle Stop! ");
-
                 clsCancelTaskCmd reset_cmd = new clsCancelTaskCmd()
                 {
                     ResetMode = RESET_MODE.CYCLE_STOP,
@@ -487,7 +484,7 @@ namespace VMSystem.AGV
             }
             finally
             {
-                lastTaskDonwloadToAGV = null;
+                //lastTaskDonwloadToAGV = null;
                 WaitACTIONFinishReportedMRE.Set();
             }
         }
