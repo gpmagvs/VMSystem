@@ -166,7 +166,11 @@ namespace VMSystem
             var point = Map.Points.FirstOrDefault(pt => pt.Key == index);
             if (point.Value != null)
                 return point.Value.Clone();
-            return null;
+            return new MapPoint()
+            {
+                TagNumber = -1,
+                StationType = MapPoint.STATION_TYPE.Unknown,
+            };
         }
 
         internal static int GetIndexOfPoint(MapPoint mapPoint)

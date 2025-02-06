@@ -86,26 +86,59 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             return Tools.CalculationForwardAngle(lastSecondCoord, lastCoord);
         }
 
-
+        /// <summary>
+        /// 其相鄰的一般點位(包含虛擬點)
+        /// </summary>
+        /// <param name="mapPoint"></param>
+        /// <returns></returns>
         public static IEnumerable<MapPoint> TargetNormalPoints(this MapPoint mapPoint)
         {
+            if (mapPoint ==null || mapPoint.Target==null || !mapPoint.Target.Any())
+                return Enumerable.Empty<MapPoint>();
+
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                .Where(pt => StaMap.Map.Points.Values.Any(_pt => _pt.TagNumber == pt.TagNumber))
-                .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
+                                       .Where(pt => pt!=null)
+                                       .Where(pt => StaMap.Map.Points.Values.Any(_pt => _pt.TagNumber == pt.TagNumber))
+                                       .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal);
         }
+
+        /// <summary>
+        /// 其相鄰的工作點位(Eq,charger,buffer...)
+        /// </summary>
+        /// <param name="mapPoint"></param>
+        /// <returns></returns>
         public static IEnumerable<MapPoint> TargetWorkSTationsPoints(this MapPoint mapPoint)
         {
+            if (mapPoint ==null || mapPoint.Target==null || !mapPoint.Target.Any())
+                return Enumerable.Empty<MapPoint>();
             return mapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index))
-                .Where(pt => StaMap.Map.Points.Values.Any(_p => _p.TagNumber == pt.TagNumber))
-                .Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal);
+                                       .Where(pt => pt!=null)
+                                       .Where(pt => StaMap.Map.Points.Values.Any(_p => _p.TagNumber == pt.TagNumber))
+                                       .Where(pt => pt.StationType != MapPoint.STATION_TYPE.Normal);
         }
+
+        /// <summary>
+        /// 相鄰的可停車點(判斷 IsParking = true)
+        /// </summary>
+        /// <param name="mapPoint"></param>
+        /// <returns></returns>
         public static IEnumerable<MapPoint> TargetParkableStationPoints(this MapPoint mapPoint)
         {
+            if (mapPoint ==null || mapPoint.Target==null || !mapPoint.Target.Any())
+                return Enumerable.Empty<MapPoint>();
             IEnumerable<MapPoint> stations = mapPoint.TargetWorkSTationsPoints();
             return stations.Where(pt => pt.IsParking);
         }
+
+        /// <summary>
+        /// 考慮AGV車款,找到相鄰的可停車點(判斷 IsParking = true)
+        /// </summary>
+        /// <param name="mapPoint"></param>
+        /// <returns></returns>
         public static IEnumerable<MapPoint> TargetParkableStationPoints(this MapPoint mapPoint, ref IAGV AgvToPark)
         {
+            if (mapPoint ==null || mapPoint.Target==null || !mapPoint.Target.Any())
+                return Enumerable.Empty<MapPoint>();
             IEnumerable<MapPoint> stations = mapPoint.TargetParkableStationPoints();
             //所有被註冊的Tag
             var registedTags = StaMap.RegistDictionary.Keys.ToList();

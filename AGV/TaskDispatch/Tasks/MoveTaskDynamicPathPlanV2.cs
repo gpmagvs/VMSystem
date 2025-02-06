@@ -1136,17 +1136,24 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         private async void Agv_OnMapPointChanged(object? sender, int e)
         {
-            var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
-            if (currentPt != null)
+            try
             {
+                var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
+                if (currentPt == null)
+                    return;
+                
                 Agv.NavigationState.CurrentMapPoint = currentPt;
                 List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
-
                 var ocupyRegionTags = Agv.NavigationState.NextPathOccupyRegions.SelectMany(rect => new int[] { rect.StartPoint.TagNumber, rect.EndPoint.TagNumber })
-                                                                                .DistinctBy(tag => tag);
+                                                                               .DistinctBy(tag => tag);
                 if (!IsTaskCanceled)
                     UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
-
+            }
+            catch (Exception ex)
+            {
+                string _logMsg = $"嘗試更新導航路徑顯示時發生錯誤:{ex.Message}";
+                logger.Warn(_logMsg);
+                UpdateMoveStateMessage(_logMsg);
             }
         }
 
