@@ -70,6 +70,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 bool IsRemainPathBeDisable = blockedPointInRemainPath.Any();
                 if (!IsRemainPathBeDisable)
                     return;
+                logger.Warn($"Some points({string.Join(",", disabledTags)}) in current navigating path now were disabled. Send Cycle Stop Request To AGV");
                 await CycleStopRequestAsync();
             });
         }
@@ -110,7 +111,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
             try
             {
-
+                StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
                 if (_finalMapPoint == null)
                 {
                     throw new NoPathForNavigatorException();
@@ -740,6 +741,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                 Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
                 DispatchCenter.OnPtPassableBecausePartsReplaceFinish -= EQFinishPartsReplacedHandler;
+                StaMap.OnPointsDisabled -= HandlePointsChangeToDisabled;
                 Agv.NavigationState.StateReset();
                 RestoreClosedPathes();
                 InvokeTaskDoneEvent();
@@ -976,12 +978,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
         public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData) : base(Agv, orderData)
         {
-            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
         }
 
         public MoveTaskDynamicPathPlanV2(IAGV Agv, clsTaskDto orderData, SemaphoreSlim taskTbModifyLock) : base(Agv, orderData, taskTbModifyLock)
         {
-            StaMap.OnPointsDisabled += HandlePointsChangeToDisabled;
         }
 
         private async Task<(bool, MapRegion nextRegion, MapPoint WaitingPoint, bool isGoWaitPointByNormalSegmentTravaling)> GetNextRegionWaitingPoint(List<MapRegion> regions)
