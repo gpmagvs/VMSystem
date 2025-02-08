@@ -70,11 +70,6 @@ namespace VMSystem.Services
                     OrderDataAction = ACTION_TYPE.Unload;
             }
             response = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionStartReport(taskData.TaskName, intTag, intSlot, OrderDataAction);
-
-            if (!response.confirm)
-            {
-                AlarmManagerCenter.AddAlarmAsync(response.AlarmCode, Equipment_Name: taskData.DesignatedAGVName, taskName: taskData.TaskName, level: ALARM_LEVEL.WARNING);
-            }
             string agvname = taskData.DesignatedAGVName;
             //NotifyServiceHelper.INFO($"{agvname} {taskData.Action} Action Start Report To AGVS. Alarm Code Response={response.AlarmCode}");
             return response;
