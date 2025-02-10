@@ -10,6 +10,7 @@ using AGVSystemCommonNet6.Microservices.AGVS;
 using AGVSystemCommonNet6.Microservices.MCS;
 using AGVSystemCommonNet6.Notify;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
+using Newtonsoft.Json;
 using NLog;
 using Polly;
 using Polly.Retry;
@@ -100,8 +101,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OnOrderStart?.Invoke(this, _OrderStartEventArgs);
             secsConfigsService = _OrderStartEventArgs.secsConfigsService;
 
+            logger.Trace($"OrderHandlerBase.StartOrder Invoke. Transfer Completed Result Codes=\r\n {secsConfigsService.transferReportConfiguration.ResultCodes.ToJson()}");
+
             TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
             trajectoryRecorder.Start();
+
+
+
             _ = Task.Run(async () =>
             {
                 await SetOrderProgress(VehicleMovementStage.Not_Start_Yet);
@@ -672,6 +678,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             internal SECSConfigsService secsConfigsService = new SECSConfigsService();
             internal readonly OrderHandlerBase OrderHandler;
+            internal bool isSecsConfigServiceInitialized = false;
             internal OrderStartEvnetArgs(OrderHandlerBase OrderHandler)
             {
                 this.OrderHandler = OrderHandler;

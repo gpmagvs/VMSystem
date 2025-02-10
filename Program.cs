@@ -32,7 +32,7 @@ logger.Info("VMSystem Program Start");
 try
 {
     SECSConfigsService _secsConfigsService = new SECSConfigsService(Path.Combine(AGVSConfigulator.SysConfigs.CONFIGS_ROOT_FOLDER, "SECSConfigs"));
-    _secsConfigsService.Reload();
+    _secsConfigsService.InitializeAsync();
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Logging.ClearProviders();

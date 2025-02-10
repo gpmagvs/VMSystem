@@ -32,7 +32,21 @@ namespace VMSystem.BackgroundServices
 
         private void OrderHandlerBase_OnOrderStart(object? sender, OrderHandlerBase.OrderStartEvnetArgs e)
         {
-            secsConfigService.Reload();
+            SECSConfigsService.logger.Trace("Initialize Service configuration when OrderHandlerBase_OnOrderStart event invoking");
+            ManualResetEventSlim manualResetEventSlim = new ManualResetEventSlim(false);
+            Task.Factory.StartNew(async () =>
+            {
+                await secsConfigService.InitializeAsync();
+                manualResetEventSlim.Set();
+            });
+            bool inTime = manualResetEventSlim.Wait(TimeSpan.FromSeconds(1));
+            e.isSecsConfigServiceInitialized = inTime;
+
+            if (!inTime)
+                SECSConfigsService.logger.Warn("Wait SECSConfigsService InitializeAsync done Timeout!");
+            else
+                SECSConfigsService.logger.Trace("SECSConfigsService InitializeAsync done");
+
             e.secsConfigsService = this.secsConfigService;
         }
 
