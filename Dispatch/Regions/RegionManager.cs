@@ -142,7 +142,7 @@ namespace VMSystem.Dispatch.Regions
                         agv.NavigationState.IsWaitingConflicSolve = agv.NavigationState.currentConflicToAGV != null;
                         await Task.Delay(100, cancelRefreshConflicVehicleStateToskSource.Token);
                         TaskBase currentTask = agv.CurrentRunningTask();
-                        if (currentTask.IsTaskCanceled)
+                        if (currentTask.IsTaskCanceled || string.IsNullOrEmpty(currentTask.OrderData.TaskName))
                             break;
                         agv.CurrentRunningTask().UpdateMoveStateMessage($"等待-{region.Name}可進入(等待[{agv.NavigationState.currentConflicToAGV?.Name}離開])");
 
