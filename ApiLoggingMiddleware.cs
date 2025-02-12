@@ -5,13 +5,10 @@ namespace VMSystem
 {
     public class ApiLoggingMiddleware
     {
-        private readonly ILogger<ApiLoggingMiddleware> _logger;
-
         private readonly RequestDelegate _next;
 
-        public ApiLoggingMiddleware(ILogger<ApiLoggingMiddleware> logger, RequestDelegate next)
+        public ApiLoggingMiddleware(RequestDelegate next)
         {
-            _logger = logger;
             _next = next;
         }
 
@@ -42,8 +39,11 @@ namespace VMSystem
             }
             else
             {
-                _logger.LogInformation("Request: \n{Request}", request);
-                _logger.LogInformation("Response: \n{Response}", response);
+                string controllerName = GetControllerNameFromPath(context.Request.Path);
+                // 紀錄資訊
+                Logger logger = LogManager.GetLogger($"{this.GetType().Name}/{controllerName}");
+                logger.Info("Request: \n{Request}", request);
+                logger.Info("Response: \n{Response}", response);
             }
 
 
@@ -94,6 +94,13 @@ namespace VMSystem
             }
 
             return formattedHeaders.ToString();
+        }
+        private string GetControllerNameFromPath(PathString path)
+        {
+            string pathStr = path.ToString();
+            pathStr = pathStr.Replace("api/", "api_").TrimStart(new char[] { '/' });
+            string? controller_name = pathStr.Split('/').FirstOrDefault();
+            return controller_name ?? "api";
         }
     }
 }
