@@ -136,13 +136,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public bool cycleStopRequesting { get; protected set; }
-        public async Task CycleStopRequestAsync()
+        public async Task CycleStopRequestAsync(string message="")
         {
             cycleStopRequesting = true;
             await SendCancelRequestToAGV();
             cycleStopRequesting = false;
             UpdateStateDisplayMessage($"WaitAGVNotRunning...");
-            await WaitAGVNotRunning();
+            await WaitAGVNotRunning(message);
             Agv.TaskExecuter.Init();
             UpdateStateDisplayMessage($"Agv.TaskExecuter.Init...");
             await Task.Delay(500);
@@ -512,7 +512,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (IsThisTaskDone(feedbackData))
                 {
                     Agv.TaskExecuter.OnActionFinishReported -= ActionFinishFeedbackHandler;
-                    await WaitAGVNotRunning();
+                    await WaitAGVNotRunning($"ActionFinishFeedbackHandler");
                     _WaitAGVTaskDoneMRE.Set();
                 }
             };

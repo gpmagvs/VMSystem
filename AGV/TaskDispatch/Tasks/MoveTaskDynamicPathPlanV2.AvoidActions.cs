@@ -148,8 +148,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     await WaitPathToDestineNotConflicToYieldedVehicelAsync();
             }
 
-            subStage = Stage;
-            await SendTaskToAGV(this.finalMapPoint);
         }
 
         private async Task WaitPathToDestineNotConflicToYieldedVehicelAsync()

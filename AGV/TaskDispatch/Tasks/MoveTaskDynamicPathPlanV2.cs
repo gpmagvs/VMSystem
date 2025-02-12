@@ -71,7 +71,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (!IsRemainPathBeDisable)
                     return;
                 logger.Warn($"Some points({string.Join(",", disabledTags)}) in current navigating path now were disabled. Send Cycle Stop Request To AGV");
-                await CycleStopRequestAsync();
+                await CycleStopRequestAsync("HandlePointsChangeToDisabled");
             });
         }
 
@@ -128,8 +128,39 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 bool isReachNearGoalContinue = false;
                 bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
                 bool isRotationBackMove = false;
-                while (_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber)
+                while ((_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber) || subStage== VehicleMovementStage.AvoidPath || subStage== VehicleMovementStage.AvoidPath_Park||subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                 {
+                    if ((subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park) && Agv.currentMapPoint.TagNumber== _finalMapPoint.TagNumber)
+                    {
+                        UpdateStateDisplayMessage($"Reach Avoid Point");
+                        await WaitAGVNotRunning($"等待停好車在避車點");
+                        await AvoidActionProcess();
+                        subStage = Stage; 
+                        await CycleStopRequestAsync();
+                        _previsousTrajectorySendToAGV.Clear();
+                        _finalMapPoint=this.finalMapPoint;
+                        searchStartPt = Agv.currentMapPoint;
+                        continue;
+                    }
+
+
+                    if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && Agv.currentMapPoint.TagNumber== _finalMapPoint.TagNumber)
+                    {
+                        await WaitAGVNotRunning($"等待停好車在區域等待進入點");
+                        MapRegion waitingRegion = Agv.NavigationState.RegionControlState.NextToGoRegion;
+                        //NotifyServiceHelper.INFO($"[{Agv.Name}] Start Waiting Region-{waitingRegion.Name} Enterable");
+                        Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
+                        var agvInWaitingRegion = OtherAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == waitingRegion.Name ||
+                                              agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == waitingRegion.Name));
+                        await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
+                        subStage = Agv.NavigationState.AvoidActionState.IsAvoidRaising ? subStage : Stage;
+                        await CycleStopRequestAsync();
+                        _previsousTrajectorySendToAGV.Clear();
+                        _finalMapPoint=this.finalMapPoint;
+                        searchStartPt = Agv.currentMapPoint;
+                        continue;
+                    }
+
                     bool isGoWaitPointByNormalTravaling = false;
                     TaskExecutePauseMRE.WaitOne();
                     if (!Agv.NavigationState.IsWaitingConflicSolve)
@@ -175,7 +206,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 await Task.Delay(400);
                                 NotifyServiceHelper.INFO($"[{Agv.Name}] Should Go to Waiting Point({waitingPoint.TagNumber}) of Region-{nextRegion.Name}");
-                                await CycleStopRequestAsync();
+                                await CycleStopRequestAsync("Go to Waiting Point");
                                 NotifyServiceHelper.INFO($"[{Agv.Name}] Stop and Ready Go to Waiting Point({waitingPoint.TagNumber}) of Region-{nextRegion.Name}");
                                 _previsousTrajectorySendToAGV.Clear();
                                 Agv.NavigationState.ResetNavigationPoints();
@@ -189,11 +220,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                     _finalMapPoint = waitingPoint;
 
                                 Agv.NavigationState.RegionControlState.NextToGoRegion = nextRegion;
-                                if (_finalMapPoint.TagNumber == Agv.currentMapPoint.TagNumber)
-                                {
-                                    break;
-                                }
-
+                                continue;
                             }
                         }
 
@@ -215,18 +242,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             _finalMapPoint = this.finalMapPoint;
                         }
 
-                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any() || Agv.NavigationState.AvoidActionState.IsAvoidRaising)
+                        if (dispatchCenterReturnPath == null || !dispatchCenterReturnPath.Any())
                         {
-
-
-                            //if (SecondaryPathSearching)//表示第二路徑也沒有辦法通行
-                            //{
-                            //    RestoreClosedPathes();
-                            //    SecondaryPathSearching = false;
-                            //    NotifyServiceHelper.WARNING($"{Agv.Name} Secondary Path Still Not Navigatable。");
-                            //    await Task.Delay(1000);
-                            //    continue;
-                            //}
                             if (OrderData.isVehicleAssignedChanged && IsTaskCanceled)
                             {
                                 throw new TaskCanceledException($"換車且任務已取消");
@@ -249,7 +266,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 RegionManager.IsRegionEnterable(Agv, Agv.NavigationState.RegionControlState.NextToGoRegion))
                             {
                                 //等待衝突的途中，發現區域可進入了
-                                await CycleStopRequestAsync();
+                                await CycleStopRequestAsync("等待衝突的途中，發現區域可進入");
                                 subStage = Stage;
                                 _finalMapPoint = finalMapPoint;
                                 continue;
@@ -291,7 +308,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 {
                                     await Task.Delay(1000);
                                     NotifyServiceHelper.INFO($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
-                                    await SendCancelRequestToAGV();
+                                    await CycleStopRequestAsync("避車動作取消因另一車輛已有路徑");
                                     _previsousTrajectorySendToAGV.Clear();
                                     searchStartPt = Agv.currentMapPoint;
                                     continue;
@@ -306,7 +323,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                         if (_secondaryPathResponse != null && _secondaryPathResponse.Any())
                                         {
                                             NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
-                                            await SendCancelRequestToAGV();
+                                            await CycleStopRequestAsync("預估有第二路徑可行走");
                                             _previsousTrajectorySendToAGV.Clear();
                                             searchStartPt = Agv.currentMapPoint;
                                             continue;
@@ -324,7 +341,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                                 subStage = Agv.NavigationState.AvoidActionState.AvoidAction == ACTION_TYPE.None ? VehicleMovementStage.AvoidPath : VehicleMovementStage.AvoidPath_Park;
                                 searchStartPt = Agv.currentMapPoint;
-                                await SendCancelRequestToAGV();
+                                await CycleStopRequestAsync("避車動作前Cycle Stop");
                                 NotifyServiceHelper.INFO($"{Agv.Name} 避車動作開始!");
                                 _finalMapPoint = subStage == VehicleMovementStage.AvoidPath ? Agv.NavigationState.AvoidActionState.AvoidPt :
                                                                                             Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine;
@@ -416,7 +433,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (!StaMap.RegistPoint(Agv.Name, nextPath, out var msg))
                         {
                             UpdateMoveStateMessage(msg);
-                            await SendCancelRequestToAGV();
+                            await CycleStopRequestAsync($"註冊點位失敗({msg})");
                             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
                             Agv.NavigationState.ResetNavigationPoints();
                             _previsousTrajectorySendToAGV.Clear();
@@ -482,7 +499,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             string pauseMsg = $"等待設備[{EQPoint?.Graph.Display}]完成紙捲更換...\r\n(Wait [{EQPoint?.Graph.Display}] Paper roller replace finish...)";
                             NavigationPause(isPauseWhenNavigating: false, pauseMsg);
                             UpdateStateDisplayMessage(PauseNavigationReason);
-                            await SendCancelRequestToAGV();
+                            await CycleStopRequestAsync($"等待設備[{EQPoint?.Graph.Display}]完成紙捲更換");
 
                             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
                             {
@@ -638,7 +655,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         NotifyServiceHelper.ERROR($"[{Agv.Name}] {ex.Message}");
                         logger.Error(ex, $"嘗試發送不存在之路徑給{Agv.Name} :{ex.Message},Cycle Stop and Replan...");
-                        await CycleStopRequestAsync();
+                        await CycleStopRequestAsync($"PathNotDefinedException");
                         searchStartPt = Agv.currentMapPoint;
                         _previsousTrajectorySendToAGV.Clear();
                         await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -682,24 +699,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             throw new TaskCanceledException();
 
 
-                    if (subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park)
-                    {
-                        await AvoidActionProcess();
-                    }
-
-                    if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
-                    {
-                        MapRegion waitingRegion = Agv.NavigationState.RegionControlState.NextToGoRegion;
-                        //NotifyServiceHelper.INFO($"[{Agv.Name}] Start Waiting Region-{waitingRegion.Name} Enterable");
-                        Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion = true;
-                        var agvInWaitingRegion = OtherAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == waitingRegion.Name ||
-                                              agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == waitingRegion.Name));
-                        await RegionManager.StartWaitToEntryRegion(Agv, waitingRegion, _TaskCancelTokenSource.Token);
-                        subStage = Agv.NavigationState.AvoidActionState.IsAvoidRaising ? subStage : Stage;
-                        await SendTaskToAGV(this.finalMapPoint);
-
-                    }
-
                     await Task.Delay(100);
                     double expectedAngle;
                     while (!CalculateThetaError(out expectedAngle, out double error))
@@ -714,14 +713,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         await FinalStopThetaAdjuctProcess(expectedAngle);
                     }
                     UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-角度確認({expectedAngle}) OK!");
-                    await WaitAGVNotRunning();
+                    await WaitAGVNotRunning($"Reach Destine goal");
                     await Task.Delay(100);
                 }
 
             }
             catch (TaskCanceledException ex)
             {
-                await WaitAGVNotRunning();
+                await WaitAGVNotRunning($"Task Canceled");
                 logger.Fatal(ex);
                 throw ex;
             }
@@ -948,7 +947,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             _trajPath.Last().Direction = Agv.NavigationState.SpinAtPointRequest.ForwardAngle;
             clsMapPoint[] traj = PathFinder.GetTrajectory(CurrentMap.Name, _trajPath);
             _seq += 1;
-            await CycleStopRequestAsync();
+            await CycleStopRequestAsync($"SpinAtCurrentPointProcess");
             await _DispatchTaskToAGV(new clsTaskDownloadData
             {
                 Action_Type = ACTION_TYPE.None,
