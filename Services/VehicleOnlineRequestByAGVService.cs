@@ -62,6 +62,10 @@ namespace VMSystem.Services
             else
             {
                 clsCoordination currentCoord = _vehicle.states.Coordination;
+
+                if (point.IsVirtualPoint)
+                    return (ALARMS.CannotOnlineVehicleBecauseAtVirtualPoint, "車輛位於虛擬點時不可上線,請將車輛移動至Tag上 (Vehicle cannot online at a virtual point. Move to a Tag.)");
+
                 if (point.CalculateDistance(currentCoord.X, currentCoord.Y) > 1.5)
                     return (ALARMS.GET_ONLINE_REQ_BUT_AGV_LOCATION_IS_TOO_FAR_FROM_POINT, "車輛當前位置距離上報點位過遠");
                 return (ALARMS.NONE, "");
