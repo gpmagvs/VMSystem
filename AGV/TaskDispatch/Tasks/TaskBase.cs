@@ -141,6 +141,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             cycleStopRequesting = true;
             await SendCancelRequestToAGV();
             cycleStopRequesting = false;
+            UpdateStateDisplayMessage($"WaitAGVNotRunning...");
+            await WaitAGVNotRunning();
+            Agv.TaskExecuter.Init();
+            UpdateStateDisplayMessage($"Agv.TaskExecuter.Init...");
+            await Task.Delay(500);
         }
 
 
@@ -474,11 +479,12 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         Debouncer _SendCancleRequestToAGVDebouncer = new Debouncer();
         internal async Task SendCancelRequestToAGV()
         {
-            _SendCancleRequestToAGVDebouncer.Debounce(async() => {
+            _SendCancleRequestToAGVDebouncer.Debounce(async () =>
+            {
                 try
                 {
                     if (Agv == null)
-                        return ;
+                        return;
                     await Agv?.TaskExecuter?.TaskCycleStop(this.OrderData?.TaskName);
                 }
                 catch (Exception ex)
@@ -486,7 +492,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     logger?.Error(ex);
                     throw ex;
                 }
-            },200);
+            }, 200);
         }
 
         internal void Replan(List<int> tags)

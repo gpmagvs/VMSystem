@@ -174,11 +174,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (conofirmed)
                             {
                                 await Task.Delay(400);
-                                await CycleStopRequestAsync();
                                 NotifyServiceHelper.INFO($"[{Agv.Name}] Should Go to Waiting Point({waitingPoint.TagNumber}) of Region-{nextRegion.Name}");
-                                await WaitAGVNotRunning();
+                                await CycleStopRequestAsync();
                                 NotifyServiceHelper.INFO($"[{Agv.Name}] Stop and Ready Go to Waiting Point({waitingPoint.TagNumber}) of Region-{nextRegion.Name}");
-                                Agv.TaskExecuter.Init();
                                 _previsousTrajectorySendToAGV.Clear();
                                 Agv.NavigationState.ResetNavigationPoints();
                                 searchStartPt = Agv.currentMapPoint;
@@ -252,8 +250,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 //等待衝突的途中，發現區域可進入了
                                 await CycleStopRequestAsync();
-                                await WaitAGVNotRunning();
-                                Agv.TaskExecuter.Init();
                                 subStage = Stage;
                                 _finalMapPoint = finalMapPoint;
                                 continue;
@@ -643,8 +639,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         NotifyServiceHelper.ERROR($"[{Agv.Name}] {ex.Message}");
                         logger.Error(ex, $"嘗試發送不存在之路徑給{Agv.Name} :{ex.Message},Cycle Stop and Replan...");
                         await CycleStopRequestAsync();
-                        await WaitAGVNotRunning();
-                        Agv.TaskExecuter.Init();
                         searchStartPt = Agv.currentMapPoint;
                         _previsousTrajectorySendToAGV.Clear();
                         await StaMap.UnRegistPointsOfAGVRegisted(Agv);
@@ -955,8 +949,6 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             clsMapPoint[] traj = PathFinder.GetTrajectory(CurrentMap.Name, _trajPath);
             _seq += 1;
             await CycleStopRequestAsync();
-            await WaitAGVNotRunning();
-            Agv.TaskExecuter.Init();
             await _DispatchTaskToAGV(new clsTaskDownloadData
             {
                 Action_Type = ACTION_TYPE.None,
