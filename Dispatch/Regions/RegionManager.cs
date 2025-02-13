@@ -266,21 +266,10 @@ namespace VMSystem.Dispatch.Regions
                 {
                     bool _IsEnterable()
                     {
-                        List<IAGV> vehiclesInRegion = VMSManager.AllAGV.Where(vehicle => vehicle.currentMapPoint.GetRegion().Name == Region.Name).ToList();
 
-                        BookingRegionVehicles = VMSManager.AllAGV.Where(agv => agv.currentMapPoint.GetRegion().Name == Region.Name || agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == Region.Name))
+                        BookingRegionVehicles = VMSManager.AllAGV.Where(agv => (agv.currentMapPoint.GetRegion().Name == Region.Name && !_IsAGVIDLEAtWorkStation(agv))||_IsAGVExecuteOrderAndNavigationPathInRegion(agv, Region))
                                                                  .ToList();
-
-
-                        int NumberOfIdlingVehicleNotOnMainPath = vehiclesInRegion.Count(v => v.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
-                        bool IsUpToLimit = vehiclesInRegion.Count() - NumberOfIdlingVehicleNotOnMainPath >= Region.MaxVehicleCapacity;
-                        if (!IsUpToLimit)
-                        {
-                            return true;
-                        }
-
-                        int inRegionOrGoThroughVehiclesCount = BookingRegionVehicles.Count();
-                        return inRegionOrGoThroughVehiclesCount < Region.MaxVehicleCapacity;
+                        return BookingRegionVehicles.Count() < Region.MaxVehicleCapacity;
                     }
 
 
@@ -310,8 +299,22 @@ namespace VMSystem.Dispatch.Regions
                 _state.allowEnterSignal.Set();
             }
             WaitingForEnterVehicles.Clear();
-        }
 
+            bool _IsAGVIDLEAtWorkStation(IAGV agv)
+            {
+                if (agv.currentMapPoint.StationType== MapPoint.STATION_TYPE.Normal)
+                    return false;
+                return agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING ;
+            }
+
+            bool _IsAGVExecuteOrderAndNavigationPathInRegion(IAGV agv,MapRegion region)
+            {
+                if (agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING)
+                    return false;
+                return agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetRegion().Name == region.Name);
+            }
+
+        }
 
         public ConcurrentDictionary<IAGV, clsVehicleWaitingState> WaitingForEnterVehicles { get; set; } = new ConcurrentDictionary<IAGV, clsVehicleWaitingState>();
 
