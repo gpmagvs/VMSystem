@@ -96,7 +96,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                log(ex);
             }
         }
     }

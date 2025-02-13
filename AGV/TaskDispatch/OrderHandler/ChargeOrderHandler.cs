@@ -49,7 +49,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 (bool confirm, ALARMS alarm_code) = await Agv.taskDispatchModule.CheckTaskOrderContentAndTryFindBestWorkStation(OrderData);
                 if (confirm)
                 {
-                    logger.Trace($"Try change charge station to go (From Tag {oriTag}->{OrderData.To_Station_Tag})");
+                    log($"Try change charge station to go (From Tag {oriTag}->{OrderData.To_Station_Tag})");
                 }
                 else
                 {
@@ -77,12 +77,12 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             if (_isAnyVehicleGoToStation)
             {
                 message = $"{gotoSameStationVehicles.GetNames()} already has task go to charge station [{_mapPoint.Graph.Display}]";
-                logger.Warn(message);
+                log(message);
             }
             if (_isAnyVehicleAtStation)
             {
                 message = $"{alreadyAtSameChargeStationVehicles.GetNames()} already at charge station [{_mapPoint.Graph.Display}]";
-                logger.Warn(message);
+                log(message);
             }
             return !_isAnyVehicleGoToStation && !_isAnyVehicleAtStation;
         }

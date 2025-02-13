@@ -64,7 +64,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                log(ex);
                 return new List<int>();
             }
         }
@@ -74,7 +74,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         protected override async Task HandleAGVActionFinishFeedback()
         {
-            logger.Info($"{Agv.Name} Feedback Action Finish of Measure Order (Current Location:{Agv.currentMapPoint.TagNumber})");
+            log($"{Agv.Name} Feedback Action Finish of Measure Order (Current Location:{Agv.currentMapPoint.TagNumber})");
             if (RunningTask.IsAGVReachDestine && Agv.main_state != MAIN_STATUS.DOWN)
             {
                 RunningTask.ActionFinishInvoke();
@@ -90,7 +90,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         }
         internal async Task MeasureResultFeedback(clsMeasureResult measureResult)
         {
-            logger.Info($"{Agv.Name} Report Measure Data: {measureResult.ToJson()}");
+            log($"{Agv.Name} Report Measure Data: {measureResult.ToJson()}");
             string BayName = StaMap.GetBayNameByMesLocation(measureResult.location);
             measureResult.AGVName = Agv.Name;
             measureResult.BayName = BayName;
@@ -113,7 +113,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(ex.Message, ex);
+                    log(ex);
                     AlarmManagerCenter.AddAlarmAsync(ALARMS.Save_Measure_Data_to_DB_Fail, ALARM_SOURCE.AGVS, ALARM_LEVEL.WARNING);
                 }
             }

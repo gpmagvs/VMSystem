@@ -113,7 +113,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 ChangeWorkStationMoveStateForwarding();
                 ChangeWorkStationMoveStateBackwarding(1000);
                 await WaitAGVTaskDone();
-                logger.Info("LUDLD Action End.");
+                LogInfoAsync("LUDLD Action End.");
                 if (this.ActionType == ACTION_TYPE.Unload)
                     UpdateActualCarrierIDFromAGVStateReported();
                 UpdateLDULDTime();
@@ -122,7 +122,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync(ex.Message, ex);
                 throw ex;
             }
             finally
@@ -157,7 +157,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync("[RaiseRotateActionAfertLoadUnload]" + ex.Message, ex);
             }
         }
 
@@ -224,8 +224,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 WaitAGVReachWorkStationMRE.Set();
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 string _log = $"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})";
-                logger.Trace(_log);
-                NotifyServiceHelper.INFO(_log);
+                LogInfoAsync(_log, true);
                 await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
 
@@ -244,16 +243,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (confirmed)
                         {
                             _log = $"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}";
-                            //Notify
-                            NotifyServiceHelper.INFO(_log);
-                            logger.Trace(_log);
+                            LogInfoAsync(_log, true);
                         }
                     }
                     else
                     {
                         _log = $"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}";
-                        NotifyServiceHelper.WARNING(_log);
-                        logger.Trace(_log);
+                        LogInfoAsync(_log, true);
                         //將進入點的鎖定點也都註冊掉
                         RegistPointOfEntryPointNear();
                     }
@@ -274,19 +270,18 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                                                          .Select(unRegistedPt => unRegistedPt.TagNumber)
                                                                                          .ToList();
                         string _tagsStr = string.Join(",", unregistedInvolvePtTags);
-                        logger.Info($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+                        LogInfoAsync($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+
                         bool registedAllSuccess = StaMap.RegistPoint(Agv.Name, unregistedInvolvePtTags, out string msg);
                         if (registedAllSuccess)
                         {
                             string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case)";
-                            NotifyServiceHelper.INFO(_log);
-                            logger.Info(_log);
+                            LogInfoAsync(_log, true);
                         }
                         else
                         {
                             string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case) FAIL :{msg}";
-                            NotifyServiceHelper.ERROR(_log);
-                            logger.Warn(_log);
+                            LogInfoAsync(_log, true);
                         }
                     }
                 }
@@ -304,8 +299,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 WaitAGVReachWorkStationMRE.Set();
                 string currentNavPath = string.Join("->", Agv.NavigationState.NextNavigtionPoints.GetTagCollection());
                 string _log = $"AGV {Agv.Name} [{ActionType}] 到達工作站- {EQPoint.Graph.Display}({currentNavPath})";
-                logger.Trace(_log);
-                NotifyServiceHelper.INFO(_log);
+                LogInfoAsync(_log, true);
                 await Task.Delay(20);
                 Agv.NavigationState.ResetNavigationPoints();
 
@@ -324,16 +318,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (confirmed)
                         {
                             _log = $"AGV {Agv.Name} 解除入口點註冊=> {EntryPoint.Graph.Display}";
-                            //Notify
-                            NotifyServiceHelper.INFO(_log);
-                            logger.Trace(_log);
+                            LogInfoAsync(_log, true);
                         }
                     }
                     else
                     {
                         _log = $"{Agv.Name} 請求Release Tag {EntryPoint.TagNumber} 已被系統拒絕,原因:{request.Message}";
-                        NotifyServiceHelper.WARNING(_log);
-                        logger.Trace(_log);
+                        LogInfoAsync(_log, true);
                         //將進入點的鎖定點也都註冊掉
                         RegistPointOfEntryPointNear();
                     }
@@ -357,19 +348,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                                                                      .Select(unRegistedPt => unRegistedPt.TagNumber)
                                                                                      .ToList();
                     string _tagsStr = string.Join(",", unregistedInvolvePtTags);
-                    logger.Info($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
+                    LogInfoAsync($"{Agv.Name} try regist tags-{unregistedInvolvePtTags} when reach port (Unlock entry point is forbidden case)");
                     bool registedAllSuccess = StaMap.RegistPoint(Agv.Name, unregistedInvolvePtTags, out string msg);
                     if (registedAllSuccess)
                     {
                         string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case)";
-                        NotifyServiceHelper.INFO(_log);
-                        logger.Info(_log);
+                        LogInfoAsync(_log, true);
                     }
                     else
                     {
                         string _log = $"Regist {_tagsStr} for {Agv.Name} when entry port (Unlock entry point is forbidden case) FAIL :{msg}";
-                        NotifyServiceHelper.ERROR(_log);
-                        logger.Warn(_log);
+                        LogInfoAsync(_log, true);
                     }
                 }
             }
@@ -384,7 +373,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             try
             {
-                logger.Trace($"Try make {Agv.Name}  turn to avoid angle.");
+                LogInfoAsync($"Try make {Agv.Name}  turn to avoid angle.");
                 clsMapPoint[] trajectory = this.TaskDonwloadToAGV.ExecutingTrajecory.Take(1).Select(pt => pt).ToArray();
                 double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
@@ -403,29 +392,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (IsConflicWhenAGVRotating(out List<string> conflicVehicleNames))
                 {
                     string vehicleNames = string.Join(",", conflicVehicleNames);
-                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {vehicleNames}");
-                    NotifyServiceHelper.INFO($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。");
+                    LogInfoAsync($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。", true);
                     return;
                 }
                 Agv.NavigationState.UpdateNavigationPoints(trajectory.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
                 WaitAGVReachWorkStationMRE.Reset();
                 Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
                 string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
-                logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
-                NotifyServiceHelper.WARNING($"{Agv.Name} 即將旋轉至避車角度:{avoidTheta} !");
+                LogInfoAsync($"{Agv.Name} 即將旋轉至避車角度:{avoidTheta} !", true);
                 (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
                 if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
-                    logger.Info($"{Agv.Name} turn to avoid angle task download success.");
+                    LogInfoAsync($"{Agv.Name} turn to avoid angle task download success.");
                 else
                 {
-                    logger.Warn($"{Agv.Name} turn to avoid angle task download  failed.");
+                    LogInfoAsync($"{Agv.Name} turn to avoid angle task download  failed.");
                     return;
                 }
                 WaitAGVReachWorkStationMRE.WaitOne();
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync(ex.Message, ex);
             }
             finally
             {
@@ -448,11 +435,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 if (ActionType == ACTION_TYPE.Unload && !isAnyAGVBlockedByThisAGV) //如果是放貨，一律要轉向避車角度，因為車上有貨不會再自動產生充電任務
                 {
-                    logger.Info($"當前沒有任何AGV因與 {Agv.Name}路徑衝突/干涉而正在等待交管，不用轉向避車角度");
+                    LogInfoAsync($"當前沒有任何AGV因與 {Agv.Name}路徑衝突/干涉而正在等待交管，不用轉向避車角度");
                     return;
                 }
 
-                logger.Trace($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
+                LogInfoAsync($"Try make {Agv.Name} Turn to avoid angle when AGVS Reject action start.");
                 int currentTag = Agv.currentMapPoint.TagNumber;
                 double avoidTheta = GetTurnToAngleAfterLeaveWorkStation();
 
@@ -472,28 +459,27 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 if (IsConflicWhenAGVRotating(out List<string> conflicVehicleNames))
                 {
                     string vehicleNames = string.Join(",", conflicVehicleNames);
-                    logger.Warn($"Spin To Avoid Theta Not Allow. Body Conflic to {vehicleNames}");
-                    NotifyServiceHelper.INFO($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。");
+                    LogInfoAsync($"預估 [{Agv.Name}] 轉向避車角度與 {vehicleNames} 衝突，禁止旋轉。", true);
                     return;
                 }
                 Agv.NavigationState.UpdateNavigationPoints(traj.Select(pt => StaMap.GetPointByTagNumber(pt.Point_ID)));
                 WaitAGVReachWorkStationMRE.Reset();
                 Agv.TaskExecuter.OnActionFinishReported += TaskExecuter_OnActionFinishReported;
                 string taskDownloadInfoStr = "Trajectory= " + string.Join("->", taskObj.Trajectory.Select(pt => pt.Point_ID)) + $",Theta={taskObj.Trajectory.Last().Theta}";
-                logger.Trace($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
+                LogInfoAsync($"Task download info of {Agv.Name} for turn to avoid angle-> {taskDownloadInfoStr}");
                 (TaskDownloadRequestResponse response, clsMapPoint[] trajectoryReturn) = await Agv.TaskExecuter.TaskDownload(this, taskObj, IsRotateToAvoidAngleTask: true);
                 if (response.ReturnCode == TASK_DOWNLOAD_RETURN_CODES.OK)
-                    logger.Info($"{Agv.Name} turn to avoid angle task download success.");
+                    LogInfoAsync($"{Agv.Name} turn to avoid angle task download success.");
                 else
                 {
-                    logger.Warn($"{Agv.Name} turn to avoid angle task download  failed.");
+                    LogInfoAsync($"{Agv.Name} turn to avoid angle task download  failed.");
                     return;
                 }
                 WaitAGVReachWorkStationMRE.WaitOne();
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync(ex.Message, ex);
             }
             finally
             {
@@ -666,7 +652,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync("[ReportUnloadCargoFromPortDone]"+ex.Message, ex);
             }
         }
 
@@ -683,7 +669,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                LogErrorAsync("[ReportLoadCargoToPortDone]"+ex.Message, ex);
             }
         }
     }

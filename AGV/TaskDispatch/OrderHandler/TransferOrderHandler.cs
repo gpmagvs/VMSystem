@@ -136,9 +136,9 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             try
             {
                 clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, false, Agv.Name);
-                logger.Info(response1.ToJson());
+                log(response1.ToJson());
                 clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload, false, Agv.Name);
-                logger.Info(response2.ToJson());
+                log(response2.ToJson());
 
             }
             catch (Exception ex)

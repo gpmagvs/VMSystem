@@ -70,7 +70,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 bool IsRemainPathBeDisable = blockedPointInRemainPath.Any();
                 if (!IsRemainPathBeDisable)
                     return;
-                logger.Warn($"Some points({string.Join(",", disabledTags)}) in current navigating path now were disabled. Send Cycle Stop Request To AGV");
+                LogInfoAsync($"Some points({string.Join(",", disabledTags)}) in current navigating path now were disabled. Send Cycle Stop Request To AGV");
                 await CycleStopRequestAsync("HandlePointsChangeToDisabled");
             });
         }
@@ -80,7 +80,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         bool SecondaryPathFound = false;
         private async Task SendTaskToAGV(MapPoint _finalMapPoint)
         {
-            logger.Info($"{Agv.Name}-{_finalMapPoint.TagNumber}");
+            LogInfoAsync($"Start SendTaskToAGV .{Agv.Name}-.Destine Goal={_finalMapPoint.TagNumber}");
             await StaMap.UnRegistPointsOfAGVRegisted(Agv);
             this.parentTaskBase = this;
             Agv.NavigationState.IsWaitingConflicSolve = false;
@@ -103,7 +103,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     {
                         NavigationResume(isResumeByWaitTimeout: false);
                         waitCanPassPtPassableCancle.Cancel();
-                        logger.Trace($"{currentNonPassableByEQPartsReplacing.Graph.Display} now is passable. Resume Navigation");
+                        LogInfoAsync($"{currentNonPassableByEQPartsReplacing.Graph.Display} now is passable. Resume Navigation");
                     }
                 });
             };
@@ -135,7 +135,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         UpdateStateDisplayMessage($"Reach Avoid Point");
                         await WaitAGVNotRunning($"等待停好車在避車點");
                         await AvoidActionProcess();
-                        subStage = Stage; 
+                        subStage = Stage;
                         await CycleStopRequestAsync();
                         _previsousTrajectorySendToAGV.Clear();
                         _finalMapPoint=this.finalMapPoint;
@@ -307,7 +307,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 if (Agv.NavigationState.currentConflicToAGV?.main_state == clsEnums.MAIN_STATUS.RUN)
                                 {
                                     await Task.Delay(1000);
-                                    NotifyServiceHelper.INFO($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
+                                    LogInfoAsync($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
                                     await CycleStopRequestAsync("避車動作取消因另一車輛已有路徑");
                                     _previsousTrajectorySendToAGV.Clear();
                                     searchStartPt = Agv.currentMapPoint;
@@ -322,7 +322,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                         var _secondaryPathResponse = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, Agv.currentMapPoint, _finalMapPoint, OrderData, Stage));
                                         if (_secondaryPathResponse != null && _secondaryPathResponse.Any())
                                         {
-                                            NotifyServiceHelper.INFO($"{Agv.Name} 預估有第二路徑可行走!");
+                                            LogInfoAsync($"{Agv.Name} 預估有第二路徑可行走!", true);
                                             await CycleStopRequestAsync("預估有第二路徑可行走");
                                             _previsousTrajectorySendToAGV.Clear();
                                             searchStartPt = Agv.currentMapPoint;
@@ -341,8 +341,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                                 subStage = Agv.NavigationState.AvoidActionState.AvoidAction == ACTION_TYPE.None ? VehicleMovementStage.AvoidPath : VehicleMovementStage.AvoidPath_Park;
                                 searchStartPt = Agv.currentMapPoint;
+
+                                LogInfoAsync($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
                                 await CycleStopRequestAsync("避車動作前Cycle Stop");
-                                NotifyServiceHelper.INFO($"{Agv.Name} 避車動作開始!");
+                                LogInfoAsync($"{Agv.Name} 避車動作開始!", true);
                                 _finalMapPoint = subStage == VehicleMovementStage.AvoidPath ? Agv.NavigationState.AvoidActionState.AvoidPt :
                                                                                             Agv.NavigationState.AvoidActionState.AvoidToPtMoveDestine;
                                 _previsousTrajectorySendToAGV.Clear();
@@ -391,7 +393,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             if (isNextGoalIsAvoidPtDestine)
                             {
                                 double theta = StaMap.GetPointByTagNumber(nextPath.Last().TagNumber).Direction_Avoid;
-                                logger.Trace($"避車動作且下一終點為避車點，停車角度=避車角度=>{theta}");
+                                LogInfoAsync($"避車動作且下一終點為避車點，停車角度=避車角度=>{theta}");
+
                                 nextPath.Last().Direction = theta;
                             }
                             else
@@ -401,7 +404,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
                         catch (Exception ex)
                         {
-                            logger.Error(ex, $"嘗試決定終點(Tag={nextPath.Last().TagNumber})之停車角度時發生例外");
+                            LogErrorAsync($"嘗試決定終點(Tag={nextPath.Last().TagNumber})之停車角度時發生例外", ex);
                             nextPath.Last().Direction = nextPath.GetStopDirectionAngle(this.OrderData, this.Agv, this.subStage, nextGoal);
                         }
 
@@ -424,7 +427,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (isGoBackToOriginalPath)
                         {
-                            NotifyServiceHelper.WARNING($"{Agv.Name} Path revere detected.");
+                            LogInfoAsync($"{Agv.Name} Path revere detected.", true);
                             throw new PathNotDefinedException("Reverse!!!!");
                         }
                         else
@@ -448,7 +451,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         {
                             MapPoint EQPoint = currentNonPassableByEQPartsReplacing.TargetWorkSTationsPoints().FirstOrDefault();
                             bool isChangePathAllowed = false;
-                            logger.Trace($"{Agv.Name} 開始等待 {EQPoint?.Graph.Display}完成紙捲更換. Tag {currentNonPassableByEQPartsReplacing.TagNumber}尚無法可通行");
+                            LogInfoAsync($"{Agv.Name} 開始等待 {EQPoint?.Graph.Display}完成紙捲更換. Tag {currentNonPassableByEQPartsReplacing.TagNumber}尚無法可通行");
 
                             DispatchCenter.OnPtPassableBecausePartsReplaceFinish += EQFinishPartsReplacedHandler;
 
@@ -457,7 +460,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                             {
                                 waitCanPassPtPassableCancle = new CancellationTokenSource();
                                 int _waitTimeout = TrafficControlCenter.TrafficControlParameters.Navigation.TimeoutWhenWaitPtPassableByEqPartReplacing;
-                                logger.Info($"{Agv.Name} 因等待的設備非終點設備， 開始等待倒數 {_waitTimeout}s,若 {EQPoint?.Graph.Display} 紙捲仍未完成更換則進行繞路");
+                                LogInfoAsync($"{Agv.Name} 因等待的設備非終點設備， 開始等待倒數 {_waitTimeout}s,若 {EQPoint?.Graph.Display} 紙捲仍未完成更換則進行繞路");
                                 TimeSpan ts = TimeSpan.FromSeconds(_waitTimeout);
                                 waitCanPassPtPassableCancle.CancelAfter(ts);
                                 _ = Task.Run(async () =>
@@ -483,7 +486,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                                         if (NavigationPausing)//取消等待的當下，導航還是暫停=>表示超時等待
                                         {
-                                            logger.Info($"{Agv.Name} Wait {currentNonPassableByEQPartsReplacing.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行!");
+                                            LogInfoAsync($"{Agv.Name} Wait {currentNonPassableByEQPartsReplacing.TagNumber} 可通行已逾時({_waitTimeout}s),開始繞行!");
                                             Agv.NavigationState.LastWaitingForPassableTimeoutPt = currentNonPassableByEQPartsReplacing;
                                             NavigationResume(isResumeByWaitTimeout: true);
                                             isChangePathAllowed = true;
@@ -654,7 +657,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     catch (PathNotDefinedException ex)
                     {
                         NotifyServiceHelper.ERROR($"[{Agv.Name}] {ex.Message}");
-                        logger.Error(ex, $"嘗試發送不存在之路徑給{Agv.Name} :{ex.Message},Cycle Stop and Replan...");
+                        LogErrorAsync($"嘗試發送不存在之路徑給{Agv.Name} :{ex.Message},Cycle Stop and Replan...", ex, true);
                         await CycleStopRequestAsync($"PathNotDefinedException");
                         searchStartPt = Agv.currentMapPoint;
                         _previsousTrajectorySendToAGV.Clear();
@@ -671,7 +674,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex);
+                        LogErrorAsync(ex.Message,ex);
                         continue;
                     }
 
@@ -721,17 +724,17 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (TaskCanceledException ex)
             {
                 await WaitAGVNotRunning($"Task Canceled");
-                logger.Fatal(ex);
+                LogErrorAsync($"TaskCanceledException Catch!", ex);
                 throw ex;
             }
             catch (AGVRejectTaskException ex)
             {
-                logger.Fatal(ex);
+                LogErrorAsync($"AGVRejectTaskException Catch!", ex);
                 throw ex;
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex);
+                LogErrorAsync($"Exception Catch!", ex);
                 throw ex;
             }
             finally
@@ -938,7 +941,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return;
 
 
-            logger.Trace($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
+            LogInfoAsync($"{Agv.Name} 原地朝向角度修正任務-朝向角:[{_forwardAngle}] 度");
 
             _previsousTrajectorySendToAGV.Clear();
             List<MapPoint> _trajPath = new List<MapPoint>() {
@@ -1152,7 +1155,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             catch (Exception ex)
             {
                 string _logMsg = $"嘗試更新導航路徑顯示時發生錯誤:{ex.Message}";
-                logger.Warn(_logMsg);
+                LogErrorAsync(_logMsg, ex, true);
                 UpdateMoveStateMessage(_logMsg);
             }
         }

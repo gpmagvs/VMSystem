@@ -93,7 +93,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             this.TaskName = orderData.TaskName;
             TaskDonwloadToAGV.Action_Type = ActionType;
             TrafficWaitingState = new clsWaitingInfo(Agv);
-            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}");
+            logger = LogManager.GetLogger($"TaskDispatch/{Agv.Name}/{orderData.TaskName}");
 
         }
         public MapPoint InfrontOfWorkStationPoint = new MapPoint();
@@ -136,7 +136,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             }
         }
         public bool cycleStopRequesting { get; protected set; }
-        public async Task CycleStopRequestAsync(string message="")
+        public async Task CycleStopRequestAsync(string message = "")
         {
             cycleStopRequesting = true;
             await SendCancelRequestToAGV();
@@ -333,7 +333,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             {
                 try
                 {
-                    logger.Warn($"嘗試下載任務給[{Agv.Name}]..({retryCnt})");
+                    logger.Warn($"嘗試下載任務給[{Agv.Name}]::{_TaskDonwloadToAGV.ToJson(Formatting.None)}(Try-{retryCnt})");
                     return await _DownloadTaskInvoke(_TaskDonwloadToAGV);
                 }
                 catch (HttpRequestException ex)
@@ -415,8 +415,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         }
         public virtual void UpdateMoveStateMessage(string msg)
         {
+
             if (OrderData == null)
                 return;
+
             string GetDestineDisplay()
             {
                 int _destineTag = 0;
@@ -425,7 +427,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                 return StaMap.GetStationNameByTag(_destineTag);
             }
             bool _isPathAvoiding = Stage == VehicleMovementStage.AvoidPath;
-            TrafficWaitingState.SetDisplayMessage($"[{(_isPathAvoiding ? "避車" : OrderData.ActionName)}]-{(_isPathAvoiding ? "避讓點" : "終點")} : {GetDestineDisplay()}\r\n({msg})");
+            string _msgDisplay = $"[{(_isPathAvoiding ? "避車" : OrderData.ActionName)}]-{(_isPathAvoiding ? "避讓點" : "終點")} : {GetDestineDisplay()}\r\n({msg})";
+            TrafficWaitingState.SetDisplayMessage(_msgDisplay);
+            //LogInfoAsync($"[UpdateMoveStateMessage] {_msgDisplay}");
         }
 
         protected virtual async Task<(bool confirm, string message, List<string> regions)> RegistToPartsSystem(clsTaskDownloadData _TaskDonwloadToAGV)
@@ -691,15 +695,20 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         protected async Task WaitAGVNotRunning(string message = "")
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
+            logger.Trace($"Start wait AGV Not Running..Begin Status={Agv.main_state}.(Trigger by :{message})");
+            await Task.Delay(500);
             while (Agv.main_state == clsEnums.MAIN_STATUS.RUN)
             {
                 if (stopwatch.Elapsed.Seconds > 3)
                 {
-                    NotifyServiceHelper.WARNING($"Waiting for {Agv.Name} main status not RUN...({message})");
+                    string logMsg = $"Waiting for {Agv.Name} main status not RUN...({message})";
+                    NotifyServiceHelper.WARNING(logMsg);
+                    logger?.Trace(logMsg);
                     stopwatch.Restart();
                 }
                 await Task.Delay(10);
             }
+            logger.Trace($"AGV Not RUN. Now is{Agv.main_state}");
             stopwatch.Stop();
         }
         /// <summary>
@@ -780,6 +789,25 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             TaskExecutePauseMRE.Set();
             PauseNavigationReason = "";
             NavigationPausing = false;
+        }
+
+        public async Task LogInfoAsync(string log, bool useNotifier = false)
+        {
+            await Task.Run(async () =>
+            {
+                logger?.Trace(log);
+                if (useNotifier)
+                    NotifyServiceHelper.INFO(log);
+            });
+        }
+        public async Task LogErrorAsync(string log, Exception ex = null, bool useNotifier = false)
+        {
+            await Task.Run(async () =>
+            {
+                logger?.Error(log + ex?.Message, ex);
+                if (useNotifier)
+                    NotifyServiceHelper.ERROR(log);
+            });
         }
     }
 

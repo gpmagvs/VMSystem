@@ -101,7 +101,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             OnOrderStart?.Invoke(this, _OrderStartEventArgs);
             secsConfigsService = _OrderStartEventArgs.secsConfigsService;
 
-            logger.Trace($"OrderHandlerBase.StartOrder Invoke. Transfer Completed Result Codes=\r\n {secsConfigsService.transferReportConfiguration.ResultCodes.ToJson()}");
+            log($"OrderHandlerBase.StartOrder Invoke. Transfer Completed Result Codes=\r\n {secsConfigsService.transferReportConfiguration.ResultCodes.ToJson()}");
 
             TrajectoryRecorder trajectoryRecorder = new TrajectoryRecorder(Agv, OrderData);
             trajectoryRecorder.Start();
@@ -167,7 +167,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         {
                             AbortOrder(_alarm);
                         };
-                        logger.Info($"[{Agv.Name}] Task-{task.ActionType} 開始");
+                        log($"[{Agv.Name}] Task-{task.ActionType} 開始");
 
                         await SetOrderProgress(task.Stage);
 
@@ -193,7 +193,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                         if (taskchange.task != null)
                             ModifyOrder(taskchange.task);
 
-                        logger.Info($"[{Agv.Name}] Task-{task.ActionType} 結束");
+                        log($"[{Agv.Name}] Task-{task.ActionType} 結束");
 
                         bool _isTaskFail = await DetermineTaskState();
                         if (_isTaskFail)
@@ -229,7 +229,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(ex);
+                    log(ex);
                     _SetOrderAsFaiiureState(ex.Message, ALARMS.SYSTEM_ERROR);
                     ActionsWhenOrderCancle();
                     RunningTask.Dispose();
@@ -264,7 +264,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     if (TaskAbortedFlag || isAGVStatusDown)
                     {
                         TaskCancelledFlag = false;
-                        logger.Warn($"Task Aborted!.{TaskCancelReason}");
+                        log($"Task Aborted!.{TaskCancelReason}");
                         _SetOrderAsFaiiureState(TaskAbortReason, TaskAbortedFlag ? AlarmWhenTaskAborted : ALARMS.AGV_STATUS_DOWN);
                         ActionsWhenOrderCancle();
                         isTaskFail = true;
@@ -273,7 +273,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                     }
                     if (TaskCancelledFlag)
                     {
-                        logger.Warn($"Task canceled.{TaskCancelReason}");
+                        log($"Task canceled.{TaskCancelReason}");
                         _SetOrderAsCancelState(TaskCancelReason, ALARMS.Task_Canceled);
                         ActionsWhenOrderCancle();
                         isTaskFail = true;
@@ -283,7 +283,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
                 async void _HandleVMSException(VMSExceptionAbstract ex)
                 {
-                    logger.Error(ex);
+                    log(ex);
 
                     bool _isAgvDown = ex.Alarm_Code == ALARMS.AGV_STATUS_DOWN || Agv.main_state == MAIN_STATUS.DOWN;
                     if (!_isAgvDown && ex.Alarm_Code == ALARMS.Task_Canceled)
@@ -360,7 +360,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
 
         protected async Task SyncTrafficStateFromAGVSystem()
         {
-            logger.Trace($"DispatchCenter.SyncTrafficStateFromAGVSystemInvoke Invoke");
+            log($"DispatchCenter.SyncTrafficStateFromAGVSystemInvoke Invoke");
             await DispatchCenter.SyncTrafficStateFromAGVSystemInvoke();
         }
 
@@ -375,7 +375,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             await _HandleTaskStateFeedbackSemaphoreSlim.WaitAsync();
             try
             {
-                logger.Info($"{Agv.Name} 任務回報 => {feedbackData.ToJson()}");
+               log($"{Agv.Name} 任務回報 (LastVisitedTag={Agv.states.Last_Visited_Node},Coordination={Agv.states.Coordination.ToString()})=> {feedbackData.ToJson( Formatting.None)}");
                 _ = Task.Run(async () =>
                 {
                     if (feedbackData.TaskStatus == TASK_RUN_STATUS.ACTION_FINISH)
@@ -541,7 +541,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (Exception ex)
                 {
-                    logger.Fatal(ex);
+                    log(ex);
                 }
 
                 RunningTask.CancelTask();
@@ -569,7 +569,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex);
+                log(ex);
             }
         }
 
@@ -580,7 +580,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                                                             .WaitAndRetry(3, retryAttempt => TimeSpan.FromMilliseconds(500),
                                                                 (result, timeSpan, retryCount, context) =>
                                                                 {
-                                                                    logger.Warn($"嘗試同步車輛({Agv.Name})的即時異常碼失敗，重試次數：{retryCount}，等待時間：{timeSpan}");
+                                                                    log($"嘗試同步車輛({Agv.Name})的即時異常碼失敗，重試次數：{retryCount}，等待時間：{timeSpan}");
                                                                 });
             string agvAlarmsDescription = retryPolicy.Execute(() =>
             {
@@ -634,7 +634,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(ex);
+                    log(ex);
                 }
             }
         }
@@ -669,7 +669,7 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
             catch (Exception ex)
             {
-                logger.Error(ex);
+                log(ex);
             }
         }
 
@@ -685,5 +685,15 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
             }
         }
 
+        protected virtual void log(string msg)
+        {
+            logger?.Info(msg);
+            RunningTask?.logger.Info(msg);
+        }
+        protected virtual void log(Exception ex)
+        {
+            logger?.Error(ex.Message, ex);
+            RunningTask?.logger.Error(ex.Message, ex);
+        }
     }
 }
