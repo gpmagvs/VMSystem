@@ -22,12 +22,12 @@ if (ProcessTools.IsProcessRunning("VMSystem", out List<int> pids))
     Console.WriteLine("Press any key to exit..."); Console.WriteLine("Press any key to exit...");
     Console.ReadKey(true);
 }
+var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 
-Startup.ConfigurationInit();
+Startup.ConfigurationInit(logger);
 AlarmManagerCenter.InitializeAsync().GetAwaiter().GetResult();
 AlarmManager.LoadVCSTrobleShootings();
 EnvironmentVariables.AddUserVariable("VMSInstall", Environment.CurrentDirectory);
-var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 logger.Info("VMSystem Program Start");
 try
 {
