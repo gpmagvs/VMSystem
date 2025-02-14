@@ -8,6 +8,7 @@ using AGVSystemCommonNet6.MAP;
 using AGVSystemCommonNet6.Notify;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using VMSystem.AGV.TaskDispatch.Tasks;
+using VMSystem.Dispatch.Regions;
 using VMSystem.Extensions;
 using VMSystem.TrafficControl;
 using VMSystem.TrafficControl.Exceptions;
@@ -167,10 +168,17 @@ namespace VMSystem.AGV
                         if (taskSubStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                         {
                             MapPoint waitingPt = StaMap.GetPointByTagNumber(_TaskDonwloadToAGV.Trajectory.Last().Point_ID);
-                            if (waitingPt.UseAvoidThetaWhenStopAtWaitingPointOfEntryRegion)
-                                angle = waitingPt.Direction_Avoid;
+                            if (Vehicle.NavigationState.RegionControlState.NextToGoRegion.EnteryTagsWaitForwardAngles.TryGetValue(waitingPt.TagNumber, out double forwardAngle) && forwardAngle != 999)
+                            {
+                                angle = forwardAngle;
+                            }
                             else
-                                angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
+                            {
+                                if (waitingPt.UseAvoidThetaWhenStopAtWaitingPointOfEntryRegion)
+                                    angle = waitingPt.Direction_Avoid;
+                                else
+                                    angle = GetForwardThetaOfLastPath(_TaskDonwloadToAGV);
+                            }
                         }
                         else if (taskSubStage == VehicleMovementStage.AvoidPath || taskSubStage == VehicleMovementStage.AvoidPath_Park)
                         {

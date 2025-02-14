@@ -693,46 +693,40 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
 
                 }
+
                 UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-等待停車完成..");
 
-                if (Agv.NavigationState.RegionControlState.IsWaitingForEntryRegion)
-                {
-                    Agv.OnMapPointChanged -= Agv_OnMapPointChanged;
-                    throw new RegionNotEnterableException();
-                }
-                else
-                {
 
-                    while (Agv.main_state == clsEnums.MAIN_STATUS.RUN && !IsTaskCanceled)
-                    {
-                        if (IsTaskCanceled)
-                            throw new TaskCanceledException();
-                        await Task.Delay(100);
-                    }
+
+                while (Agv.main_state == clsEnums.MAIN_STATUS.RUN && !IsTaskCanceled)
+                {
                     if (IsTaskCanceled)
+                        throw new TaskCanceledException();
+                    await Task.Delay(100);
+                }
+                if (IsTaskCanceled)
+                    if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
+                        throw new AGVStatusDownException();
+                    else
+                        throw new TaskCanceledException();
+
+
+                await Task.Delay(100);
+                double expectedAngle;
+                while (!CalculateThetaError(out expectedAngle, out double error))
+                {
+                    if (IsTaskAborted())
+                    {
                         if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
                             throw new AGVStatusDownException();
                         else
                             throw new TaskCanceledException();
-
-
-                    await Task.Delay(100);
-                    double expectedAngle;
-                    while (!CalculateThetaError(out expectedAngle, out double error))
-                    {
-                        if (IsTaskAborted())
-                        {
-                            if (Agv.main_state == clsEnums.MAIN_STATUS.DOWN)
-                                throw new AGVStatusDownException();
-                            else
-                                throw new TaskCanceledException();
-                        }
-                        await FinalStopThetaAdjuctProcess(expectedAngle);
                     }
-                    UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-角度確認({expectedAngle}) OK!");
-                    await WaitAGVNotRunning($"Reach Destine goal");
-                    await Task.Delay(100);
+                    await FinalStopThetaAdjuctProcess(expectedAngle);
                 }
+                UpdateMoveStateMessage($"抵達-{_finalMapPoint.Graph.Display}-角度確認({expectedAngle}) OK!");
+                await WaitAGVNotRunning($"Reach Destine goal");
+                await Task.Delay(100);
 
             }
             catch (TaskCanceledException ex)
@@ -1084,6 +1078,11 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
             int NumberOfIdlingVehicleNotOnMainPath = inRegionVehicles.Count(v => v.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING && v.currentMapPoint.StationType != MapPoint.STATION_TYPE.Normal);
 
             bool IsUpToLimit = inRegionVehicles.Count() - NumberOfIdlingVehicleNotOnMainPath >= region.MaxVehicleCapacity;
+            if (IsUpToLimit)
+            {
+                Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.SELECT_NO_BLOCKED_PATH_POINT;
+                return false;
+            }
             if (!IsUpToLimit)
             {
                 Strategy = SELECT_WAIT_POINT_OF_CONTROL_REGION_STRATEGY.FOLLOWING;
