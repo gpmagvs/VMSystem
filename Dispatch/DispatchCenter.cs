@@ -46,7 +46,7 @@ namespace VMSystem.Dispatch
 
         }
 
-        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
+        public static async Task<IEnumerable<MapPoint>> MoveToDestineDispatchRequest(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto taskDto, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL, bool isNavigationLostTimeout = false)
         {
             bool _waitTrafficHandleSignalTimeout = true;
             try
@@ -60,7 +60,7 @@ namespace VMSystem.Dispatch
                 }
                 await semaphore.WaitAsync();
                 MapPoint finalMapPoint = goalPoint;
-                var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod);
+                var path = await GenNextNavigationPath(vehicle, startPoint, finalMapPoint, taskDto, stage, goalSelectMethod, isNavigationLostTimeout);
                 if (path == null)
                     return null;
                 path = GetPathWithDestineWorkStationStatusCheck(vehicle, path);
@@ -230,14 +230,14 @@ namespace VMSystem.Dispatch
             return path;
         }
 
-        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL)
+        private static async Task<IEnumerable<MapPoint>> GenNextNavigationPath(IAGV vehicle, MapPoint startPoint, MapPoint goalPoint, clsTaskDto order, VehicleMovementStage stage, GOAL_SELECT_METHOD goalSelectMethod = GOAL_SELECT_METHOD.TO_POINT_INFRONT_OF_GOAL, bool isNavigationLostTimeout = false)
         {
             vehicle.NavigationState.ResetNavigationPointsOfPathCalculation();
             var otherAGV = VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle);
             MapPoint finalMapPoint = goalPoint;
             IEnumerable<MapPoint> optimizePath_Init_No_constrain = null;
 
-            optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(vehicle), vehicle.states.Coordination.Theta);
+            optimizePath_Init_No_constrain = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(vehicle, isNavigationLostTimeout), vehicle.states.Coordination.Theta);
 
             IEnumerable<MapPoint> optimizePath_Init = null;
 
@@ -246,7 +246,7 @@ namespace VMSystem.Dispatch
                 if (order.IsHighestPriorityTask)
                     optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrainsOfHighestPriorityOdrder(vehicle, otherAGV, finalMapPoint, ref optimizePath_Init_No_constrain), vehicle.states.Coordination.Theta);
                 else
-                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint), vehicle.states.Coordination.Theta);
+                    optimizePath_Init = MoveTaskDynamicPathPlanV2.LowLevelSearch.GetOptimizedMapPoints(startPoint, finalMapPoint, GetConstrains(vehicle, otherAGV, finalMapPoint, isNavigationLostTimeout), vehicle.states.Coordination.Theta);
             }
             catch (Exception ex)
             {
@@ -263,7 +263,7 @@ namespace VMSystem.Dispatch
             bool _isInNarrowRegion = vehicleCurrentRegion.IsNarrowPath;
             vehicle.NavigationState.UpdateNavigationPointsForPathCalculation(optimizePath_Init);
             var usableSubGoals = optimizePath_Init.Skip(0).Where(pt => pt.CalculateDistance(vehicle.currentMapPoint) >= 1.5)
-                                                          .Where(pt => !pt.IsVirtualPoint && !GetConstrains(vehicle, otherAGV, finalMapPoint).GetTagCollection().Contains(pt.TagNumber))
+                                                          .Where(pt => !pt.IsVirtualPoint && !GetConstrains(vehicle, otherAGV, finalMapPoint, isNavigationLostTimeout).GetTagCollection().Contains(pt.TagNumber))
                                                           .Where(pt => otherAGV.All(agv => pt.CalculateDistance(agv.currentMapPoint) >= (_isInNarrowRegion ? 2 : 1.5)))
                                                           //.Where(pt => otherAGV.All(agv => !agv.NavigationState.NextNavigtionPoints.Any(pt => pt.GetCircleArea(ref vehicle, 0.2).IsIntersectionTo(vehicle.AGVRotaionGeometry))))
                                                           .ToList();
@@ -480,7 +480,7 @@ namespace VMSystem.Dispatch
             return rotationDiff > 10 && (_rotationWillConflicToOtherVehiclePath || _rotationWillConflicToOtherVehicleCurrentBody);
         }
 
-        public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint)
+        public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint, bool isNavigationLostTimeout = false)
         {
             List<MapPoint> constrains = new List<MapPoint>();
             var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != MainVehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key)).ToList();
@@ -526,7 +526,7 @@ namespace VMSystem.Dispatch
             constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
             List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
             constrains.AddRange(additionRegists);
-            constrains.AddRange(GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle));
+            constrains.AddRange(GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle, isNavigationLostTimeout));
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
                 if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
@@ -543,15 +543,30 @@ namespace VMSystem.Dispatch
             return constrains;
         }
 
-        private static List<MapPoint> GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(IAGV agv)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="agv"></param>
+        /// <param name="isNavigationLostTimeout"></param>
+        /// <returns></returns>
+        private static List<MapPoint> GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(IAGV agv, bool isNavigationLostTimeout = false)
         {
             int nextWorkStationTag = agv.GetNextWorkStationTag();
             MapRegion agvCurrentRegion = agv.currentMapPoint.GetRegion();
-            List<MapRegion> regionsExcept = StaMap.Map.Regions.Where(region => region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && region.Name != agvCurrentRegion.Name && region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion.Any()).ToList();
-            List<int> acceptGoalTags = regionsExcept.SelectMany(region => region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion).ToList();
+            List<MapRegion> regionsExcludingCurrentRegion = StaMap.Map.Regions.Where(region => region.RegionType != MapRegion.MAP_REGION_TYPE.UNKNOWN && region.Name != agvCurrentRegion.Name && region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion.Any()).ToList();
+            if (isNavigationLostTimeout)
+            {
+                bool anyRegionCanOpenPathForPoorAgv = regionsExcludingCurrentRegion.Any(region => region.IsPathCanUseWhenAgvNoPathToUse && region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion.Any());
+                if (anyRegionCanOpenPathForPoorAgv)
+                {
+                    regionsExcludingCurrentRegion = regionsExcludingCurrentRegion.Where(region => !region.IsPathCanUseWhenAgvNoPathToUse).ToList();
+                    agv.CurrentRunningTask()?.LogInfoAsync($"因為找不到路徑持續了一段持間, 路徑規劃中心開放了一些原本僅能提供部分終點使用的區域", true);
+                }
+            }
+            List<int> acceptGoalTags = regionsExcludingCurrentRegion.SelectMany(region => region.PathOnlyUseForTagsWhenVehicleFromOutsideRegion).ToList();
             if (acceptGoalTags.Contains(nextWorkStationTag))
                 return new List<MapPoint>();
-            var result = regionsExcept.SelectMany(region => region.GetPointsInRegion()).ToList();
+            var result = regionsExcludingCurrentRegion.SelectMany(region => region.GetPointsInRegion()).ToList();
             return result;
         }
 

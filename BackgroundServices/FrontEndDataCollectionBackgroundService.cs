@@ -108,7 +108,7 @@ namespace VMSystem.BackgroundServices
                             is_online = agv.online_state == ONLINE_STATE.ONLINE,
                             main_status = agv.main_state
                         },
-                        calculatingPathInfo = agv.NavigationState.NextPathOccupyRegionsForPathCalculation.Select(rect => new
+                        calculatingPathInfo = agv.NavigationState.NextPathOccupyRegions.Select(rect => new
                         {
                             center = new float[2] { rect.CenterPoint.X, rect.CenterPoint.Y },
                             corners = rect.CornersSet.Select(pf => new float[2] { pf.X, pf.Y })

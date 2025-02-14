@@ -152,6 +152,15 @@ namespace VMSystem.Controllers
             return Ok();
         }
 
+        [HttpPost("SetAngle")]
+        public async Task<IActionResult> SetAngle(string AGVName, double angle)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.runningSTatus.Coordination.Theta = angle;
+            return Ok();
+        }
         /// <summary>
         /// 
         /// </summary>

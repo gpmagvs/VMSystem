@@ -17,13 +17,14 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
     public partial class MoveTaskDynamicPathPlanV2
     {
 
-        private bool IsAnyRotateConflicToOtherVehicle(IEnumerable<MapPoint> dispatchCenterReturnPath, out bool isConflicAtStartRotation)
+        private bool IsAnyRotateConflicToOtherVehicle(IEnumerable<MapPoint> dispatchCenterReturnPath, out MapRectangle conflicRegion, out bool isConflicAtStartRotation, double rotationAngleThres = 45)
         {
             IAGV vehicle_ = Agv;
             isConflicAtStartRotation = false;
             List<MapPoint> _path = dispatchCenterReturnPath.ToList();
             double currentAngleOfAGV = vehicle_.states.Coordination.Theta;
             MapCircleArea AGVRotaionGeometry = vehicle_.AGVRotaionGeometry;
+            conflicRegion = new();
 
             double previousForwardAngle = 0;
             //0,1,2,3....,9,10
@@ -36,10 +37,9 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 var circleCurrent = _path[i].GetCircleArea(ref vehicle_, 1.005);
                 // 檢查旋轉角度是否大於 20 且是否與其他 AGV 衝突
-                if (rotateThetaToNextPt > 45 &&
-                    VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(circleCurrent)))
+                if (rotateThetaToNextPt > rotationAngleThres && VMSManager.AllAGV.FilterOutAGVFromCollection(vehicle_).Any(_agv => _agv.AGVRotaionGeometry.IsIntersectionTo(circleCurrent)))
                 {
-                    Agv.NavigationState.CurrentConflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
+                    conflicRegion = new AGVSystemCommonNet6.MAP.Geometry.MapRectangle()
                     {
                         StartPoint = _path[i],
                         EndPoint = _path[i + 1]

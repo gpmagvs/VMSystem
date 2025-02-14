@@ -6,6 +6,7 @@ using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.Exceptions;
 using AGVSystemCommonNet6.GPMRosMessageNet.Messages;
 using AGVSystemCommonNet6.MAP;
+using AGVSystemCommonNet6.MAP.Geometry;
 using AGVSystemCommonNet6.Notify;
 using MessagePack;
 using Newtonsoft.Json.Linq;
@@ -124,13 +125,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                 MapPoint searchStartPt = Agv.currentMapPoint.Clone();
                 Stopwatch pathConflicStopWatch = new Stopwatch();
+                Stopwatch noPathFoundsteadyStopWatch = new();
+
                 pathConflicStopWatch.Start();
                 bool isReachNearGoalContinue = false;
                 bool isAgvAlreadyAtDestine = Agv.currentMapPoint.TagNumber == finalMapPoint.TagNumber;
                 bool isRotationBackMove = false;
-                while ((_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber) || subStage== VehicleMovementStage.AvoidPath || subStage== VehicleMovementStage.AvoidPath_Park||subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
+                while ((_seq == 0 || _finalMapPoint.TagNumber != Agv.currentMapPoint.TagNumber) || subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park || subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point)
                 {
-                    if ((subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park) && Agv.currentMapPoint.TagNumber== _finalMapPoint.TagNumber)
+                    if ((subStage == VehicleMovementStage.AvoidPath || subStage == VehicleMovementStage.AvoidPath_Park) && Agv.currentMapPoint.TagNumber == _finalMapPoint.TagNumber)
                     {
                         UpdateStateDisplayMessage($"Reach Avoid Point");
                         await WaitAGVNotRunning($"等待停好車在避車點");
@@ -138,13 +141,13 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         subStage = Stage;
                         await CycleStopRequestAsync();
                         _previsousTrajectorySendToAGV.Clear();
-                        _finalMapPoint=this.finalMapPoint;
+                        _finalMapPoint = this.finalMapPoint;
                         searchStartPt = Agv.currentMapPoint;
                         continue;
                     }
 
 
-                    if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && Agv.currentMapPoint.TagNumber== _finalMapPoint.TagNumber)
+                    if (subStage == VehicleMovementStage.Traveling_To_Region_Wait_Point && Agv.currentMapPoint.TagNumber == _finalMapPoint.TagNumber)
                     {
                         await WaitAGVNotRunning($"等待停好車在區域等待進入點");
                         MapRegion waitingRegion = Agv.NavigationState.RegionControlState.NextToGoRegion;
@@ -156,7 +159,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         subStage = Agv.NavigationState.AvoidActionState.IsAvoidRaising ? subStage : Stage;
                         await CycleStopRequestAsync();
                         _previsousTrajectorySendToAGV.Clear();
-                        _finalMapPoint=this.finalMapPoint;
+                        _finalMapPoint = this.finalMapPoint;
                         searchStartPt = Agv.currentMapPoint;
                         continue;
                     }
@@ -234,7 +237,15 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         if (isVehicleNeedParkAtRackAndCurrentPointIsInfrontOfRack)
                             dispatchCenterReturnPath = new List<MapPoint> { Agv.currentMapPoint };
                         else
-                            dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod));
+                        {
+                            bool isNavigationLostTimeout = noPathFoundsteadyStopWatch.ElapsedMilliseconds > 10000;
+                            if (isNavigationLostTimeout)
+                            {
+                                LogInfoAsync($"{Agv.Name}已找不到路徑持續一段時間...{noPathFoundsteadyStopWatch.Elapsed}", true);
+                                noPathFoundsteadyStopWatch.Restart();
+                            }
+                            dispatchCenterReturnPath = (await DispatchCenter.MoveToDestineDispatchRequest(Agv, searchStartPt, _finalMapPoint, OrderData, Stage, goalSelectMethod, isNavigationLostTimeout));
+                        }
 
                         if (subStage == VehicleMovementStage.AvoidPath && !OtherAGV.Any(v => v.NavigationState.currentConflicToAGV == this.Agv))
                         {
@@ -367,8 +378,10 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
 
-                        if (IsAnyRotateConflicToOtherVehicle(dispatchCenterReturnPath, out bool isConflicAtStartRotation))
+                        if (IsAnyRotateConflicToOtherVehicle(dispatchCenterReturnPath, out MapRectangle conflicRegion, out bool isConflicAtStartRotation))
                         {
+                            LogInfoAsync($"{Agv.Name} 偵測到原路線規劃有旋轉後會與其他車輛發生干涉的區域:{conflicRegion.ToString()}.(是否為起始位置:{(isConflicAtStartRotation ? $"YES,Point : {Agv.currentMapPoint.Graph.Display}" : "NO")})", true);
+                            Agv.NavigationState.CurrentConflicRegion = conflicRegion;
                             await DynamicClosePath();
                             isRotationBackMove = isConflicAtStartRotation;
                             continue;
@@ -529,7 +542,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         }
 
                         await Task.Delay(100);
-
+                        noPathFoundsteadyStopWatch.Reset();
                         (TaskDownloadRequestResponse responseOfVehicle, clsMapPoint[] _trajectory) = await _DispatchTaskToAGV(new clsTaskDownloadData
                         {
                             Action_Type = ACTION_TYPE.None,
@@ -649,6 +662,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (NoPathForNavigatorException ex)
                     {
+                        noPathFoundsteadyStopWatch.Start();
                         UpdateStateDisplayMessage($"No Path Found..Analyzing...");
                         RestoreClosedPathes();
                         await Task.Delay(1000);
@@ -674,7 +688,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                     }
                     catch (Exception ex)
                     {
-                        LogErrorAsync(ex.Message,ex);
+                        LogErrorAsync(ex.Message, ex);
                         continue;
                     }
 
