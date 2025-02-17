@@ -353,7 +353,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                                 subStage = Agv.NavigationState.AvoidActionState.AvoidAction == ACTION_TYPE.None ? VehicleMovementStage.AvoidPath : VehicleMovementStage.AvoidPath_Park;
                                 searchStartPt = Agv.currentMapPoint;
 
-                                LogInfoAsync($"{Agv.Name} 避車動作取消因另一車輛已有路徑!");
+                                LogInfoAsync($"{Agv.Name} 避車動作前Cycle Stop...", true);
                                 await CycleStopRequestAsync("避車動作前Cycle Stop");
                                 LogInfoAsync($"{Agv.Name} 避車動作開始!", true);
                                 _finalMapPoint = subStage == VehicleMovementStage.AvoidPath ? Agv.NavigationState.AvoidActionState.AvoidPt :
