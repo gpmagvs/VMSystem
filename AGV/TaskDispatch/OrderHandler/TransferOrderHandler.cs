@@ -135,6 +135,13 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler
         {
             try
             {
+
+                if (OrderData.isVehicleAssignedChanged)
+                {
+                    RunningTask.LogInfoAsync($"[{Agv.Name}] 因任務訂單已被要求換車，原先要於訂單取消時上報'LoadUnloadAction Finish Report To AGVS動作 Bypass.'", true);
+                    return;
+                }
+
                 clsAGVSTaskReportResponse response1 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.To_Station_Tag, ACTION_TYPE.Load, false, Agv.Name);
                 log(response1.ToJson());
                 clsAGVSTaskReportResponse response2 = await AGVSSerivces.TRANSFER_TASK.LoadUnloadActionFinishReport(OrderData.TaskName, OrderData.From_Station_Tag, ACTION_TYPE.Unload, false, Agv.Name);
