@@ -41,7 +41,8 @@ namespace VMSystem.AGV.TaskDispatch.OrderHandler.OrderTransferSpace
                 var moreNearToGoalVehicles = OtherVehicles.Where(agv => agv.model == orderOwner.model)
                                                           .ToDictionary(vehicle => vehicle, vehicle => GetTravelDistanceToTargetWorkStation(vehicle))
                                                           .OrderBy(kp => kp.Value)
-                                                          .Where(kp => kp.Value < distanceToWorkStationOfOwner)
+                                                          .Where(kp =>  kp.Value < distanceToWorkStationOfOwner ) //前往目的地的走行距離比原車輛短
+                                                          .Where(kp => Math.Abs(kp.Value - distanceToWorkStationOfOwner) >= 5 || Math.Abs(kp.Key.currentMapPoint.CalculateDistance(orderOwner.currentMapPoint)) <= 5) //可節省走行距離超過5公尺 或是兩車距離很近(For 前往充電的車跟前往取貨的車互等時可以透過換任務解掉 dead lock..)
                                                           .ToDictionary(kp => kp.Key, kp => kp.Value);
                 //過濾出車上無貨且正在IDLE 或 正在執行充電任務訂單的車輛
                 List<KeyValuePair<IAGV, double>> idleOrChargingVehicles = moreNearToGoalVehicles.Where(kp => kp.Key.main_state != clsEnums.MAIN_STATUS.DOWN) //不是當機的車輛
