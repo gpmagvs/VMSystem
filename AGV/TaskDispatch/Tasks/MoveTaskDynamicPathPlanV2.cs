@@ -107,7 +107,8 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
                         LogInfoAsync($"{currentNonPassableByEQPartsReplacing.Graph.Display} now is passable. Resume Navigation");
                     }
                 });
-            };
+            }
+            ;
 
 
             try
@@ -380,7 +381,7 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
 
                         if (IsAnyRotateConflicToOtherVehicle(dispatchCenterReturnPath, out MapRectangle conflicRegion, out bool isConflicAtStartRotation))
                         {
-                            LogInfoAsync($"{Agv.Name} 偵測到原路線規劃有旋轉後會與其他車輛發生干涉的區域:{conflicRegion.ToString()}.(是否為起始位置:{(isConflicAtStartRotation ? $"YES,Point : {Agv.currentMapPoint.Graph.Display}" : "NO")})", true);
+                            LogInfoAsync($"{Agv.Name} 偵測到原路線規劃有旋轉後會與其他車輛發生干涉的區域:{conflicRegion.ToString()}.(是否為起始位置:{(isConflicAtStartRotation ? $"YES,Point : {Agv.currentMapPoint.Graph.Display}" : "NO")})", false);
                             Agv.NavigationState.CurrentConflicRegion = conflicRegion;
                             await DynamicClosePath();
                             isRotationBackMove = isConflicAtStartRotation;
