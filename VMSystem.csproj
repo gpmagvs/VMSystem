@@ -14,24 +14,23 @@
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>
 		<AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
-		<UpdateAssemblyVersion>False</UpdateAssemblyVersion>
+		<UpdateAssemblyVersion>True</UpdateAssemblyVersion>
 		<UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
 		<UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
 		<UpdatePackageVersion>False</UpdatePackageVersion>
 		<AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
 		<InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+		<AssemblyVersionSettings>IncrementOnDemand.IncrementOnDemand.IncrementOnDemand.None</AssemblyVersionSettings>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<ShouldCreateLogs>True</ShouldCreateLogs>
 		<AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
-		<UpdateAssemblyVersion>False</UpdateAssemblyVersion>
+		<UpdateAssemblyVersion>True</UpdateAssemblyVersion>
 		<UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
 		<UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
-		<AssemblyVersionSettings>IncrementOnDemand.IncrementOnDemand.DayOfYearStamp.IncrementOnDemand</AssemblyVersionSettings>
 		<UpdatePackageVersion>False</UpdatePackageVersion>
 		<InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
-		<AssemblyVersionSettings>IncrementOnDemand.IncrementOnDemand.DayOfYearStamp.IncrementOnDemand</AssemblyVersionSettings>
-		<AssemblyFileVersionSettings>IncrementOnDemand.IncrementOnDemand.DayOfYearStamp.IncrementOnDemand</AssemblyFileVersionSettings>
+		<AssemblyVersionSettings>IncrementOnDemand.IncrementOnDemand.IncrementOnDemand.None</AssemblyVersionSettings>
 		<AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
 	</PropertyGroup>
 
