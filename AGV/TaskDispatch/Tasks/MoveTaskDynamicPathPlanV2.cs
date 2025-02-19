@@ -1151,27 +1151,29 @@ namespace VMSystem.AGV.TaskDispatch.Tasks
         {
             return (IsTaskCanceled || Agv.online_state == clsEnums.ONLINE_STATE.OFFLINE || Agv.taskDispatchModule.OrderExecuteState != clsAGVTaskDisaptchModule.AGV_ORDERABLE_STATUS.EXECUTING || Agv.main_state == clsEnums.MAIN_STATUS.DOWN);
         }
-        private async void Agv_OnMapPointChanged(object? sender, int e)
+        private async void Agv_OnMapPointChanged(object? sender, int tagNumber)
         {
-            try
-            {
-                var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == e);
-                if (currentPt == null)
-                    return;
-
-                Agv.NavigationState.CurrentMapPoint = currentPt;
-                List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
-                var ocupyRegionTags = Agv.NavigationState.NextPathOccupyRegions.SelectMany(rect => new int[] { rect.StartPoint.TagNumber, rect.EndPoint.TagNumber })
-                                                                               .DistinctBy(tag => tag);
-                if (!IsTaskCanceled)
-                    UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
-            }
-            catch (Exception ex)
-            {
-                string _logMsg = $"嘗試更新導航路徑顯示時發生錯誤:{ex.Message}";
-                LogErrorAsync(_logMsg, ex, true);
-                UpdateMoveStateMessage(_logMsg);
-            }
+            _ = Task.Run(async () =>
+              {
+                  try
+                  {
+                      var currentPt = Agv.NavigationState.NextNavigtionPoints.FirstOrDefault(p => p.TagNumber == tagNumber);
+                      if (currentPt == null)
+                          return;
+                      Agv.NavigationState.CurrentMapPoint = currentPt;
+                      List<int> _NavigationTags = Agv.NavigationState.NextNavigtionPoints.GetTagCollection().ToList();
+                      var ocupyRegionTags = Agv.NavigationState.NextPathOccupyRegions.SelectMany(rect => new int[] { rect.StartPoint.TagNumber, rect.EndPoint.TagNumber })
+                                                                                     .DistinctBy(tag => tag);
+                      if (!IsTaskCanceled)
+                          UpdateMoveStateMessage($"{string.Join("->", ocupyRegionTags)}");
+                  }
+                  catch (Exception ex)
+                  {
+                      string _logMsg = $"嘗試更新導航路徑顯示時發生錯誤:{ex.Message}";
+                      LogErrorAsync(_logMsg, ex, true);
+                      UpdateMoveStateMessage(_logMsg);
+                  }
+              });
         }
 
         internal override void HandleAGVNavigatingFeedback(FeedbackData feedbackData)

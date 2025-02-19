@@ -533,6 +533,7 @@ namespace VMSystem.AGV
                         }
 
                         previousMapPoint = value;
+                        OnMapPointChanged?.Invoke(this, value.TagNumber);
                         MCSCIMService.VehicleCoordinateChangedReport(AgvIDStr, value.X.ToString() + "", value.Y.ToString());
                         RegionManager.UpdateRegion(this);
                     }
