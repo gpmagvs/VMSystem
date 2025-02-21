@@ -63,6 +63,20 @@ namespace VMSystem.Controllers
             NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [卡匣ID讀取Missmatch]功能已{(isMissmatch ? "啟用" : "關閉")}");
             return Ok();
         }
+
+
+        [HttpPost("DiconnectSimulation")]
+        public async Task<IActionResult> DiconnectSimulation(string AGVName, bool isDiconnectSimulation)
+        {
+            IAGV agv = VMSManager.GetAGVByName(AGVName);
+            if (agv == null)
+                return BadRequest();
+            agv.AgvSimulation.DiconnectSimulation = isDiconnectSimulation;
+            NotifyServiceHelper.INFO($"{agv.Name} 模擬器 [DiconnectSimulation] 功能已{(isDiconnectSimulation ? "啟用" : "關閉")}");
+            return Ok();
+        }
+
+
         [HttpPost("SetCIDAbnormalSimualtion")]
         public async Task SetCIDAbnormalSimualtion(string AGVName, bool isCIDReadFail, bool isCIDReadMismatch)
         {

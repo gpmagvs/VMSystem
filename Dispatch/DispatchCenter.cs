@@ -483,65 +483,97 @@ namespace VMSystem.Dispatch
         public static List<MapPoint> GetConstrains(IAGV MainVehicle, IEnumerable<IAGV>? otherAGV, MapPoint finalMapPoint, bool isNavigationLostTimeout = false)
         {
             List<MapPoint> constrains = new List<MapPoint>();
-            var registedPoints = StaMap.RegistDictionary.Where(pari => pari.Value.RegisterAGVName != MainVehicle.Name).Select(p => StaMap.GetPointByTagNumber(p.Key)).ToList();
+
+            // 预先缓存注册的点位
+            var registedPoints = StaMap.RegistDictionary
+                .Where(pari => pari.Value.RegisterAGVName != MainVehicle.Name)
+                .Select(p => StaMap.GetPointByTagNumber(p.Key))
+                .ToList();
             constrains.AddRange(registedPoints);
 
-            IEnumerable<MapPoint> _GetVehicleEnteredEntryPoint(IAGV _vehicle)
+            // 优化获取已进入的点
+            IEnumerable<MapPoint> GetVehicleEnteredEntryPoint(IAGV _vehicle)
             {
                 if (!_vehicle.currentMapPoint.IsCharge)
-                    return new List<MapPoint>();
+                    return Enumerable.Empty<MapPoint>();
 
-                return _vehicle.currentMapPoint.Target.Keys
-                                                .Select(index => StaMap.GetPointByIndex(index));
+                return _vehicle.currentMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             }
 
-            IEnumerable<MapPoint> _GetOtherVehicleChargeStationEnteredEntryPoint(IAGV _vehicle)
+            IEnumerable<MapPoint> GetOtherVehicleChargeStationEnteredEntryPoint(IAGV _vehicle)
             {
                 if (!_vehicle.currentMapPoint.IsCharge)
-                    return new List<MapPoint>();
+                    return Enumerable.Empty<MapPoint>();
 
-                return _vehicle.currentMapPoint.Target.Keys
-                                                .Select(index => StaMap.GetPointByIndex(index));
+                return _vehicle.currentMapPoint.Target.Keys.Select(index => StaMap.GetPointByIndex(index));
             }
 
-            IEnumerable<MapPoint> _GetVehicleOverlapPoint(IAGV _vehicle)
+            // 优化获取车辆重叠点
+            IEnumerable<MapPoint> GetVehicleOverlapPoint(IAGV _vehicle)
             {
-                return StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
-                                                .Where(pt => pt.CalculateDistance(_vehicle.states.Coordination) <= _vehicle.AGVRotaionGeometry.RotationRadius);
+                return StaMap.Map.Points.Values
+                    .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal)
+                    .Where(pt => pt.CalculateDistance(_vehicle.states.Coordination) <= _vehicle.AGVRotaionGeometry.RotationRadius);
             }
 
-            var disabledPoints = StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable);
+            var disabledPoints = StaMap.Map.Points.Values
+                .Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable)
+                .ToList();
 
             if (TrafficControlCenter.TrafficControlParameters.DisableChargeStationEntryPointWhenNavigation)
             {
-                constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle)));//當有車子在充電，充電站進入點不可用
+                constrains.AddRange(otherAGV.SelectMany(_vehicle => GetOtherVehicleChargeStationEnteredEntryPoint(_vehicle))); // 充电站进入点不可用
             }
 
-            constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints));//其他車輛當前導航路徑不可用
-            //constrains.AddRange(otherAGV.SelectMany(_vehicle => _GetVehicleEnteredEntryPoint(_vehicle)));
+            constrains.AddRange(otherAGV.SelectMany(_vehicle => _vehicle.NavigationState.NextNavigtionPoints)); // 其他车的导航路径不可用
+
+            // 优化：添加重叠点
             constrains.AddRange(otherAGV.Where(v => v.CurrentRunningTask().ActionType == AGVSystemCommonNet6.AGVDispatch.Messages.ACTION_TYPE.None)
-                                        .Where(v => v.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
-                                        .SelectMany(_vehicle => _GetVehicleOverlapPoint(_vehicle))); //其他車輛當前位置有被旋轉區域範圍內涵蓋到的點不可用
-            constrains.AddRange(StaMap.Map.Points.Values.Where(pt => pt.StationType == MapPoint.STATION_TYPE.Normal && !pt.Enable));//圖資中Enable =False的點位不可用
-            constrains = constrains.DistinctBy(st => st.TagNumber).ToList();
-            List<MapPoint> additionRegists = constrains.SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index))).ToList();
-            constrains.AddRange(additionRegists);
-            constrains.AddRange(GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle, isNavigationLostTimeout));
+                                         .Where(v => v.currentMapPoint.StationType == MapPoint.STATION_TYPE.Normal)
+                                         .SelectMany(_vehicle => GetVehicleOverlapPoint(_vehicle)));
+
+            constrains.AddRange(disabledPoints); // 图纸中不可用的点
+
+            // 去重：使用字典来避免使用 DistinctBy
+            var uniqueConstrains = new Dictionary<int, MapPoint>();
+            foreach (var point in constrains)
+            {
+                uniqueConstrains[point.TagNumber] = point;
+            }
+
+            // 获取附加的注册点
+            List<MapPoint> additionRegists = uniqueConstrains.Values
+                .SelectMany(pt => pt.RegistsPointIndexs.Select(_index => StaMap.GetPointByIndex(_index)))
+                .ToList();
+            additionRegists.ForEach(regPoint => uniqueConstrains[regPoint.TagNumber] = regPoint);
+
+            // 加入特定标签区域的限制
+            var additionalConstrains = GetConstrainsOfPointsOnlyUseForSpeficTagsInRegions(MainVehicle, isNavigationLostTimeout);
+            foreach (var pt in additionalConstrains)
+            {
+                uniqueConstrains[pt.TagNumber] = pt;
+            }
+
+            // 如果有冲突区域，加入结束点
             if (MainVehicle.NavigationState.CurrentConflicRegion != null)
             {
-                if (MainVehicle.NavigationState.CurrentConflicRegion.EndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
-                    constrains.Add(MainVehicle.NavigationState.CurrentConflicRegion.EndPoint);
+                var conflictEndPoint = MainVehicle.NavigationState.CurrentConflicRegion.EndPoint;
+                if (conflictEndPoint.TagNumber != MainVehicle.NavigationState.CurrentConflicRegion.StartPoint.TagNumber)
+                {
+                    uniqueConstrains[conflictEndPoint.TagNumber] = conflictEndPoint;
+                }
             }
-            if (additionRegists.Any())
-            {
-                //NotifyServiceHelper.WARNING($"{string.Join(",", additionRegists.GetTagCollection())} As Constrain By Pt Setting");
-            }
+
+            // 加入最后等待通过超时的点
             if (MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt != null)
-                constrains.Add(MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt);
+            {
+                uniqueConstrains[MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt.TagNumber] = MainVehicle.NavigationState.LastWaitingForPassableTimeoutPt;
+            }
 
-
-            return constrains;
+            // 返回去重后的结果
+            return uniqueConstrains.Values.ToList();
         }
+
 
         /// <summary>
         /// 

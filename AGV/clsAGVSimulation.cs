@@ -70,6 +70,8 @@ namespace VMSystem.AGV
             while (!disposedValue)
             {
                 await Task.Delay(300);
+                if (DiconnectSimulation)
+                    continue;
                 runningSTatus.Odometry = Mileage;
                 runningSTatus.AppVersion = "Simulation_1.0";
                 var clone = runningSTatus.Clone();
@@ -99,6 +101,8 @@ namespace VMSystem.AGV
 
         public bool CargoReadFailSimulation { get; internal set; }
         public bool CargoReadMismatchSimulation { get; internal set; }
+
+        public bool DiconnectSimulation { get; internal set; }
 
         public async Task<TaskDownloadRequestResponse> ExecuteTask(clsTaskDownloadData data)
         {

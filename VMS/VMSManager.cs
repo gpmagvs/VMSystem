@@ -639,7 +639,7 @@ namespace VMSystem.VMS
             };
             Vehicle.states.Coordination.X = Vehicle.currentMapPoint.X;
             Vehicle.states.Coordination.Y = Vehicle.currentMapPoint.Y;
-
+            Vehicle.NavigationState.UpdateNavigationPoints(new List<MapPoint>() { Vehicle.currentMapPoint });
             //if (Vehicle.AgvSimulation != null)
             //    Vehicle.AgvSimulation.SetTag(556988);
             NotifyServiceHelper.INFO($"已解除{aGV_Name}註冊點Tag  {string.Join(",", removeds.Select(v => v.Key))}");
