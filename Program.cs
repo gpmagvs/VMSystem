@@ -2,6 +2,7 @@
 using AGVSystemCommonNet6.Configuration;
 using AGVSystemCommonNet6.DATABASE;
 using AGVSystemCommonNet6.DATABASE.BackgroundServices;
+using AGVSystemCommonNet6.HttpTools.ApiMiddlewares;
 using AGVSystemCommonNet6.PartsModels;
 using AGVSystemCommonNet6.Sys;
 using AGVSystemCommonNet6.Vehicle_Control.VCS_ALARM;
@@ -138,7 +139,7 @@ try
         Thread.Sleep(3000);
         Environment.Exit(1);
     }
-    app.UseMiddleware<ApiLoggingMiddleware>();
+    app.UseMiddleware<VmsApiLoggingMiddleware>();
     app.UseSwagger();
     app.UseSwaggerUI();
     app.UseDefaultFiles(new DefaultFilesOptions());
